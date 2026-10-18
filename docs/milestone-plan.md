@@ -1,6 +1,6 @@
 # Seura Photos — Milestone Plan
 
-Status: draft · Last updated: 2026-10-17
+Status: approved · Last updated: 2026-10-18
 
 How Seura Photos gets from design to a public 1.0 release. This covers the whole project: the app, its visual design and brand, the website, and the project record that serves as a showcase. Requirement IDs refer to the [functional spec](functional-spec.md).
 

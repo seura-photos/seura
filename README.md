@@ -19,7 +19,7 @@ A free, open-source photo app for Windows and macOS, in the spirit of Picasa.
 - [User flows and screen map](docs/ux/user-flows.md): the screens of v1 and how users move between them.
 - [Wireframes](docs/ux/wireframes.md): the approved layout of each screen.
 - [Technical design](docs/technical-design.md): architecture, libraries, rendering, testing.
-- [Milestone plan](docs/milestone-plan.md): the order of work from first code to version 1.0 (draft).
+- [Milestone plan](docs/milestone-plan.md): the order of work from first code to version 1.0.
 
 Still to come: the visual design and brand.
 
