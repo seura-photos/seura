@@ -39,7 +39,7 @@ The project is built in the open, with a public devlog on the website (`seura-ph
 
 ## Build, test, and lint
 
-Clone with `git clone --recurse-submodules`, or run `git submodule update --init` after a plain clone. The Rust toolchain is pinned in `rust-toolchain.toml`. Install the tools once with `cargo install --locked tauri-cli@2.12.1 cargo-deny@0.20.2`, then `npm ci` in `ui/`.
+Clone with `git clone --recurse-submodules`, or run `git submodule update --init` after a plain clone. The Rust toolchain is pinned in `rust-toolchain.toml` and Node in `.nvmrc` (24.21.0, LTS; with nvm, run `nvm use` in the repository). Install the tools once with `cargo install --locked tauri-cli@2.12.1 cargo-deny@0.20.2`, then `npm ci` in `ui/`.
 
 Run from the repository root:
 

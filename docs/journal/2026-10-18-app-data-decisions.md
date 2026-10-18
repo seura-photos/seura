@@ -25,3 +25,10 @@ Nevada reviewed the open questions from the scaffold (see `2026-10-18-scaffold.m
 ## Slice 1 done
 
 - Nevada ran `cargo tauri dev` on his Mac and the app skeleton launched. With CI green on Windows and macOS, slice 1's "done when" is met.
+
+## Node pinned to 24.21.0
+
+- Nevada asked which Node to use; his Mac had Node 25, and Claude Code there had installed 24 alongside it with nvm. Claude checked the official schedule: 25 reached end of life on 2026-06-01 (odd versions never become LTS); 24 is LTS with security fixes until April 2028; 26 becomes LTS on 2026-10-28.
+- Claude recommended 24, pinned to 24.21.0 (24.22.0 is under two weeks old), in `.nvmrc`, which nvm reads and CI now uses (`node-version-file`). `engines` is `>=24.21 <25`, so npm refuses the wrong Node.
+- With Node at 24.15 or later, jsdom goes back to 30.1.2, the version first chosen in the scaffold.
+- Moving to Node 26 is planned for when it has been LTS for a few weeks, around the start of M2, as its own change.
