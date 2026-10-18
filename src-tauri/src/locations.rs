@@ -1,5 +1,15 @@
 //! Where Seura writes its own data (CLAUDE.md rule 2; decisions 0005 and 0013).
 
+// Only the Windows web view folder uses these so far; the cache arrives in
+// slice 3. `expect` fails once they're used everywhere, so this can't linger.
+#![cfg_attr(
+    not(target_os = "windows"),
+    expect(
+        dead_code,
+        reason = "used on every platform once the cache exists (M1 slice 3)"
+    )
+)]
+
 use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, Manager, Runtime};
