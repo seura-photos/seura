@@ -79,7 +79,7 @@ This fits photos well: a photo can be in one folder on disk but belong to many t
 
 ## AI assistance (first update after v1)
 
-AI is optional, off by default, and uses the user's own API key; there is no Seura backend. It ships in the first update after v1; v1's design leaves room for it.
+AI is optional and off by default. At launch it uses the user's own API key with a provider they choose, and Seura runs no server. An optional hosted service may be offered later, under the pricing promise (see Distribution and license). It ships in the first update after v1; v1's design leaves room for it.
 
 - **Providers:** OpenRouter, Anthropic, OpenAI, and Azure OpenAI. Local models (Ollama or LM Studio) are worth adding later for privacy and zero cost.
 - **Suggest edits:** the model looks at a downscaled copy of the photo and returns proposed edits in the edit format. The user previews before and after, then accepts, adjusts, or discards. Because a suggestion is just a set of edit operations, it is as non-destructive and adjustable as a manual edit.
@@ -89,7 +89,7 @@ AI is optional, off by default, and uses the user's own API key; there is no Seu
 
 ## Not in v1, and non-goals
 
-**Never:** cloud sync or accounts; importing or copying photos into a managed library; competing with Lightroom or Photoshop (layers, masks, advanced retouching).
+**Never:** cloud sync; an account required to use the app; importing or copying photos into a managed library; competing with Lightroom or Photoshop (layers, masks, advanced retouching).
 
 **Not in v1, candidates for later:**
 
@@ -111,7 +111,7 @@ Seura Photos is meant to be a complete public project, not only an application. 
 The website will include, at least:
 
 - What Seura Photos is and who it's for, with screenshots.
-- Features, and the reasons behind them (originals never touched, open edit format, no account or subscription).
+- Features, and the reasons behind them (originals never touched, open edit format, free to use with no account).
 - Downloads for Windows and macOS, linked to GitHub Releases.
 - A user guide, including help topics such as installing Microsoft's HEIF and HEVC extensions on Windows.
 - A page about the edit format, linking to its specification.
@@ -121,7 +121,9 @@ Not built yet. The milestone plan schedules the website and the materials around
 
 ## Distribution and license
 
-Free and open source, with no subscriptions, accounts, or paid tiers.
+Free and open source.
+
+**Pricing promise.** Seura Photos is free. No one will ever have to pay to use it, and no one will ever need an account to use it. If a paid option is ever offered, it will be an optional service for features that cost money to run on the project's side, such as AI processing through a server it operates, and that service would be the only part that needs an account. Everything the app does without such a service stays free. And because the app is open source under Apache 2.0, anyone can keep using and building it regardless.
 
 - **License:** Apache 2.0 for the app. The edit format specification is published separately under CC BY 4.0, with its schema and tests under Apache 2.0, so anyone can implement it.
 - **Library compatibility:** HEIC decoding libraries such as libheif are LGPL, which permits use from a permissively licensed app when linked dynamically. Each dependency's license is confirmed in the technical design.
@@ -143,4 +145,5 @@ Free and open source, with no subscriptions, accounts, or paid tiers.
 | License | Apache 2.0. |
 | Minimum OS versions | Windows 10 22H2+ and macOS 13+, with tiered test coverage; see the technical design, section 12. |
 | Scope of the project | A complete public project: the app, a website that explains and distributes it, and the project's own record as a showcase. |
+| Pricing | Free to use, forever, with no account required. A paid option, if ever offered, is only an optional service for features that cost money to run (such as hosted AI), and only that service may need an account. Stated as the pricing promise in Distribution and license. |
 | GitHub organizations | One organization per app: `seura-photos` holds this app, its edit format, and its website. If more Seura apps follow, each gets its own organization, and anything they share goes in a separate shared organization (for example `seura` or `seura-shared`). Chosen for access control: a contributor joins only the organization they work in. Reserve the plain `seura` name if it's available. |
