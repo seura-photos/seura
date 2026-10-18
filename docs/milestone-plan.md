@@ -21,7 +21,7 @@ Four tracks run side by side. The app track sets the order; the others attach to
 | --- | --- |
 | App | The application, milestone by milestone. |
 | Brand and visual design | Colors, type, icons, app icon, logo: a small brand kit used by both the app and the website. |
-| Website | `seura-photos/seura-photos.github.io`, published on GitHub Pages; moves to seuraphotos.app when the domain is registered. |
+| Website | `seura-photos/seura-photos.github.io`, published on GitHub Pages at seuraphotos.app. |
 | Project record | A write-up at the end of each milestone, kept in `docs/journal/`, later the basis for the website's project story. |
 
 ## Before code: decisions only the owner can make
@@ -29,7 +29,7 @@ Four tracks run side by side. The app track sets the order; the others attach to
 These are not app work, but they block parts of it.
 
 - **Trademark search** for "Seura" in the relevant classes (software, photography). Before the placeholder website goes up, since the site markets the name.
-- **Domains:** register seuraphotos.app and seuraphotos.com.
+- **Domains:** register seuraphotos.app and seuraphotos.com. Done: both registered with Cloudflare.
 - **Code signing:** price Apple's developer program and a Windows signing option. Needed before the beta, not before.
 
 ## M1. Walking skeleton

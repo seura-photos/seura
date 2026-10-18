@@ -1,6 +1,6 @@
 # Project journal
 
-Working notes for the devlog on the [Seura Photos website](https://seura-photos.github.io/devlog/). The devlog tells the story of how Seura is built; these notes are its raw material, written while the details are fresh.
+Working notes for the devlog on the [Seura Photos website](https://seuraphotos.app/devlog/). The devlog tells the story of how Seura is built; these notes are its raw material, written while the details are fresh.
 
 Add a dated entry (`YYYY-MM-DD-short-topic.md`) whenever something worth telling happens:
 

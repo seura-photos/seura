@@ -32,7 +32,7 @@ These are not negotiable, and tests should enforce them:
 
 ## Project journal and devlog
 
-The project is built in the open, with a public devlog on the website (`seura-photos/seura-photos.github.io`).
+The project is built in the open, with a public devlog on the website (https://seuraphotos.app, repository `seura-photos/seura-photos.github.io`).
 
 - While working, add short dated notes to `docs/journal/` when a decision is made, something fails or surprises, or a mistake is caught. Say who suggested or decided what. See `docs/journal/README.md`.
 - At the end of each milestone, draft a devlog post in the website repository following its CLAUDE.md, with `draft: true`. Never publish a post Nevada hasn't approved.
