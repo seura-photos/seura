@@ -37,6 +37,34 @@ The project is built in the open, with a public devlog on the website (`seura-ph
 - While working, add short dated notes to `docs/journal/` when a decision is made, something fails or surprises, or a mistake is caught. Say who suggested or decided what. See `docs/journal/README.md`.
 - At the end of each milestone, draft a devlog post in the website repository following its CLAUDE.md, with `draft: true`. Never publish a post Nevada hasn't approved.
 
-## Status
+## Build, test, and lint
 
-Design phase. The Tauri project has not been scaffolded yet; build, test, and lint commands will be added here when it is.
+Clone with `git clone --recurse-submodules`, or run `git submodule update --init` after a plain clone. The Rust toolchain is pinned in `rust-toolchain.toml`. Install the tools once with `cargo install --locked tauri-cli@2.12.1 cargo-deny@0.20.2`, then `npm ci` in `ui/`.
+
+Run from the repository root:
+
+| Task | Command |
+| --- | --- |
+| Run the app | `cargo tauri dev` |
+| Rust format check | `cargo fmt --all --check` (fix with `cargo fmt --all`) |
+| Rust lint | `cargo clippy --workspace --all-targets --locked -- -D warnings` |
+| Rust tests | `cargo test --workspace --locked` |
+| Licenses and advisories | `cargo deny check` |
+
+Run from `ui/`:
+
+| Task | Command |
+| --- | --- |
+| Format check | `npm run format:check` (fix with `npm run format`) |
+| Lint | `npm run lint` |
+| Typecheck and build | `npm run build` |
+| Tests | `npm test` |
+| UI licenses | `npm run licenses` |
+| Regenerate `src/bindings.ts` after changing a command | `npm run bindings` |
+| Regenerate app icons after changing `design/brand/app-icon*.svg` | `npm run icons` |
+
+CI (`.github/workflows/ci.yml`) runs all of these on Windows and macOS for every pull request.
+
+Adding a command: write it in `src-tauri/src/commands.rs` with `#[tauri::command]` and `#[specta::specta]`, add it to `collect_commands!` in `src-tauri/src/lib.rs` and to the list in `src-tauri/build.rs`, grant `allow-<command-name>` in `src-tauri/capabilities/main-window.json`, then run `npm run bindings`.
+
+Dependencies: use versions at least two weeks old, check licenses first (decision 0012), and keep `ui/package.json` pinned exactly.
