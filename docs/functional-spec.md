@@ -105,7 +105,7 @@ Export is the only way edits leave the app: it writes new files and never touche
 
 Edit files are the user's data, so the app treats them with the same care as photos: never corrupted, never silently discarded.
 
-- **FIL-1 Lifecycle.** An edit file is created when a photo first gets an edit, tag, or rating, and deleted when the photo has none of these again.
+- **FIL-1 Lifecycle.** An edit file is created when a photo first gets an edit, tag, or rating. When the photo has none of these again, and the file holds nothing else the app must preserve (such as another app's operations or extensions), the file is moved to the system Recycle Bin or Trash, like every other deletion (BRW-9, CLN-4). It is never deleted permanently.
 - **FIL-2 Safe writes.** Each write goes to a temporary file that then replaces the old one, so a crash or power loss never leaves a half-written edit file.
 - **FIL-3 Outside changes.** When an edit file changes on disk, for example synced from another computer, the app reloads it. If that photo is open in the editor, the app keeps the user's current work and says the file changed.
 - **FIL-4 Unreadable files.** If an edit file can't be read, the photo is shown unedited with a warning marker, and the file is never overwritten without the user's confirmation. When the user confirms, the old file is kept as a backup.
