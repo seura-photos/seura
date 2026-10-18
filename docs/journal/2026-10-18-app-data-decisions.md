@@ -21,3 +21,7 @@ Nevada reviewed the open questions from the scaffold (see `2026-10-18-scaffold.m
 - **The audit's failure path silently didn't exist.** A scripted edit meant to add it didn't match (Python's `str.replace` doesn't complain), so the audit would have passed anything. Claude caught it by planting a probe file in `%LOCALAPPDATA%\app.seuraphotos.desktop` during a run, expecting a failure, and getting none. Lesson: test a check by making it fail.
 - **The matching was too loose twice.** `seura` matched Claude's own session folder (the project path), and `ebwebview` matched Outlook's WebView2 folder. The audit now matches only the app's own names: `Seura Photos`, `seura-photos`, and the identifier.
 - **`npm run tauri` didn't work from `ui/`**, because the Tauri CLI looks for its config below the current folder. Fixed by running it from the repository root.
+
+## Slice 1 done
+
+- Nevada ran `cargo tauri dev` on his Mac and the app skeleton launched. With CI green on Windows and macOS, slice 1's "done when" is met.
