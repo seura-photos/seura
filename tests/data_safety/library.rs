@@ -49,6 +49,19 @@ impl Library {
         path
     }
 
+    /// Makes the system refuse to save `edit_file` until the guard is
+    /// dropped. Windows: the edit file is read-only, so replacing it fails
+    /// after the temporary file is written. Elsewhere: the folder is
+    /// read-only, so no file can be created in it.
+    pub fn block_writes(&self, edit_file: &Path) -> WriteBlock {
+        #[cfg(windows)]
+        let target = edit_file.to_path_buf();
+        #[cfg(not(windows))]
+        let target = edit_file.parent().unwrap().to_path_buf();
+        set_read_only(&target, true);
+        WriteBlock(target)
+    }
+
     pub fn photos(&self) -> Vec<PathBuf> {
         PHOTOS.iter().map(|name| self.root().join(name)).collect()
     }
@@ -81,6 +94,14 @@ impl Drop for Library {
         for path in files(self.root()) {
             set_read_only(&path, false);
         }
+    }
+}
+
+pub struct WriteBlock(PathBuf);
+
+impl Drop for WriteBlock {
+    fn drop(&mut self) {
+        set_read_only(&self.0, false);
     }
 }
 
@@ -186,7 +207,12 @@ fn set_read_only(path: &Path, read_only: bool) {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        permissions.set_mode(if read_only { 0o444 } else { 0o644 });
+        let writable = if path.is_dir() { 0o755 } else { 0o644 };
+        permissions.set_mode(if read_only {
+            writable & 0o555
+        } else {
+            writable
+        });
     }
     #[cfg(not(unix))]
     permissions.set_readonly(read_only);

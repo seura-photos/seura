@@ -96,6 +96,16 @@ impl EditFile {
     /// flushed to disk, then renamed over the old file (FIL-2). Refuses to
     /// replace a file it can't read or one that changed since it was loaded.
     pub fn save(&mut self, writer: Writer, at: OffsetDateTime) -> Result<(), SaveError> {
+        self.save_with(writer, at, rename)
+    }
+
+    /// `save`, with the final rename passed in so tests can make it fail.
+    fn save_with(
+        &mut self,
+        writer: Writer,
+        at: OffsetDateTime,
+        rename: Rename,
+    ) -> Result<(), SaveError> {
         let current = read_if_exists(&self.path)?;
         if current != self.on_disk {
             return Err(match current.map(|bytes| EditDocument::parse(&bytes)) {
@@ -107,7 +117,7 @@ impl EditFile {
         let mut document = self.document.clone();
         document.stamp(writer.app, writer.version, at);
         let bytes = document.to_bytes()?;
-        write_atomically(&self.path, &bytes)?;
+        write_atomically_with(&self.path, &bytes, rename)?;
 
         self.document = document;
         self.on_disk = Some(bytes);
@@ -126,7 +136,18 @@ fn read_if_exists(path: &Path) -> io::Result<Option<Vec<u8>>> {
 /// Writes `bytes` to a new temporary file beside `path`, flushes it, and
 /// renames it over `path`. On any failure the temporary file is removed and
 /// `path` is unchanged.
-pub(crate) fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
+type Rename = fn(&Path, &Path) -> io::Result<()>;
+
+fn rename(from: &Path, to: &Path) -> io::Result<()> {
+    fs::rename(from, to)
+}
+
+#[cfg(test)]
+fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    write_atomically_with(path, bytes, rename)
+}
+
+fn write_atomically_with(path: &Path, bytes: &[u8], rename: Rename) -> io::Result<()> {
     let temp = temporary_path(path);
     let result = (|| {
         let mut file = OpenOptions::new()
@@ -136,10 +157,12 @@ pub(crate) fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
         file.write_all(bytes)?;
         file.sync_all()?;
         drop(file);
-        fs::rename(&temp, path)?;
+        rename(&temp, path)?;
         sync_folder(path)
     })();
     if result.is_err() {
+        // The one file deleted directly rather than sent to the Trash: the
+        // temporary file this save just created (CLAUDE.md rule 5).
         let _ = fs::remove_file(&temp);
     }
     result
@@ -199,6 +222,60 @@ mod tests {
             .collect();
         assert_eq!(names, ["IMG_1.jpg.seura.json"]);
         assert_eq!(fs::read(target.join("inside")).unwrap(), b"keep");
+    }
+
+    #[test]
+    fn a_failed_save_leaves_no_temporary_file_and_keeps_the_edit_file() {
+        use crate::{Action, Edit, PhotoIdentity};
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("IMG_1.jpg.seura.json");
+        let photo = PhotoIdentity {
+            file: "IMG_1.jpg".into(),
+            sha256: "0".repeat(64),
+            size: 1,
+            width: 1,
+            height: 1,
+        };
+        let writer = Writer {
+            app: "Seura Photos",
+            version: "test",
+        };
+        let rating = |stars| Action {
+            label: "Rating".into(),
+            edits: vec![Edit::Rating(stars)],
+        };
+
+        let mut file = EditFile::create(&path, EditDocument::new_for_photo(&photo));
+        file.document
+            .apply(&rating(2), OffsetDateTime::now_utc())
+            .unwrap();
+        file.save(writer, OffsetDateTime::now_utc()).unwrap();
+        let saved = fs::read(&path).unwrap();
+
+        // The temporary file is fully written and flushed; only the rename fails.
+        file.document
+            .apply(&rating(5), OffsetDateTime::now_utc())
+            .unwrap();
+        let fail: Rename = |_, _| Err(io::Error::other("simulated failure"));
+        let result = file.save_with(writer, OffsetDateTime::now_utc(), fail);
+
+        assert!(matches!(result, Err(SaveError::Io(_))));
+        assert_eq!(fs::read(&path).unwrap(), saved, "the edit file changed");
+        let names: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        assert_eq!(
+            names,
+            ["IMG_1.jpg.seura.json"],
+            "a temporary file was left behind"
+        );
+
+        // The next save still works, and writes the new rating.
+        file.save(writer, OffsetDateTime::now_utc()).unwrap();
+        let reloaded = EditFile::load(&path).unwrap().unwrap();
+        assert_eq!(reloaded.document.rating(), 5);
     }
 
     #[test]

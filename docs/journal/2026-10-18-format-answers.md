@@ -13,3 +13,9 @@ Two small things noticed along the way:
 
 - The format commit accidentally includes a compiled Python cache file (`tools/__pycache__/make_reader_schema.cpython-313.pyc`). It should be removed there and `__pycache__/` added to that repository's `.gitignore`.
 - When a save fails, `seura-edit` deletes its own half-written temporary file permanently rather than sending it to the Trash. Claude reads rule 5 as covering the user's files and Seura's saved data, not a temporary file that never became one; noted here in case Nevada reads it differently.
+
+## Follow-up: rule 5 clarified
+
+- Claude Desktop removed the stray `.pyc` from edit-format and added a `.gitignore` (commit `e26d7e0`); the submodule now points there.
+- Nevada (through Claude Desktop) agreed that deleting Seura's own half-written temporary file is correct, and clarified rule 5 in CLAUDE.md: deleting a user's photo or an edit file always goes to the Trash; the one exception is a temporary file Seura created during a save that failed; leftovers Seura didn't create in the current operation, such as temporaries from a crash, go to the Trash.
+- Claude added two tests that a failed save leaves no temporary file and doesn't touch the existing edit file: one in `seura-edit` that makes only the final rename fail, after the temporary file is fully written, and one in the data-safety suite where the operating system refuses the save (a read-only edit file on Windows, which turned out to block replacing it; a read-only folder on macOS). Removing the clean-up line made both fail, naming the leftover `.tmp` file.

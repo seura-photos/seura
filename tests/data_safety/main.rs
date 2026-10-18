@@ -126,6 +126,44 @@ fn rule_3_saves_leave_no_temporary_files() {
 }
 
 #[test]
+fn rule_3_a_save_the_system_refuses_leaves_everything_as_it_was() {
+    let library = Library::new();
+    let photo = &library.photos()[0];
+    let path = edit_file_path(photo);
+    let mut file = EditFile::create(&path, EditDocument::new_for_photo(&library.identity(photo)));
+    file.document
+        .apply(&act("Rating", vec![Edit::Rating(2)]), now())
+        .unwrap();
+    file.save(WRITER, now()).unwrap();
+    let before = Snapshot::of(library.root());
+
+    file.document
+        .apply(&act("Rating", vec![Edit::Rating(5)]), now())
+        .unwrap();
+    let result = {
+        let _blocked = library.block_writes(&path);
+        file.save(WRITER, now())
+    };
+
+    assert!(
+        matches!(result, Err(SaveError::Io(_))),
+        "expected a write error, got {result:?}"
+    );
+    let after = Snapshot::of(library.root());
+    assert!(
+        after.added_since(&before).is_empty(),
+        "left behind: {:?}",
+        after.added_since(&before)
+    );
+    assert!(
+        after.changed_since(&before).is_empty(),
+        "changed: {:?}",
+        after.changed_since(&before)
+    );
+    assert!(after.removed_since(&before).is_empty());
+}
+
+#[test]
 fn rule_4_unreadable_edit_files_are_never_overwritten() {
     let library = Library::new();
     let photo = &library.photos()[0];
