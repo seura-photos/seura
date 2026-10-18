@@ -30,7 +30,7 @@ Selecting a folder or tag shows its photos in a thumbnail grid; opening one show
 - **BRW-7 Correct display.** Orientation stored in the photo's metadata is honored, and embedded color profiles are applied, so iPhone photos show their true colors.
 - **BRW-8 Open elsewhere.** Show in Explorer or Finder, and open in the system's default app.
 - **BRW-9 Delete.** On explicit request and after confirmation, moves the selected photos and their edit files to the system Recycle Bin or Trash. Never permanent deletion. Not available in read-only folders.
-- **BRW-10 Quick actions.** Rotate left and right, Enhance, and rating are available directly in the Library (for the selection) and the Viewer, as one click or one key, without opening the Editor.
+- **BRW-10 Quick actions.** Rotate left and right, Enhance, and rating are available directly in the Library (for the selection) and the Viewer, as one click or one key, without opening the Editor. In the Library, rotate and Enhance also appear on a thumbnail while it's hovered, so the pointer doesn't leave the grid (INT-5).
 
 ## Review
 
@@ -144,6 +144,12 @@ The app is opinionated (product brief principle 7; decision 0007): it defines on
 - **INT-2 Fixed layout.** Each view has one layout, decided by the app. There are no options to rearrange, hide, or show panels or toolbars, and no separate beginner or advanced modes.
 - **INT-3 Process order.** Wherever the app presents a set of steps, they follow the order find, sort, fix, organize, share. In the Editor, tools are ordered Enhance; crop and straighten; rotate and flip; light; color; effects; red-eye; presets.
 - **INT-4 Progressive disclosure.** Detail appears when it becomes relevant, decided by the app: for example, an effect's strength slider appears once the effect is turned on.
+- **INT-5 Pointer travel.** Layouts minimize how far the pointer moves through a flow (Fitts's law: time to hit a target grows with distance and shrinks with size):
+  - Controls revealed by an action (popovers, follow-up options, a mode's Done button) appear next to the control or selection that revealed them, ordered by likelihood, the most likely nearest.
+  - Persistent controls keep fixed positions so they can be learned, arranged so each flow moves in one direction.
+  - Frequent targets are large: at least 32 px for tier-1 actions, and at least 44 px for the main action of a flow, such as Next in Review or Done in the Editor.
+  - Confirmations of destructive actions place the safe choice where the pointer already is, never the destructive one.
+  - Wireframes and builds are checked by tracing the pointer's path through the main flows: Review, fixing a photo, and tagging.
 
 ## Performance targets
 

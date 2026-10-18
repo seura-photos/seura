@@ -13,6 +13,7 @@ The app is **opinionated** (product brief principle 7, [decision 0007](../decisi
 - **One window, four views.** Library (grid), Viewer (one photo), Editor (one photo with tools), and Review (a guided pass through a batch). Esc always goes back one step.
 - **One layout per view.** No panels to rearrange, hide, or show. The Info panel is always shown in the Library and Viewer; the Editor's tools take its place in the Editor; Review shows only the photo and its actions.
 - **Frequent things are fast.** Every action has a tier with a maximum cost (below); the most common are one click or key from wherever the user is.
+- **Short pointer paths (INT-5).** What an action reveals appears next to it, most likely choice nearest; persistent controls keep fixed places; frequent targets are big; and a confirmation never puts the destructive button under the pointer. Examples: the Editor's Done and Compare sit at the top of the tool panel, where the pointer works; in Review, the large stars sit directly beside Next; rotate and Enhance appear on a thumbnail when it's hovered; the tag picker opens beside the selection or the Add tag control.
 - **The photo is the biggest thing on screen.**
 - **Nothing to save.** Edits, tags, and ratings apply as the user works (EDT-11).
 - **Destructive actions are confirmed and recoverable.** Revert, Delete, and Cleanup confirm first; Delete and Cleanup go to the Trash; Revert is undoable.
@@ -26,8 +27,8 @@ Cost is counted from the view where the user most likely is when they want the a
 | 1 | 1 click or key | Next or previous photo | Arrow keys; buttons in Viewer, Review; filmstrip in Editor |
 | 1 | | Open a photo | Double-click or Enter in the Library |
 | 1 | | Back | Esc |
-| 1 | | Rotate left or right | `[` `]`, or toolbar buttons in Library, Viewer, Review, Editor |
-| 1 | | Enhance | `A`, or toolbar button in Library, Viewer, Review, Editor |
+| 1 | | Rotate left or right | `[` `]`; on the hovered thumbnail; toolbar buttons in Library, Viewer, Review, Editor |
+| 1 | | Enhance | `A`; on the hovered thumbnail; toolbar button in Library, Viewer, Review, Editor |
 | 1 | | Rate | `0`–`5`, or stars in the Info panel and Review |
 | 1 | | Compare with original | Hold `\`, or the Compare button in the Editor |
 | 1 | | Start a review | Banner in the Library, or the Review button |
