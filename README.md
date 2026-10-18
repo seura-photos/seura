@@ -23,6 +23,7 @@ A free, open-source photo app for Windows and macOS, in the spirit of Picasa.
 - [Technical design](docs/technical-design.md): architecture, libraries, rendering, testing.
 - [Visual design](docs/visual-design.md): color, type, icons, and the Seura mark.
 - [Milestone plan](docs/milestone-plan.md): the order of work from first code to version 1.0.
+- [M1 work plan](docs/m1-plan.md): the first milestone, slice by slice.
 
 ## Technology
 

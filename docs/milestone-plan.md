@@ -21,7 +21,7 @@ Four tracks run side by side. The app track sets the order; the others attach to
 | --- | --- |
 | App | The application, milestone by milestone. |
 | Brand and visual design | Colors, type, icons, app icon, logo: a small brand kit used by both the app and the website. |
-| Website | `seura-photos/website`, published on GitHub Pages at seuraphotos.app. |
+| Website | `seura-photos/seura-photos.github.io`, published on GitHub Pages; moves to seuraphotos.app when the domain is registered. |
 | Project record | A write-up at the end of each milestone, kept in `docs/journal/`, later the basis for the website's project story. |
 
 ## Before code: decisions only the owner can make
@@ -38,7 +38,7 @@ Proves every risky piece on both platforms, as described in the [technical desig
 
 **Done when:** all six items work on the owner's Mac and Windows PC, the WebGL2 path passes in CI on an older macOS image, and the index decision is confirmed or replaced by a new record.
 
-The UI is deliberately unstyled. The CLAUDE.md file gains real build, test, and lint commands.
+The UI is deliberately unstyled. The CLAUDE.md file gains real build, test, and lint commands. The slices are in the [M1 work plan](m1-plan.md).
 
 ## Brand and visual design (during M1)
 
