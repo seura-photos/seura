@@ -1,6 +1,6 @@
 # Seura Photos — User Flows and Screen Map (v1)
 
-Status: draft · Last updated: 2026-10-17
+Status: approved · Last updated: 2026-10-17
 
 This document describes the screens of Seura Photos v1 and how a user moves between them. It turns the [functional spec](../functional-spec.md) into screens and steps; requirement IDs refer to it. Wireframes are on the design canvas and will be summarized here as they settle.
 
