@@ -70,6 +70,15 @@ jobs:
         working-directory: ui
         run: npm test
 
+      # Builds the app as users get it (an .app bundle on macOS, so WebKit sees
+      # the real identifier), runs it, and lists what it wrote (decision 0013).
+      - name: Build the app
+        working-directory: ui
+        run: npm run tauri -- build --debug ${{ runner.os == 'macOS' && '--bundles app' || '--no-bundle' }}
+
+      - name: Audit where the app writes
+        run: ${{ runner.os == 'Windows' && 'python' || 'python3' }} scripts/app_data_audit.py 15
+
   licenses:
     name: Licenses and advisories
     runs-on: ubuntu-latest
