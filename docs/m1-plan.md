@@ -10,6 +10,7 @@ The working plan for milestone M1 from the [milestone plan](milestone-plan.md), 
 - **Read first:** `CLAUDE.md`, the product brief, the functional spec, the technical design, and the decision records. Follow them; if something in this plan conflicts with them, they win, and you raise it.
 - **Use current, stable versions.** Check crates.io and npm for current releases rather than relying on memory, and prefer versions at least two weeks old. Record any library choice that differs from the technical design in a short note or decision record.
 - **Check every dependency's license** before adding it (decision 0012: no GPL; LGPL only dynamically linked). `cargo-deny` enforces this from slice 1.
+- **Day-to-day development happens on Windows**, Nevada's primary machine. CI builds and tests every pull request on macOS too, and Nevada checks the app on his Mac at the end of each slice before merging.
 - **Ask Nevada** whenever a step needs his machines (running the app, checking an image by eye, testing Windows), his photos, or a decision the documents don't settle. He tests on one up-to-date MacBook Pro and one up-to-date Windows desktop.
 - **Never commit personal photos.** Test images in the repository must be ones the project may redistribute (generated, or explicitly public-domain or CC0). Nevada's own test library lives in `test-libraries/`, which is git-ignored.
 - **Journal as you go:** add short notes to `docs/journal/` for decisions, surprises, and mistakes (see its README).
@@ -20,6 +21,7 @@ The working plan for milestone M1 from the [milestone plan](milestone-plan.md), 
 
 - Cargo workspace and Tauri 2 app as laid out in the technical design, section 2: `src-tauri/`, the four crates (empty but compiling), `ui/` (React, TypeScript, Vite), `tests/`.
 - `third_party/edit-format` as a git submodule of `seura-photos/edit-format`.
+- A `.gitattributes` that normalizes line endings (`* text=auto eol=lf`, with binary files such as images marked `binary`), so Windows and macOS checkouts stay identical.
 - Typed bindings between Rust commands and TypeScript (tauri-specta, or the current equivalent).
 - Formatting and linting: `rustfmt`, `clippy` (warnings as errors), ESLint and Prettier for the UI. `cargo-deny` for licenses and advisories.
 - GitHub Actions: build, lint, and test on `windows-latest` and `macos-latest`, plus an older macOS image for the WebGL2 path once it exists (slice 5).
@@ -75,8 +77,8 @@ Done once per machine, before slice 1.
 - VS Code with the Claude Code extension.
 - Clone with submodules: `git clone --recurse-submodules https://github.com/seura-photos/seura.git` (the submodule exists after slice 1; until then a plain clone is the same).
 
-**macOS:** Xcode Command Line Tools (`xcode-select --install`).
+**Windows (primary):** Microsoft C++ Build Tools with the "Desktop development with C++" workload, installed before Rust so rustup picks the MSVC toolchain. Git for Windows. WebView2 is already part of Windows 11. Optionally `git config --global core.longpaths true`, since Node projects can exceed Windows' default path length.
 
-**Windows:** Microsoft C++ Build Tools with the "Desktop development with C++" workload. WebView2 is already part of Windows 11.
+**macOS (checks at the end of each slice):** Xcode Command Line Tools (`xcode-select --install`).
 
 Tauri's own [prerequisites page](https://tauri.app/start/prerequisites/) is the reference if anything here has changed.
