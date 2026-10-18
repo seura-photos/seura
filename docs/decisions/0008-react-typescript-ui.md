@@ -1,6 +1,6 @@
 # 0008. React and TypeScript for the web UI
 
-Status: Proposed · 2026-10-17
+Status: Accepted · 2026-10-17
 
 ## Context
 
@@ -14,6 +14,8 @@ React with TypeScript, built with Vite. Zustand for application state, TanStack 
 
 - **Svelte or SolidJS.** Smaller and somewhat faster, but less familiar, and the performance-critical parts (thumbnails, preview rendering) don't depend on the framework: the grid is virtualized and the preview is a WebGPU canvas.
 - **No framework.** Fewer dependencies, but more hand-written state management for a UI of this size.
+
+Reviewed against the alternatives at the owner's request: React is not overkill here. The UI has substantial interconnected state (views, selection, filters, edit state, history, dialogs), and the performance-critical parts sit outside React.
 
 ## Consequences
 

@@ -1,6 +1,6 @@
 # 0011. HEIC decoding: operating system first, libheif as the Windows fallback
 
-Status: Proposed (needs the owner's decision) · 2026-10-17
+Status: Accepted · 2026-10-17
 
 ## Context
 
@@ -14,13 +14,15 @@ The operating systems already include licensed decoders:
 - **macOS:** ImageIO decodes HEIC natively, with correct color handling.
 - **Windows:** the WIC codec needs Microsoft's free "HEIF Image Extensions" plus "HEVC Video Extensions," which is preinstalled on many PCs and otherwise a small paid download from the Microsoft Store.
 
-## Proposed decision
+## Decision
 
 1. **macOS:** use ImageIO. No bundled HEVC decoder.
 2. **Windows:** use WIC when the HEVC extension is installed.
 3. **Windows fallback:** when it isn't, use a bundled libheif with libde265, dynamically linked (not the static "embedded" build), with license notices and source links in the About box and installer.
 
-An alternative stance is to skip step 3 and instead tell Windows users without the extension how to install it. That avoids bundling an HEVC decoder entirely, at the cost of a worse first experience for some users.
+4. **Documentation:** the user guide explains how to install Microsoft's HEIF and HEVC extensions for users who prefer the system decoder. Seura uses it automatically when present. Microsoft's extensions are distributed only through the Microsoft Store and can't be bundled with Seura.
+
+The alternative considered was to skip step 3 and rely on users installing Microsoft's extension. It was rejected because it makes iPhone photos fail to open on some PCs out of the box.
 
 ## Consequences
 

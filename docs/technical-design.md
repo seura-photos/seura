@@ -1,6 +1,6 @@
 # Seura Photos — Technical Design (v1)
 
-Status: draft · Last updated: 2026-10-17
+Status: approved · Last updated: 2026-10-17
 
 This document describes how Seura Photos v1 is built. It implements the [functional spec](functional-spec.md) and follows the [decision records](decisions/); the edit file format is defined in [seura-photos/edit-format](https://github.com/seura-photos/edit-format). Versions are current as of this date and are pinned when the project is scaffolded.
 
@@ -195,12 +195,20 @@ Kept behind small traits in `src-tauri/src/platform/` (decision 0006):
 
 CI (GitHub Actions) builds and tests on `windows-latest` and `macos-latest` on every push; release builds are produced by `tauri-action` with signing.
 
-## 12. Minimum OS versions (proposed)
+## 12. Minimum OS versions and test coverage
 
 - **Windows 10 (22H2) and 11**, x64. WebView2 is preinstalled on both, and WebGPU is enabled in it on x64. Windows on ARM is a later target; WebGPU there is still behind a flag in Chromium.
 - **macOS 13 Ventura and later**, Apple Silicon and Intel. WebGPU preview on macOS Tahoe 26; WebGL2 fallback on 13 to 15. Tauri 2 itself supports macOS 10.15, but older versions are not worth the testing cost for this audience.
 
-To be confirmed by the walking skeleton running on real hardware (decision 0006).
+The developer's own machines (one Windows desktop, one MacBook Pro, both kept current) cover Windows 11 and the newest macOS. The rest is covered in tiers:
+
+| Tier | Covers | How |
+| --- | --- | --- |
+| Hands-on | Windows 11, current macOS (WebGPU path) | Daily development and milestone checks |
+| Automated | Older macOS (WebGL2 fallback), Windows 10-era builds | CI on GitHub's older macOS images (14, 15) and Windows Server images; build, unit, data-safety, and rendering reference tests |
+| Beta | Real older Macs and Windows 10 PCs | A short beta with volunteers before v1, following a written checklist |
+
+If the beta finds no testers for macOS 13 to 15, the macOS minimum is raised to Tahoe 26 before release rather than shipping a path nobody has seen run, recorded in a decision record.
 
 ## 13. First milestone: walking skeleton
 
@@ -213,8 +221,10 @@ Proves every risky piece on both platforms before features are built on them:
 5. The data-safety test suite running in CI.
 6. Benchmarks for the index decision (0010).
 
-## 14. Open questions
+## 14. Decisions log
 
-- [ ] **HEIC decoding and patents** (decision 0011). Bundling an HEVC decoder (libde265, used by libheif) for Windows users without Microsoft's codec raises patent questions, as with any HEVC decoder. Many open-source photo apps ship it (GIMP, digiKam, darktable). [Use the operating system's decoders where available; bundle libheif with libde265, dynamically linked, as the Windows fallback; revisit if a concern arises. Not legal advice.]
-- [ ] **Minimum OS versions** (section 12). [Windows 10 22H2+, macOS 13+]
-- [ ] **React** for the UI (decision 0008), given your experience with it. [Yes]
+| Question | Decision |
+| --- | --- |
+| HEIC decoding and patents | Operating system decoders first; libheif with libde265, dynamically linked, as the Windows fallback; documentation for installing Microsoft's extensions (decision 0011). |
+| Minimum OS versions | Windows 10 22H2+, macOS 13+, with tiered test coverage and a beta gate for older macOS (section 12). |
+| UI framework | React and TypeScript (decision 0008). |

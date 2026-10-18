@@ -18,7 +18,7 @@ A free, open-source photo app for Windows and macOS, in the spirit of Picasa.
 - [Edit format specification](https://github.com/seura-photos/edit-format): the file format for edits, tags, and ratings.
 - [User flows and screen map](docs/ux/user-flows.md): the screens of v1 and how users move between them.
 - [Wireframes](docs/ux/wireframes.md): the approved layout of each screen.
-- [Technical design](docs/technical-design.md): architecture, libraries, rendering, testing (draft).
+- [Technical design](docs/technical-design.md): architecture, libraries, rendering, testing.
 
 Still to come: visual design and the milestone plan.
 
