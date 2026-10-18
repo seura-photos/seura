@@ -40,7 +40,7 @@ allow = [
     # MPL-2.0 is file-level copyleft: compatible with an Apache-2.0 app as long
     # as the MPL files themselves stay available, which crates.io ensures for
     # unmodified crates. Tauri needs it (cssparser, selectors, dtoa-short via
-    # tauri-utils; option-ext via dirs). See docs/journal/2026-10-18-scaffold.md.
+    # tauri-utils; option-ext via dirs). Approved for unmodified crates in decision 0012.
     "MPL-2.0",
 ]
 

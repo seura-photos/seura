@@ -172,6 +172,7 @@ Kept behind small traits in `src-tauri/src/platform/` (decision 0006):
 | Credentials (AI, later) | `keyring` (Credential Manager) | `keyring` (Keychain) |
 | Cloud-sync detection | OneDrive known folders | iCloud Desktop and Documents |
 | Documents folder | Known Folder API (handles redirection) | `~/Documents` via NSFileManager |
+| Web view data (decision 0013) | WebView2 InPrivate, data folder in the cache (`<cache>/WebView`) | WKWebView with a non-persistent data store |
 | Installer | NSIS or MSI via Tauri bundler, signed | DMG, signed and notarized |
 
 ## 10. Security
