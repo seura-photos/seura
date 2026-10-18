@@ -143,3 +143,4 @@ Free and open source, with no subscriptions, accounts, or paid tiers.
 | License | Apache 2.0. |
 | Minimum OS versions | Windows 10 22H2+ and macOS 13+, with tiered test coverage; see the technical design, section 12. |
 | Scope of the project | A complete public project: the app, a website that explains and distributes it, and the project's own record as a showcase. |
+| GitHub organizations | One organization per app: `seura-photos` holds this app, its edit format, and its website. If more Seura apps follow, each gets its own organization, and anything they share goes in a separate shared organization (for example `seura` or `seura-shared`). Reserve the plain `seura` name if it's available. |
