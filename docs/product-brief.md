@@ -100,6 +100,25 @@ AI is optional, off by default, and uses the user's own API key; there is no Seu
 - A plugin system (the edit format already allows plugin operations)
 - Linux
 
+## The project beyond the app
+
+Seura Photos is meant to be a complete public project, not only an application. It has three purposes, all of them intended:
+
+1. **A practical tool.** Something the owner uses himself, and that others will use too.
+2. **An experience of building an application from scratch,** done properly at every stage: specification, design, implementation, testing, release, and support. The project and its record also serve as a showcase of that work.
+3. **A public home.** A website that explains what Seura Photos is, describes its features, tells people why they might want it, and lets them download it. That is marketing in the plain sense of the word, and it is part of the plan, not an afterthought.
+
+The website will include, at least:
+
+- What Seura Photos is and who it's for, with screenshots.
+- Features, and the reasons behind them (originals never touched, open edit format, no account or subscription).
+- Downloads for Windows and macOS, linked to GitHub Releases.
+- A user guide, including help topics such as installing Microsoft's HEIF and HEVC extensions on Windows.
+- A page about the edit format, linking to its specification.
+- The project story: how it was designed and built, as the showcase.
+
+Not built yet. The milestone plan schedules the website and the materials around the app alongside the app itself, so they're ready by the first public release.
+
 ## Distribution and license
 
 Free and open source, with no subscriptions, accounts, or paid tiers.
@@ -122,4 +141,5 @@ Free and open source, with no subscriptions, accounts, or paid tiers.
 | Copy and paste edits, presets | Both in v1. |
 | Read-only folders | View and export only. Edit files always live beside the originals, never elsewhere. |
 | License | Apache 2.0. |
-| Minimum OS versions | Open: depends on GPU rendering support in each platform's web view; settled in the technical design. |
+| Minimum OS versions | Windows 10 22H2+ and macOS 13+, with tiered test coverage; see the technical design, section 12. |
+| Scope of the project | A complete public project: the app, a website that explains and distributes it, and the project's own record as a showcase. |
