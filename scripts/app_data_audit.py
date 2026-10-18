@@ -27,6 +27,10 @@ HOME = Path.home()
 # identifier. WebView2's EBWebView folder always sits under one of them.
 MARKERS = ("seura photos", "seura-photos", "seuraphotos")
 ALLOWED = HOME / "Documents" / "Seura Photos"
+# Cloud-sync folders (OneDrive and others; iCloud Drive). They can hold many
+# thousands of files whose metadata the sync client touches constantly, which
+# makes the walk take minutes and floods the report. Seura never writes there.
+SKIPPED = (HOME / "Library" / "CloudStorage", HOME / "Library" / "Mobile Documents")
 
 
 def is_running(system):
@@ -75,7 +79,8 @@ def launch_and_quit():
 
 def written_since(roots, start):
     for root in roots:
-        for folder, _, files in os.walk(root, onerror=lambda _: None):
+        for folder, subfolders, files in os.walk(root, onerror=lambda _: None):
+            subfolders[:] = [name for name in subfolders if Path(folder) / name not in SKIPPED]
             for name in files:
                 path = Path(folder) / name
                 try:

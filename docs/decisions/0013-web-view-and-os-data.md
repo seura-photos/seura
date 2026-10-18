@@ -23,12 +23,12 @@ That data belongs to the web view (WebView2 on Windows, WKWebView on macOS), not
 
 ## What is still written, as measured
 
-Measured 2026-10-18 on Tauri 2.12.1 with a 15-second run of the app, locally on Windows 11 and in CI on `windows-latest` and `macos-latest`:
+Measured 2026-10-18 on Tauri 2.12.1 with a 15-second run of the app: on Nevada's Windows 11 PC, on his MacBook Pro (macOS 26.6.2, Apple Silicon, the bundled `.app`), and in CI on `windows-latest` and `macos-latest`:
 
 | Where | Windows | macOS |
 | --- | --- | --- |
 | `Documents/Seura Photos/Cache/WebView` | 132 files, about 2 to 6 MB (WebView2's own browser data, empty of website data because of InPrivate) | Not used |
-| Hidden app-data folders (`%LOCALAPPDATA%`, `%APPDATA%`, `AppData\LocalLow`; `~/Library`) | Nothing | Nothing named for the app |
+| Hidden app-data folders (`%LOCALAPPDATA%`, `%APPDATA%`, `AppData\LocalLow`; `~/Library`) | Nothing | Nothing named for the app, on the MacBook Pro and in CI |
 
 Things that are outside this decision because they aren't data:
 

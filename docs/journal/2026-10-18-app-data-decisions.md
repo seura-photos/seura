@@ -32,3 +32,9 @@ Nevada reviewed the open questions from the scaffold (see `2026-10-18-scaffold.m
 - Claude recommended 24, pinned to 24.21.0 (24.22.0 is under two weeks old), in `.nvmrc`, which nvm reads and CI now uses (`node-version-file`). `engines` is `>=24.21 <25`, so npm refuses the wrong Node.
 - With Node at 24.15 or later, jsdom goes back to 30.1.2, the version first chosen in the scaffold.
 - Moving to Node 26 is planned for when it has been LTS for a few weeks, around the start of M2, as its own change.
+
+## Checked on the Mac through a second Claude session
+
+- Nevada enabled Remote Control on both machines, so the Windows session (Claude) could message a Claude Code session on his MacBook Pro. Nevada asked for it to set Node, pull, and run the checks there; it worked under the Mac's own permission prompts and reported back.
+- Results on macOS 26.6.2 (Apple Silicon): Node 24.21.0; UI and Rust checks all pass; the app-data audit of the bundled `.app` found nothing named for the app under `~/Library`. Added to decision 0013 as a real-machine measurement.
+- **The Mac session found a flaw in the audit:** it took about 10 minutes instead of 20 seconds, because it walked Nevada's OneDrive folder in `~/Library/CloudStorage`, where the sync client was touching 18,687 files. Its suggested fix was adopted: the audit now skips `~/Library/CloudStorage` and `~/Library/Mobile Documents` (iCloud Drive), where Seura never writes. CI runners have no cloud storage, so CI couldn't have caught this.
