@@ -132,7 +132,7 @@ Free and open source, with no subscriptions, accounts, or paid tiers.
 
 | Topic | Decision |
 | --- | --- |
-| Name | Seura Photos. Edit files use the `.seura.json` suffix. Domains seuraphotos.com and seuraphotos.app; GitHub organization `seura-photos`. USPTO search (2026-10-17): one result, SÉURA (reg. 3495772, live), in class 20 (furniture, mirrors, frames), not software; judged low risk. "Seurat" in classes 9 and 42: live registrations belong to one company making industrial 3D printers and their software; judged low risk. Still to do: "Sura" in classes 9 and 42, and the WIPO Global Brand Database. |
+| Name | Seura Photos. Edit files use the `.seura.json` suffix. Domains seuraphotos.com and seuraphotos.app; GitHub organization `seura-photos`. USPTO search (2026-10-17): one result, SÉURA (reg. 3495772, live), in class 20 (furniture, mirrors, frames), not software; judged low risk. "Seurat" in classes 9 and 42: live registrations belong to one company making industrial 3D printers and their software; judged low risk. "Sura": five live marks containing the word (university research, massage devices, dog training, an online drama series, a medical practice), none for software or photography; judged no conflict. Still to do: the WIPO Global Brand Database. |
 | Settings location | `Documents/Seura Photos`, with no hidden files. |
 | API keys | Operating system credential store. |
 | Retouching | Red-eye removal in v1; spot removal later. |
