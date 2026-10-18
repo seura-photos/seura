@@ -1,0 +1,20 @@
+/* Deliberately unstyled in M1. Follows the system's light or dark mode (ACC-3),
+   using the "photo" and "text" tokens from design/tokens.json. */
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, "Segoe UI Variable", "Segoe UI", sans-serif;
+  font-size: 13px;
+  background: #f7f7f7;
+  color: #1b1b1b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    background: #1a1a1a;
+    color: #ececec;
+  }
+}
+
+main {
+  padding: 24px;
+}

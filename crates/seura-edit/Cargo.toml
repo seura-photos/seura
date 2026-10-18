@@ -1,0 +1,13 @@
+[package]
+name = "seura-edit"
+description = "The Seura edit format: parse, validate, canonical order, preserve unknown content, history, presets."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lints]
+workspace = true
