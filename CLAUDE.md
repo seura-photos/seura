@@ -6,6 +6,7 @@ Seura Photos is a cross-platform (Windows and macOS) desktop photo organizer and
 
 - `docs/product-brief.md`: purpose, users, guiding principles. Every change must fit the principles.
 - `docs/functional-spec.md`: v1 requirements with IDs (LIB-1, EDT-3, ...). Implement against these; reference IDs in tests and commit messages.
+- `docs/technical-design.md`: architecture, crate layout, libraries, rendering pipeline, and testing strategy. Follow it; propose changes rather than diverging.
 - `docs/decisions/`: decision records. Do not reverse a recorded decision silently. If a change conflicts with one, stop and raise it; if the user agrees, add a new record that supersedes the old.
 - The edit file format is specified in the separate `seura-photos/edit-format` repository (`spec/edit-format.md`, `schema/`). The app must conform to it exactly.
 
