@@ -1,0 +1,372 @@
+//! Editing a document: canonical order, neutral settings, tags, rating,
+//! history, undo and redo, and preserving what this version doesn't know.
+
+use serde_json::{Value, json};
+use seura_edit::{
+    Action, Amount, CoreOpId, CoreOperation, Edit, EditDocument, EditError, Exposure,
+    HISTORY_LIMIT, PhotoIdentity, Step, Vignette, clean_tags,
+};
+use time::OffsetDateTime;
+
+const HASH: &str = "4e1c0b9a77d3f2e85a6b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f";
+
+fn photo() -> PhotoIdentity {
+    PhotoIdentity {
+        file: "IMG_0001.jpg".into(),
+        sha256: HASH.into(),
+        size: 1234,
+        width: 4032,
+        height: 3024,
+    }
+}
+
+fn now() -> OffsetDateTime {
+    OffsetDateTime::from_unix_timestamp(1_792_000_000).unwrap()
+}
+
+fn act(label: &str, edits: Vec<Edit>) -> Action {
+    Action {
+        label: label.into(),
+        edits,
+    }
+}
+
+fn exposure(ev: f64) -> Edit {
+    Edit::Set(CoreOperation::Exposure(Exposure { ev }))
+}
+
+fn ids(document: &EditDocument) -> Vec<String> {
+    document.operations().into_iter().map(|op| op.id).collect()
+}
+
+fn parse(value: Value) -> EditDocument {
+    EditDocument::parse(&serde_json::to_vec(&value).unwrap()).unwrap()
+}
+
+#[test]
+fn operations_are_inserted_in_canonical_order() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    let vignette = CoreOperation::Vignette(Vignette {
+        amount: -20.0,
+        size: 50.0,
+    });
+    let contrast = CoreOperation::Contrast(Amount { amount: 10.0 });
+    document
+        .apply(&act("Vignette", vec![Edit::Set(vignette)]), now())
+        .unwrap();
+    document
+        .apply(&act("Exposure", vec![exposure(0.5)]), now())
+        .unwrap();
+    document
+        .apply(&act("Contrast", vec![Edit::Set(contrast)]), now())
+        .unwrap();
+    assert_eq!(
+        ids(&document),
+        ["seura.exposure", "seura.contrast", "seura.vignette"]
+    );
+    document.to_bytes().expect("still valid");
+}
+
+#[test]
+fn neutral_settings_remove_the_operation() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    document
+        .apply(&act("Exposure", vec![exposure(0.5)]), now())
+        .unwrap();
+    document
+        .apply(&act("Exposure", vec![exposure(0.0)]), now())
+        .unwrap();
+    assert!(document.operations().is_empty());
+    assert!(!document.json().contains_key("operations"));
+    assert_eq!(document.history_len(), 2);
+}
+
+#[test]
+fn unchanged_settings_record_nothing() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    document
+        .apply(&act("Exposure", vec![exposure(0.5)]), now())
+        .unwrap();
+    let changed = document
+        .apply(&act("Exposure", vec![exposure(0.5)]), now())
+        .unwrap();
+    assert!(!changed);
+    assert_eq!(document.history_len(), 1);
+}
+
+#[test]
+fn history_records_each_action_and_is_capped() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    for step in 1..=(HISTORY_LIMIT + 5) {
+        document
+            .apply(&act("Exposure", vec![exposure(step as f64 / 100.0)]), now())
+            .unwrap();
+    }
+    assert_eq!(document.history_len(), HISTORY_LIMIT);
+    let history = document.json()["history"].as_array().unwrap();
+    // The oldest were dropped: the first kept record goes from 0.05 to 0.06.
+    assert_eq!(history[0]["changes"][0]["from"], json!({ "ev": 0.05 }));
+    assert_eq!(history[0]["at"], json!("2026-10-14T17:46:40Z"));
+}
+
+#[test]
+fn undo_and_redo_restore_settings_tags_and_rating() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    document
+        .apply(&act("Exposure", vec![exposure(0.5)]), now())
+        .unwrap();
+    let edits = vec![
+        exposure(1.0),
+        Edit::Tags(vec!["family".into()]),
+        Edit::Rating(3),
+    ];
+    document.apply(&act("Paste edits", edits), now()).unwrap();
+
+    assert_eq!(document.undo().unwrap(), Step::Done("Paste edits".into()));
+    assert_eq!(
+        document.core(CoreOpId::Exposure),
+        Some(CoreOperation::Exposure(Exposure { ev: 0.5 }))
+    );
+    assert!(document.tags().is_empty());
+    assert_eq!(document.rating(), 0);
+
+    assert_eq!(document.redo().unwrap(), Step::Done("Paste edits".into()));
+    assert_eq!(
+        document.core(CoreOpId::Exposure),
+        Some(CoreOperation::Exposure(Exposure { ev: 1.0 }))
+    );
+    assert_eq!(document.tags(), ["family"]);
+    assert_eq!(document.rating(), 3);
+
+    document.undo().unwrap();
+    document.undo().unwrap();
+    assert!(document.operations().is_empty());
+    assert_eq!(document.undo().unwrap(), Step::Nothing);
+    assert!(!document.json().contains_key("history"));
+}
+
+#[test]
+fn a_new_change_discards_redo() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    document
+        .apply(&act("Exposure", vec![exposure(0.5)]), now())
+        .unwrap();
+    document.undo().unwrap();
+    document
+        .apply(&act("Rating", vec![Edit::Rating(2)]), now())
+        .unwrap();
+    assert_eq!(document.redo().unwrap(), Step::Nothing);
+}
+
+#[test]
+fn undo_discards_history_that_no_longer_matches_the_file() {
+    // Another app set exposure to 2 without updating the history.
+    let mut document = parse(json!({
+        "format": "seura-edit",
+        "formatVersion": "1.0",
+        "photo": photo(),
+        "operations": [ { "id": "seura.exposure", "version": 1, "params": { "ev": 2 } } ],
+        "history": [
+            { "at": "2026-10-17T19:37:30Z", "label": "Exposure",
+              "changes": [ { "op": "seura.exposure", "from": null, "to": { "ev": 0.3 } } ] }
+        ]
+    }));
+    assert_eq!(document.undo().unwrap(), Step::Discarded);
+    assert_eq!(document.history_len(), 0);
+    // The setting another app made is left alone.
+    assert_eq!(
+        document.core(CoreOpId::Exposure),
+        Some(CoreOperation::Exposure(Exposure { ev: 2.0 }))
+    );
+}
+
+#[test]
+fn numbers_match_by_value_in_the_consistency_check() {
+    let mut document = parse(json!({
+        "format": "seura-edit",
+        "formatVersion": "1.0",
+        "photo": photo(),
+        "operations": [ { "id": "seura.contrast", "version": 1, "params": { "amount": 35.0 } } ],
+        "history": [
+            { "at": "2026-10-17T19:37:30Z", "label": "Contrast",
+              "changes": [ { "op": "seura.contrast", "from": null, "to": { "amount": 35 } } ] }
+        ]
+    }));
+    assert_eq!(document.undo().unwrap(), Step::Done("Contrast".into()));
+}
+
+#[test]
+fn tags_are_cleaned_as_writers_must() {
+    let tags = ["  /family//kids/ ", "Family/Kids", "vacation", "", " / "].map(String::from);
+    assert_eq!(clean_tags(&tags), ["family/kids", "vacation"]);
+}
+
+#[test]
+fn invalid_edits_change_nothing() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    document
+        .apply(&act("Exposure", vec![exposure(0.5)]), now())
+        .unwrap();
+    let before = document.json().clone();
+    let result = document.apply(&act("Too much", vec![exposure(1.0), exposure(9.0)]), now());
+    assert!(matches!(result, Err(EditError::Invalid(_))));
+    assert_eq!(document.json(), &before);
+    let result = document.apply(&act("Rating", vec![Edit::Rating(6)]), now());
+    assert!(matches!(result, Err(EditError::Invalid(_))));
+    assert_eq!(document.json(), &before);
+}
+
+#[test]
+fn unknown_content_is_kept_in_place_when_editing() {
+    let mut document = parse(json!({
+        "format": "seura-edit",
+        "formatVersion": "1.0",
+        "writer": { "app": "Other App", "version": "3", "build": 77 },
+        "photo": photo(),
+        "operations": [
+            { "id": "seura.exposure", "version": 1, "enabled": false, "params": { "ev": 0.25 } },
+            { "id": "com.example.toneCurve", "version": 4, "group": "tone", "required": true,
+              "params": { "points": [[0, 0], [0.5, 0.6], [1, 1]] } },
+            { "id": "com.example.filmGrain", "version": 2, "group": "effects", "params": { "amount": 12 } }
+        ],
+        "extensions": { "com.example.faces": { "people": ["Ann"] } }
+    }));
+
+    let contrast = CoreOperation::Contrast(Amount { amount: 20.0 });
+    let edits = vec![exposure(0.75), Edit::Set(contrast)];
+    document.apply(&act("Edit", edits), now()).unwrap();
+
+    let json = document.json();
+    let operations = json["operations"].as_array().unwrap();
+    // Exposure changed in place and stays disabled; contrast went before the
+    // plugin in the same stage; the plugins are untouched.
+    assert_eq!(
+        operations[0],
+        json!({ "id": "seura.exposure", "version": 1, "enabled": false, "params": { "ev": 0.75 } })
+    );
+    assert_eq!(operations[1]["id"], "seura.contrast");
+    assert_eq!(
+        operations[2]["params"],
+        json!({ "points": [[0, 0], [0.5, 0.6], [1, 1]] })
+    );
+    assert_eq!(operations[3]["id"], "com.example.filmGrain");
+    assert_eq!(
+        json["extensions"],
+        json!({ "com.example.faces": { "people": ["Ann"] } })
+    );
+    assert_eq!(json["writer"]["build"], 77);
+    // History went in its usual place, before the extensions.
+    let keys: Vec<&str> = json.keys().map(String::as_str).collect();
+    assert_eq!(
+        keys,
+        [
+            "format",
+            "formatVersion",
+            "writer",
+            "photo",
+            "operations",
+            "history",
+            "extensions"
+        ]
+    );
+}
+
+#[test]
+fn operations_from_another_version_are_never_replaced() {
+    let mut document = parse(json!({
+        "format": "seura-edit",
+        "formatVersion": "1.0",
+        "photo": photo(),
+        "operations": [ { "id": "seura.exposure", "version": 2, "params": { "stops": 1, "curve": "filmic" } } ]
+    }));
+    let operation = &document.operations()[0];
+    assert!(
+        operation.core.is_none(),
+        "version 2 isn't rendered as version 1"
+    );
+    let result = document.apply(&act("Exposure", vec![exposure(0.5)]), now());
+    assert_eq!(
+        result,
+        Err(EditError::UnsupportedOperation("seura.exposure".into()))
+    );
+    let result = document.apply(&act("Reset", vec![Edit::Remove(CoreOpId::Exposure)]), now());
+    assert_eq!(
+        result,
+        Err(EditError::UnsupportedOperation("seura.exposure".into()))
+    );
+}
+
+#[test]
+fn files_from_a_newer_minor_version_are_read_and_kept() {
+    // A hypothetical 1.1: a new top-level field, a new photo field, and a new
+    // core operation this version doesn't know.
+    let original = json!({
+        "format": "seura-edit",
+        "formatVersion": "1.1",
+        "photo": {
+            "file": "IMG_0001.jpg", "size": 1234, "sha256": HASH, "width": 4032, "height": 3024,
+            "capturedWith": "iPhone"
+        },
+        "operations": [
+            { "id": "seura.exposure", "version": 1, "params": { "ev": 0.5 } },
+            { "id": "seura.sharpen", "version": 1, "params": { "amount": 30 } }
+        ],
+        "faces": [ { "x": 0.4, "y": 0.3 } ]
+    });
+    let mut document = parse(original.clone());
+    assert_eq!(
+        document
+            .to_bytes()
+            .map(|b| serde_json::from_slice::<Value>(&b).unwrap())
+            .unwrap(),
+        original
+    );
+
+    document
+        .apply(&act("Exposure", vec![exposure(1.0)]), now())
+        .unwrap();
+    let json = document.json();
+    assert_eq!(json["formatVersion"], "1.1");
+    assert_eq!(json["faces"], original["faces"]);
+    assert_eq!(json["photo"]["capturedWith"], "iPhone");
+    assert_eq!(json["operations"][1], original["operations"][1]);
+}
+
+#[test]
+fn newer_major_versions_are_refused() {
+    let bytes = serde_json::to_vec(&json!({
+        "format": "seura-edit", "formatVersion": "2.0", "photo": photo()
+    }))
+    .unwrap();
+    assert!(matches!(
+        EditDocument::parse(&bytes),
+        Err(seura_edit::ReadError::UnsupportedVersion(v)) if v == "2.0"
+    ));
+}
+
+#[test]
+fn presets_have_no_tags_rating_or_history() {
+    let mut document = parse(json!({
+        "format": "seura-edit", "formatVersion": "1.0", "kind": "preset", "name": "Bright"
+    }));
+    document
+        .apply(&act("Exposure", vec![exposure(0.5)]), now())
+        .unwrap();
+    assert_eq!(document.history_len(), 0);
+    let result = document.apply(&act("Tags", vec![Edit::Tags(vec!["x".into()])]), now());
+    assert_eq!(result, Err(EditError::NotForPresets));
+    document.to_bytes().expect("still a valid preset");
+}
+
+#[test]
+fn a_byte_order_mark_is_read_but_never_written() {
+    let mut bytes = b"\xEF\xBB\xBF".to_vec();
+    bytes.extend(
+        serde_json::to_vec(
+            &json!({ "format": "seura-edit", "formatVersion": "1.0", "photo": photo() }),
+        )
+        .unwrap(),
+    );
+    let document = EditDocument::parse(&bytes).unwrap();
+    assert!(!document.to_bytes().unwrap().starts_with(b"\xEF\xBB\xBF"));
+}

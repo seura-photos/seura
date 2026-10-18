@@ -24,7 +24,15 @@ seura-render = { path = "crates/seura-render" }
 seura-library = { path = "crates/seura-library" }
 
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.151"
+# preserve_order keeps object keys in file order, so unknown edit-file
+# content is saved back in place (edit format: "Preserving the unknown").
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
+thiserror = "2.0.21"
+time = { version = "0.3.55", features = ["formatting"] }
+# No default features: they include fetching remote schemas over HTTP.
+jsonschema = { version = "0.58.5", default-features = false }
+tempfile = "3.27.0"
+sha2 = "0.11.0"
 
 tauri = "2.12.1"
 tauri-build = "2.7.1"

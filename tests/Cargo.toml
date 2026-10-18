@@ -16,5 +16,16 @@ path = "lib.rs"
 name = "repository"
 path = "repository.rs"
 
+[[test]]
+name = "data_safety"
+path = "data_safety/main.rs"
+
+[dev-dependencies]
+seura-edit = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+tempfile = { workspace = true }
+time = { workspace = true }
+
 [lints]
 workspace = true
