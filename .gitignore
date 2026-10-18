@@ -30,3 +30,6 @@ desktop.ini
 
 # Local test libraries (large photo sets used for benchmarks)
 /test-libraries/
+
+# Python bytecode (scripts/app_data_audit.py)
+__pycache__/
