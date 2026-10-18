@@ -14,3 +14,4 @@ Short records of significant decisions: what was chosen, why, and what was rejec
 | [0004](0004-single-render-pipeline.md) | One GPU render pipeline for preview and export | Accepted |
 | [0005](0005-no-hidden-app-data.md) | App data in Documents, keys in the OS credential store | Accepted |
 | [0006](0006-cross-platform-from-day-one.md) | Cross-platform from the first commit | Accepted |
+| [0007](0007-opinionated-interface.md) | An opinionated interface: one layout, ordered by frequency and process | Accepted |

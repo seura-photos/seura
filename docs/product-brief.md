@@ -38,6 +38,7 @@ Every feature and design decision is checked against these.
 4. **Local first.** The app works fully offline, with no account and no telemetry. It uses the network only for features the user turns on, such as update checks and AI.
 5. **Portable.** The edit format is open and documented, so other apps can read it and the user's work outlives this app.
 6. **Feels instant.** Opening a folder, scrolling thumbnails, and moving an edit slider must respond immediately.
+7. **Opinionated.** The app defines how it's used, following the process most people go through with photos: find, sort, fix, organize, share. There is one way to do each thing, the most frequent actions are the quickest to reach, and the layout isn't customizable. Settings exist only for the user's system and data, and for accessibility.
 
 ## What v1 does
 

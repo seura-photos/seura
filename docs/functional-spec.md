@@ -26,10 +26,22 @@ Selecting a folder or tag shows its photos in a thumbnail grid; opening one show
 - **BRW-3 Thumbnail size.** Adjustable with a slider; the setting is remembered.
 - **BRW-4 Selection.** Click, Ctrl/Cmd-click, Shift-click, and Select All, following platform conventions. The number selected is always visible.
 - **BRW-5 Viewer.** Double-click or Enter opens a photo full size. Arrow keys move to the next or previous photo in grid order. Zoom to fit, zoom to 100%, zoom in and out, and pan when zoomed. Esc returns to the grid at the same scroll position.
-- **BRW-6 Photo info.** A panel shows file name, date taken, dimensions, file size, camera and lens, location as coordinates, tags, and rating.
+- **BRW-6 Photo info.** A panel, always visible in the Library and Viewer, shows file name, date taken, dimensions, file size, camera and lens, location as coordinates, tags, and rating.
 - **BRW-7 Correct display.** Orientation stored in the photo's metadata is honored, and embedded color profiles are applied, so iPhone photos show their true colors.
 - **BRW-8 Open elsewhere.** Show in Explorer or Finder, and open in the system's default app.
 - **BRW-9 Delete.** On explicit request and after confirmation, moves the selected photos and their edit files to the system Recycle Bin or Trash. Never permanent deletion. Not available in read-only folders.
+- **BRW-10 Quick actions.** Rotate left and right, Enhance, and rating are available directly in the Library (for the selection) and the Viewer, as one click or one key, without opening the Editor.
+
+## Review
+
+A guided pass through a batch of photos: sort, lightly fix, and tag them one at a time, using only one-key actions. It's the main path for new photos copied from a phone or camera.
+
+- **REV-1 Starting a review.** When a scan finds photos added since the previous launch, the Library shows a banner: "84 new photos in Summer. Review them?" A review can also be started from any folder, tag, search result, or selection.
+- **REV-2 Review screen.** One photo at a time, as large as the window allows, with a progress indicator ("12 of 84") and a single row of actions beneath it. The sidebar and Info panel are hidden; the photo's file name, date, rating, and tags show compactly under the photo.
+- **REV-3 Actions.** Each is one click or one key: next and previous; rate 1 to 5; rotate left and right; Enhance; add a tag (opens the tag picker); mark for deletion; and Edit, which opens the Editor and returns to the review when done.
+- **REV-4 Deletion is batched.** Marking for deletion is instant and reversible during the review. Marked photos are moved to the Trash only after one confirmation at the end of the review (BRW-9 rules apply).
+- **REV-5 Finishing.** At the end, a summary shows how many photos were rated, edited, tagged, and marked for deletion, with buttons to confirm the deletions and to export the photos rated at or above a chosen number of stars.
+- **REV-6 Stopping early.** The user can leave a review at any time with Esc. Nothing is lost: ratings, edits, and tags are saved as they're made, and marked photos stay marked until the next review of that batch or until the user unmarks them.
 
 ## Editing
 
@@ -116,9 +128,22 @@ Cleanup removes what the app has written, on the user's request, and nothing els
 The first run gets a new user to their photos in under a minute; settings stay few and plain.
 
 - **SET-1 First run.** A short welcome asks which folders to add, suggesting the Pictures folder. One sentence explains that edits are saved in small files beside each photo and originals are never changed. If the default cache location is in a cloud-synced folder, the app suggests another.
-- **SET-2 Settings.** Library folders, cache location and size (move or clear), default export options, update checks, and appearance (light, dark, or follow the system).
+- **SET-2 Settings.** Library folders, cache location and size (move or clear), default export options, and update checks. Nothing else: appearance follows the operating system (ACC-3), and the layout isn't configurable (INT-2).
 - **SET-3 Storage.** Settings are a readable file in `Documents/Seura Photos`, alongside Presets and, by default, the cache.
 - **SET-4 Updates.** The app checks for new versions and offers to install them; nothing installs without the user's say. First run asks whether to check, defaulting to on, and the choice can be changed in settings. Updates are published as releases in the seura-photos GitHub organization, and the app verifies each update's signature before installing it.
+
+## Interaction model
+
+The app is opinionated (product brief principle 7; decision 0007): it defines one way to do each thing, ordered by how often it's done and by the process of working with photos.
+
+- **INT-1 Action tiers.** Every action belongs to a tier with a maximum cost, measured from the view the user is most likely in when they want it:
+  - **Tier 1, one click or key:** next or previous photo, open a photo, back, rotate, Enhance, rate, compare with original, start a review, and crop (from the Editor).
+  - **Tier 2, at most three clicks or keys:** adjustment sliders, add or remove a tag, export, copy and paste edits, delete, apply a preset.
+  - **Tier 3, no limit:** effect strengths, red-eye, save or manage presets, cleanup, settings.
+  The user flows document lists each action's tier and path; wireframes and the finished app are checked against it.
+- **INT-2 Fixed layout.** Each view has one layout, decided by the app. There are no options to rearrange, hide, or show panels or toolbars, and no separate beginner or advanced modes.
+- **INT-3 Process order.** Wherever the app presents a set of steps, they follow the order find, sort, fix, organize, share. In the Editor, tools are ordered Enhance; crop and straighten; rotate and flip; light; color; effects; red-eye; presets.
+- **INT-4 Progressive disclosure.** Detail appears when it becomes relevant, decided by the app: for example, an effect's strength slider appears once the effect is turned on.
 
 ## Performance targets
 
@@ -155,3 +180,5 @@ The app should feel at home on each platform and be usable without a mouse or wi
 | Grid scope | The folder's own photos only (BRW-1). |
 | Update checks | Asked during first run, defaulting to on (SET-4). |
 | Reference hardware | A mid-range laptop from about 2020 with integrated graphics, on each platform. |
+| Interface model | Opinionated: one fixed layout per view, action tiers by frequency, process order, no modes (INT-1 to INT-4, decision 0007). |
+| Guided flow | A Review flow for sorting and lightly fixing batches of photos (REV-1 to REV-6). |
