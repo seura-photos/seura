@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-test:
+    name: Build and test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # An older macOS image joins in slice 5, for the WebGL2 preview path.
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install the Rust toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI packages
+        working-directory: ui
+        run: npm ci
+
+      - name: rustfmt
+        run: cargo fmt --all --check
+
+      - name: clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Rust tests
+        run: cargo test --workspace --locked
+
+      - name: Prettier
+        working-directory: ui
+        run: npm run format:check
+
+      - name: ESLint
+        working-directory: ui
+        run: npm run lint
+
+      - name: Typecheck and build the UI
+        working-directory: ui
+        run: npm run build
+
+      - name: UI tests
+        working-directory: ui
+        run: npm test
+
+      # Builds the app as users get it (an .app bundle on macOS, so WebKit sees
+      # the real identifier), runs it, and lists what it wrote (decision 0013).
+      - name: Build the app
+        working-directory: ui
+        run: npm run tauri -- build --debug ${{ runner.os == 'macOS' && '--bundles app' || '--no-bundle' }}
+
+      - name: Audit where the app writes
+        run: ${{ runner.os == 'Windows' && 'python' || 'python3' }} scripts/app_data_audit.py 15
+
+  licenses:
+    name: Licenses and advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: cargo-deny
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: npm licenses
+        working-directory: ui
+        run: |
+          npm ci
+          npm run licenses

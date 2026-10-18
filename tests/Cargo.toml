@@ -1,0 +1,20 @@
+[package]
+name = "seura-tests"
+description = "Cross-crate tests for Seura Photos: data safety, render references, benchmarks."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+path = "lib.rs"
+
+[[test]]
+name = "repository"
+path = "repository.rs"
+
+[lints]
+workspace = true
