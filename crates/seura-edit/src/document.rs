@@ -11,7 +11,7 @@ use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
 use crate::operations::{CORE_VERSION, CoreOpId, CoreOperation, order_key};
-use crate::validate;
+use crate::validate::{self, is_undone};
 
 /// Seura keeps the last 50 history records (EDT-9).
 pub const HISTORY_LIMIT: usize = 50;
@@ -121,9 +121,11 @@ pub enum Step {
     Done(String),
     /// Nothing to undo or redo.
     Nothing,
-    /// The file was changed without updating its history, so the record no
-    /// longer matches. It and all older records were discarded, unapplied
-    /// (edit format: "History", consistency check).
+    /// The file was changed without updating its history (or the record holds
+    /// a change this version doesn't understand), so the record failed the
+    /// consistency check and nothing was applied. After a failed undo, that
+    /// record and all older ones were discarded; after a failed redo, all
+    /// undone records were (edit format: "History").
     Discarded,
 }
 
@@ -131,9 +133,6 @@ pub enum Step {
 pub struct EditDocument {
     root: Map<String, Value>,
     newer_minor: bool,
-    /// Undone records, newest last. Kept for this session only: the format
-    /// stores no redo state.
-    redo: Vec<Value>,
 }
 
 impl EditDocument {
@@ -155,16 +154,13 @@ impl EditDocument {
             .and_then(Value::as_str)
             .unwrap_or("");
         let newer_minor = match parse_version(version) {
-            Some((1, 0)) => false,
+            // A malformed version is checked against 1.0, which reports it.
+            Some((1, 0)) | None => false,
             Some((1, _)) => true,
             // A newer major version may change meaning: never write it.
-            _ => return Err(ReadError::UnsupportedVersion(version.to_string())),
+            Some(_) => return Err(ReadError::UnsupportedVersion(version.to_string())),
         };
-        let document = EditDocument {
-            root,
-            newer_minor,
-            redo: Vec::new(),
-        };
+        let document = EditDocument { root, newer_minor };
         let problems = document.problems();
         if problems.is_empty() {
             Ok(document)
@@ -186,7 +182,6 @@ impl EditDocument {
         EditDocument {
             root,
             newer_minor: false,
-            redo: Vec::new(),
         }
     }
 
@@ -253,9 +248,20 @@ impl EditDocument {
             .map_or(0, |rating| rating.min(5) as u8)
     }
 
-    /// The number of history records (undo steps) in the file.
+    /// The number of history records in the file, undone or not.
     pub fn history_len(&self) -> usize {
         self.history().map_or(0, Vec::len)
+    }
+
+    /// How many actions can be undone.
+    pub fn undo_steps(&self) -> usize {
+        self.history_len() - self.redo_steps()
+    }
+
+    /// How many undone actions can be redone, including after a restart.
+    pub fn redo_steps(&self) -> usize {
+        self.history()
+            .map_or(0, |history| history.iter().filter(|r| is_undone(r)).count())
     }
 
     /// Applies one user action and records it in the history. Returns whether
@@ -284,6 +290,8 @@ impl EditDocument {
         if self.kind() == Kind::Photo {
             let record = json!({ "at": timestamp(at), "label": action.label, "changes": changes });
             let history = self.history_mut();
+            // A new change discards every undone record.
+            history.retain(|record| !is_undone(record));
             history.push(record);
             if history.len() > HISTORY_LIMIT {
                 let excess = history.len() - HISTORY_LIMIT;
@@ -291,7 +299,6 @@ impl EditDocument {
             }
         }
         self.check()?;
-        self.redo.clear();
         Ok(true)
     }
 
@@ -345,49 +352,63 @@ impl EditDocument {
         }
     }
 
-    /// Undoes the newest history record, after checking the file still
-    /// matches it.
+    /// Undoes the last record that isn't undone, after checking the file
+    /// still matches it, and marks it `"undone": true` so it can be redone,
+    /// even after a restart.
     pub fn undo(&mut self) -> Result<Step, EditError> {
-        let Some(record) = self.history().and_then(|history| history.last().cloned()) else {
+        let Some(index) = self
+            .history()
+            .and_then(|history| history.iter().rposition(|r| !is_undone(r)))
+        else {
             return Ok(Step::Nothing);
         };
+        let record = self.history_mut()[index].clone();
         let before = self.root.clone();
         if !self.matches(&record, "to") || !self.restore(&record, "from") {
             self.root = before;
-            // This record and all older ones are discarded.
-            self.root.remove("history");
-            self.redo.clear();
+            // That record and all older ones are discarded.
+            self.history_mut().drain(..=index);
+            self.remove_history_if_empty();
             return Ok(Step::Discarded);
         }
-        self.history_mut().pop();
-        if self.history_len() == 0 {
-            self.root.remove("history");
-        }
+        mark_undone(&mut self.history_mut()[index], true);
         if let Err(error) = self.check() {
             self.root = before;
             return Err(error);
         }
-        self.redo.push(record.clone());
         Ok(Step::Done(label(&record)))
     }
 
-    /// Redoes the most recently undone record, in this session.
+    /// Redoes the first undone record, after checking the file still matches
+    /// its starting point.
     pub fn redo(&mut self) -> Result<Step, EditError> {
-        let Some(record) = self.redo.pop() else {
+        let Some(index) = self
+            .history()
+            .and_then(|history| history.iter().position(is_undone))
+        else {
             return Ok(Step::Nothing);
         };
+        let record = self.history_mut()[index].clone();
         let before = self.root.clone();
         if !self.matches(&record, "from") || !self.restore(&record, "to") {
             self.root = before;
-            self.redo.clear();
+            // All undone records are discarded.
+            self.history_mut().retain(|record| !is_undone(record));
+            self.remove_history_if_empty();
             return Ok(Step::Discarded);
         }
-        self.history_mut().push(record.clone());
+        mark_undone(&mut self.history_mut()[index], false);
         if let Err(error) = self.check() {
             self.root = before;
             return Err(error);
         }
         Ok(Step::Done(label(&record)))
+    }
+
+    fn remove_history_if_empty(&mut self) {
+        if self.history_len() == 0 {
+            self.root.remove("history");
+        }
     }
 
     /// Updates `writer` and `modified` for a save (edit format: "Rules for
@@ -620,6 +641,23 @@ fn read_operation(entry: &Value) -> Operation {
     }
 }
 
+/// Sets or clears a record's `undone` flag, placed after its label as in
+/// the spec's examples.
+fn mark_undone(record: &mut Value, undone: bool) {
+    let Some(record) = record.as_object_mut() else {
+        return;
+    };
+    if !undone {
+        record.shift_remove("undone");
+        return;
+    }
+    let after = ["label", "at"]
+        .iter()
+        .find_map(|key| record.keys().position(|k| k == key))
+        .map_or(0, |index| index + 1);
+    record.shift_insert(after, "undone".into(), Value::Bool(true));
+}
+
 fn label(record: &Value) -> String {
     record
         .get("label")
@@ -628,13 +666,18 @@ fn label(record: &Value) -> String {
         .to_string()
 }
 
+/// `"major.minor"`, without leading zeros, as `tools/check.py` reads it.
 fn parse_version(version: &str) -> Option<(u32, u32)> {
     let (major, minor) = version.split_once('.')?;
-    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
-    if !digits(major) || !digits(minor) {
-        return None;
-    }
-    Some((major.parse().ok()?, minor.parse().ok()?))
+    let number = |s: &str| -> Option<u32> {
+        let canonical = s == "0" || (!s.is_empty() && !s.starts_with('0'));
+        if canonical && s.bytes().all(|b| b.is_ascii_digit()) {
+            s.parse().ok()
+        } else {
+            None
+        }
+    };
+    Some((number(major)?, number(minor)?))
 }
 
 /// UTC, ISO 8601, whole seconds: `2026-10-17T19:40:12Z`.

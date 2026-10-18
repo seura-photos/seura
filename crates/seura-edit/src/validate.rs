@@ -4,42 +4,26 @@
 use std::sync::LazyLock;
 
 use jsonschema::{Draft, Validator};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::operations::order_key;
 
-/// The schema for format 1.0, from the `seura-photos/edit-format` submodule.
-/// Publishing this crate on its own will need a vendored copy.
+/// The schemas, from the `seura-photos/edit-format` submodule. Publishing
+/// this crate on its own will need vendored copies.
 const SCHEMA_1_0: &str = include_str!("../../../third_party/edit-format/schema/1.0.json");
+const READER_1_X: &str = include_str!("../../../third_party/edit-format/schema/1.x-reader.json");
 
-/// Format 1.0 exactly as published.
-static STRICT: LazyLock<Validator> = LazyLock::new(|| build(strict_schema()));
+/// Format 1.0 exactly as published, for files whose version is "1.0".
+static STRICT: LazyLock<Validator> = LazyLock::new(|| build(SCHEMA_1_0));
 
-/// For files from a newer minor version (1.1 and later), which may add
-/// optional fields and core operations this version doesn't know. Everything
-/// 1.0 defines is still checked; what it doesn't define is allowed, and kept.
-static RELAXED: LazyLock<Validator> = LazyLock::new(|| build(relaxed_schema()));
+/// The reader schema, for files from a newer minor version (1.1 and later):
+/// checks every field 1.0 defines and accepts the rest (edit format:
+/// "Reading a newer minor version").
+static READER: LazyLock<Validator> = LazyLock::new(|| build(READER_1_X));
 
-fn strict_schema() -> Value {
-    serde_json::from_str(SCHEMA_1_0).expect("the edit format schema is valid JSON")
-}
-
-fn relaxed_schema() -> Value {
-    let mut schema = strict_schema();
-    schema["properties"]["formatVersion"] = json!({ "type": "string", "pattern": "^1\\.[0-9]+$" });
-    schema["additionalProperties"] = json!(true);
-    let defs = &mut schema["$defs"];
-    defs["photo"]["additionalProperties"] = json!(true);
-    defs["operation"]["additionalProperties"] = json!(true);
-    defs["historyRecord"]["additionalProperties"] = json!(true);
-    // Core ids a newer version adds are allowed; their params are its business.
-    if let Some(then) = defs["operation"]["then"]["properties"].as_object_mut() {
-        then.remove("id");
-    }
-    schema
-}
-
-fn build(schema: Value) -> Validator {
+fn build(schema: &str) -> Validator {
+    let schema: Value =
+        serde_json::from_str(schema).expect("the edit format schemas are valid JSON");
     jsonschema::options()
         .with_draft(Draft::Draft202012)
         .should_validate_formats(true)
@@ -48,9 +32,9 @@ fn build(schema: Value) -> Validator {
 }
 
 /// Every reason `doc` isn't a valid edit file; empty if it is.
-/// `newer_minor` selects the relaxed checks for format 1.1 and later.
+/// `newer_minor` selects the reader schema, for format 1.1 and later.
 pub(crate) fn problems(doc: &Value, newer_minor: bool) -> Vec<String> {
-    let validator = if newer_minor { &*RELAXED } else { &*STRICT };
+    let validator = if newer_minor { &*READER } else { &*STRICT };
     let mut problems: Vec<String> = validator
         .iter_errors(doc)
         .map(|error| {
@@ -67,7 +51,13 @@ pub(crate) fn problems(doc: &Value, newer_minor: bool) -> Vec<String> {
     problems
 }
 
-/// The rules the schema can't express (edit format: "Operations", "Tags and rating").
+/// Whether a history record has been undone and not redone.
+pub(crate) fn is_undone(record: &Value) -> bool {
+    record.get("undone") == Some(&Value::Bool(true))
+}
+
+/// The rules the schema can't express (edit format: "Operations", "Tags and
+/// rating", "History").
 fn rule_problems(doc: &Value) -> Vec<String> {
     let mut problems = Vec::new();
 
@@ -98,6 +88,16 @@ fn rule_problems(doc: &Value) -> Vec<String> {
                 "operations are not in canonical render order (item {})",
                 position + 2
             ));
+        }
+    }
+
+    // Undone records always come last (edit format: "History").
+    if let Some(history) = doc.get("history").and_then(Value::as_array) {
+        let undone: Vec<bool> = history.iter().map(is_undone).collect();
+        if undone.windows(2).any(|pair| pair[0] && !pair[1]) {
+            problems.push(
+                "undone history records must all come after the records that aren't undone".into(),
+            );
         }
     }
 

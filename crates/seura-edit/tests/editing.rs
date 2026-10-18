@@ -142,7 +142,43 @@ fn undo_and_redo_restore_settings_tags_and_rating() {
     document.undo().unwrap();
     assert!(document.operations().is_empty());
     assert_eq!(document.undo().unwrap(), Step::Nothing);
-    assert!(!document.json().contains_key("history"));
+    // Both records stay in the file, marked undone, ready to redo.
+    assert_eq!((document.undo_steps(), document.redo_steps()), (0, 2));
+    let history = document.json()["history"].as_array().unwrap();
+    assert!(history.iter().all(|record| record["undone"] == json!(true)));
+}
+
+#[test]
+fn undone_records_are_marked_in_place() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    document
+        .apply(&act("Exposure", vec![exposure(0.5)]), now())
+        .unwrap();
+    document.undo().unwrap();
+    let record = document.json()["history"][0].as_object().unwrap();
+    let keys: Vec<&str> = record.keys().map(String::as_str).collect();
+    assert_eq!(keys, ["at", "label", "undone", "changes"]);
+    document.redo().unwrap();
+    let record = document.json()["history"][0].as_object().unwrap();
+    assert!(!record.contains_key("undone"));
+}
+
+#[test]
+fn redo_survives_a_restart() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    document
+        .apply(&act("Exposure", vec![exposure(0.5)]), now())
+        .unwrap();
+    document
+        .apply(&act("Rating", vec![Edit::Rating(4)]), now())
+        .unwrap();
+    document.undo().unwrap();
+
+    let mut reopened = EditDocument::parse(&document.to_bytes().unwrap()).unwrap();
+    assert_eq!(reopened.rating(), 0);
+    assert_eq!(reopened.redo().unwrap(), Step::Done("Rating".into()));
+    assert_eq!(reopened.rating(), 4);
+    assert_eq!(reopened.redo_steps(), 0);
 }
 
 #[test]
@@ -156,6 +192,86 @@ fn a_new_change_discards_redo() {
         .apply(&act("Rating", vec![Edit::Rating(2)]), now())
         .unwrap();
     assert_eq!(document.redo().unwrap(), Step::Nothing);
+    // The undone record is gone from the file, not just hidden.
+    assert_eq!(document.history_len(), 1);
+    assert_eq!(document.json()["history"][0]["label"], "Rating");
+}
+
+#[test]
+fn a_failed_undo_check_discards_that_record_and_older_ones_only() {
+    // Exposure was changed by another app; contrast is undone and redoable.
+    let mut document = parse(json!({
+        "format": "seura-edit",
+        "formatVersion": "1.0",
+        "photo": photo(),
+        "operations": [ { "id": "seura.exposure", "version": 1, "params": { "ev": 2 } } ],
+        "history": [
+            { "at": "2026-10-17T19:37:30Z", "label": "Exposure",
+              "changes": [ { "op": "seura.exposure", "from": null, "to": { "ev": 0.3 } } ] },
+            { "at": "2026-10-17T19:38:00Z", "label": "Contrast", "undone": true,
+              "changes": [ { "op": "seura.contrast", "from": null, "to": { "amount": 30 } } ] }
+        ]
+    }));
+    assert_eq!(document.undo().unwrap(), Step::Discarded);
+    assert_eq!((document.undo_steps(), document.redo_steps()), (0, 1));
+    assert_eq!(document.redo().unwrap(), Step::Done("Contrast".into()));
+}
+
+#[test]
+fn a_failed_redo_check_discards_all_undone_records() {
+    // Contrast is undone, but another app has since set it.
+    let mut document = parse(json!({
+        "format": "seura-edit",
+        "formatVersion": "1.0",
+        "photo": photo(),
+        "operations": [
+            { "id": "seura.exposure", "version": 1, "params": { "ev": 0.3 } },
+            { "id": "seura.contrast", "version": 1, "params": { "amount": 10 } }
+        ],
+        "history": [
+            { "at": "2026-10-17T19:37:30Z", "label": "Exposure",
+              "changes": [ { "op": "seura.exposure", "from": null, "to": { "ev": 0.3 } } ] },
+            { "at": "2026-10-17T19:38:00Z", "label": "Contrast", "undone": true,
+              "changes": [ { "op": "seura.contrast", "from": null, "to": { "amount": 30 } } ] },
+            { "at": "2026-10-17T19:38:30Z", "label": "Saturation", "undone": true,
+              "changes": [ { "op": "seura.saturation", "from": null, "to": { "amount": 15 } } ] }
+        ]
+    }));
+    assert_eq!(document.redo().unwrap(), Step::Discarded);
+    assert_eq!((document.undo_steps(), document.redo_steps()), (1, 0));
+    // Nothing was applied.
+    assert_eq!(
+        document.core(CoreOpId::Contrast),
+        Some(CoreOperation::Contrast(Amount { amount: 10.0 }))
+    );
+}
+
+#[test]
+fn a_change_this_version_does_not_understand_fails_the_check() {
+    // From the format repository: a 1.1 file whose newest record changes a
+    // field 1.0 doesn't know.
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../third_party/edit-format/tests/valid/newer-minor-version.json");
+    let mut document = EditDocument::parse(&std::fs::read(path).unwrap()).unwrap();
+    let before = document.operations();
+    assert_eq!(document.undo().unwrap(), Step::Discarded);
+    assert_eq!(document.history_len(), 0);
+    assert_eq!(document.operations(), before);
+}
+
+#[test]
+fn malformed_versions_are_rejected() {
+    for version in ["1.01", "01.0", "1", "1.0.0", "one"] {
+        let bytes = serde_json::to_vec(&json!({
+            "format": "seura-edit", "formatVersion": version, "photo": photo()
+        }))
+        .unwrap();
+        let result = EditDocument::parse(&bytes);
+        assert!(
+            matches!(result, Err(seura_edit::ReadError::Invalid(_))),
+            "{version}: {result:?}"
+        );
+    }
 }
 
 #[test]

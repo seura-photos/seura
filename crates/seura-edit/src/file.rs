@@ -51,6 +51,11 @@ pub struct Writer<'a> {
 }
 
 /// An edit file and the document in it.
+///
+/// There is deliberately no delete. When a photo has no edits, tags, or
+/// rating left and the file holds nothing else to preserve, the file goes to
+/// the system Trash or Recycle Bin, never `fs::remove_file` (FIL-1, CLAUDE.md
+/// rule 5). That arrives with M3.
 #[derive(Debug)]
 pub struct EditFile {
     path: PathBuf,
