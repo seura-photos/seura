@@ -165,6 +165,15 @@ These make "feels instant" testable. They are measured on a mid-range laptop fro
 | PRF-6 | Live preview while dragging a slider, 12 to 48 MP photo | At least 30 frames per second |
 | PRF-7 | Memory use with a 50,000-photo library | Under 1 GB |
 
+## Display
+
+Today's screens are larger and denser than in Picasa's time. Windows and macOS scale high-density screens (a 4K monitor typically behaves like 1920×1080 or 2560×1440, only sharper), so sizes in this spec are logical pixels.
+
+- **DSP-1 Crisp at any scaling.** Thumbnails, previews, and the edit view render at the screen's device pixel density, and all icons are vector graphics.
+- **DSP-2 Minimum window.** Every view works at 1280×720 logical pixels without overlapping, clipped, or truncated controls.
+- **DSP-3 Room goes to photos.** Layouts are designed for 1920×1080 and 2560×1440 logical. Extra space goes to the photos (more grid columns, larger default thumbnails, a larger photo area), not to additional controls. Side panels may widen modestly with the window; control sizes stay the same.
+- **DSP-4 Thumbnail resolution.** Cached thumbnails are generated large enough for 2× displays at the largest thumbnail size.
+
 ## Accessibility and platform conventions
 
 The app should feel at home on each platform and be usable without a mouse or with a screen reader.
