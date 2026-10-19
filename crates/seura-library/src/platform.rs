@@ -29,7 +29,7 @@ pub(crate) fn is_skipped(name: &str, metadata: &Metadata) -> bool {
 
 /// A file whose contents are in the cloud, not on disk. Reading even its
 /// first bytes would download it, so the scanner trusts its extension.
-pub(crate) fn is_placeholder(metadata: &Metadata) -> bool {
+pub fn is_placeholder(metadata: &Metadata) -> bool {
     flags::placeholder(metadata)
 }
 

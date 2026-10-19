@@ -19,5 +19,6 @@ pub use index::{
     AddFolder, EditFileState, FileTime, Filter, Folder, FolderId, Index, Photo, PhotoId, Scope,
     TagId,
 };
+pub use platform::is_placeholder;
 pub use scan::ScanReport;
 pub use snapshot::SNAPSHOT_FILE;
