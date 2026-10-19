@@ -74,6 +74,22 @@ impl Library {
         WriteBlock(target)
     }
 
+    /// Adds a real, decodable PNG, read-only, so thumbnails get written.
+    pub fn add_real_photo(&self, name: &str) -> PathBuf {
+        let path = self.root().join(name);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let mut bytes = Vec::new();
+        let mut encoder = png::Encoder::new(&mut bytes, 640, 480);
+        encoder.set_color(png::ColorType::Rgb);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().unwrap();
+        writer.write_image_data(&[90; 640 * 480 * 3]).unwrap();
+        writer.finish().unwrap();
+        fs::write(&path, bytes).unwrap();
+        set_read_only(&path, true);
+        path
+    }
+
     pub fn photos(&self) -> Vec<PathBuf> {
         PHOTOS.iter().map(|name| self.root().join(name)).collect()
     }

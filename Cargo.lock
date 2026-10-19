@@ -3468,6 +3468,7 @@ version = "0.0.0"
 name = "seura-tests"
 version = "0.0.0"
 dependencies = [
+ "png 0.18.1",
  "serde_json",
  "seura-edit",
  "seura-library",

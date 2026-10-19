@@ -76,8 +76,9 @@ fn edit_every_photo(library: &Library) {
 }
 
 #[test]
-fn rules_1_and_2_scanning_writes_only_to_the_cache() {
+fn rules_1_and_2_scanning_and_thumbnails_write_only_to_the_cache() {
     let library = Library::new();
+    library.add_real_photo("Summer/real.png");
     for photo in library.photos().iter().take(2) {
         let mut file = EditFile::create(
             &edit_file_path(photo),
@@ -97,7 +98,7 @@ fn rules_1_and_2_scanning_writes_only_to_the_cache() {
     let report = index.scan(&root);
     assert_eq!(
         report.photos,
-        library.photos().len(),
+        library.photos().len() + 1,
         "every stand-in is a photo"
     );
     index.save_snapshot(cache.path()).unwrap();
@@ -106,6 +107,33 @@ fn rules_1_and_2_scanning_writes_only_to_the_cache() {
     for id in index.photo_ids().collect::<Vec<_>>() {
         index.fingerprint(id).unwrap();
     }
+    // Make every thumbnail: the real photo's is written, the stand-ins
+    // (not decodable) fail; either way the photos are only read.
+    let jobs: Vec<_> = index
+        .photo_ids()
+        .filter_map(|id| index.thumbnail_job(id))
+        .collect();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let workers = seura_library::ThumbnailWorkers::start(
+        seura_library::ThumbnailCache::new(cache.path()),
+        2,
+        move |_, outcome| sender.send(outcome).unwrap(),
+    );
+    workers.queue_background(jobs.clone());
+    let outcomes: Vec<_> = jobs
+        .iter()
+        .map(|_| {
+            receiver
+                .recv_timeout(std::time::Duration::from_secs(60))
+                .unwrap()
+        })
+        .collect();
+    drop(workers);
+    let made = outcomes
+        .iter()
+        .filter(|outcome| matches!(outcome, seura_library::Outcome::Ready(Some(_))))
+        .count();
+    assert_eq!(made, 1, "{outcomes:?}");
     index.save_snapshot(cache.path()).unwrap();
 
     let after = Snapshot::of(library.root());
@@ -121,7 +149,21 @@ fn rules_1_and_2_scanning_writes_only_to_the_cache() {
     );
     assert!(after.removed_since(&before).is_empty());
     let cache_files: Vec<String> = Snapshot::of(cache.path()).paths().collect();
-    assert_eq!(cache_files, ["README.txt", seura_library::SNAPSHOT_FILE]);
+    let thumbnails = cache_files
+        .iter()
+        .filter(|path| path.starts_with("thumbs/") && path.ends_with(".webp"))
+        .count();
+    let others: Vec<&String> = cache_files
+        .iter()
+        .filter(|path| !path.starts_with("thumbs/"))
+        .collect();
+    assert_eq!(thumbnails, 1, "{cache_files:?}");
+    assert_eq!(others, ["README.txt", seura_library::SNAPSHOT_FILE]);
+    assert_eq!(
+        cache_files.len(),
+        3,
+        "nothing else in the cache: {cache_files:?}"
+    );
 }
 
 #[test]
