@@ -10,6 +10,13 @@
     "allow-folders",
     "allow-photos",
     "allow-show-thumbnails",
+    "allow-open-photo",
+    "allow-close-photo",
+    "allow-set-exposure",
+    "allow-export-photo",
+    "allow-dev-options",
+    "allow-check-render",
+    "allow-finish-render-check",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

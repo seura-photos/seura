@@ -94,3 +94,41 @@ body {
   background: var(--tile);
   text-align: center;
 }
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.editor-bar,
+.editor-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--panel);
+}
+
+.editor-name {
+  flex: 1;
+}
+
+.editor-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.editor-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-controls input[type="range"] {
+  width: 240px;
+}

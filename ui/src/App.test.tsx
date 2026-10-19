@@ -8,6 +8,9 @@ const listener = vi.hoisted(() => ({ listen: vi.fn(() => Promise.resolve(() => {
 vi.mock("./bindings", () => ({
   commands: {
     appVersion: vi.fn(() => Promise.resolve("1.2.3")),
+    devOptions: vi.fn(() =>
+      Promise.resolve({ forceWebgl2: false, renderCheck: false, checkExposureEv: 0.7 }),
+    ),
     folders: vi.fn(() => Promise.resolve([])),
     photos: vi.fn(() => Promise.resolve([])),
     showThumbnails: vi.fn(() => Promise.resolve()),

@@ -26,7 +26,15 @@ specta-typescript = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 seura-library = { workspace = true }
+seura-edit = { workspace = true }
+seura-image = { workspace = true }
+seura-render = { workspace = true }
+time = { workspace = true }
 rfd = { workspace = true }
+
+[dev-dependencies]
+half = { workspace = true }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

@@ -1,9 +1,15 @@
 //! The read-only `seura://` protocol: thumbnails for photos in the index,
-//! and nothing else (decision 0009; technical design, section 10).
+//! the open photo's preview, and nothing else (decision 0009; technical
+//! design, section 10).
 //!
-//! `seura://localhost/thumb-<id>` (macOS) or `http://seura.localhost/thumb-<id>`
-//! (Windows). A thumbnail that isn't made yet is a 404; the UI asks again
-//! when the `ThumbnailReady` event arrives.
+//! `seura://localhost/<path>` (macOS) or `http://seura.localhost/<path>`
+//! (Windows), where the path is:
+//!
+//! - `thumb-<id>`: a thumbnail. One that isn't made yet is a 404; the UI asks
+//!   again when the `ThumbnailReady` event arrives.
+//! - `preview`: the photo open in the Editor, in the working space (see
+//!   `editor::encode_linear`).
+//! - `check-image`: the render check's reference image, in the same form.
 
 use std::borrow::Cow;
 
@@ -11,18 +17,38 @@ use seura_library::PhotoId;
 use tauri::http::{Request, Response, StatusCode, header};
 use tauri::{AppHandle, Manager, Runtime};
 
+use crate::editor::{Editor, check_image_bytes};
 use crate::library::Library;
 
 pub fn respond<R: Runtime>(
     app: &AppHandle<R>,
     request: &Request<Vec<u8>>,
 ) -> Response<Cow<'static, [u8]>> {
-    thumbnail(app, request.uri().path()).unwrap_or_else(|| {
+    let path = request.uri().path();
+    let response = match path {
+        "/preview" => app
+            .try_state::<Editor>()
+            .and_then(|editor| editor.preview())
+            .and_then(|bytes| pixels(bytes.as_ref().clone())),
+        "/check-image" => pixels(check_image_bytes()),
+        _ => thumbnail(app, path),
+    };
+    response.unwrap_or_else(|| {
         Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(Cow::Borrowed(&[][..]))
             .expect("a static response builds")
     })
+}
+
+/// Working-space pixels, fetched rather than shown as an image: the page's
+/// origin differs from the protocol's, so the response says it may read it.
+fn pixels(bytes: Vec<u8>) -> Option<Response<Cow<'static, [u8]>>> {
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/octet-stream")
+        .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+        .body(Cow::Owned(bytes))
+        .ok()
 }
 
 fn thumbnail<R: Runtime>(app: &AppHandle<R>, path: &str) -> Option<Response<Cow<'static, [u8]>>> {

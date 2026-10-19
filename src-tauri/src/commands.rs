@@ -1,7 +1,7 @@
 //! Commands the UI can call. Each one is also listed in `build.rs`, which
 //! generates the permission the UI's capability grants for it.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
 use seura_library::{AddFolder, Filter, FolderId, PhotoId, Scope};
@@ -9,6 +9,7 @@ use specta::Type;
 use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 
+use crate::editor::Editor;
 use crate::library::{Library, LibraryChanged};
 
 /// The app's version, from `Cargo.toml`.
@@ -64,16 +65,7 @@ pub enum AddFolderResult {
 #[tauri::command]
 #[specta::specta]
 pub async fn add_folder(app: AppHandle) -> Result<AddFolderResult, String> {
-    // Native dialogs must run on the main thread (macOS requires it).
-    let (send, receive) = std::sync::mpsc::channel();
-    app.run_on_main_thread(move || {
-        let _ = send.send(rfd::FileDialog::new().pick_folder());
-    })
-    .map_err(|error| error.to_string())?;
-    let picked = tauri::async_runtime::spawn_blocking(move || receive.recv().ok().flatten())
-        .await
-        .map_err(|error| error.to_string())?;
-    let Some(path) = picked else {
+    let Some(path) = pick_folder(&app).await? else {
         return Ok(AddFolderResult::Cancelled);
     };
 
@@ -167,6 +159,178 @@ pub fn show_thumbnails(library: State<'_, Library>, ids: Vec<u32>) {
             .collect()
     };
     library.workers.show(jobs);
+}
+
+/// A photo opened in the Editor.
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenedPhoto {
+    /// The preview's size, fetched from `seura://…/preview`.
+    pub width: u32,
+    pub height: u32,
+    pub exposure_ev: f64,
+    /// Why the photo can't be edited, if it can't: its edit file can't be
+    /// read, and is never overwritten (FIL-4).
+    pub problem: Option<String>,
+}
+
+/// Opens a photo in the Editor, with a preview `longEdge` pixels on its long
+/// side (the canvas size × the device pixel ratio, DSP-1).
+#[tauri::command]
+#[specta::specta]
+pub async fn open_photo(app: AppHandle, id: u32, long_edge: u32) -> Result<OpenedPhoto, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (photo, dimensions) = {
+            let library = app.state::<Library>();
+            let index = library.index.read().expect("index lock");
+            let photo = index
+                .path(PhotoId::new(id))
+                .ok_or("that photo isn't in the library")?;
+            let dimensions = index
+                .photo(PhotoId::new(id))
+                .and_then(|photo| photo.dimensions);
+            (photo, dimensions)
+        };
+        let opened = app
+            .state::<Editor>()
+            .open(id, photo, dimensions, long_edge)?;
+        Ok(OpenedPhoto {
+            width: opened.width,
+            height: opened.height,
+            exposure_ev: opened.exposure_ev,
+            problem: opened.problem,
+        })
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn close_photo(editor: State<'_, Editor>) {
+    editor.close();
+}
+
+/// Sets the open photo's exposure (EDT-5) and saves its edit file (EDT-11).
+#[tauri::command]
+#[specta::specta]
+pub async fn set_exposure(app: AppHandle, id: u32, ev: f64) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || app.state::<Editor>().set_exposure(id, ev))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+/// What exporting did.
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ExportResult {
+    /// The user closed the folder dialog.
+    Cancelled,
+    Exported {
+        file: String,
+        folder: String,
+    },
+}
+
+/// Asks for a folder and exports the open photo there as JPEG (EXP-1, EXP-5).
+#[tauri::command]
+#[specta::specta]
+pub async fn export_photo(app: AppHandle, id: u32) -> Result<ExportResult, String> {
+    let Some(folder) = pick_folder(&app).await? else {
+        return Ok(ExportResult::Cancelled);
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        let path = app.state::<Editor>().export(id, &folder)?;
+        Ok(ExportResult::Exported {
+            file: path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned(),
+            folder: display(&folder),
+        })
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// Developer switches, from environment variables.
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DevOptions {
+    /// `SEURA_PREVIEW=webgl2` forces the WebGL2 preview on a web view with
+    /// WebGPU, to check the fallback (M1 slice 5).
+    pub force_webgl2: bool,
+    /// `SEURA_RENDER_CHECK=1` runs the render check instead of the app.
+    pub render_check: bool,
+    /// The exposure the render check uses, so both sides agree.
+    pub check_exposure_ev: f32,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn dev_options() -> DevOptions {
+    DevOptions {
+        force_webgl2: std::env::var("SEURA_PREVIEW").as_deref() == Ok("webgl2"),
+        render_check: render_check_mode(),
+        check_exposure_ev: seura_render::check::CHECK_SETTINGS.exposure_ev,
+    }
+}
+
+/// The render check: one preview path's render of the check image, as 8-bit
+/// RGBA, compared with wgpu's. Returns the largest difference.
+#[tauri::command]
+#[specta::specta]
+pub async fn check_render(
+    app: AppHandle,
+    backend: String,
+    width: u32,
+    height: u32,
+    pixels: Vec<u8>,
+) -> Result<u8, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<Editor>()
+            .check_render(backend, width, height, pixels)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// Ends the render check: the app exits, with status 0 only if every
+/// preview path that ran matched export and nothing went wrong. Paths the
+/// web view doesn't have are listed, not failed. Does nothing outside the check.
+#[tauri::command]
+#[specta::specta]
+pub fn finish_render_check(app: AppHandle, skipped: Vec<String>, problems: Vec<String>) {
+    if !render_check_mode() {
+        return;
+    }
+    for path in &skipped {
+        println!("render check, {path}: not available in this web view");
+    }
+    for problem in &problems {
+        println!("render check: {problem}");
+    }
+    let passed = problems.is_empty() && app.state::<Editor>().checks_passed();
+    println!("render check {}", if passed { "passed" } else { "FAILED" });
+    app.exit(if passed { 0 } else { 1 });
+}
+
+fn render_check_mode() -> bool {
+    std::env::var("SEURA_RENDER_CHECK").as_deref() == Ok("1")
+}
+
+/// The system's folder dialog (ACC-4), or `None` if the user cancels.
+async fn pick_folder(app: &AppHandle) -> Result<Option<PathBuf>, String> {
+    // Native dialogs must run on the main thread (macOS requires it).
+    let (send, receive) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        let _ = send.send(rfd::FileDialog::new().pick_folder());
+    })
+    .map_err(|error| error.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || receive.recv().ok().flatten())
+        .await
+        .map_err(|error| error.to_string())
 }
 
 fn display(path: &Path) -> String {
