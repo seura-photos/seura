@@ -12,5 +12,6 @@
   "library.pickFolder": "Choose a folder on the left.",
   "grid.label": "Photos in {folder}",
   "grid.cloudOnly": "In the cloud",
+  "grid.needsHeifExtensions": "Needs Microsoft's HEIF and HEVC extensions",
   "grid.failed": "Can't show this photo"
 }

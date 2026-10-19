@@ -3,12 +3,10 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useRef, useState } from "react";
 import { commands, type PhotoInfo } from "./bindings";
 import { t } from "./messages";
+import { thumbLabel, type ThumbState } from "./thumbState";
 
 /** A cell's size in logical pixels. The thumbnail size slider (BRW-3) comes in M2. */
 const CELL = 200;
-
-/** What's known about each photo's thumbnail, from `thumbnailReady` events. */
-export type ThumbState = { version: number; cloudOnly: boolean; failed: boolean };
 
 type Props = {
   folder: string;
@@ -82,9 +80,7 @@ function Thumbnail({ photo, state }: { photo: PhotoInfo; state: ThumbState | und
   const version = state?.version ?? 0;
   const missing = missingVersion === version;
 
-  const cloudOnly = state?.cloudOnly ?? false;
-  const failed = state?.failed ?? false;
-  const label = cloudOnly ? t("grid.cloudOnly") : failed ? t("grid.failed") : null;
+  const label = thumbLabel(state);
   return (
     <div role="gridcell" className="cell" style={{ width: CELL, height: CELL }} title={photo.name}>
       {label || missing ? (

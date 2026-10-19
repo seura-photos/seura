@@ -1,6 +1,6 @@
 # 0011. HEIC decoding: operating system first, libheif as the Windows fallback
 
-Status: Accepted · 2026-10-17
+Status: Accepted · 2026-10-17 · Windows fallback (step 3) superseded by [0014](0014-heic-system-decoders-only.md), 2026-10-19
 
 ## Context
 

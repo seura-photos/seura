@@ -1,9 +1,9 @@
-//! HEIC/HEIF decoding (decision 0011): the operating system's decoder where
-//! there is one (ImageIO on macOS, WIC on Windows with Microsoft's
-//! extensions), libheif on Windows otherwise.
+//! HEIC/HEIF decoding with the operating system's decoder (decision 0014):
+//! ImageIO on macOS, and on Windows WIC with Microsoft's HEIF and HEVC
+//! extensions. Without them, Windows can't show HEIC photos, and says so.
 //!
 //! Orientation and color come from the container, read by Seura itself, so
-//! every decoder gives the same result.
+//! both decoders give the same result.
 
 mod container;
 #[cfg(target_os = "macos")]
@@ -21,31 +21,10 @@ use container::{Color, Container, Transform};
 use crate::decode::{DecodeError, Decoded};
 use crate::raster::Rgba8;
 
-/// The developer switch for the HEIC decoder: `SEURA_HEIF_DECODER=libheif`
-/// forces the libheif fallback on a Windows PC that has Microsoft's
-/// extensions, so both paths can be tested on one machine; `=system`
-/// forces the operating system's decoder.
-pub const DECODER_SWITCH: &str = "SEURA_HEIF_DECODER";
-
-/// Which HEIC decoder to use.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum HeifDecoder {
-    /// The system's decoder if it works, libheif otherwise (Windows).
-    Automatic,
-    System,
-    Libheif,
-}
-
-impl HeifDecoder {
-    /// The choice made by the developer switch, if any.
-    pub fn from_switch() -> HeifDecoder {
-        match std::env::var(DECODER_SWITCH).as_deref() {
-            Ok("libheif") => HeifDecoder::Libheif,
-            Ok("system") => HeifDecoder::System,
-            _ => HeifDecoder::Automatic,
-        }
-    }
-}
+/// The developer switch: `SEURA_HEIF_DECODER=none` behaves as if the
+/// system had no HEIC decoder, to see what users without Microsoft's
+/// extensions see.
+const DECODER_SWITCH: &str = "SEURA_HEIF_DECODER";
 
 /// Pixels from a decoder: whether it already applied the container's
 /// rotation and mirroring, and whether it already converted to sRGB.
@@ -56,17 +35,17 @@ pub(crate) struct Pixels {
 }
 
 pub fn decode(path: &Path) -> Result<Decoded, DecodeError> {
-    decode_with(path, HeifDecoder::from_switch())
-}
-
-/// Decodes with a particular decoder; for tests that compare them.
-pub fn decode_with(path: &Path, decoder: HeifDecoder) -> Result<Decoded, DecodeError> {
+    if std::env::var(DECODER_SWITCH).as_deref() == Ok("none") {
+        return Err(DecodeError::HeifUnavailable(format!(
+            "{DECODER_SWITCH}=none"
+        )));
+    }
     let mut head = Vec::new();
     File::open(path)?
         .take(container::HEAD_LIMIT as u64)
         .read_to_end(&mut head)?;
     let container = container::read(&head);
-    let pixels = platform_decode(path, decoder)?;
+    let pixels = platform_decode(path)?;
     let image = if pixels.transformed {
         pixels.image
     } else {
@@ -110,22 +89,17 @@ fn apply(image: Rgba8, container: &Container) -> Rgba8 {
 }
 
 #[cfg(target_os = "windows")]
-fn platform_decode(path: &Path, decoder: HeifDecoder) -> Result<Pixels, DecodeError> {
-    windows::decode(path, decoder)
+fn platform_decode(path: &Path) -> Result<Pixels, DecodeError> {
+    windows::decode(path)
 }
 
 #[cfg(target_os = "macos")]
-fn platform_decode(path: &Path, decoder: HeifDecoder) -> Result<Pixels, DecodeError> {
-    match decoder {
-        HeifDecoder::Libheif => Err(DecodeError::HeifUnavailable(
-            "libheif is used on Windows only".into(),
-        )),
-        _ => macos::decode(path),
-    }
+fn platform_decode(path: &Path) -> Result<Pixels, DecodeError> {
+    macos::decode(path)
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-fn platform_decode(_path: &Path, _decoder: HeifDecoder) -> Result<Pixels, DecodeError> {
+fn platform_decode(_path: &Path) -> Result<Pixels, DecodeError> {
     Err(DecodeError::HeifUnavailable(
         "not implemented yet on this platform".into(),
     ))

@@ -4,7 +4,7 @@
 //!
 //! HEIF stores orientation in the container, not as EXIF (an EXIF
 //! orientation in a HEIC must be ignored, or the photo turns twice). The
-//! decoders used so far (WIC, libheif) apply it themselves; reading it here
+//! decoders used so far (ImageIO, WIC) apply it themselves; reading it here
 //! lets a decoder that doesn't be corrected (ISO/IEC 23008-12, sections
 //! 6.5.10 to 6.5.12).
 //! Only the `meta` box is read, and every length is checked against the data.
@@ -67,7 +67,7 @@ fn parse(data: &[u8]) -> Option<Container> {
                     }
                 }
                 // Axis 1 is a left-right mirror: that's how Apple writes it
-                // (for EXIF orientation 2) and how libheif reads it,
+                // (for EXIF orientation 2) and how libheif and WIC read it,
                 // whatever the standard's wording suggests.
                 b"imir" => container.transforms.push(if data.first()? & 1 == 1 {
                     Transform::MirrorHorizontal

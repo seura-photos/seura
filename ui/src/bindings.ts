@@ -67,6 +67,11 @@ export type ThumbnailReady = {
 	id: number,
 	/**  The photo is only in the cloud and has no thumbnail yet (LIB-9). */
 	cloudOnly: boolean,
+	/**
+	 *  The system can't decode the photo's format: HEIC on Windows without
+	 *  Microsoft's extensions (decision 0014).
+	 */
+	needsCodec: boolean,
 	failed: boolean,
 };
 

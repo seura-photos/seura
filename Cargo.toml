@@ -49,11 +49,10 @@ jpeg-encoder = "0.7.1"
 # Native folder dialog, from Rust (ACC-4). Not tauri-plugin-dialog: it
 # depends on the file-system plugin, which decision 0009 keeps out.
 rfd = "0.17.2"
-# Windows only: WIC for HEIC where Microsoft's extensions are installed, and
-# libheif (LGPL, dynamically linked, from vcpkg) otherwise (decision 0011).
+# Windows only: WIC, for HEIC with Microsoft's extensions (decision 0014),
+# and the system thumbnails of cloud-only photos.
 windows = "0.62.2"
-libheif-rs = { version = "3.0.0", default-features = false, features = ["v1_23"] }
-# macOS only: ImageIO decodes HEIC (decision 0011).
+# macOS only: ImageIO decodes HEIC (decision 0014).
 objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std"] }
 objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["std"] }
 objc2-image-io = { version = "0.3.2", default-features = false, features = ["std"] }
