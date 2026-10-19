@@ -19,7 +19,7 @@ These are not negotiable, and tests should enforce them:
 2. Seura's own data is written only to: the edit file beside a photo, `Documents/Seura Photos/`, a cache location the user chose, and export destinations the user chose. Never in hidden app-data folders. Data the operating system or the web view runtime keeps on its own is minimized, documented in decision 0013, and removed by the uninstaller where possible. The UI never relies on browser storage (the web view runs incognito).
 3. Write edit files atomically: temporary file in the same folder, then rename.
 4. Never overwrite an edit file the app couldn't parse. Preserve unknown operations, fields, and extensions exactly when saving.
-5. Deletion always goes to the system Trash or Recycle Bin, never permanent.
+5. Deletion of a user's photo or of an edit file always goes to the system Trash or Recycle Bin, never permanent. The one exception is a temporary file Seura created during a save that failed, which is deleted directly. Leftover files Seura didn't create in the current operation, such as temporaries from a crash, go to the Trash.
 6. No telemetry. Network use only for update checks and, later, user-enabled AI.
 
 ## Working conventions
