@@ -6,6 +6,8 @@
 //! every decoder gives the same result.
 
 mod container;
+#[cfg(target_os = "macos")]
+mod macos;
 #[cfg(target_os = "windows")]
 mod windows;
 
@@ -45,11 +47,12 @@ impl HeifDecoder {
     }
 }
 
-/// Pixels from a decoder, and whether it already applied the container's
-/// rotation and mirroring.
+/// Pixels from a decoder: whether it already applied the container's
+/// rotation and mirroring, and whether it already converted to sRGB.
 pub(crate) struct Pixels {
     pub image: Rgba8,
     pub transformed: bool,
+    pub color_managed: bool,
 }
 
 pub fn decode(path: &Path) -> Result<Decoded, DecodeError> {
@@ -69,6 +72,9 @@ pub fn decode_with(path: &Path, decoder: HeifDecoder) -> Result<Decoded, DecodeE
     } else {
         apply(pixels.image, &container)
     };
+    if pixels.color_managed {
+        return Ok(Decoded { image, taken: None });
+    }
     let icc = match &container.color {
         Some(Color::Icc(icc)) => Some(icc.as_slice()),
         Some(Color::Primaries(12)) => Some(DISPLAY_P3.as_slice()),
@@ -108,7 +114,17 @@ fn platform_decode(path: &Path, decoder: HeifDecoder) -> Result<Pixels, DecodeEr
     windows::decode(path, decoder)
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+fn platform_decode(path: &Path, decoder: HeifDecoder) -> Result<Pixels, DecodeError> {
+    match decoder {
+        HeifDecoder::Libheif => Err(DecodeError::HeifUnavailable(
+            "libheif is used on Windows only".into(),
+        )),
+        _ => macos::decode(path),
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn platform_decode(_path: &Path, _decoder: HeifDecoder) -> Result<Pixels, DecodeError> {
     Err(DecodeError::HeifUnavailable(
         "not implemented yet on this platform".into(),

@@ -79,6 +79,7 @@ fn decode_with_wic(path: &Path) -> Result<Pixels, DecodeError> {
         Ok(Pixels {
             image: Rgba8::new(width, height, pixels),
             transformed: true,
+            color_managed: false,
         })
     }
 }
@@ -113,6 +114,7 @@ fn decode_with_libheif(path: &Path) -> Result<Pixels, DecodeError> {
     Ok(Pixels {
         image: Rgba8::new(plane.width, plane.height, pixels),
         transformed: true,
+        color_managed: false,
     })
 }
 

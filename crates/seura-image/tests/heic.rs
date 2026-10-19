@@ -8,8 +8,6 @@
 //! also carries an EXIF orientation, which must be ignored, or the photo
 //! turns twice. These files test exactly that.
 
-#![cfg(target_os = "windows")]
-
 use std::path::PathBuf;
 
 use seura_image::{DecodeError, Decoded, HeifDecoder, Rgba8, decode_heif_with};
@@ -25,13 +23,21 @@ fn fixture(name: &str) -> PathBuf {
         .join(name)
 }
 
-/// Decodes with one decoder; `None` if it isn't available on this machine
-/// (WIC without Microsoft's extensions, as on CI's Windows runners).
+/// The decoder every machine on this platform must have: libheif on
+/// Windows (bundled), ImageIO on macOS.
+fn required(decoder: HeifDecoder) -> bool {
+    (cfg!(windows) && decoder == HeifDecoder::Libheif)
+        || (cfg!(target_os = "macos") && decoder == HeifDecoder::System)
+}
+
+/// Decodes with one decoder; `None` if it isn't available here and isn't
+/// required (WIC without Microsoft's extensions, as on CI's Windows
+/// runners; libheif on a Mac).
 fn decode(name: &str, decoder: HeifDecoder) -> Option<Decoded> {
     match decode_heif_with(&fixture(name), decoder) {
         Ok(decoded) => Some(decoded),
-        Err(DecodeError::HeifUnavailable(reason)) if decoder == HeifDecoder::System => {
-            eprintln!("skipping WIC: {reason}");
+        Err(DecodeError::HeifUnavailable(reason)) if !required(decoder) => {
+            eprintln!("skipping {decoder:?}: {reason}");
             None
         }
         Err(error) => panic!("{name} with {decoder:?}: {error}"),
@@ -96,9 +102,16 @@ fn every_decoder_shows_heic_the_right_way_up() {
 }
 
 #[test]
-fn libheif_reproduces_the_colors() {
+fn libheif_and_imageio_reproduce_the_colors() {
+    let decoder = if cfg!(windows) {
+        HeifDecoder::Libheif
+    } else {
+        HeifDecoder::System
+    };
     for name in ["quadrants.heic", "quadrants-p3.heic"] {
-        let decoded = decode(name, HeifDecoder::Libheif).unwrap();
+        let Some(decoded) = decode(name, decoder) else {
+            continue;
+        };
         assert_corners(&decoded.image, [RED, GREEN, BLUE, WHITE], 4, name);
     }
 }
@@ -123,6 +136,7 @@ fn a_display_p3_profile_is_applied_with_every_decoder() {
 /// ImageIO writes for sRGB), WIC's colors drift. Green comes out around
 /// (0, 215, 0) instead of (0, 255, 0); libheif and the P3 file are exact.
 /// Whether real iPhone photos are affected is checked with Nevada's photos.
+#[cfg(windows)]
 #[test]
 fn wic_colors_drift_on_unspecified_color() {
     let Some(decoded) = decode("quadrants.heic", HeifDecoder::System) else {
