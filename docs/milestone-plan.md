@@ -38,6 +38,8 @@ Proves every risky piece on both platforms, as described in the [technical desig
 
 **Done when:** all six items work on the owner's Mac and Windows PC, the WebGL2 path passes in CI on an older macOS image, and the index decision is confirmed or replaced by a new record.
 
+**Status:** complete, 2026-10-19, with the hands-on Editor checks moved to integration testing by the owner's decision; see the [M1 work plan's status](m1-plan.md#status-at-the-end-of-m1).
+
 The UI is deliberately unstyled. The CLAUDE.md file gains real build, test, and lint commands. The slices are in the [M1 work plan](m1-plan.md).
 
 ## Brand and visual design (during M1)

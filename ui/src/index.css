@@ -85,6 +85,13 @@ body {
   max-height: 100%;
 }
 
+.dev-switches {
+  margin: 0 0 8px;
+  padding: 4px 8px;
+  background: #fff3c4;
+  color: #4a3b00;
+}
+
 .placeholder {
   width: 100%;
   height: 100%;

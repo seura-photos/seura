@@ -48,6 +48,10 @@ pub fn run() {
         })
         .setup(move |app| {
             builder.mount_events(app);
+            // Release builds on Windows have no console; the UI says it too.
+            for switch in commands::active_switches() {
+                eprintln!("Developer switch on: {switch}");
+            }
             let cache = locations::cache_folder(app.handle())?;
             app.manage(Library::open(app.handle(), &cache));
             app.manage(editor::Editor::default());

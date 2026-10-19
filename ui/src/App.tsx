@@ -67,16 +67,28 @@ export function App() {
   }
 
   const closeEditor = useCallback(() => setEditing(null), []);
+  // Developer switches are easy to leave set in a terminal, so they're always shown.
+  const switches = dev && dev.active.length > 0 && (
+    <p className="dev-switches" role="note">
+      {t("dev.switchesOn", { switches: dev.active.join(", ") })}
+    </p>
+  );
 
   if (dev === null) return null;
   if (dev.renderCheck) return <RenderCheck exposureEv={dev.checkExposureEv ?? 0} />;
   if (editing) {
-    return <Editor photo={editing} forceWebgl2={dev.forceWebgl2} onClose={closeEditor} />;
+    return (
+      <>
+        {switches}
+        <Editor photo={editing} forceWebgl2={dev.forceWebgl2} onClose={closeEditor} />
+      </>
+    );
   }
 
   return (
     <div className="app">
       <nav className="sidebar" aria-label={t("library.folders")}>
+        {switches}
         <button type="button" onClick={() => void addFolder()}>
           {t("library.addFolder")}
         </button>
