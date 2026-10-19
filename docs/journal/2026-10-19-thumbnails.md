@@ -34,3 +34,9 @@ Claude built `seura-image`, the thumbnail cache and workers, and the first real 
 - A test that "checked" P3 color conversion couldn't fail: fully saturated green looks the same converted or not. Rewritten with mid-tone colors and expected values computed independently in Python; checked that it fails with conversion turned off.
 - A scripted edit hit an escape error on a Windows path, and the commit after it ran anyway, committing a file with a message describing changes that weren't there. Fixed with a follow-up commit that says so.
 - A cleanup command was blocked by a safety check because of how a path variable expanded; nothing was removed, and the cleanup was redone with literal paths.
+
+## Nevada's checks
+
+- Nokia's HEIF conformance files (downloaded for testing, not committed) showed thumbnails in the app on both machines: Windows through WIC, the Mac through ImageIO.
+- Getting real iPhone HEICs turned out to be the hard part: Nevada's iPhone is set to take JPEGs ("Most Compatible"), and OneDrive's camera upload, iCloud for Windows, and iPhone USB transfers all convert to JPEG by default. Nevada asked whether HEIC on Windows is worth supporting at all; the research says it's uncommon there but real, mostly through Google Photos, settings that keep originals, and libraries shared with a Mac. Kept for now; noted as a possible decision.
+- On the Mac, `npm ci` was needed after the pull that added React Virtual, or Vite can't resolve it.
