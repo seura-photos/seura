@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { commands, type PhotoInfo } from "./bindings";
 import { t } from "./messages";
 import { type Backend, createPreview, fetchLinear } from "./preview";
+import { fitSize } from "./preview/fit";
 
 /** How long the slider must rest before a change is saved (EDT-11: within a second). */
 const SAVE_DELAY = 300;
@@ -77,8 +78,11 @@ export function Editor({ photo, forceWebgl2, onClose }: Props) {
       if (cancelled) return;
       element.width = image.width;
       element.height = image.height;
-      element.style.width = `${image.width / scale}px`;
-      element.style.height = `${image.height / scale}px`;
+      // Fitted to the area, whatever the photo's shape: its size isn't
+      // always known before it's decoded.
+      const shown = fitSize(image.width, image.height, area.clientWidth, area.clientHeight, scale);
+      element.style.width = `${shown.width}px`;
+      element.style.height = `${shown.height}px`;
       const created = await createPreview(element, forceWebgl2);
       if (cancelled) {
         created?.destroy();
