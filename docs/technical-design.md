@@ -129,7 +129,7 @@ No GPL code: exiv2 and gexiv2 are excluded because they're GPL-licensed and Seur
 
 ### Export (EXP-1 to EXP-6)
 
-Decode at full resolution → render all operations with the wgpu pipeline in tiles (about 2048 px squares with an overlap for operations that sample neighbors) → convert to sRGB → encode JPEG (`jpeg-encoder` or `mozjpeg`, to be benchmarked for quality and speed) or PNG → write metadata → write to a temporary file in the destination folder and rename to the final, never-taken name (EXP-3).
+Decode at full resolution → render all operations with the wgpu pipeline in tiles (about 2048 px squares with an overlap for operations that sample neighbors) → convert to sRGB → encode JPEG (`jpeg-encoder` since M1; `mozjpeg` to be benchmarked against it for quality and speed in M2) or PNG → write metadata → write to a temporary file in the destination folder and rename to the final, never-taken name (EXP-3).
 
 ## 6. Rendering (decision 0004)
 
@@ -137,8 +137,8 @@ Decode at full resolution → render all operations with the wgpu pipeline in ti
 
 - All operations live as WGSL in `crates/seura-render/shaders/`, one file per stage plus shared color functions. These shaders are the reference implementation of the edit format.
 - **Export and edited thumbnails:** the core runs them with wgpu (Metal on macOS, Direct3D 12 on Windows; wgpu's software adapter on Windows machines without a usable GPU).
-- **Live preview:** the UI imports the same WGSL files at build time (a Vite raw import of the shader folder) and runs them with WebGPU in a `<canvas>`.
-- **Fallback:** where WebGPU isn't available in the web view (Macs before macOS Tahoe 26), naga translates the WGSL to GLSL ES at build time and the preview runs on WebGL2. The source is still a single WGSL implementation; the translation is generated and tested, never hand-edited.
+- **Live preview:** the UI runs the same WGSL with WebGPU in a `<canvas>`. A test in `seura-render` writes the shader source, joined in its fixed order, to `ui/src/preview/generated/`, and fails in CI if the committed copy is out of date (`npm run shaders` regenerates it, as `npm run bindings` does for commands).
+- **Fallback:** where WebGPU isn't available in the web view (Macs before macOS Tahoe 26), naga translates the WGSL to GLSL ES 3.0, generated and committed the same way, and the preview runs on WebGL2. The source is still a single WGSL implementation; the translation is generated and tested, never hand-edited.
 
 ### Pipeline
 

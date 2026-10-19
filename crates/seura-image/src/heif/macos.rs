@@ -1,6 +1,7 @@
 //! HEIC on macOS: Apple's ImageIO, which has a licensed HEVC decoder
 //! (decision 0011). ImageIO applies the container's rotation and mirroring,
-//! and drawing into an sRGB bitmap lets Core Graphics convert the color.
+//! and drawing into a Display P3 bitmap lets Core Graphics convert the
+//! color without losing an iPhone photo's wide color.
 
 #![allow(unsafe_code, reason = "ImageIO and Core Graphics are C APIs")]
 
@@ -10,7 +11,8 @@ use objc2_core_foundation::{
     CFBoolean, CFDictionary, CFNumber, CFString, CFType, CFURL, CGFloat, CGPoint, CGRect, CGSize,
 };
 use objc2_core_graphics::{
-    CGBitmapContextCreate, CGColorSpace, CGContext, CGImage, CGImageAlphaInfo, kCGColorSpaceSRGB,
+    CGBitmapContextCreate, CGColorSpace, CGContext, CGImage, CGImageAlphaInfo,
+    kCGColorSpaceDisplayP3,
 };
 use objc2_image_io::{
     CGImageSource, kCGImageSourceCreateThumbnailFromImageAlways,
@@ -48,8 +50,8 @@ pub(super) fn decode(path: &Path) -> Result<Pixels, DecodeError> {
     if width == 0 || height == 0 {
         return Err(damaged("empty image"));
     }
-    let srgb = CGColorSpace::with_name(Some(unsafe { kCGColorSpaceSRGB }))
-        .ok_or_else(|| damaged("no sRGB color space"))?;
+    let p3 = CGColorSpace::with_name(Some(unsafe { kCGColorSpaceDisplayP3 }))
+        .ok_or_else(|| damaged("no Display P3 color space"))?;
     let mut pixels = vec![0u8; width * height * 4];
     {
         let context: Option<_> = unsafe {
@@ -59,7 +61,7 @@ pub(super) fn decode(path: &Path) -> Result<Pixels, DecodeError> {
                 height,
                 8,
                 width * 4,
-                Some(&srgb),
+                Some(&p3),
                 CGImageAlphaInfo::PremultipliedLast.0,
             )
         };
@@ -77,6 +79,6 @@ pub(super) fn decode(path: &Path) -> Result<Pixels, DecodeError> {
     Ok(Pixels {
         image: Rgba8::new(width as u32, height as u32, pixels),
         transformed: true,
-        color_managed: true,
+        display_p3: true,
     })
 }

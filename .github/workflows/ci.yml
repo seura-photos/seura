@@ -22,8 +22,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # An older macOS image joins in slice 5, for the WebGL2 preview path.
-        os: [windows-latest, macos-latest]
+        # macos-latest is macOS 26, with WebGPU in the web view; macOS 15 has
+        # only WebGL2, the preview's fallback (technical design, section 12).
+        os: [windows-latest, macos-latest, macos-15]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7

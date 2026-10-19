@@ -14,13 +14,13 @@ zune-jpeg = { workspace = true }
 png = { workspace = true }
 kamadak-exif = { workspace = true }
 moxcms = { workspace = true }
+half = { workspace = true }
 fast_image_resize = { workspace = true }
 webp = { workspace = true }
+jpeg-encoder = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-# Only for generating test images; never part of the app.
-jpeg-encoder = { workspace = true }
 tempfile = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]

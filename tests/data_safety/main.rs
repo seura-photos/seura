@@ -12,9 +12,9 @@
 //!
 //! - Scanning reads the library and writes only the cache: the index
 //!   snapshot and its README.
+//! - Export writes only the new file, never replacing one (EXP-3).
 //!
-//! Suites for later write paths (thumbnails, export, Trash) join this one as
-//! they're built.
+//! Suites for later write paths (Trash) join this one as they're built.
 
 mod library;
 
@@ -433,6 +433,43 @@ fn rule_4_unknown_content_survives_a_save() {
         history[..history.len() - 1],
         original["history"].as_array().unwrap()[..]
     );
+}
+
+#[test]
+fn rules_1_and_2_export_adds_only_new_files_and_replaces_none() {
+    let library = Library::new();
+    let photo = library.add_real_photo("Export/beach.png");
+    let folder = photo.parent().unwrap();
+    // A file already where the export would go.
+    fs::write(folder.join("beach.jpg"), b"not Seura's").unwrap();
+    let before = Snapshot::of(library.root());
+
+    let renderer = seura_render::Renderer::new().expect("a graphics adapter");
+    let settings = seura_render::Settings { exposure_ev: 1.0 };
+    let first = seura_render::export_jpeg(&renderer, &photo, &settings, folder).unwrap();
+    let second = seura_render::export_jpeg(&renderer, &photo, &settings, folder).unwrap();
+
+    let after = Snapshot::of(library.root());
+    assert_eq!(
+        after.added_since(&before),
+        ["Export/beach (1).jpg", "Export/beach (2).jpg"]
+    );
+    assert_eq!(library.relative(&first), "Export/beach (1).jpg");
+    assert_eq!(library.relative(&second), "Export/beach (2).jpg");
+    assert!(
+        after.changed_since(&before).is_empty(),
+        "existing files changed"
+    );
+    assert!(
+        after.removed_since(&before).is_empty(),
+        "files were removed"
+    );
+
+    // The export is the photo, one stop brighter: sRGB 90 is linear 0.1022,
+    // doubled 0.2044, which is sRGB 125.
+    let exported = seura_image::decode(&first).unwrap().image;
+    let pixel = &exported.pixels[..3];
+    assert!(pixel.iter().all(|v| v.abs_diff(125) <= 2), "{pixel:?}");
 }
 
 fn sorted(mut paths: Vec<String>) -> Vec<String> {

@@ -9,5 +9,19 @@ repository.workspace = true
 authors.workspace = true
 publish = false
 
+[dependencies]
+seura-edit = { workspace = true }
+seura-image = { workspace = true }
+wgpu = { workspace = true }
+bytemuck = { workspace = true }
+pollster = { workspace = true }
+half = { workspace = true }
+thiserror = { workspace = true }
+tempfile = { workspace = true }
+
+[dev-dependencies]
+naga = { workspace = true }
+half = { workspace = true }
+
 [lints]
 workspace = true

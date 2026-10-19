@@ -44,8 +44,9 @@ allow = [
     "MPL-2.0",
 ]
 
-# jpeg-encoder only generates test images (a dev-dependency of seura-image);
-# it never ships. Its IJG license is permissive, but not on the list above.
+# jpeg-encoder encodes JPEG exports. Its IJG license is permissive, but not on
+# the list above: it asks for credit to the Independent JPEG Group in the
+# documentation, which the third-party notices give (M7).
 [[licenses.exceptions]]
 crate = "jpeg-encoder"
 allow = ["IJG"]

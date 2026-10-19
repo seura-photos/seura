@@ -18,7 +18,7 @@ use std::sync::LazyLock;
 
 use container::{Color, Container, Transform};
 
-use crate::decode::{DecodeError, Decoded};
+use crate::decode::{DecodeError, Source};
 use crate::raster::Rgba8;
 
 /// The developer switch: `SEURA_HEIF_DECODER=none` behaves as if the
@@ -27,14 +27,14 @@ use crate::raster::Rgba8;
 const DECODER_SWITCH: &str = "SEURA_HEIF_DECODER";
 
 /// Pixels from a decoder: whether it already applied the container's
-/// rotation and mirroring, and whether it already converted to sRGB.
+/// rotation and mirroring, and whether it already converted to Display P3.
 pub(crate) struct Pixels {
     pub image: Rgba8,
     pub transformed: bool,
-    pub color_managed: bool,
+    pub display_p3: bool,
 }
 
-pub fn decode(path: &Path) -> Result<Decoded, DecodeError> {
+pub(crate) fn decode(path: &Path) -> Result<Source, DecodeError> {
     if std::env::var(DECODER_SWITCH).as_deref() == Ok("none") {
         return Err(DecodeError::HeifUnavailable(format!(
             "{DECODER_SWITCH}=none"
@@ -51,18 +51,20 @@ pub fn decode(path: &Path) -> Result<Decoded, DecodeError> {
     } else {
         apply(pixels.image, &container)
     };
-    if pixels.color_managed {
-        return Ok(Decoded { image, taken: None });
-    }
-    let icc = match &container.color {
-        Some(Color::Icc(icc)) => Some(icc.as_slice()),
-        Some(Color::Primaries(12)) => Some(DISPLAY_P3.as_slice()),
-        _ => None,
+    let icc = if pixels.display_p3 {
+        Some(DISPLAY_P3.clone())
+    } else {
+        match container.color {
+            Some(Color::Icc(icc)) => Some(icc),
+            Some(Color::Primaries(12)) => Some(DISPLAY_P3.clone()),
+            _ => None,
+        }
     };
     // Date taken from HEIF's EXIF item arrives with the metadata work; until
     // then HEIC photos sort by file date (BRW-2).
-    Ok(Decoded {
-        image: image.from_profile(icc),
+    Ok(Source {
+        image,
+        icc,
         taken: None,
     })
 }
