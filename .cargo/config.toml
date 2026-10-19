@@ -1,0 +1,4 @@
+[env]
+# libheif and libde265 are LGPL and must be dynamically linked (decision
+# 0011), so vcpkg's DLL builds (the x64-windows triplet) are used.
+VCPKGRS_DYNAMIC = "1"

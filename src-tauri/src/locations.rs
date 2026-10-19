@@ -1,16 +1,6 @@
 //! Where Seura writes its own data (CLAUDE.md rule 2; decisions 0005 and 0013).
 
-// Only the Windows web view folder uses these so far; the cache arrives in
-// slice 3. `expect` fails once they're used everywhere, so this can't linger.
-#![cfg_attr(
-    not(target_os = "windows"),
-    expect(
-        dead_code,
-        reason = "used on every platform once the cache exists (M1 slice 3)"
-    )
-)]
-
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use tauri::{AppHandle, Manager, Runtime};
 
@@ -28,7 +18,8 @@ pub fn cache_folder<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<PathBuf> {
 /// The web view's own data folder, inside the cache so it's visible, movable
 /// with the cache, and safe to delete. Only WebView2 (Windows) honors it;
 /// WKWebView (macOS) runs with a non-persistent store instead (decision 0013).
-pub fn web_view_folder(cache: &Path) -> PathBuf {
+#[cfg(any(target_os = "windows", test))]
+pub fn web_view_folder(cache: &std::path::Path) -> PathBuf {
     cache.join("WebView")
 }
 

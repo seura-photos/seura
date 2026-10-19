@@ -36,6 +36,27 @@ tempfile = "3.27.0"
 # (RUSTSEC-2025-0141); see docs/journal/2026-10-18-library.md.
 postcard = { version = "1.1.3", default-features = false, features = ["use-std"] }
 sha2 = "0.11.0"
+zune-jpeg = "0.5.15"
+png = "0.18.1"
+kamadak-exif = "0.6.1"
+moxcms = "0.9.1"
+fast_image_resize = "6.1.0"
+# Lossy WebP thumbnails need Google's libwebp (BSD-3-Clause, compiled in);
+# the pure-Rust encoder is lossless only.
+webp = "0.3.1"
+rayon = "1.12.0"
+jpeg-encoder = "0.7.1"
+# Native folder dialog, from Rust (ACC-4). Not tauri-plugin-dialog: it
+# depends on the file-system plugin, which decision 0009 keeps out.
+rfd = "0.17.2"
+# Windows only: WIC for HEIC where Microsoft's extensions are installed, and
+# libheif (LGPL, dynamically linked, from vcpkg) otherwise (decision 0011).
+windows = "0.62.2"
+libheif-rs = { version = "3.0.0", default-features = false, features = ["v1_23"] }
+# macOS only: ImageIO decodes HEIC (decision 0011).
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std"] }
+objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["std"] }
+objc2-image-io = { version = "0.3.2", default-features = false, features = ["std"] }
 
 tauri = "2.12.1"
 tauri-build = "2.7.1"

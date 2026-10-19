@@ -25,6 +25,8 @@ specta = { workspace = true }
 specta-typescript = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+seura-library = { workspace = true }
+rfd = { workspace = true }
 
 [lints]
 workspace = true

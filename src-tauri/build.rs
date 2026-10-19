@@ -4,7 +4,13 @@ fn main() {
     // Listing the app's commands makes Tauri generate an `allow-<command>`
     // permission for each, and deny any command a capability doesn't grant
     // (technical design, section 10).
-    let manifest = tauri_build::AppManifest::new().commands(&["app_version"]);
+    let manifest = tauri_build::AppManifest::new().commands(&[
+        "app_version",
+        "add_folder",
+        "folders",
+        "photos",
+        "show_thumbnails",
+    ]);
 
     // tauri-build would embed the Windows application manifest into the app
     // binary only, and test binaries then fail to start because they lack the
@@ -18,6 +24,13 @@ fn main() {
         println!("cargo:rerun-if-changed={}", path.display());
         println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
         println!("cargo:rustc-link-arg=/MANIFESTINPUT:{}", path.display());
+    }
+
+    // seura-image can call libheif on Windows; it's delay-loaded so the app
+    // starts without heif.dll (see seura-image's build.rs).
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        println!("cargo:rustc-link-arg=/DELAYLOAD:heif.dll");
+        println!("cargo:rustc-link-lib=delayimp");
     }
 
     tauri_build::try_build(

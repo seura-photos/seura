@@ -9,5 +9,35 @@ repository.workspace = true
 authors.workspace = true
 publish = false
 
+[dependencies]
+zune-jpeg = { workspace = true }
+png = { workspace = true }
+kamadak-exif = { workspace = true }
+moxcms = { workspace = true }
+fast_image_resize = { workspace = true }
+webp = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# Only for generating test images; never part of the app.
+jpeg-encoder = { workspace = true }
+tempfile = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-foundation = { workspace = true, features = ["CFCGTypes", "CFDictionary", "CFNumber", "CFString", "CFURL"] }
+objc2-core-graphics = { workspace = true, features = ["CGBitmapContext", "CGColorSpace", "CGContext", "CGImage"] }
+objc2-image-io = { workspace = true, features = ["CGImageSource", "objc2-core-graphics"] }
+
+[target.'cfg(windows)'.dependencies]
+libheif-rs = { workspace = true }
+windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_Imaging",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_Shell",
+] }
+
 [lints]
 workspace = true

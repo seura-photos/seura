@@ -1,20 +1,32 @@
-//! The Seura Photos app shell: window, commands, and (later) events, the
-//! `seura://` protocol, and the updater (technical design, section 1).
+//! The Seura Photos app shell: window, commands, events, the `seura://`
+//! protocol, and (later) the updater (technical design, section 1).
 //!
 //! The web UI reaches the core only through the commands registered in
 //! [`specta_builder`]; their TypeScript bindings are generated into
 //! `ui/src/bindings.ts` (decision 0008).
 
 mod commands;
+mod library;
 mod locations;
+mod protocol;
 
-use tauri::{App, WebviewWindowBuilder};
-use tauri_specta::{Builder, collect_commands};
+use library::{Library, LibraryChanged, ThumbnailReady};
+use tauri::{App, Manager, RunEvent, WebviewWindowBuilder};
+use tauri_specta::{Builder, Event, collect_commands, collect_events};
 
-/// Every command the UI may call. The same list drives the invoke handler and
-/// the generated TypeScript bindings, so the two can't drift apart.
+/// Every command the UI may call and every event it may hear. The same list
+/// drives the invoke handler and the generated TypeScript bindings, so the
+/// two can't drift apart.
 pub fn specta_builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![commands::app_version])
+    Builder::<tauri::Wry>::new()
+        .commands(collect_commands![
+            commands::app_version,
+            commands::add_folder,
+            commands::folders,
+            commands::photos,
+            commands::show_thumbnails,
+        ])
+        .events(collect_events![ThumbnailReady, LibraryChanged])
 }
 
 /// Builds and runs the app. Called from `main`.
@@ -23,13 +35,29 @@ pub fn run() {
 
     tauri::Builder::default()
         .invoke_handler(builder.invoke_handler())
+        .register_uri_scheme_protocol("seura", |context, request| {
+            protocol::respond(context.app_handle(), &request)
+        })
         .setup(move |app| {
             builder.mount_events(app);
+            let cache = locations::cache_folder(app.handle())?;
+            app.manage(Library::open(app.handle(), &cache));
+            // Show the snapshot at once (PRF-1), then catch up with the disk.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                handle.state::<Library>().rescan();
+                let _ = LibraryChanged.emit(&handle);
+            });
             create_main_window(app)?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Seura Photos");
+        .build(tauri::generate_context!())
+        .expect("error while starting Seura Photos")
+        .run(|app, event| {
+            if let RunEvent::Exit = event {
+                app.state::<Library>().save();
+            }
+        });
 }
 
 /// Creates the main window from its entry in `tauri.conf.json` (which has

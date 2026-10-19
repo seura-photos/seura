@@ -23,6 +23,7 @@ path = "data_safety/main.rs"
 [dev-dependencies]
 seura-edit = { workspace = true }
 seura-library = { workspace = true }
+png = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 tempfile = { workspace = true }

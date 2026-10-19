@@ -45,6 +45,32 @@ jobs:
         working-directory: ui
         run: npm ci
 
+      # libheif and libde265 for the Windows HEIC fallback (decision 0011),
+      # as DLLs, from vcpkg at the commit pinned in .github/vcpkg-commit.
+      # libheif[core] leaves out the x265 encoder, which is GPL.
+      - name: Restore the vcpkg binary cache
+        if: runner.os == 'Windows'
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/vcpkg-cache
+          key: vcpkg-${{ hashFiles('.github/vcpkg-commit') }}-libheif-core-x64-windows
+
+      - name: Build libheif with vcpkg
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          VCPKG_DISABLE_METRICS: "1"
+          VCPKG_BINARY_SOURCES: clear;files,${{ runner.temp }}/vcpkg-cache,readwrite
+        run: |
+          root="$RUNNER_TEMP/vcpkg"
+          mkdir -p "$RUNNER_TEMP/vcpkg-cache"
+          git init -q "$root"
+          git -C "$root" fetch -q --depth 1 https://github.com/microsoft/vcpkg.git "$(cat .github/vcpkg-commit)"
+          git -C "$root" checkout -q FETCH_HEAD
+          "$root/bootstrap-vcpkg.bat" -disableMetrics
+          "$root/vcpkg.exe" install "libheif[core]:x64-windows"
+          echo "VCPKG_ROOT=$root" >> "$GITHUB_ENV"
+
       - name: rustfmt
         run: cargo fmt --all --check
 
