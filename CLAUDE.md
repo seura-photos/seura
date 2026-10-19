@@ -50,6 +50,7 @@ Run from the repository root:
 | Rust lint | `cargo clippy --workspace --all-targets --locked -- -D warnings` |
 | Rust tests | `cargo test --workspace --locked` |
 | Licenses and advisories | `cargo deny check` |
+| Index benchmarks (decision 0010; fail if a target is missed) | `cargo bench -p seura-library --bench index` |
 | Check where the app writes (rule 2) | build with `npm run tauri -- build --debug --no-bundle` in `ui/` (macOS: `--bundles app`), then `python3 scripts/app_data_audit.py` |
 
 Run from `ui/`:

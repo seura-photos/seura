@@ -9,5 +9,19 @@ repository.workspace = true
 authors.workspace = true
 publish = false
 
+[dependencies]
+seura-edit = { workspace = true }
+serde = { workspace = true }
+postcard = { workspace = true }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+serde_json = { workspace = true }
+
+[[bench]]
+name = "index"
+harness = false
+
 [lints]
 workspace = true
