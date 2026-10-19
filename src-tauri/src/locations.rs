@@ -1,6 +1,6 @@
 //! Where Seura writes its own data (CLAUDE.md rule 2; decisions 0005 and 0013).
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use tauri::{AppHandle, Manager, Runtime};
 
@@ -19,7 +19,7 @@ pub fn cache_folder<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<PathBuf> {
 /// with the cache, and safe to delete. Only WebView2 (Windows) honors it;
 /// WKWebView (macOS) runs with a non-persistent store instead (decision 0013).
 #[cfg(any(target_os = "windows", test))]
-pub fn web_view_folder(cache: &Path) -> PathBuf {
+pub fn web_view_folder(cache: &std::path::Path) -> PathBuf {
     cache.join("WebView")
 }
 
