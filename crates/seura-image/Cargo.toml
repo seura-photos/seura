@@ -18,5 +18,14 @@ fast_image_resize = { workspace = true }
 webp = { workspace = true }
 thiserror = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+libheif-rs = { workspace = true }
+windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Imaging",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+] }
+
 [lints]
 workspace = true

@@ -45,6 +45,10 @@ fast_image_resize = "6.1.0"
 # the pure-Rust encoder is lossless only.
 webp = "0.3.1"
 rayon = "1.12.0"
+# Windows only: WIC for HEIC where Microsoft's extensions are installed, and
+# libheif (LGPL, dynamically linked, from vcpkg) otherwise (decision 0011).
+windows = "0.62.2"
+libheif-rs = { version = "3.0.0", default-features = false, features = ["v1_23"] }
 
 tauri = "2.12.1"
 tauri-build = "2.7.1"
