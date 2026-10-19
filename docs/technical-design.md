@@ -107,7 +107,7 @@ SHA-256 of the file bytes, computed lazily: when an edit file is first created, 
 | --- | --- | --- |
 | JPEG | `zune-jpeg` | Fast, with scaled decoding for thumbnails. |
 | PNG | `png` | Including 16-bit. |
-| HEIC/HEIF | See decision 0011 (proposed) | macOS: the system's ImageIO. Windows: the system's WIC codec when installed, otherwise bundled libheif. |
+| HEIC/HEIF | See decision 0014 | macOS: the system's ImageIO. Windows: the system's WIC codec, with Microsoft's HEIF and HEVC extensions; without them, HEIC photos show a message. |
 
 All decoded images become linear-light, floating-point pixels with Display P3 primaries, the working space defined by the edit format.
 
@@ -178,7 +178,7 @@ Kept behind small traits in `src-tauri/src/platform/` (decision 0006):
 
 | Concern | Windows | macOS |
 | --- | --- | --- |
-| HEIC decoding | WIC if the HEIF and HEVC extensions are installed, else bundled libheif | ImageIO |
+| HEIC decoding | WIC, with Microsoft's HEIF and HEVC extensions | ImageIO |
 | Trash | `trash` crate (Recycle Bin) | `trash` crate (Finder's Trash, with Put Back) |
 | Credentials (AI, later) | `keyring` (Credential Manager) | `keyring` (Keychain) |
 | Cloud-sync detection | OneDrive known folders | iCloud Desktop and Documents |
@@ -237,6 +237,6 @@ Proves every risky piece on both platforms before features are built on them:
 
 | Question | Decision |
 | --- | --- |
-| HEIC decoding and patents | Operating system decoders first; libheif with libde265, dynamically linked, as the Windows fallback; documentation for installing Microsoft's extensions (decision 0011). |
+| HEIC decoding and patents | Operating system decoders only, so Seura ships no HEVC decoder; documentation for installing Microsoft's extensions (decisions 0011 and 0014). |
 | Minimum OS versions | Windows 10 22H2+, macOS 13+, with tiered test coverage and a beta gate for older macOS (section 12). |
 | UI framework | React and TypeScript (decision 0008). |

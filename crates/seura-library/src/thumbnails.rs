@@ -43,6 +43,9 @@ pub enum Outcome {
     /// The photo is only in the cloud: it isn't decoded (LIB-9). The system's
     /// own thumbnail, if any, is used instead.
     CloudOnly,
+    /// The system has no decoder for the photo's format: HEIC on Windows
+    /// without Microsoft's extensions (decision 0014).
+    NeedsCodec,
     Failed(String),
 }
 
@@ -76,15 +79,21 @@ impl ThumbnailCache {
 
     /// Makes and stores the thumbnail for a photo. The photo is only read;
     /// the thumbnail is written atomically (CLAUDE.md rules 1 and 3).
-    pub fn make(&self, photo: &Path, key: &str) -> Result<Made, String> {
-        let decoded = seura_image::decode(photo).map_err(|error| error.to_string())?;
+    pub fn make(&self, photo: &Path, key: &str) -> Outcome {
+        let decoded = match seura_image::decode(photo) {
+            Ok(decoded) => decoded,
+            Err(seura_image::DecodeError::HeifUnavailable(_)) => return Outcome::NeedsCodec,
+            Err(error) => return Outcome::Failed(error.to_string()),
+        };
         let bytes = seura_image::thumbnail(&decoded.image);
-        self.store(key, &bytes).map_err(|error| error.to_string())?;
-        Ok(Made {
+        if let Err(error) = self.store(key, &bytes) {
+            return Outcome::Failed(error.to_string());
+        }
+        Outcome::Ready(Some(Made {
             width: decoded.image.width,
             height: decoded.image.height,
             taken: decoded.taken,
-        })
+        }))
     }
 
     /// Stores thumbnail bytes made elsewhere (the system's, for cloud-only photos).
@@ -250,10 +259,7 @@ fn work(shared: &(Mutex<Queue>, Condvar), cache: &ThumbnailCache, done: &dyn Fn(
         } else if job.placeholder {
             from_system(cache, &job)
         } else {
-            match cache.make(&job.path, &job.key) {
-                Ok(made) => Outcome::Ready(Some(made)),
-                Err(reason) => Outcome::Failed(reason),
-            }
+            cache.make(&job.path, &job.key)
         };
         done(job.id, outcome);
     }

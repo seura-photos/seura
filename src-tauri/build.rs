@@ -26,13 +26,6 @@ fn main() {
         println!("cargo:rustc-link-arg=/MANIFESTINPUT:{}", path.display());
     }
 
-    // seura-image can call libheif on Windows; it's delay-loaded so the app
-    // starts without heif.dll (see seura-image's build.rs).
-    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
-        println!("cargo:rustc-link-arg=/DELAYLOAD:heif.dll");
-        println!("cargo:rustc-link-lib=delayimp");
-    }
-
     tauri_build::try_build(
         tauri_build::Attributes::new()
             .app_manifest(manifest)

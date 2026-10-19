@@ -1,42 +1,32 @@
-//! HEIC on Windows: WIC when Microsoft's HEIF and HEVC extensions are
-//! installed, libheif (with libde265) otherwise (decision 0011).
+//! HEIC on Windows: WIC, with Microsoft's HEIF and HEVC extensions from the
+//! Microsoft Store (decision 0014).
 
-#![allow(unsafe_code, reason = "WIC is a COM API and libheif is loaded by hand")]
+#![allow(unsafe_code, reason = "WIC and Media Foundation are COM APIs")]
 
-use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::path::Path;
 
-use libheif_rs::{ColorSpace, HeifContext, LibHeif, RgbChroma};
 use windows::Win32::Foundation::GENERIC_READ;
 use windows::Win32::Graphics::Imaging::{
-    CLSID_WICImagingFactory, GUID_WICPixelFormat32bppRGBA, IWICImagingFactory,
-    WICBitmapDitherTypeNone, WICBitmapPaletteTypeCustom, WICDecodeMetadataCacheOnDemand,
+    CLSID_WICImagingFactory, GUID_ContainerFormatHeif, GUID_WICPixelFormat32bppRGBA,
+    IWICImagingFactory, WICBitmapDitherTypeNone, WICBitmapPaletteTypeCustom,
+    WICDecodeMetadataCacheOnDemand,
+};
+use windows::Win32::Media::MediaFoundation::{
+    IMFActivate, MFMediaType_Video, MFT_CATEGORY_VIDEO_DECODER, MFT_ENUM_FLAG_ALL,
+    MFT_REGISTER_TYPE_INFO, MFTEnumEx, MFVideoFormat_HEVC,
 };
 use windows::Win32::System::Com::{
-    CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
+    CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx, CoTaskMemFree,
 };
-use windows::Win32::System::LibraryLoader::{LOAD_WITH_ALTERED_SEARCH_PATH, LoadLibraryExW};
 use windows::core::HSTRING;
 
-use super::{HeifDecoder, Pixels};
+use super::Pixels;
 use crate::decode::{DecodeError, MAX_SIDE};
 use crate::raster::Rgba8;
 
-pub(super) fn decode(path: &Path, decoder: HeifDecoder) -> Result<Pixels, DecodeError> {
-    match decoder {
-        HeifDecoder::System => decode_with_wic(path),
-        HeifDecoder::Libheif => decode_with_libheif(path),
-        // Microsoft's extensions missing or failing means libheif.
-        HeifDecoder::Automatic => decode_with_wic(path).or_else(|_| decode_with_libheif(path)),
-    }
-}
-
 /// WIC decodes the pixels and applies the container's rotation and
-/// mirroring itself. (Checked against libheif with test files made by
-/// Apple's ImageIO; a claim elsewhere that it doesn't was wrong.)
-fn decode_with_wic(path: &Path) -> Result<Pixels, DecodeError> {
-    let unavailable =
-        |error: windows::core::Error| DecodeError::HeifUnavailable(format!("WIC: {error}"));
+/// mirroring itself. (Checked with test files made by Apple's ImageIO.)
+pub(super) fn decode(path: &Path) -> Result<Pixels, DecodeError> {
     unsafe {
         // Each worker thread joins a single-threaded apartment once and stays
         // (the system thumbnails need one; see system_thumbnail.rs). A thread
@@ -44,7 +34,12 @@ fn decode_with_wic(path: &Path) -> Result<Pixels, DecodeError> {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         let factory: IWICImagingFactory =
             CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)
-                .map_err(unavailable)?;
+                .map_err(|error| DecodeError::HeifUnavailable(format!("WIC: {error}")))?;
+        // A failure is the photo's fault only if both extensions are there.
+        let failed = |error: windows::core::Error| match missing_extension(&factory) {
+            Some(missing) => DecodeError::HeifUnavailable(missing.into()),
+            None => DecodeError::Damaged(format!("WIC: {error}")),
+        };
         // Opened for reading only (CLAUDE.md rule 1).
         let decoder = factory
             .CreateDecoderFromFilename(
@@ -53,16 +48,14 @@ fn decode_with_wic(path: &Path) -> Result<Pixels, DecodeError> {
                 GENERIC_READ,
                 WICDecodeMetadataCacheOnDemand,
             )
-            .map_err(unavailable)?;
-        let frame = decoder.GetFrame(0).map_err(unavailable)?;
+            .map_err(failed)?;
+        let frame = decoder.GetFrame(0).map_err(failed)?;
         let (mut width, mut height) = (0, 0);
-        frame
-            .GetSize(&mut width, &mut height)
-            .map_err(unavailable)?;
+        frame.GetSize(&mut width, &mut height).map_err(failed)?;
         if width > MAX_SIDE || height > MAX_SIDE {
             return Err(DecodeError::TooLarge(width, height));
         }
-        let converter = factory.CreateFormatConverter().map_err(unavailable)?;
+        let converter = factory.CreateFormatConverter().map_err(failed)?;
         converter
             .Initialize(
                 &frame,
@@ -72,11 +65,11 @@ fn decode_with_wic(path: &Path) -> Result<Pixels, DecodeError> {
                 0.0,
                 WICBitmapPaletteTypeCustom,
             )
-            .map_err(unavailable)?;
+            .map_err(failed)?;
         let mut pixels = vec![0; width as usize * height as usize * 4];
         converter
             .CopyPixels(std::ptr::null(), width * 4, &mut pixels)
-            .map_err(unavailable)?;
+            .map_err(failed)?;
         Ok(Pixels {
             image: Rgba8::new(width, height, pixels),
             transformed: true,
@@ -85,85 +78,65 @@ fn decode_with_wic(path: &Path) -> Result<Pixels, DecodeError> {
     }
 }
 
-/// libheif decodes the pixels and applies the container's rotation itself.
-fn decode_with_libheif(path: &Path) -> Result<Pixels, DecodeError> {
-    load_libheif()?;
-    let failed = |error: libheif_rs::HeifError| DecodeError::Damaged(format!("libheif: {error}"));
-    let name = path
-        .to_str()
-        .ok_or_else(|| DecodeError::Damaged("file name isn't valid Unicode".into()))?;
-    let context = HeifContext::read_from_file(name).map_err(failed)?;
-    let handle = context.primary_image_handle().map_err(failed)?;
-    if handle.width() > MAX_SIDE || handle.height() > MAX_SIDE {
-        return Err(DecodeError::TooLarge(handle.width(), handle.height()));
+/// Which of Microsoft's extensions is missing, if either: HEIF Image
+/// Extensions (WIC's HEIF decoder) or HEVC Video Extensions (the video
+/// decoder that HEIF decoder uses for the pixels).
+fn missing_extension(factory: &IWICImagingFactory) -> Option<&'static str> {
+    if unsafe { factory.CreateDecoder(&GUID_ContainerFormatHeif, std::ptr::null()) }.is_err() {
+        return Some("Microsoft's HEIF Image Extensions aren't installed");
     }
-    let image = LibHeif::new()
-        .decode(&handle, ColorSpace::Rgb(RgbChroma::Rgba), None)
-        .map_err(failed)?;
-    let plane = image
-        .planes()
-        .interleaved
-        .ok_or_else(|| DecodeError::Damaged("libheif returned no RGBA plane".into()))?;
-    let row = plane.width as usize * 4;
-    let pixels: Vec<u8> = plane
-        .data
-        .chunks(plane.stride)
-        .take(plane.height as usize)
-        .flat_map(|line| &line[..row])
-        .copied()
-        .collect();
-    Ok(Pixels {
-        image: Rgba8::new(plane.width, plane.height, pixels),
-        transformed: true,
-        color_managed: false,
-    })
+    if !hevc_decoder_installed() {
+        return Some("Microsoft's HEVC Video Extensions aren't installed");
+    }
+    None
 }
 
-/// Loads `heif.dll` (and through it `libde265.dll`) from a known folder.
-/// It's delay-loaded (see `build.rs`), so the app starts without it and
-/// only HEIC decoding needs it. Looked for beside the app, where the
-/// installer puts it, then in vcpkg's build output, for development.
-fn load_libheif() -> Result<(), DecodeError> {
-    static LOADED: OnceLock<Result<(), String>> = OnceLock::new();
-    LOADED
-        .get_or_init(|| {
-            let folders = libheif_folders();
-            for folder in &folders {
-                let dll = folder.join("heif.dll");
-                if dll.is_file()
-                    && unsafe {
-                        LoadLibraryExW(
-                            &HSTRING::from(dll.as_path()),
-                            None,
-                            LOAD_WITH_ALTERED_SEARCH_PATH,
-                        )
-                    }
-                    .is_ok()
-                {
-                    return Ok(());
-                }
+fn hevc_decoder_installed() -> bool {
+    let input = MFT_REGISTER_TYPE_INFO {
+        guidMajorType: MFMediaType_Video,
+        guidSubtype: MFVideoFormat_HEVC,
+    };
+    let mut found: *mut Option<IMFActivate> = std::ptr::null_mut();
+    let mut count = 0;
+    unsafe {
+        if MFTEnumEx(
+            MFT_CATEGORY_VIDEO_DECODER,
+            MFT_ENUM_FLAG_ALL,
+            Some(&input),
+            None,
+            &mut found,
+            &mut count,
+        )
+        .is_err()
+        {
+            return false;
+        }
+        if !found.is_null() {
+            // Releases each activation object, then the array itself.
+            for i in 0..count as usize {
+                found.add(i).drop_in_place();
             }
-            Err(format!("heif.dll wasn't found in {folders:?}"))
-        })
-        .clone()
-        .map_err(DecodeError::HeifUnavailable)
+            CoTaskMemFree(Some(found as *const _));
+        }
+    }
+    count > 0
 }
 
-fn libheif_folders() -> Vec<PathBuf> {
-    let mut folders = Vec::new();
-    if let Some(folder) = std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(Path::to_path_buf))
-    {
-        folders.push(folder);
+#[cfg(test)]
+mod tests {
+    /// Seura's development PC has both extensions; CI's runners may not.
+    #[test]
+    #[ignore = "needs Microsoft's HEIF and HEVC extensions"]
+    fn both_extensions_are_found_where_installed() {
+        unsafe {
+            let _ = super::CoInitializeEx(None, super::COINIT_APARTMENTTHREADED);
+            let factory: super::IWICImagingFactory = super::CoCreateInstance(
+                &super::CLSID_WICImagingFactory,
+                None,
+                super::CLSCTX_INPROC_SERVER,
+            )
+            .unwrap();
+            assert_eq!(super::missing_extension(&factory), None);
+        }
     }
-    if let Some(root) = std::env::var_os("VCPKG_ROOT") {
-        folders.push(
-            PathBuf::from(root)
-                .join("installed")
-                .join("x64-windows")
-                .join("bin"),
-        );
-    }
-    folders
 }

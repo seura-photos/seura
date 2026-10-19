@@ -1,4 +1,4 @@
-//! HEIC decoding with real files (BRW-7, decision 0011). The files in
+//! HEIC decoding with real files (BRW-7, decision 0014). The files in
 //! `fixtures/` were made for Seura with Apple's ImageIO on Nevada's Mac
 //! (see `fixtures/README.md`): a 64×48 image, red top left, green top
 //! right, blue bottom left, white bottom right, stored upright, turned
@@ -7,10 +7,13 @@
 //! In HEIC, orientation lives in the container (`irot`, `imir`); each file
 //! also carries an EXIF orientation, which must be ignored, or the photo
 //! turns twice. These files test exactly that.
+//!
+//! On Windows the decoder is WIC with Microsoft's extensions, which CI's
+//! runners may not have; there the tests are skipped. Every Mac has ImageIO.
 
 use std::path::PathBuf;
 
-use seura_image::{DecodeError, Decoded, HeifDecoder, Rgba8, decode_heif_with};
+use seura_image::{DecodeError, Decoded, Rgba8, decode};
 
 const RED: [u8; 3] = [255, 0, 0];
 const GREEN: [u8; 3] = [0, 255, 0];
@@ -23,24 +26,15 @@ fn fixture(name: &str) -> PathBuf {
         .join(name)
 }
 
-/// The decoder every machine on this platform must have: libheif on
-/// Windows (bundled), ImageIO on macOS.
-fn required(decoder: HeifDecoder) -> bool {
-    (cfg!(windows) && decoder == HeifDecoder::Libheif)
-        || (cfg!(target_os = "macos") && decoder == HeifDecoder::System)
-}
-
-/// Decodes with one decoder; `None` if it isn't available here and isn't
-/// required (WIC without Microsoft's extensions, as on CI's Windows
-/// runners; libheif on a Mac).
-fn decode(name: &str, decoder: HeifDecoder) -> Option<Decoded> {
-    match decode_heif_with(&fixture(name), decoder) {
+/// Decodes a fixture; `None` on Windows without Microsoft's extensions.
+fn decode_fixture(name: &str) -> Option<Decoded> {
+    match decode(&fixture(name)) {
         Ok(decoded) => Some(decoded),
-        Err(DecodeError::HeifUnavailable(reason)) if !required(decoder) => {
-            eprintln!("skipping {decoder:?}: {reason}");
+        Err(DecodeError::HeifUnavailable(reason)) if cfg!(windows) => {
+            eprintln!("skipping: {reason}");
             None
         }
-        Err(error) => panic!("{name} with {decoder:?}: {error}"),
+        Err(error) => panic!("{name}: {error}"),
     }
 }
 
@@ -69,10 +63,10 @@ fn assert_corners(image: &Rgba8, expected: [[u8; 3]; 4], tolerance: u8, what: &s
     }
 }
 
-/// Orientation is right with every decoder. Colors aren't compared
-/// closely here (see `wic_colors_drift_on_unspecified_color`).
+/// Colors aren't compared closely here (see
+/// `wic_colors_drift_on_unspecified_color`).
 #[test]
-fn every_decoder_shows_heic_the_right_way_up() {
+fn heic_is_shown_the_right_way_up() {
     let cases = [
         ("quadrants.heic", (64, 48), [RED, GREEN, BLUE, WHITE]),
         // Turned 90° clockwise: what was on the left is now on top.
@@ -89,57 +83,41 @@ fn every_decoder_shows_heic_the_right_way_up() {
         ),
         ("quadrants-p3.heic", (64, 48), [RED, GREEN, BLUE, WHITE]),
     ];
-    for decoder in [HeifDecoder::Libheif, HeifDecoder::System] {
-        for (name, size, expected) in cases {
-            let Some(decoded) = decode(name, decoder) else {
-                continue;
-            };
-            let image = &decoded.image;
-            assert_eq!((image.width, image.height), size, "{name} with {decoder:?}");
-            assert_corners(image, expected, 60, &format!("{name} with {decoder:?}"));
-        }
+    for (name, size, expected) in cases {
+        let Some(decoded) = decode_fixture(name) else {
+            continue;
+        };
+        let image = &decoded.image;
+        assert_eq!((image.width, image.height), size, "{name}");
+        assert_corners(image, expected, 60, name);
     }
 }
 
 #[test]
-fn libheif_and_imageio_reproduce_the_colors() {
-    let decoder = if cfg!(windows) {
-        HeifDecoder::Libheif
-    } else {
-        HeifDecoder::System
+fn a_display_p3_profile_is_applied() {
+    let Some(decoded) = decode_fixture("quadrants-p3.heic") else {
+        return;
     };
-    for name in ["quadrants.heic", "quadrants-p3.heic"] {
-        let Some(decoded) = decode(name, decoder) else {
-            continue;
-        };
-        assert_corners(&decoded.image, [RED, GREEN, BLUE, WHITE], 4, name);
-    }
+    assert_corners(&decoded.image, [RED, GREEN, BLUE, WHITE], 4, "P3");
 }
 
+#[cfg(target_os = "macos")]
 #[test]
-fn a_display_p3_profile_is_applied_with_every_decoder() {
-    for decoder in [HeifDecoder::Libheif, HeifDecoder::System] {
-        let Some(decoded) = decode("quadrants-p3.heic", decoder) else {
-            continue;
-        };
-        assert_corners(
-            &decoded.image,
-            [RED, GREEN, BLUE, WHITE],
-            4,
-            &format!("{decoder:?}"),
-        );
-    }
+fn imageio_reproduces_unspecified_color_as_srgb() {
+    let decoded = decode_fixture("quadrants.heic").expect("every Mac has ImageIO");
+    assert_corners(&decoded.image, [RED, GREEN, BLUE, WHITE], 4, "sRGB");
 }
 
 /// A known difference, recorded so a change is noticed: for files whose
 /// `colr` box is `nclx` with unspecified primaries and transfer (as
 /// ImageIO writes for sRGB), WIC's colors drift. Green comes out around
-/// (0, 215, 0) instead of (0, 255, 0); libheif and the P3 file are exact.
-/// Whether real iPhone photos are affected is checked with Nevada's photos.
+/// (0, 215, 0) instead of (0, 255, 0); ImageIO and the P3 file are exact.
+/// Real iPhone photos aren't affected: they carry a profile (checked with
+/// Nevada's photos, 2026-10-19).
 #[cfg(windows)]
 #[test]
 fn wic_colors_drift_on_unspecified_color() {
-    let Some(decoded) = decode("quadrants.heic", HeifDecoder::System) else {
+    let Some(decoded) = decode_fixture("quadrants.heic") else {
         return;
     };
     let [_, green, _, _] = corners(&decoded.image);

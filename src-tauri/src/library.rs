@@ -26,6 +26,9 @@ pub struct ThumbnailReady {
     pub id: u32,
     /// The photo is only in the cloud and has no thumbnail yet (LIB-9).
     pub cloud_only: bool,
+    /// The system can't decode the photo's format: HEIC on Windows without
+    /// Microsoft's extensions (decision 0014).
+    pub needs_codec: bool,
     pub failed: bool,
 }
 
@@ -98,6 +101,7 @@ fn finished<R: Runtime>(app: &AppHandle<R>, id: PhotoId, outcome: Outcome) {
     let event = ThumbnailReady {
         id: id.value(),
         cloud_only: outcome == Outcome::CloudOnly,
+        needs_codec: outcome == Outcome::NeedsCodec,
         failed: matches!(outcome, Outcome::Failed(_)),
     };
     let _ = event.emit(app);

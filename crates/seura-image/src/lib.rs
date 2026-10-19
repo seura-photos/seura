@@ -13,7 +13,6 @@ mod system_thumbnail;
 mod thumbnail;
 
 pub use decode::{DecodeError, Decoded, MAX_SIDE, decode};
-pub use heif::{DECODER_SWITCH, HeifDecoder, decode_with as decode_heif_with};
 pub use raster::Rgba8;
 pub use system_thumbnail::system_thumbnail;
 pub use thumbnail::{THUMBNAIL_SIZE, fit, thumbnail};

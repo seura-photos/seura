@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { commands, events, type FolderInfo, type PhotoInfo } from "./bindings";
-import { Grid, type ThumbState } from "./Grid";
+import { Grid } from "./Grid";
 import { t } from "./messages";
+import type { ThumbState } from "./thumbState";
 
 // The walking skeleton's Library: folders on the left, a plain grid on the
 // right. The styled views arrive in M2.
@@ -23,7 +24,12 @@ export function App() {
       setThumbs((previous) => {
         const next = new Map(previous);
         const version = (previous.get(payload.id)?.version ?? 0) + 1;
-        next.set(payload.id, { version, cloudOnly: payload.cloudOnly, failed: payload.failed });
+        next.set(payload.id, {
+          version,
+          cloudOnly: payload.cloudOnly,
+          needsCodec: payload.needsCodec,
+          failed: payload.failed,
+        });
         return next;
       });
     });

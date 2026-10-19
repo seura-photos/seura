@@ -126,7 +126,7 @@ Free and open source.
 **Pricing promise.** Seura Photos is free. No one will ever have to pay to use it, and no one will ever need an account to use it. If a paid option is ever offered, it will be an optional service for features that cost money to run on the project's side, such as AI processing through a server it operates, and that service would be the only part that needs an account. Everything the app does without such a service stays free. And because the app is open source under Apache 2.0, anyone can keep using and building it regardless.
 
 - **License:** Apache 2.0 for the app. The edit format specification is published separately under CC BY 4.0, with its schema and tests under Apache 2.0, so anyone can implement it.
-- **Library compatibility:** HEIC decoding libraries such as libheif are LGPL, which permits use from a permissively licensed app when linked dynamically. Each dependency's license is confirmed in the technical design.
+- **Library compatibility:** each dependency's license is confirmed in the technical design. HEIC is decoded by the operating system, so Seura bundles no HEVC decoder (decision 0014).
 - **Releases:** installers for Windows and macOS published as GitHub Releases in the seura-photos organization, with built-in, signature-verified update checks.
 - **Code signing:** required so the target users don't see security warnings. Apple's developer program costs about $99 per year; Windows options vary, including signing programs for open-source projects. To be priced before the first public release.
 

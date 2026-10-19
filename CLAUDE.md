@@ -41,7 +41,7 @@ The project is built in the open, with a public devlog on the website (https://s
 
 Clone with `git clone --recurse-submodules`, or run `git submodule update --init` after a plain clone. The Rust toolchain is pinned in `rust-toolchain.toml` and Node in `.nvmrc` (24.21.0, LTS; with nvm, run `nvm use` in the repository). Install the tools once with `cargo install --locked tauri-cli@2.12.1 cargo-deny@0.20.2`, then `npm ci` in `ui/`.
 
-On Windows, HEIC's libheif fallback (decision 0011) comes from vcpkg, as DLLs. Once: clone `https://github.com/microsoft/vcpkg` (for example to `C:\Users\<you>\vcpkg`), check out the commit in `.github/vcpkg-commit`, run `bootstrap-vcpkg.bat -disableMetrics`, then `vcpkg install "libheif[core]:x64-windows"` (`[core]` because the default features add the GPL x265 encoder), and set the user environment variable `VCPKG_ROOT` to that folder. `.cargo/config.toml` already selects the DLL build. `SEURA_HEIF_DECODER=libheif` forces the fallback on a PC that has Microsoft's HEIF extensions; `=system` forces WIC.
+On Windows, HEIC photos are decoded by Microsoft's HEIF Image Extensions and HEVC Video Extensions from the Microsoft Store (decision 0014); without them the HEIC tests are skipped. `SEURA_HEIF_DECODER=none` makes the app behave as if they were missing.
 
 Run from the repository root:
 

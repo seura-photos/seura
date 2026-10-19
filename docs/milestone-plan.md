@@ -104,7 +104,7 @@ Everything between "works for me" and "ready for strangers."
 
 - Cleanup: CLN-1 to CLN-5. Settings: SET-2. Updates: SET-4, with signed update packages.
 - Audits against the spec: accessibility (ACC-1 to ACC-5), interaction rules (INT-1 to INT-5), display (DSP-1 to DSP-4), and every performance target.
-- Signed installers for Windows and macOS; third-party license notices (including libheif and libde265, decision 0011).
+- Signed installers for Windows and macOS; third-party license notices.
 - The user guide, including installing Microsoft's HEIF and HEVC extensions on Windows, and how Seura works with cloud-synced folders, with a brief summary of what each service offers (for example, Google Photos has no desktop sync, so Android users may prefer OneDrive or Dropbox camera backup; iCloud Photos on a Mac isn't a folder).
 - The edit format released as 1.0 in the `edit-format` repository; from then on, changes follow its versioning rules.
 - **Beta:** a short beta with volunteers, especially on Windows 10 and macOS 13 to 15, following a written test checklist. If nobody tests macOS 13 to 15, the macOS minimum is raised to Tahoe 26 with a new decision record.
