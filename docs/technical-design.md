@@ -72,9 +72,9 @@ An **in-memory index**, persisted as a single snapshot file in the cache, instea
 
 - One record per photo: path, size, modification time, fingerprint (once computed), dimensions, date taken, camera, rating, tags, edited flag, and cache keys. Roughly 200 to 300 bytes each in memory, so 100,000 photos is about 30 MB, well within PRF-7.
 - Secondary maps: folder → photos, tag → photos, and a lowercase file-name and tag index for search (FND-2), which makes filtering 10,000 photos a sub-millisecond scan (FND-3).
-- **Snapshot:** written in a compact binary format (`bincode`) after scans and periodically, atomically (temporary file, then rename). On launch it's loaded before anything else, so the grid appears immediately (PRF-1) while reconciliation runs in the background.
+- **Snapshot:** written in a compact binary format (`postcard`; `bincode`, first chosen, is unmaintained, see decision 0010) after scans and periodically, atomically (temporary file, then rename). On launch it's loaded before anything else, so the grid appears immediately (PRF-1) while reconciliation runs in the background.
 - **Source of truth** remains the photos and edit files. A missing or corrupt snapshot just triggers a full re-scan.
-- **Benchmark gate:** the first milestone measures launch time, memory, and query time on synthetic 10,000 and 100,000 photo libraries. If the targets are missed, SQLite (`rusqlite`) replaces the snapshot behind the same interface, with a new decision record superseding 0010.
+- **Benchmark gate:** the first milestone measures launch time, memory, and query time on synthetic 10,000 and 100,000 photo libraries. If the targets are missed, SQLite (`rusqlite`) replaces the snapshot behind the same interface, with a new decision record superseding 0010. Passed in M1 with a wide margin; see [`benchmarks/m1-index.md`](benchmarks/m1-index.md).
 
 ### Thumbnails and the cache (DSP-1, DSP-4)
 
