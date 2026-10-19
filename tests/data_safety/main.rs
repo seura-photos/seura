@@ -10,8 +10,11 @@
 //! - Rule 4: an edit file that can't be read is never overwritten, and
 //!   unknown content survives a save.
 //!
-//! Suites for later write paths (thumbnails, the index snapshot, export,
-//! Trash) join this one as they're built.
+//! - Scanning reads the library and writes only the cache: the index
+//!   snapshot and its README.
+//!
+//! Suites for later write paths (thumbnails, export, Trash) join this one as
+//! they're built.
 
 mod library;
 
@@ -70,6 +73,55 @@ fn edit_every_photo(library: &Library) {
         file.document.undo().unwrap();
         file.save(WRITER, now()).unwrap();
     }
+}
+
+#[test]
+fn rules_1_and_2_scanning_writes_only_to_the_cache() {
+    let library = Library::new();
+    for photo in library.photos().iter().take(2) {
+        let mut file = EditFile::create(
+            &edit_file_path(photo),
+            EditDocument::new_for_photo(&library.identity(photo)),
+        );
+        file.document
+            .apply(&act("Rating", vec![Edit::Rating(3)]), now())
+            .unwrap();
+        file.save(WRITER, now()).unwrap();
+    }
+    let before = Snapshot::of(library.root());
+    let cache = tempfile::tempdir().unwrap();
+
+    let mut index = seura_library::Index::new();
+    index.add_root(library.root()).unwrap();
+    let root = index.roots()[0].clone();
+    let report = index.scan(&root);
+    assert_eq!(
+        report.photos,
+        library.photos().len(),
+        "every stand-in is a photo"
+    );
+    index.save_snapshot(cache.path()).unwrap();
+    let mut index = seura_library::Index::load_snapshot(cache.path()).unwrap();
+    index.scan(&root);
+    for id in index.photo_ids().collect::<Vec<_>>() {
+        index.fingerprint(id).unwrap();
+    }
+    index.save_snapshot(cache.path()).unwrap();
+
+    let after = Snapshot::of(library.root());
+    assert!(
+        after.added_since(&before).is_empty(),
+        "added: {:?}",
+        after.added_since(&before)
+    );
+    assert!(
+        after.changed_since(&before).is_empty(),
+        "changed: {:?}",
+        after.changed_since(&before)
+    );
+    assert!(after.removed_since(&before).is_empty());
+    let cache_files: Vec<String> = Snapshot::of(cache.path()).paths().collect();
+    assert_eq!(cache_files, ["README.txt", seura_library::SNAPSHOT_FILE]);
 }
 
 #[test]

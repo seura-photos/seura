@@ -133,17 +133,18 @@ fn read_if_exists(path: &Path) -> io::Result<Option<Vec<u8>>> {
     }
 }
 
-/// Writes `bytes` to a new temporary file beside `path`, flushes it, and
-/// renames it over `path`. On any failure the temporary file is removed and
-/// `path` is unchanged.
+/// The final step of an atomic write, passed in so tests can make it fail.
 type Rename = fn(&Path, &Path) -> io::Result<()>;
 
 fn rename(from: &Path, to: &Path) -> io::Result<()> {
     fs::rename(from, to)
 }
 
-#[cfg(test)]
-fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
+/// Writes `bytes` to `path` atomically: a new temporary file beside it,
+/// flushed to disk, then renamed over `path` (CLAUDE.md rule 3). On failure
+/// `path` is unchanged and the temporary file is removed. Seura uses this for
+/// every file it writes: edit files, and the cache's index snapshot.
+pub fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
     write_atomically_with(path, bytes, rename)
 }
 

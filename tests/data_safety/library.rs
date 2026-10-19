@@ -43,7 +43,19 @@ impl Library {
     pub fn add_photo(&self, name: &str) -> PathBuf {
         let path = self.root().join(name);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let bytes: Vec<u8> = name.bytes().cycle().take(64 * 1024).collect();
+        // A real signature, so the scanner accepts it, then filler.
+        let lower = name.to_lowercase();
+        let signature: &[u8] = if lower.ends_with(".png") {
+            &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]
+        } else if lower.ends_with(".heic") {
+            &[
+                0, 0, 0, 0x18, b'f', b't', b'y', b'p', b'h', b'e', b'i', b'c',
+            ]
+        } else {
+            &[0xFF, 0xD8, 0xFF, 0xE1]
+        };
+        let mut bytes = signature.to_vec();
+        bytes.extend(name.bytes().cycle().take(64 * 1024));
         fs::write(&path, bytes).unwrap();
         set_read_only(&path, true);
         path

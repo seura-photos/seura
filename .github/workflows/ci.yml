@@ -70,6 +70,10 @@ jobs:
         working-directory: ui
         run: npm test
 
+      # Fails if the in-memory index misses a target (decision 0010).
+      - name: Index benchmarks
+        run: cargo bench -p seura-library --bench index --locked
+
       # Builds the app as users get it (an .app bundle on macOS, so WebKit sees
       # the real identifier), runs it, and lists what it wrote (decision 0013).
       - name: Build the app

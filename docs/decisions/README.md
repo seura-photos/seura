@@ -17,7 +17,7 @@ Short records of significant decisions: what was chosen, why, and what was rejec
 | [0007](0007-opinionated-interface.md) | An opinionated interface: one layout, ordered by frequency and process | Accepted |
 | [0008](0008-react-typescript-ui.md) | React and TypeScript for the web UI | Accepted |
 | [0009](0009-rust-owns-all-file-access.md) | Workspace structure; the Rust core owns all file access | Accepted |
-| [0010](0010-in-memory-index.md) | An in-memory index with a snapshot file, not a database | Accepted, subject to benchmarks |
+| [0010](0010-in-memory-index.md) | An in-memory index with a snapshot file, not a database | Accepted, confirmed by benchmarks |
 | [0011](0011-heic-decoding.md) | HEIC decoding: operating system first, libheif as the Windows fallback | Accepted |
 | [0012](0012-no-gpl-dependencies.md) | No GPL dependencies; metadata through permissive crates | Accepted (amended for MPL-2.0) |
 | [0013](0013-web-view-and-os-data.md) | Data the web view and operating system keep on their own | Accepted |
