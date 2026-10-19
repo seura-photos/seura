@@ -9,5 +9,14 @@ repository.workspace = true
 authors.workspace = true
 publish = false
 
+[dependencies]
+zune-jpeg = { workspace = true }
+png = { workspace = true }
+kamadak-exif = { workspace = true }
+moxcms = { workspace = true }
+fast_image_resize = { workspace = true }
+webp = { workspace = true }
+thiserror = { workspace = true }
+
 [lints]
 workspace = true
