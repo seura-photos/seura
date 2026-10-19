@@ -13,5 +13,18 @@
   "grid.label": "Photos in {folder}",
   "grid.cloudOnly": "In the cloud",
   "grid.needsHeifExtensions": "Needs Microsoft's HEIF and HEVC extensions",
-  "grid.failed": "Can't show this photo"
+  "grid.failed": "Can't show this photo",
+  "editor.back": "Back to photos",
+  "editor.preview": "{name}, edited",
+  "editor.exposure": "Exposure",
+  "editor.ev": "{value} EV",
+  "editor.export": "Export…",
+  "editor.exporting": "Exporting…",
+  "editor.exported": "Exported {file} to {folder}.",
+  "editor.exportFailed": "The photo couldn't be exported: {reason}",
+  "editor.openFailed": "This photo couldn't be opened: {reason}",
+  "editor.noPreview": "This computer's graphics can't show the preview.",
+  "editor.saveFailed": "Your change couldn't be saved: {reason}",
+  "editor.readOnly": "This photo's edit file can't be read, so Seura won't change it: {reason}",
+  "check.running": "Checking that the preview matches export…"
 }

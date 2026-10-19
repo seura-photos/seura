@@ -12,6 +12,8 @@ type Props = {
   folder: string;
   photos: PhotoInfo[];
   thumbs: Map<number, ThumbState>;
+  /** Opens a photo in the Editor: double-click, or Enter on a focused photo. */
+  onOpen: (photo: PhotoInfo) => void;
 };
 
 /**
@@ -19,7 +21,7 @@ type Props = {
  * settles, it tells the core which photos are visible, so their thumbnails
  * are made first (LIB-3).
  */
-export function Grid({ folder, photos, thumbs }: Props) {
+export function Grid({ folder, photos, thumbs, onOpen }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState(4);
 
@@ -65,7 +67,12 @@ export function Grid({ folder, photos, thumbs }: Props) {
             style={{ transform: `translateY(${row.start}px)`, height: CELL }}
           >
             {photos.slice(row.index * columns, (row.index + 1) * columns).map((photo) => (
-              <Thumbnail key={photo.id} photo={photo} state={thumbs.get(photo.id)} />
+              <Thumbnail
+                key={photo.id}
+                photo={photo}
+                state={thumbs.get(photo.id)}
+                onOpen={onOpen}
+              />
             ))}
           </div>
         ))}
@@ -74,7 +81,13 @@ export function Grid({ folder, photos, thumbs }: Props) {
   );
 }
 
-function Thumbnail({ photo, state }: { photo: PhotoInfo; state: ThumbState | undefined }) {
+type ThumbnailProps = {
+  photo: PhotoInfo;
+  state: ThumbState | undefined;
+  onOpen: (photo: PhotoInfo) => void;
+};
+
+function Thumbnail({ photo, state, onOpen }: ThumbnailProps) {
   // The version whose image failed to load: a newer version is tried again.
   const [missingVersion, setMissingVersion] = useState<number | null>(null);
   const version = state?.version ?? 0;
@@ -82,7 +95,18 @@ function Thumbnail({ photo, state }: { photo: PhotoInfo; state: ThumbState | und
 
   const label = thumbLabel(state);
   return (
-    <div role="gridcell" className="cell" style={{ width: CELL, height: CELL }} title={photo.name}>
+    // The ARIA grid's arrow-key navigation (ACC-2) arrives with M2's grid.
+    <div
+      role="gridcell"
+      className="cell"
+      style={{ width: CELL, height: CELL }}
+      title={photo.name}
+      tabIndex={0}
+      onDoubleClick={() => onOpen(photo)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") onOpen(photo);
+      }}
+    >
       {label || missing ? (
         <div className="placeholder">{label}</div>
       ) : (

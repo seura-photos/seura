@@ -7,6 +7,7 @@
 
 use half::f16;
 use seura_image::LinearImage;
+use seura_render::check::ramps;
 use seura_render::{Output, Renderer, Settings};
 
 /// Linear Display P3 to linear sRGB, rows, from the two spaces' primaries.
@@ -34,25 +35,6 @@ fn expected(pixel: [f16; 4], ev: f64, output: Output) -> [u8; 3] {
         Output::Srgb => P3_TO_SRGB.map(|row| row.iter().zip(p3).map(|(m, v)| m * v).sum()),
     };
     linear.map(|v| (encode(v) * 255.0).round() as u8)
-}
-
-/// A `width` × `height` image whose red ramps left to right, green top to
-/// bottom, and blue across both, in linear light up to 1.
-fn ramps(width: u32, height: u32) -> LinearImage {
-    let mut pixels = Vec::new();
-    for y in 0..height {
-        for x in 0..width {
-            let r = x as f32 / (width - 1).max(1) as f32;
-            let g = y as f32 / (height - 1).max(1) as f32;
-            let b = ((x + y) % 97) as f32 / 96.0;
-            pixels.extend([r, g, b, 1.0].map(f16::from_f32));
-        }
-    }
-    LinearImage {
-        width,
-        height,
-        pixels,
-    }
 }
 
 fn renderer() -> Renderer {

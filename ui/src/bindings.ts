@@ -22,6 +22,28 @@ export const commands = {
 	photos: (folder: number) => __TAURI_INVOKE<PhotoInfo[]>("photos", { folder }),
 	/**  The photos now on screen, in order: their thumbnails are made first (LIB-3). */
 	showThumbnails: (ids: number[]) => __TAURI_INVOKE<void>("show_thumbnails", { ids }),
+	/**
+	 *  Opens a photo in the Editor, with a preview `longEdge` pixels on its long
+	 *  side (the canvas size × the device pixel ratio, DSP-1).
+	 */
+	openPhoto: (id: number, longEdge: number) => typedError<OpenedPhoto, string>(__TAURI_INVOKE("open_photo", { id, longEdge })),
+	closePhoto: () => __TAURI_INVOKE<void>("close_photo"),
+	/**  Sets the open photo's exposure (EDT-5) and saves its edit file (EDT-11). */
+	setExposure: (id: number, ev: number | null) => typedError<null, string>(__TAURI_INVOKE("set_exposure", { id, ev })),
+	/**  Asks for a folder and exports the open photo there as JPEG (EXP-1, EXP-5). */
+	exportPhoto: (id: number) => typedError<ExportResult, string>(__TAURI_INVOKE("export_photo", { id })),
+	devOptions: () => __TAURI_INVOKE<DevOptions>("dev_options"),
+	/**
+	 *  The render check: one preview path's render of the check image, as 8-bit
+	 *  RGBA, compared with wgpu's. Returns the largest difference.
+	 */
+	checkRender: (backend: string, width: number, height: number, pixels: number[]) => typedError<number, string>(__TAURI_INVOKE("check_render", { backend, width, height, pixels })),
+	/**
+	 *  Ends the render check: the app exits, with status 0 only if every
+	 *  preview path that ran matched export and nothing went wrong. Paths the
+	 *  web view doesn't have are listed, not failed. Does nothing outside the check.
+	 */
+	finishRenderCheck: (skipped: string[], problems: string[]) => __TAURI_INVOKE<void>("finish_render_check", { skipped, problems }),
 };
 
 /** Events */
@@ -40,6 +62,24 @@ export type AddFolderResult =
 /**  Added, replacing these library folders inside it. */
 { kind: "absorbed"; folders: string[] };
 
+/**  Developer switches, from environment variables. */
+export type DevOptions = {
+	/**
+	 *  `SEURA_PREVIEW=webgl2` forces the WebGL2 preview on a web view with
+	 *  WebGPU, to check the fallback (M1 slice 5).
+	 */
+	forceWebgl2: boolean,
+	/**  `SEURA_RENDER_CHECK=1` runs the render check instead of the app. */
+	renderCheck: boolean,
+	/**  The exposure the render check uses, so both sides agree. */
+	checkExposureEv: number | null,
+};
+
+/**  What exporting did. */
+export type ExportResult = 
+/**  The user closed the folder dialog. */
+{ kind: "cancelled" } | { kind: "exported"; file: string; folder: string };
+
 /**  A folder with photos directly in it. */
 export type FolderInfo = {
 	id: number,
@@ -50,6 +90,19 @@ export type FolderInfo = {
 
 /**  The library's folders or photos changed, after a scan. */
 export type LibraryChanged = null;
+
+/**  A photo opened in the Editor. */
+export type OpenedPhoto = {
+	/**  The preview's size, fetched from `seura://…/preview`. */
+	width: number,
+	height: number,
+	exposureEv: number | null,
+	/**
+	 *  Why the photo can't be edited, if it can't: its edit file can't be
+	 *  read, and is never overwritten (FIL-4).
+	 */
+	problem: string | null,
+};
 
 /**  A photo, as the grid needs it. */
 export type PhotoInfo = {

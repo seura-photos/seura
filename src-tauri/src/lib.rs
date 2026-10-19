@@ -6,6 +6,7 @@
 //! `ui/src/bindings.ts` (decision 0008).
 
 mod commands;
+mod editor;
 mod library;
 mod locations;
 mod protocol;
@@ -25,6 +26,13 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::folders,
             commands::photos,
             commands::show_thumbnails,
+            commands::open_photo,
+            commands::close_photo,
+            commands::set_exposure,
+            commands::export_photo,
+            commands::dev_options,
+            commands::check_render,
+            commands::finish_render_check,
         ])
         .events(collect_events![ThumbnailReady, LibraryChanged])
 }
@@ -42,6 +50,7 @@ pub fn run() {
             builder.mount_events(app);
             let cache = locations::cache_folder(app.handle())?;
             app.manage(Library::open(app.handle(), &cache));
+            app.manage(editor::Editor::default());
             // Show the snapshot at once (PRF-1), then catch up with the disk.
             let handle = app.handle().clone();
             std::thread::spawn(move || {

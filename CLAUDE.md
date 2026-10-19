@@ -43,6 +43,8 @@ Clone with `git clone --recurse-submodules`, or run `git submodule update --init
 
 On Windows, HEIC photos are decoded by Microsoft's HEIF Image Extensions and HEVC Video Extensions from the Microsoft Store (decision 0014); without them the HEIC tests are skipped. `SEURA_HEIF_DECODER=none` makes the app behave as if they were missing.
 
+`SEURA_PREVIEW=webgl2` makes the Editor's preview use WebGL2 even where the web view has WebGPU, to check the fallback that macOS 13 to 15 use.
+
 Run from the repository root:
 
 | Task | Command |
@@ -54,6 +56,7 @@ Run from the repository root:
 | Licenses and advisories | `cargo deny check` |
 | Index benchmarks (decision 0010; fail if a target is missed) | `cargo bench -p seura-library --bench index` |
 | Check where the app writes (rule 2) | build with `npm run tauri -- build --debug --no-bundle` in `ui/` (macOS: `--bundles app`), then `python3 scripts/app_data_audit.py` |
+| Check the preview renders like export, in the real web view | build as above, then `python3 scripts/render_check.py` |
 
 Run from `ui/`:
 

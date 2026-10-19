@@ -3614,15 +3614,21 @@ dependencies = [
 name = "seura-photos"
 version = "0.0.0"
 dependencies = [
+ "half",
  "rfd",
  "serde",
  "serde_json",
+ "seura-edit",
+ "seura-image",
  "seura-library",
+ "seura-render",
  "specta",
  "specta-typescript",
  "tauri",
  "tauri-build",
  "tauri-specta",
+ "tempfile",
+ "time",
 ]
 
 [[package]]

@@ -84,6 +84,11 @@ jobs:
       - name: Audit where the app writes
         run: ${{ runner.os == 'Windows' && 'python' || 'python3' }} scripts/app_data_audit.py 15
 
+      # The preview, in the real web view, against the export renderer, with
+      # every preview path the web view has (decision 0004; M1 slice 5).
+      - name: Render check
+        run: ${{ runner.os == 'Windows' && 'python' || 'python3' }} scripts/render_check.py
+
   licenses:
     name: Licenses and advisories
     runs-on: ubuntu-latest

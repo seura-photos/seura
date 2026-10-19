@@ -10,6 +10,13 @@ fn main() {
         "folders",
         "photos",
         "show_thumbnails",
+        "open_photo",
+        "close_photo",
+        "set_exposure",
+        "export_photo",
+        "dev_options",
+        "check_render",
+        "finish_render_check",
     ]);
 
     // tauri-build would embed the Windows application manifest into the app
