@@ -91,10 +91,10 @@ impl Library {
         let bytes = fs::read(photo).unwrap();
         PhotoIdentity {
             file: photo.file_name().unwrap().to_string_lossy().into_owned(),
-            sha256: sha256(&bytes),
             size: bytes.len() as u64,
-            width: 4032,
-            height: 3024,
+            sha256: Some(sha256(&bytes)),
+            width: Some(4032),
+            height: Some(3024),
         }
     }
 }

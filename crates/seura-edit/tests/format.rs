@@ -94,7 +94,7 @@ fn the_full_example_is_read_correctly() {
     let photo = document.photo().unwrap();
     assert_eq!(
         (photo.file.as_str(), photo.width, photo.height),
-        ("IMG_1234.jpg", 4032, 3024)
+        ("IMG_1234.jpg", Some(4032), Some(3024))
     );
     assert_eq!(document.tags(), ["family/kids", "vacation/2026"]);
     assert_eq!(document.rating(), 4);

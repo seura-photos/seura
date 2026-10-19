@@ -233,10 +233,10 @@ mod tests {
         let path = dir.path().join("IMG_1.jpg.seura.json");
         let photo = PhotoIdentity {
             file: "IMG_1.jpg".into(),
-            sha256: "0".repeat(64),
             size: 1,
-            width: 1,
-            height: 1,
+            sha256: None,
+            width: None,
+            height: None,
         };
         let writer = Writer {
             app: "Seura Photos",

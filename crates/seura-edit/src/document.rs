@@ -70,16 +70,23 @@ pub enum Kind {
 }
 
 /// The photo an edit file belongs to (edit format: "Photo identity").
+///
+/// The fingerprint and dimensions need the photo's contents, so they may be
+/// absent, for example for a cloud-only photo that was tagged without being
+/// downloaded (LIB-9). [`EditDocument::fill_in_photo`] adds them later.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PhotoIdentity {
     /// The photo's file name, without a path.
     pub file: String,
-    /// SHA-256 of the photo file, lowercase hex.
-    pub sha256: String,
     pub size: u64,
-    /// Pixel dimensions after the photo's own orientation metadata.
-    pub width: u32,
-    pub height: u32,
+    /// SHA-256 of the photo file, lowercase hex.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+    /// Pixel dimensions after the photo's own orientation metadata; both or neither.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<u32>,
 }
 
 /// One operation entry, as the typed view sees it.
@@ -246,6 +253,42 @@ impl EditDocument {
             .get("rating")
             .and_then(Value::as_u64)
             .map_or(0, |rating| rating.min(5) as u8)
+    }
+
+    /// Fills in the photo's fingerprint and dimensions where they're missing,
+    /// once the photo has been read (edit format: "Photo identity"). Values
+    /// already there are kept: a different fingerprint means the photo
+    /// changed (FIL-7), which is for the caller to report. Not a user action,
+    /// so not recorded in the history. Returns whether anything was added.
+    pub fn fill_in_photo(
+        &mut self,
+        sha256: &str,
+        width: u32,
+        height: u32,
+    ) -> Result<bool, EditError> {
+        let before = self.root.clone();
+        let Some(photo) = self.root.get_mut("photo").and_then(Value::as_object_mut) else {
+            return Ok(false);
+        };
+        let mut added = false;
+        if !photo.contains_key("sha256") {
+            let after_size = photo
+                .keys()
+                .position(|k| k == "size")
+                .map_or(photo.len(), |i| i + 1);
+            photo.shift_insert(after_size, "sha256".into(), json!(sha256));
+            added = true;
+        }
+        if !photo.contains_key("width") && !photo.contains_key("height") {
+            photo.insert("width".into(), json!(width));
+            photo.insert("height".into(), json!(height));
+            added = true;
+        }
+        if let Err(error) = self.check() {
+            self.root = before;
+            return Err(error);
+        }
+        Ok(added)
     }
 
     /// The number of history records in the file, undone or not.

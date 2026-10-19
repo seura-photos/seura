@@ -13,10 +13,10 @@ const HASH: &str = "4e1c0b9a77d3f2e85a6b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d
 fn photo() -> PhotoIdentity {
     PhotoIdentity {
         file: "IMG_0001.jpg".into(),
-        sha256: HASH.into(),
         size: 1234,
-        width: 4032,
-        height: 3024,
+        sha256: Some(HASH.into()),
+        width: Some(4032),
+        height: Some(3024),
     }
 }
 
@@ -485,4 +485,58 @@ fn a_byte_order_mark_is_read_but_never_written() {
     );
     let document = EditDocument::parse(&bytes).unwrap();
     assert!(!document.to_bytes().unwrap().starts_with(b"\xEF\xBB\xBF"));
+}
+
+/// A cloud-only photo, tagged without downloading it (LIB-9).
+fn pending_photo() -> PhotoIdentity {
+    PhotoIdentity {
+        file: "20260912_181502.jpg".into(),
+        size: 3_264_118,
+        sha256: None,
+        width: None,
+        height: None,
+    }
+}
+
+#[test]
+fn a_photo_can_be_tagged_before_its_details_are_known() {
+    let mut document = EditDocument::new_for_photo(&pending_photo());
+    let edits = vec![Edit::Tags(vec!["family".into()]), Edit::Rating(4)];
+    document.apply(&act("Tag and rate", edits), now()).unwrap();
+    let saved: Value = serde_json::from_slice(&document.to_bytes().unwrap()).unwrap();
+    assert_eq!(
+        saved["photo"],
+        json!({ "file": "20260912_181502.jpg", "size": 3_264_118 })
+    );
+}
+
+#[test]
+fn missing_details_are_filled_in_once_the_photo_is_read() {
+    let mut document = EditDocument::new_for_photo(&pending_photo());
+    assert!(document.fill_in_photo(HASH, 4032, 3024).unwrap());
+    let photo = document.json()["photo"].as_object().unwrap();
+    let keys: Vec<&str> = photo.keys().map(String::as_str).collect();
+    assert_eq!(keys, ["file", "size", "sha256", "width", "height"]);
+    assert_eq!(document.photo().unwrap().sha256.as_deref(), Some(HASH));
+    assert_eq!(
+        document.history_len(),
+        0,
+        "filling in details isn't a user action"
+    );
+
+    // Known values are never replaced: a different fingerprint means the
+    // photo changed, which is reported, not papered over (FIL-7).
+    let other = "a".repeat(64);
+    assert!(!document.fill_in_photo(&other, 100, 100).unwrap());
+    assert_eq!(document.photo().unwrap().sha256.as_deref(), Some(HASH));
+    assert_eq!(document.photo().unwrap().width, Some(4032));
+}
+
+#[test]
+fn a_malformed_fingerprint_is_refused() {
+    let mut document = EditDocument::new_for_photo(&pending_photo());
+    let before = document.json().clone();
+    let result = document.fill_in_photo("not a hash", 4032, 3024);
+    assert!(matches!(result, Err(EditError::Invalid(_))));
+    assert_eq!(document.json(), &before);
 }
