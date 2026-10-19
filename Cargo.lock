@@ -3372,10 +3372,12 @@ dependencies = [
 name = "seura-library"
 version = "0.0.0"
 dependencies = [
+ "png 0.18.1",
  "postcard",
  "serde",
  "serde_json",
  "seura-edit",
+ "seura-image",
  "sha2 0.11.0",
  "tempfile",
 ]

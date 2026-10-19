@@ -12,6 +12,7 @@ mod scan;
 mod snapshot;
 #[doc(hidden)]
 pub mod synthetic;
+mod thumbnails;
 
 pub use fingerprint::{fingerprint_file, to_hex};
 pub use formats::Format;
@@ -22,3 +23,4 @@ pub use index::{
 pub use platform::is_placeholder;
 pub use scan::ScanReport;
 pub use snapshot::SNAPSHOT_FILE;
+pub use thumbnails::{Job, Made, Outcome, THUMBS_FOLDER, ThumbnailCache, ThumbnailWorkers};

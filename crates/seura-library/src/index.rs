@@ -293,6 +293,29 @@ impl Index {
             })
     }
 
+    /// What's needed to make the photo's thumbnail.
+    pub fn thumbnail_job(&self, id: PhotoId) -> Option<crate::thumbnails::Job> {
+        let photo = self.photo(id)?;
+        let path = self.path(id)?;
+        Some(crate::thumbnails::Job {
+            id,
+            key: crate::thumbnails::ThumbnailCache::key(&path, photo.size, photo.modified),
+            path,
+            placeholder: photo.placeholder,
+        })
+    }
+
+    /// Records what decoding the photo learned: its upright dimensions and
+    /// date taken.
+    pub fn record_details(&mut self, id: PhotoId, made: &crate::thumbnails::Made) {
+        if let Some(photo) = self.photo_mut(id) {
+            photo.dimensions = Some((made.width, made.height));
+            if made.taken.is_some() {
+                photo.taken = made.taken;
+            }
+        }
+    }
+
     /// The photo with this name in this folder.
     pub(crate) fn find(&self, folder: FolderId, name: &str) -> Option<PhotoId> {
         self.by_name.get(&(folder, Box::from(name))).copied()
