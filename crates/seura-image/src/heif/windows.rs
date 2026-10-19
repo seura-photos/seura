@@ -13,7 +13,7 @@ use windows::Win32::Graphics::Imaging::{
     WICBitmapDitherTypeNone, WICBitmapPaletteTypeCustom, WICDecodeMetadataCacheOnDemand,
 };
 use windows::Win32::System::Com::{
-    CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx,
+    CLSCTX_INPROC_SERVER, COINIT_APARTMENTTHREADED, CoCreateInstance, CoInitializeEx,
 };
 use windows::Win32::System::LibraryLoader::{LOAD_WITH_ALTERED_SEARCH_PATH, LoadLibraryExW};
 use windows::core::HSTRING;
@@ -38,9 +38,10 @@ fn decode_with_wic(path: &Path) -> Result<Pixels, DecodeError> {
     let unavailable =
         |error: windows::core::Error| DecodeError::HeifUnavailable(format!("WIC: {error}"));
     unsafe {
-        // Each worker thread joins the multithreaded apartment once and stays.
-        // A thread already in another apartment can still use WIC.
-        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        // Each worker thread joins a single-threaded apartment once and stays
+        // (the system thumbnails need one; see system_thumbnail.rs). A thread
+        // already in another apartment can still use WIC.
+        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         let factory: IWICImagingFactory =
             CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)
                 .map_err(unavailable)?;

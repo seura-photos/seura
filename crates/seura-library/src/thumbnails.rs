@@ -218,6 +218,18 @@ impl Drop for ThumbnailWorkers {
     }
 }
 
+/// A cloud-only photo's thumbnail comes from the system, which keeps the
+/// sync service's preview; the photo itself is never read (LIB-9).
+fn from_system(cache: &ThumbnailCache, job: &Job) -> Outcome {
+    let Some(image) = seura_image::system_thumbnail(&job.path, seura_image::THUMBNAIL_SIZE) else {
+        return Outcome::CloudOnly;
+    };
+    match cache.store(&job.key, &seura_image::thumbnail(&image)) {
+        Ok(()) => Outcome::Ready(None),
+        Err(error) => Outcome::Failed(error.to_string()),
+    }
+}
+
 fn work(shared: &(Mutex<Queue>, Condvar), cache: &ThumbnailCache, done: &dyn Fn(PhotoId, Outcome)) {
     let (lock, wake) = shared;
     loop {
@@ -236,7 +248,7 @@ fn work(shared: &(Mutex<Queue>, Condvar), cache: &ThumbnailCache, done: &dyn Fn(
         let outcome = if cache.path(&job.key).is_file() {
             Outcome::Ready(None)
         } else if job.placeholder {
-            Outcome::CloudOnly
+            from_system(cache, &job)
         } else {
             match cache.make(&job.path, &job.key) {
                 Ok(made) => Outcome::Ready(Some(made)),
