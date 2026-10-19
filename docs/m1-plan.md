@@ -75,16 +75,16 @@ Reviewed 2026-10-19, in slice 6. Pull requests #1 to #8.
 | 2. Edit files and data safety | Both test sets pass in CI on both platforms | Met. |
 | 3. Library, index, benchmarks | Benchmarks run in CI, results recorded | Met. Every target passed by at least 5×; decision 0010 confirmed ([results](benchmarks/m1-index.md)). |
 | 4. Decoding and thumbnails | Nevada's photos, including iPhone HEIC, right on both machines; HEIC tiles without Microsoft's extensions; camera roll without downloads | Met, except two checks: the "needs extensions" tile is covered by tests but wasn't looked at with `SEURA_HEIF_DECODER=none` (decision 0014 came after the check), and the no-download check was run on Windows; on the Mac, cloud-only photos get placeholder tiles and are never read, by design, but that wasn't checked by hand. |
-| 5. One edit, end to end | Nevada edits and exports on both machines, WebGL2 checked on his Mac with the switch, CI on the older macOS, `check.py` passes | Met by automated checks: the render check matches export on both preview paths on both machines (WebGPU on both, exactly on Windows, within 1 level on the Mac) and on all three CI runners; an Editor-written edit file passes `check.py`. **Deferred:** the hands-on edit and export on both machines, by Nevada's decision, to the integration testing of a more complete app. |
+| 5. One edit, end to end | Nevada edits and exports on both machines, WebGL2 checked on his Mac with the switch, CI on the older macOS, `check.py` passes | Met by automated checks: the render check matches export on both preview paths on both machines (WebGPU on both, exactly on Windows, within 1 level on the Mac) and on all three CI runners; an Editor-written edit file passes `check.py`. Nevada then edited and exported a photo on his PC with a release build: the export looked correct. **Deferred,** by Nevada's decision, to the integration testing of a more complete app: the same on the Mac, and with `SEURA_PREVIEW=webgl2`. |
 
 Milestone exit criteria ([milestone plan](milestone-plan.md), M1): the six items work on both machines (by the checks above, with the hands-on checks deferred), the WebGL2 path passes in CI on macOS 15, and the index decision is confirmed (0010).
 
 **What the deferred hands-on checks must cover,** because no automated check does:
 
-- The visible preview: the right way up and scaled to fit, on WebGPU and with `SEURA_PREVIEW=webgl2`. The render check renders off-screen, so it can't see the canvas.
+- The visible preview on the Mac, and with `SEURA_PREVIEW=webgl2` on either machine: the right way up and scaled to fit. The render check renders off-screen, so it can't see the canvas. (On Windows with WebGPU, Nevada's edit and export looked right.)
 - Display P3 color on screen: an iPhone photo's saturated colors look right, and the same as in Photos or Explorer (technical design, section 5, lists this as a limitation to verify).
 - The slider keeps up while dragging (PRF-6, measured properly in M2).
-- An exported JPEG looks like the preview in another app.
+- An exported JPEG looks like the preview in another app, on the Mac.
 - The HEIC "needs extensions" tile with `SEURA_HEIF_DECODER=none`, and the cloud-only check on the Mac.
 
 **Carried to later milestones:** thumbnail speed in release builds (PRF-3) and faster thumbnail paths, Quick Look thumbnails for cloud-only photos on macOS, HEIC and JPEG duplicate pairs from iCloud for Windows (M2); comparing `mozjpeg` with `jpeg-encoder` (M2, export); edited thumbnails rendered with the edits, export metadata (EXP-4), and keyboard navigation in the grid (ACC-2) with the styled views; third-party notices, including the IJG credit for `jpeg-encoder` (M7).
