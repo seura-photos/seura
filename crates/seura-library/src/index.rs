@@ -19,6 +19,23 @@ pub struct FolderId(pub(crate) u32);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct TagId(pub(crate) u32);
 
+/// Ids as plain numbers, for the UI. An id that doesn't exist just finds
+/// nothing: every lookup checks.
+macro_rules! numeric_id {
+    ($($id:ident),*) => {$(
+        impl $id {
+            pub fn new(value: u32) -> $id {
+                $id(value)
+            }
+
+            pub fn value(self) -> u32 {
+                self.0
+            }
+        }
+    )*};
+}
+numeric_id!(PhotoId, FolderId, TagId);
+
 /// A file's modification time, to the nanosecond, as seconds and
 /// nanoseconds since 1970 (negative seconds before).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -321,8 +338,16 @@ impl Index {
         self.by_name.get(&(folder, Box::from(name))).copied()
     }
 
+    /// Every folder in the index.
+    pub fn folders(&self) -> impl Iterator<Item = (FolderId, &Folder)> {
+        self.folders
+            .iter()
+            .enumerate()
+            .filter_map(|(id, folder)| Some((FolderId(id as u32), folder.as_ref()?)))
+    }
+
     /// How many photos are directly in a folder.
-    pub(crate) fn folder_len(&self, id: FolderId) -> usize {
+    pub fn folder_len(&self, id: FolderId) -> usize {
         self.by_folder.get(id.0 as usize).map_or(0, Vec::len)
     }
 

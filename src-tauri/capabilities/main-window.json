@@ -4,5 +4,13 @@
   "description": "What the main window's UI may call: Seura's own commands only. No file system, shell, or other plugins (decision 0009; technical design, section 10).",
   "windows": ["main"],
   "platforms": ["windows", "macOS"],
-  "permissions": ["allow-app-version"]
+  "permissions": [
+    "allow-app-version",
+    "allow-add-folder",
+    "allow-folders",
+    "allow-photos",
+    "allow-show-thumbnails",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
 }

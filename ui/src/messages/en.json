@@ -1,4 +1,16 @@
 {
   "app.name": "Seura Photos",
-  "app.version": "Version {version}"
+  "app.version": "Version {version}",
+  "library.addFolder": "Add folder",
+  "library.empty": "Add a folder to see its photos.",
+  "library.added": "Added. Scanning for photos…",
+  "library.alreadyIncluded": "That folder is already in your library, in {folder}.",
+  "library.absorbed": "Added. It includes {count} folders that were already in your library.",
+  "library.addFailed": "That folder couldn't be added: {reason}",
+  "library.folders": "Folders",
+  "library.photoCount": "{count} photos",
+  "library.pickFolder": "Choose a folder on the left.",
+  "grid.label": "Photos in {folder}",
+  "grid.cloudOnly": "In the cloud",
+  "grid.failed": "Can't show this photo"
 }
