@@ -18,6 +18,11 @@ fast_image_resize = { workspace = true }
 webp = { workspace = true }
 thiserror = { workspace = true }
 
+[dev-dependencies]
+# Only for generating test images; never part of the app.
+jpeg-encoder = { workspace = true }
+tempfile = { workspace = true }
+
 [target.'cfg(windows)'.dependencies]
 libheif-rs = { workspace = true }
 windows = { workspace = true, features = [

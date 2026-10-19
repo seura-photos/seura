@@ -45,6 +45,7 @@ fast_image_resize = "6.1.0"
 # the pure-Rust encoder is lossless only.
 webp = "0.3.1"
 rayon = "1.12.0"
+jpeg-encoder = "0.7.1"
 # Windows only: WIC for HEIC where Microsoft's extensions are installed, and
 # libheif (LGPL, dynamically linked, from vcpkg) otherwise (decision 0011).
 windows = "0.62.2"

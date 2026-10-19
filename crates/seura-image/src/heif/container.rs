@@ -2,9 +2,11 @@
 //! decoder turns the compressed data into pixels: the primary image's
 //! rotation and mirroring (`irot`, `imir`) and its color profile (`colr`).
 //!
-//! HEIF stores orientation in the container, not as EXIF, and decoders
-//! differ in whether they apply it, so Seura applies it itself when the
-//! decoder doesn't (ISO/IEC 23008-12, sections 6.5.3 and 6.5.10 to 6.5.12).
+//! HEIF stores orientation in the container, not as EXIF (an EXIF
+//! orientation in a HEIC must be ignored, or the photo turns twice). The
+//! decoders used so far (WIC, libheif) apply it themselves; reading it here
+//! lets a decoder that doesn't be corrected (ISO/IEC 23008-12, sections
+//! 6.5.10 to 6.5.12).
 //! Only the `meta` box is read, and every length is checked against the data.
 
 /// One geometric property of the primary image, in the order the file lists it.
@@ -64,7 +66,10 @@ fn parse(data: &[u8]) -> Option<Container> {
                         container.transforms.push(Transform::Rotate(angle));
                     }
                 }
-                b"imir" => container.transforms.push(if data.first()? & 1 == 0 {
+                // Axis 1 is a left-right mirror: that's how Apple writes it
+                // (for EXIF orientation 2) and how libheif reads it,
+                // whatever the standard's wording suggests.
+                b"imir" => container.transforms.push(if data.first()? & 1 == 1 {
                     Transform::MirrorHorizontal
                 } else {
                     Transform::MirrorVertical
@@ -193,7 +198,7 @@ pub(crate) mod tests {
         let container = read(&data);
         assert_eq!(
             container.transforms,
-            [Transform::Rotate(90), Transform::MirrorVertical]
+            [Transform::Rotate(90), Transform::MirrorHorizontal]
         );
         assert_eq!(container.color, Some(Color::Icc(b"icc bytes".to_vec())));
     }

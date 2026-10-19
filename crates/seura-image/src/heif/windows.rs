@@ -18,25 +18,22 @@ use windows::Win32::System::Com::{
 use windows::Win32::System::LibraryLoader::{LOAD_WITH_ALTERED_SEARCH_PATH, LoadLibraryExW};
 use windows::core::HSTRING;
 
-use super::{DECODER_SWITCH, Pixels};
+use super::{HeifDecoder, Pixels};
 use crate::decode::{DecodeError, MAX_SIDE};
 use crate::raster::Rgba8;
 
-pub(super) fn decode(path: &Path) -> Result<Pixels, DecodeError> {
-    let forced = std::env::var(DECODER_SWITCH).ok();
-    if forced.as_deref() != Some("libheif") {
-        match decode_with_wic(path) {
-            Ok(pixels) => return Ok(pixels),
-            Err(error) if forced.as_deref() == Some("system") => return Err(error),
-            // Microsoft's extensions are missing or failed: use libheif.
-            Err(_) => {}
-        }
+pub(super) fn decode(path: &Path, decoder: HeifDecoder) -> Result<Pixels, DecodeError> {
+    match decoder {
+        HeifDecoder::System => decode_with_wic(path),
+        HeifDecoder::Libheif => decode_with_libheif(path),
+        // Microsoft's extensions missing or failing means libheif.
+        HeifDecoder::Automatic => decode_with_wic(path).or_else(|_| decode_with_libheif(path)),
     }
-    decode_with_libheif(path)
 }
 
-/// WIC decodes the pixels; it doesn't apply the container's rotation, so
-/// Seura does (see the module above).
+/// WIC decodes the pixels and applies the container's rotation and
+/// mirroring itself. (Checked against libheif with test files made by
+/// Apple's ImageIO; a claim elsewhere that it doesn't was wrong.)
 fn decode_with_wic(path: &Path) -> Result<Pixels, DecodeError> {
     let unavailable =
         |error: windows::core::Error| DecodeError::HeifUnavailable(format!("WIC: {error}"));
@@ -81,7 +78,7 @@ fn decode_with_wic(path: &Path) -> Result<Pixels, DecodeError> {
             .map_err(unavailable)?;
         Ok(Pixels {
             image: Rgba8::new(width, height, pixels),
-            transformed: false,
+            transformed: true,
         })
     }
 }

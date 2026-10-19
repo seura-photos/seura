@@ -44,6 +44,12 @@ allow = [
     "MPL-2.0",
 ]
 
+# jpeg-encoder only generates test images (a dev-dependency of seura-image);
+# it never ships. Its IJG license is permissive, but not on the list above.
+[[licenses.exceptions]]
+crate = "jpeg-encoder"
+allow = ["IJG"]
+
 [licenses.private]
 # Our own unpublished crates are Apache-2.0; skip checking them against crates.io.
 ignore = true

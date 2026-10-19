@@ -21,8 +21,29 @@ use crate::raster::Rgba8;
 
 /// The developer switch for the HEIC decoder: `SEURA_HEIF_DECODER=libheif`
 /// forces the libheif fallback on a Windows PC that has Microsoft's
-/// extensions, so both paths can be tested on one machine.
+/// extensions, so both paths can be tested on one machine; `=system`
+/// forces the operating system's decoder.
 pub const DECODER_SWITCH: &str = "SEURA_HEIF_DECODER";
+
+/// Which HEIC decoder to use.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeifDecoder {
+    /// The system's decoder if it works, libheif otherwise (Windows).
+    Automatic,
+    System,
+    Libheif,
+}
+
+impl HeifDecoder {
+    /// The choice made by the developer switch, if any.
+    pub fn from_switch() -> HeifDecoder {
+        match std::env::var(DECODER_SWITCH).as_deref() {
+            Ok("libheif") => HeifDecoder::Libheif,
+            Ok("system") => HeifDecoder::System,
+            _ => HeifDecoder::Automatic,
+        }
+    }
+}
 
 /// Pixels from a decoder, and whether it already applied the container's
 /// rotation and mirroring.
@@ -32,12 +53,17 @@ pub(crate) struct Pixels {
 }
 
 pub fn decode(path: &Path) -> Result<Decoded, DecodeError> {
+    decode_with(path, HeifDecoder::from_switch())
+}
+
+/// Decodes with a particular decoder; for tests that compare them.
+pub fn decode_with(path: &Path, decoder: HeifDecoder) -> Result<Decoded, DecodeError> {
     let mut head = Vec::new();
     File::open(path)?
         .take(container::HEAD_LIMIT as u64)
         .read_to_end(&mut head)?;
     let container = container::read(&head);
-    let pixels = platform_decode(path)?;
+    let pixels = platform_decode(path, decoder)?;
     let image = if pixels.transformed {
         pixels.image
     } else {
@@ -78,12 +104,12 @@ fn apply(image: Rgba8, container: &Container) -> Rgba8 {
 }
 
 #[cfg(target_os = "windows")]
-fn platform_decode(path: &Path) -> Result<Pixels, DecodeError> {
-    windows::decode(path)
+fn platform_decode(path: &Path, decoder: HeifDecoder) -> Result<Pixels, DecodeError> {
+    windows::decode(path, decoder)
 }
 
 #[cfg(not(target_os = "windows"))]
-fn platform_decode(_path: &Path) -> Result<Pixels, DecodeError> {
+fn platform_decode(_path: &Path, _decoder: HeifDecoder) -> Result<Pixels, DecodeError> {
     Err(DecodeError::HeifUnavailable(
         "not implemented yet on this platform".into(),
     ))
