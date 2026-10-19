@@ -195,6 +195,7 @@ The app should feel at home on each platform and be usable without a mouse or wi
 | Undo across sessions | Yes: a capped history of 50 change records in the edit file (EDT-9). The cap may be lowered to 20 if file size ever matters; compression is avoided to keep files readable. |
 | Grid scope | The folder's own photos only (BRW-1). |
 | Cloud-synced folders | Supported without downloading: cloud-only photos are fetched one at a time, only when needed (LIB-9). Raised by Nevada, 2026-10-18. |
+| iCloud Photos on a Mac | Not supported in v1: the photos live inside the Photos app's library, not a folder. Users can export from Photos or use a folder-based service (Nevada, 2026-10-18). |
 | Update checks | Asked during first run, defaulting to on (SET-4). |
 | Reference hardware | A mid-range laptop from about 2020 with integrated graphics, on each platform. |
 | Interface model | Opinionated: one fixed layout per view, action tiers by frequency, process order, no modes (INT-1 to INT-4, decision 0007). |

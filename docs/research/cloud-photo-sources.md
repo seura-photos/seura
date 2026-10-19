@@ -40,8 +40,8 @@ A public bug report against another tool shows what goes wrong otherwise: a dire
 
 These aren't about downloading; they're about where the photos are at all.
 
-1. **iPhone users on a Mac.** iCloud Photos keeps its photos inside the Photos app's library, which Seura doesn't read: it works on folders, and the library's layout is private to Apple and changes between versions. With "Optimize Mac Storage" on, most originals aren't even on the Mac. Such users would have to export from Photos, or move to a folder-based service. A read-only source built on Apple's photo library interface (PhotoKit) would be possible later, but it's a product decision, not part of v1 today.
-2. **Android users with Google Photos.** There is no desktop sync client, and since August 2026 Drive for desktop no longer connects to Google Photos at all. Getting the photos onto a computer is manual. The practical advice for these users is OneDrive's (or Dropbox's) camera backup on the phone, which the user guide can explain.
+1. **iPhone users on a Mac.** iCloud Photos keeps its photos inside the Photos app's library, which Seura doesn't read: it works on folders, and the library's layout is private to Apple and changes between versions. With "Optimize Mac Storage" on, most originals aren't even on the Mac. Such users would have to export from Photos, or move to a folder-based service. A read-only source built on Apple's photo library interface (PhotoKit) would be possible later. **Decided by Nevada (2026-10-18): not supported in v1.**
+2. **Android users with Google Photos.** There is no desktop sync client, and since August 2026 Drive for desktop no longer connects to Google Photos at all. Getting the photos onto a computer is manual. The practical advice for these users is OneDrive's (or Dropbox's) camera backup on the phone. **Decided by Nevada (2026-10-18):** the user guide's topic on cloud-synced folders includes a brief summary of what each service offers, including this.
 
 ## Sources
 
