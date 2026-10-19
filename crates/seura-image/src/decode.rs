@@ -1,5 +1,6 @@
-//! Decoding a photo file to upright sRGB pixels, with its dimensions and
-//! date taken (LIB-8, BRW-7). Photos are only read, never written.
+//! Decoding a photo file to upright pixels, with its dimensions and date
+//! taken (LIB-8, BRW-7): 8-bit sRGB for thumbnails, or the working space
+//! for editing and export. Photos are only read, never written.
 
 use std::fs;
 use std::io::Cursor;
@@ -12,7 +13,8 @@ use zune_jpeg::zune_core::options::DecoderOptions;
 
 use crate::exif::{self, ExifInfo};
 use crate::heif;
-use crate::raster::Rgba8;
+use crate::raster::{LinearImage, Rgba8};
+use crate::thumbnail::fit;
 
 /// Photos larger than this on either side aren't decoded (about 268
 /// megapixels), so a damaged or hostile file can't exhaust memory.
@@ -41,9 +43,37 @@ pub struct Decoded {
     pub taken: Option<i64>,
 }
 
+/// Decoded pixels before color conversion: upright, 8-bit, in the color
+/// space of the photo's profile (sRGB without one).
+pub(crate) struct Source {
+    pub image: Rgba8,
+    pub icc: Option<Vec<u8>>,
+    pub taken: Option<i64>,
+}
+
 /// Decodes a JPEG, PNG, or HEIC/HEIF file, with orientation applied and
 /// its color profile converted to sRGB.
 pub fn decode(path: &Path) -> Result<Decoded, DecodeError> {
+    let source = decode_source(path)?;
+    Ok(Decoded {
+        image: source.image.from_profile(source.icc.as_deref()),
+        taken: source.taken,
+    })
+}
+
+/// Decodes a photo into the working space (linear light, Display P3), for
+/// editing and export. With `long_edge`, it's first scaled down to fit, for
+/// the preview (DSP-1).
+pub fn decode_linear(path: &Path, long_edge: Option<u32>) -> Result<LinearImage, DecodeError> {
+    let source = decode_source(path)?;
+    let image = match long_edge {
+        Some(size) => fit(&source.image, size),
+        None => source.image,
+    };
+    Ok(image.to_linear_p3(source.icc.as_deref()))
+}
+
+fn decode_source(path: &Path) -> Result<Source, DecodeError> {
     let name = path
         .file_name()
         .unwrap_or_default()
@@ -58,7 +88,7 @@ pub fn decode(path: &Path) -> Result<Decoded, DecodeError> {
     }
 }
 
-pub(crate) fn decode_jpeg(bytes: &[u8]) -> Result<Decoded, DecodeError> {
+pub(crate) fn decode_jpeg(bytes: &[u8]) -> Result<Source, DecodeError> {
     let options = DecoderOptions::default()
         .jpeg_set_out_colorspace(ColorSpace::RGBA)
         .set_max_width(MAX_SIDE as usize)
@@ -76,16 +106,16 @@ pub(crate) fn decode_jpeg(bytes: &[u8]) -> Result<Decoded, DecodeError> {
             taken: None,
         });
     let icc = decoder.icc_profile();
-    let image = Rgba8::new(u32::from(info.width), u32::from(info.height), pixels)
-        .from_profile(icc.as_deref())
-        .orient(exif.orientation);
-    Ok(Decoded {
+    let image =
+        Rgba8::new(u32::from(info.width), u32::from(info.height), pixels).orient(exif.orientation);
+    Ok(Source {
         image,
+        icc,
         taken: exif.taken,
     })
 }
 
-pub(crate) fn decode_png(bytes: &[u8]) -> Result<Decoded, DecodeError> {
+pub(crate) fn decode_png(bytes: &[u8]) -> Result<Source, DecodeError> {
     let mut decoder = png::Decoder::new(Cursor::new(bytes));
     decoder.set_transformations(png::Transformations::normalize_to_color8());
     let mut reader = decoder.read_info().map_err(|e| damaged(&e))?;
@@ -110,11 +140,9 @@ pub(crate) fn decode_png(bytes: &[u8]) -> Result<Decoded, DecodeError> {
         orientation: 1,
         taken: None,
     });
-    let image = Rgba8::new(width, height, pixels)
-        .from_profile(icc.as_deref())
-        .orient(exif.orientation);
-    Ok(Decoded {
-        image,
+    Ok(Source {
+        image: Rgba8::new(width, height, pixels).orient(exif.orientation),
+        icc,
         taken: exif.taken,
     })
 }

@@ -6,8 +6,9 @@ import tseslint from "typescript-eslint";
 import { defineConfig } from "eslint/config";
 
 export default defineConfig(
-  // bindings.ts is generated from the Rust commands (`npm run bindings`).
-  { ignores: ["dist", "src/bindings.ts"] },
+  // Generated from Rust: bindings.ts from the commands (`npm run bindings`),
+  // preview/generated from the shaders (`npm run shaders`).
+  { ignores: ["dist", "src/bindings.ts", "src/preview/generated"] },
   {
     files: ["**/*.{ts,tsx}"],
     extends: [js.configs.recommended, ...tseslint.configs.strict],

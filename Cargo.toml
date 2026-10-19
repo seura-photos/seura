@@ -40,11 +40,23 @@ zune-jpeg = "0.5.15"
 png = "0.18.1"
 kamadak-exif = "0.6.1"
 moxcms = "0.9.1"
+# Half floats: the working-space pixels the preview and export render from.
+half = { version = "2.7.1", features = ["bytemuck"] }
+# The export renderer (decision 0004): Direct3D 12 on Windows (with its
+# software adapter where there's no GPU), Metal on macOS.
+wgpu = { version = "30.0.1", default-features = false, features = ["wgsl", "dx12", "metal", "std"] }
+# Translates the WGSL shaders to GLSL ES for the WebGL2 preview; used only by
+# the test that generates and checks those files.
+naga = { version = "30.0.1", features = ["wgsl-in", "glsl-out"] }
+bytemuck = { version = "1.25.2", features = ["derive"] }
+# Waits for wgpu's few async calls; the export runs on a worker thread.
+pollster = "1.0.1"
 fast_image_resize = "6.1.0"
 # Lossy WebP thumbnails need Google's libwebp (BSD-3-Clause, compiled in);
 # the pure-Rust encoder is lossless only.
 webp = "0.3.1"
 rayon = "1.12.0"
+# JPEG export (EXP-2), pure Rust; its IJG license needs a credit (deny.toml).
 jpeg-encoder = "0.7.1"
 # Native folder dialog, from Rust (ACC-4). Not tauri-plugin-dialog: it
 # depends on the file-system plugin, which decision 0009 keeps out.
