@@ -16,6 +16,7 @@ The library is the set of folders the user adds; the app works on them in place 
 - **LIB-6 Unavailable folders.** A folder on a disconnected drive is shown as unavailable, not removed, and returns when the drive reconnects.
 - **LIB-7 Skipped items.** Hidden files and folders, and system folders such as the Recycle Bin and Trash, are ignored.
 - **LIB-8 Formats.** JPEG, HEIC/HEIF, and PNG are shown. Other files are ignored silently. For iPhone Live Photos, the still image is shown and its paired video ignored.
+- **LIB-9 Cloud-only photos.** Folders synced by OneDrive, iCloud, Google Drive, or Dropbox often hold photos whose contents are still in the cloud. Adding, scanning, and browsing such a folder never downloads them: their thumbnails come from the system or the sync service, or show as a placeholder marked as in the cloud, and they sort by file date until their date taken is known (BRW-2). A cloud-only photo is downloaded only when the user opens it in the Viewer or Editor, edits, tags, or rates it, or exports it, one photo at a time, with progress shown and a way to cancel. Seura never downloads photos in bulk and never changes whether a file is kept on the device. PRF-5 applies to photos already on the device. See `docs/research/cloud-photo-sources.md`.
 
 ## Browsing
 
@@ -193,6 +194,7 @@ The app should feel at home on each platform and be usable without a mouse or wi
 | Selecting a tag node | Exact tag only (TAG-5). |
 | Undo across sessions | Yes: a capped history of 50 change records in the edit file (EDT-9). The cap may be lowered to 20 if file size ever matters; compression is avoided to keep files readable. |
 | Grid scope | The folder's own photos only (BRW-1). |
+| Cloud-synced folders | Supported without downloading: cloud-only photos are fetched one at a time, only when needed (LIB-9). Raised by Nevada, 2026-10-18. |
 | Update checks | Asked during first run, defaulting to on (SET-4). |
 | Reference hardware | A mid-range laptop from about 2020 with integrated graphics, on each platform. |
 | Interface model | Opinionated: one fixed layout per view, action tiers by frequency, process order, no modes (INT-1 to INT-4, decision 0007). |
