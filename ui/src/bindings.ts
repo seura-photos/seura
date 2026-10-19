@@ -73,6 +73,11 @@ export type DevOptions = {
 	renderCheck: boolean,
 	/**  The exposure the render check uses, so both sides agree. */
 	checkExposureEv: number | null,
+	/**
+	 *  Every switch that changes how the app behaves, as `NAME=value`, so
+	 *  the UI can say they're on: they're easy to leave set by accident.
+	 */
+	active: string[],
 };
 
 /**  What exporting did. */

@@ -26,5 +26,6 @@
   "editor.noPreview": "This computer's graphics can't show the preview.",
   "editor.saveFailed": "Your change couldn't be saved: {reason}",
   "editor.readOnly": "This photo's edit file can't be read, so Seura won't change it: {reason}",
+  "dev.switchesOn": "Developer switches on: {switches}",
   "check.running": "Checking that the preview matches export…"
 }

@@ -265,6 +265,23 @@ pub struct DevOptions {
     pub render_check: bool,
     /// The exposure the render check uses, so both sides agree.
     pub check_exposure_ev: f32,
+    /// Every switch that changes how the app behaves, as `NAME=value`, so
+    /// the UI can say they're on: they're easy to leave set by accident.
+    pub active: Vec<String>,
+}
+
+/// The developer switches that change the app's behavior.
+const SWITCHES: [&str; 2] = ["SEURA_HEIF_DECODER", "SEURA_PREVIEW"];
+
+/// The switches that are set, as `NAME=value`.
+pub fn active_switches() -> Vec<String> {
+    SWITCHES
+        .iter()
+        .filter_map(|name| {
+            let value = std::env::var(name).ok()?;
+            Some(format!("{name}={value}"))
+        })
+        .collect()
 }
 
 #[tauri::command]
@@ -274,6 +291,7 @@ pub fn dev_options() -> DevOptions {
         force_webgl2: std::env::var("SEURA_PREVIEW").as_deref() == Ok("webgl2"),
         render_check: render_check_mode(),
         check_exposure_ev: seura_render::check::CHECK_SETTINGS.exposure_ev,
+        active: active_switches(),
     }
 }
 
