@@ -21,7 +21,7 @@ A Tauri 2 desktop app (decision 0001). The **Rust core** owns everything that to
 │ seura-edit: edit files, history, presets   seura-render: shaders, wgpu export, enhance │
 └────────────────────────────────────────────────────────────────────────────────────────┘
           │ reads only                       │ writes only (CLAUDE.md rules 1–2)
-     original photos              edit files beside photos · Documents/Seura Photos · exports
+     original photos              edit files beside photos · ~/Seura Photos · exports
 ```
 
 **The single most important rule:** the UI never touches the file system. Every read and write goes through Rust commands, so the data-safety rules in `CLAUDE.md` are enforced in one place and tested there.
@@ -78,11 +78,11 @@ An **in-memory index**, persisted as a single snapshot file in the cache, instea
 
 ### Thumbnails and the cache (DSP-1, DSP-4)
 
-- Cache folder (default `Documents/Seura Photos/Cache`, SET-3) contains `index.bin`, `thumbs/`, and a `README.txt` explaining that everything there is safe to delete.
+- Cache folder (default `~/Seura Photos/Cache`, SET-3, decision 0015) contains `index.bin`, `thumbs/`, and a `README.txt` explaining that everything there is safe to delete.
 - Thumbnails are WebP, 512 px on the long edge (enough for the largest grid size on 2× screens), stored by fingerprint-independent key (hash of path + size + mtime) in two-level sharded folders, so renames and re-scans don't regenerate them unnecessarily.
 - **Fast first scan** (PRF-3): use the thumbnail embedded in the file when it's large enough (JPEG EXIF thumbnails are often 160 px, too small; HEIC files often carry larger ones), otherwise decode and downscale with `fast_image_resize`. Reduced-size JPEG decoding (decoding at 1/2, 1/4, or 1/8 scale directly from the compressed data) would be much faster; whether `zune-jpeg` supports it, or a different decoder is needed for thumbnails, is checked in the first milestone's benchmarks.
 - Edited photos get a second thumbnail rendered with their edits by the core's wgpu pipeline, regenerated after each autosave (debounced).
-- Cloud-sync detection (SET-1): check whether the default cache path lies under the OneDrive folder (`OneDrive` environment variables on Windows) or iCloud Drive's Desktop and Documents sync (macOS); if so, suggest another location.
+- Cloud-sync detection (SET-1): check whether `~/Seura Photos` or the chosen cache path lies under a synced or backed-up location (the OneDrive folder and its known-folder backups on Windows, iCloud Drive's Desktop and Documents sync on macOS, and the other services in `docs/research/cloud-photo-sources.md`); if so, suggest another location for the cache.
 
 ### Cloud-only photos (LIB-9)
 
@@ -194,7 +194,7 @@ Kept behind small traits in `src-tauri/src/platform/` (decision 0006):
 | Trash | `trash` crate (Recycle Bin) | `trash` crate (Finder's Trash, with Put Back) |
 | Credentials (AI, later) | `keyring` (Credential Manager) | `keyring` (Keychain) |
 | Cloud-sync detection | OneDrive known folders | iCloud Desktop and Documents |
-| Documents folder | Known Folder API (handles redirection) | `~/Documents` via NSFileManager |
+| Seura's folder (decision 0015) | `Seura Photos` in the profile folder, via the Known Folder API (`FOLDERID_Profile`) | `~/Seura Photos`, the home directory via NSFileManager |
 | Web view data (decision 0013) | WebView2 InPrivate, data folder in the cache (`<cache>/WebView`) | WKWebView with a non-persistent data store |
 | Installer | NSIS or MSI via Tauri bundler, signed | DMG, signed and notarized |
 

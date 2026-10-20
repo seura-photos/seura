@@ -94,7 +94,7 @@ The Editor keeps the toolbar, drops the sidebar, and puts the tool panel where t
 1. The Welcome screen: the app's name, what it does, and one sentence explaining that edits are saved in small files beside each photo and originals are never changed.
 2. "Which folders hold your photos?" lists the Pictures folder, pre-checked, with Add another folder.
 3. A checkbox: "Check for updates automatically," checked by default.
-4. If `Documents` is cloud-synced, a short note offers another location for the thumbnail cache.
+4. The sentence about edit files also names where Seura keeps its settings and cache: a `Seura Photos` folder in the home folder. If that folder is cloud-synced or backed up, a short note offers another location for the cache.
 5. Get started → the Library opens on the first folder and thumbnails fill in as the scan runs (LIB-3).
 6. When the first scan finishes, the Library offers a review of the most recent folder (REV-1).
 

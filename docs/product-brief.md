@@ -69,9 +69,9 @@ This fits photos well: a photo can be in one folder on disk but belong to many t
 
 **Edit files.** `IMG_1234.jpg` gets `IMG_1234.jpg.seura.json` beside it. Keeping the original extension in the name stops `IMG_1234.jpg` and `IMG_1234.heic` from colliding. An edit file is created only once a photo has edits, tags, or a rating. Edit files always live beside their photos, so photos in read-only folders can be viewed and exported but not edited or tagged. The format is specified in the [seura-photos/edit-format](https://github.com/seura-photos/edit-format) repository.
 
-**Settings and presets.** A visible folder at `Documents/Seura Photos`, which the app always checks first, so nothing is written to hidden locations like AppData or Application Support.
+**Settings and presets.** A visible `Seura Photos` folder in the user's home folder, which the app always checks first, so nothing is written to hidden locations like AppData or Application Support. Not Documents: it's often synced to OneDrive or iCloud, and Seura's files shouldn't sync between machines (decision 0015).
 
-**Cache.** Thumbnails and a search index, so large folders open instantly. Default location `Documents/Seura Photos/Cache`, movable by the user, documented as safe to delete because everything in it is rebuilt from the photos and edit files. Expected size is roughly 500 MB per 10,000 photos, with thumbnails sharp on high-density (2×) screens. Whether the index is plain files or SQLite is decided in the technical design by measuring against a large test library; either way it is a rebuildable cache, never the source of truth. Documents is often synced to OneDrive or iCloud, so the app detects that and suggests a non-synced cache location rather than uploading hundreds of megabytes of thumbnails.
+**Cache.** Thumbnails and a search index, so large folders open instantly. Default location `Seura Photos/Cache` in the home folder, movable by the user, documented as safe to delete because everything in it is rebuilt from the photos and edit files. Expected size is roughly 500 MB per 10,000 photos, with thumbnails sharp on high-density (2×) screens. Whether the index is plain files or SQLite is decided in the technical design by measuring against a large test library; either way it is a rebuildable cache, never the source of truth. The home folder isn't synced by OneDrive or iCloud by default; if it is, the app detects that and suggests another cache location rather than uploading hundreds of megabytes of thumbnails.
 
 **API keys** (when AI arrives). Stored in the operating system's credential store (Windows Credential Manager, macOS Keychain), never in a plain file, and removed on cleanup.
 
@@ -135,7 +135,7 @@ Free and open source.
 | Topic | Decision |
 | --- | --- |
 | Name | Seura Photos. Edit files use the `.seura.json` suffix. Domains seuraphotos.com and seuraphotos.app; GitHub organization `seura-photos`. USPTO search (2026-10-17): one result, SÉURA (reg. 3495772, live), in class 20 (furniture, mirrors, frames), not software; judged low risk. "Seurat" in classes 9 and 42: live registrations belong to one company making industrial 3D printers and their software; judged low risk. "Sura": five live marks containing the word (university research, massage devices, dog training, an online drama series, a medical practice), none for software or photography; judged no conflict. WIPO Global Brand Database: the same US SÉURA mark, plus one expired Japanese registration; no conflict. Trademark clearance complete for a free open-source release; revisit with an attorney if the project becomes commercial. |
-| Settings location | `Documents/Seura Photos`, with no hidden files. |
+| Settings location | A `Seura Photos` folder in the home folder, with no hidden files (decision 0015; was `Documents/Seura Photos` until 2026-10-20). |
 | API keys | Operating system credential store. |
 | Retouching | Red-eye removal in v1; spot removal later. |
 | Star ratings | In v1. |
