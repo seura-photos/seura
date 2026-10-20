@@ -129,7 +129,7 @@ The basis of the design test: fix a crooked, dark photo in under five minutes.
    - **Enhance** (one click)
    - **Crop and straighten** (opens crop mode)
    - **Rotate left, rotate right, flip**
-   - **Light:** exposure, contrast
+   - **Light:** brightness, contrast, highlights, shadows
    - **Color:** temperature, tint, saturation
    - **Effects:** black and white, sepia, vignette, each a one-click look whose strength slider appears once it's on (INT-4)
    - **Red-eye** (opens red-eye mode)

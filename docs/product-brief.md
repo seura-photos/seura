@@ -46,7 +46,7 @@ Version 1 covers browsing, light editing, tagging, and export. Details and accep
 
 - **Library:** add folders and the app works on them in place. Browse a folder tree and a thumbnail grid, and open photos in a full-size viewer. New, changed, and deleted files are picked up automatically.
 - **Formats:** JPEG, HEIC/HEIF (the iPhone default), and PNG.
-- **Editing:** crop with aspect-ratio presets, straighten, rotate and flip, exposure, contrast, color temperature and tint, saturation, red-eye removal, and one-click enhance. Edits can be copied between photos or saved as named presets.
+- **Editing:** crop with aspect-ratio presets, straighten, rotate and flip, brightness, contrast, highlights and shadows, color temperature and tint, saturation, red-eye removal, and one-click enhance. Edits can be copied between photos or saved as named presets.
 - **Effects:** black and white, sepia, and vignette.
 - **Non-destructive by design:** undo and redo that survive restarts, revert to original at any time, and reopening an edited photo shows the previous settings so they can be adjusted.
 - **Organizing:** tags with subtags, star ratings, and filtering by tag, rating, and folder.
