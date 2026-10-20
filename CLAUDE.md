@@ -15,6 +15,7 @@ Seura Photos is a cross-platform (Windows and macOS) desktop photo organizer and
 
 - **Product and design documents** (the brief, functional spec, UX documents, visual design, technical design) and the edit format are written in Nevada's design sessions with Claude in the Claude app, and arrive as pull requests.
 - **Claude Code** implements them. When the implementation shows a gap, a contradiction, or a requirement that can't be met, raise it with Nevada rather than changing the meaning of a document. Small factual corrections that implementation settled (a library version, a measured number, a detail the design left open and the code decided) may go in Claude Code's own pull requests, said plainly in the description.
+- **Milestone work plans** (`docs/m2-plan.md` and later): Claude Code drafts them from the milestone plan and the specs, and Nevada reviews them in the pull request. Questions about behavior or design that come up while planning go to a design session.
 - Decision records can be written by either, as now.
 
 ## Rules that protect user data
