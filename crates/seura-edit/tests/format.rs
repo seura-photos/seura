@@ -112,14 +112,20 @@ fn the_full_example_is_read_correctly() {
 fn undone_changes_in_the_example_can_be_redone() {
     let bytes = fs::read(format_dir().join("examples/IMG_2207.jpg.seura.json")).unwrap();
     let mut document = EditDocument::parse(&bytes).unwrap();
-    assert_eq!((document.undo_steps(), document.redo_steps()), (1, 2));
+    assert_eq!((document.undo_steps(), document.redo_steps()), (2, 2));
 
     assert_eq!(document.redo().unwrap(), Step::Done("Contrast".into()));
     assert_eq!(document.redo().unwrap(), Step::Done("Saturation".into()));
     let ids: Vec<String> = document.operations().into_iter().map(|op| op.id).collect();
+    // Contrast and saturation take their places after shadows (canonical order).
     assert_eq!(
         ids,
-        ["seura.exposure", "seura.contrast", "seura.saturation"]
+        [
+            "seura.exposure",
+            "seura.shadows",
+            "seura.contrast",
+            "seura.saturation"
+        ]
     );
     assert_eq!(document.redo().unwrap(), Step::Nothing);
     document.to_bytes().expect("still valid");
@@ -145,4 +151,12 @@ fn files_from_a_newer_minor_version_keep_their_version() {
     assert_eq!(saved["favorite"], original["favorite"]);
     assert_eq!(saved["photo"], original["photo"]);
     assert_eq!(saved["operations"], original["operations"]);
+}
+
+#[test]
+fn shadows_after_contrast_is_rejected_for_its_order() {
+    let path = format_dir().join("tests/invalid/shadows-after-contrast.json");
+    let error = EditDocument::parse(&fs::read(path).unwrap()).unwrap_err();
+    let message = error.to_string();
+    assert!(message.contains("order"), "{message}");
 }
