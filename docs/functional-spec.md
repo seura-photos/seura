@@ -52,14 +52,14 @@ Every edit is a stored setting, never a change to pixels in the original, so any
 - **EDT-2 Crop.** Freeform, or fixed ratios: original, 1:1, 4:3, 3:2, 16:9, and 5:4, each switchable between landscape and portrait. A rule-of-thirds overlay shows while cropping. Reopening crop shows the whole photo with the current crop box, so the crop can be widened again.
 - **EDT-3 Straighten.** From −45° to +45° in 0.1° steps. The crop shrinks automatically so no empty corners appear.
 - **EDT-4 Rotate and flip.** Rotate 90° left or right, and flip horizontally or vertically. Also available in the grid for a whole selection.
-- **EDT-5 Adjustments.** Exposure, contrast, color temperature, tint, and saturation. Each slider starts at a neutral center, and double-clicking it resets it. The preview updates live while dragging.
+- **EDT-5 Adjustments.** Light: brightness, contrast, highlights, and shadows. Color: temperature, tint, and saturation. Brightness is the edit format's exposure operation (in photographic stops) under a friendlier name. Highlights recovers or brightens the bright areas of a photo, such as a sky, with little effect on dark areas; shadows lifts or deepens the dark areas, such as a backlit face, with little effect on bright ones. Each slider starts at a neutral center, and double-clicking it resets it. The preview updates live while dragging.
 - **EDT-6 Effects.** Black and white, sepia, and vignette (amount and size), each with a strength control. Effects combine with adjustments in a fixed order, defined in the edit format spec.
 - **EDT-7 Red-eye.** The user clicks or drags over each eye; each correction is stored as a region that can be moved or removed. No automatic detection in v1.
 - **EDT-8 Reopening edits.** Every control shows its stored value when the photo is reopened, in this session or any later one.
 - **EDT-9 Undo and redo.** Per photo, for the last 50 changes. The history is kept in the edit file as small change records, so undo and redo work across sessions. Plain, uncompressed JSON, so the file stays readable.
 - **EDT-10 Revert to original.** Removes all edits after confirmation, keeping tags and rating. Undoable like any other change.
 - **EDT-11 Autosave.** There is no Save button. Changes are written to the edit file within 1 second of the last change.
-- **EDT-12 One-click enhance.** Analyzes the photo's brightness and color and sets exposure, contrast, temperature, tint, and saturation to corrected values. The result is ordinary slider settings the user can adjust or undo. Also available in the grid for a selection.
+- **EDT-12 One-click enhance.** Analyzes the photo's brightness and color and sets brightness, contrast, highlights, shadows, temperature, tint, and saturation to corrected values. The result is ordinary slider settings the user can adjust or undo. Also available in the grid for a selection.
 
 ## Copying edits and presets
 
@@ -191,6 +191,7 @@ The app should feel at home on each platform and be usable without a mouse or wi
 | --- | --- |
 | Deleting photos | Allowed, to the Trash, with confirmation (BRW-9). |
 | One-click enhance | In v1 (EDT-12). Analyzes a brightness histogram and near-neutral colors, and outputs ordinary slider values. |
+| Light sliders | Brightness, contrast, highlights, and shadows (EDT-5). Highlights and shadows were suggested by a friend of the project; Picasa had both. A separate middle-tone brightness was considered and left out, since it would overlap the exposure-based brightness slider. |
 | Selecting a tag node | Exact tag only (TAG-5). |
 | Undo across sessions | Yes: a capped history of 50 change records in the edit file (EDT-9). The cap may be lowered to 20 if file size ever matters; compression is avoided to keep files readable. |
 | Grid scope | The folder's own photos only (BRW-1). |

@@ -146,13 +146,25 @@ Decode at full resolution → render all operations with the wgpu pipeline in ti
 2. **Retouch** (red-eye) samples the photo in its pre-geometry coordinates.
 3. **Tone and color**, then **effects**, run as one fused fragment pass over the visible region, with uniforms for each operation's parameters. Operations with neutral settings are compiled out by uniform flags rather than separate shader variants.
 
+### Neighborhood operations: highlights and shadows
+
+Highlights and shadows depend on the brightness of each pixel's surroundings, not just the pixel, so they can't be computed in the fused pass alone. They use a **luminance guide**: an edge-preserving, blurred map of the photo's brightness, computed in a separate pass and sampled by the fused pass.
+
+- **Resolution-independent.** The guide is computed at a fixed size relative to the photo (for example, a long side of 1024 pixels, chosen during M4), and its blur radius is a fraction of the photo's size. The preview and the full-resolution export therefore use the same guide and match, as the edit format requires.
+- **Tiles without seams.** For tiled export, the guide is computed once for the whole photo before the tiles are rendered, and every tile samples it. No tile needs to see its neighbors.
+- **Independent of the crop.** The guide covers the whole oriented, straightened photo, so changing the crop never changes how shadows or highlights look.
+- **Fast while dragging.** The guide is rebuilt only when something it depends on changes. Moving the highlights or shadows sliders changes only uniforms, within PRF-6. How exposure and white balance changes are handled (rebuild, or scale the existing guide) is settled during M4 and measured against PRF-6.
+- **Edge-preserving.** A plain blur causes halos along strong edges, such as a dark tree against a bright sky. The method (a guided filter, bilateral grid, or similar) is chosen in M4 with reference images that include such edges, and written into the edit format's formulas appendix.
+
+Like every operation, it's implemented once in WGSL and runs in both hosts, including the WebGL2 fallback.
+
 ### Getting pixels into the preview
 
 When a photo opens, the core decodes it at display resolution (the canvas size × device pixel ratio, DSP-1), converts it to the working space, and serves it over the custom `seura://` protocol as half-float RGBA. The UI fetches it as an `ArrayBuffer` and uploads it with `writeTexture`. Moving a slider changes only uniforms, so each frame is a single draw (PRF-6). Zooming beyond display resolution requests tiles of the full-resolution image the same way.
 
 ### One-click enhance (EDT-12)
 
-A compute pass in the core builds a luminance histogram and the average of near-neutral pixels on a downscaled copy, then sets exposure and contrast from the 0.5th and 99.5th percentiles and temperature and tint from the neutral average. The result is returned as ordinary operation parameters.
+A compute pass in the core builds a luminance histogram and the average of near-neutral pixels on a downscaled copy, then sets exposure and contrast from the 0.5th and 99.5th percentiles, highlights and shadows from how much of the photo sits near the top and bottom of the range, and temperature and tint from the neutral average. The result is returned as ordinary operation parameters.
 
 ## 7. Edit files (seura-edit)
 

@@ -6,7 +6,7 @@ A free, open-source photo app for Windows and macOS, in the spirit of Picasa.
 
 - **Works on your folders in place.** No importing, no managed library, no account.
 - **Never touches your originals.** Every edit is stored in a small, readable file beside the photo, so you can change or undo it at any time.
-- **Simple editing.** Crop, straighten, rotate, exposure, contrast, color, red-eye, and a few classic effects like black and white, sepia, and vignette.
+- **Simple editing.** Crop, straighten, rotate, brightness, contrast, highlights and shadows, color, red-eye, and a few classic effects like black and white, sepia, and vignette.
 - **Tags, not albums.** Organize with tags and subtags, and rate with stars.
 - **Open format.** Edits are stored in the [Seura edit format](https://github.com/seura-photos/edit-format), an open specification any app can implement.
 

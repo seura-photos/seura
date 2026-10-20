@@ -49,7 +49,7 @@ A single centered card: title; two sentences (what the app does; originals are n
   2. Enhance (40 px, prominent)
   3. Crop and straighten
   4. Rotate left, rotate right, flip horizontal, flip vertical
-  5. LIGHT: exposure, contrast
+  5. LIGHT: brightness, contrast, highlights, shadows
   6. COLOR: temperature, tint, saturation
   7. EFFECTS: black and white, sepia, vignette as on/off buttons; each one's strength slider appears only when it's on (INT-4)
   8. RED-EYE: Fix red-eye…

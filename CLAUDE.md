@@ -11,6 +11,12 @@ Seura Photos is a cross-platform (Windows and macOS) desktop photo organizer and
 - `docs/decisions/`: decision records. Do not reverse a recorded decision silently. If a change conflicts with one, stop and raise it; if the user agrees, add a new record that supersedes the old.
 - The edit file format is specified in the separate `seura-photos/edit-format` repository (`spec/edit-format.md`, `schema/`). The app must conform to it exactly.
 
+## Who changes what
+
+- **Product and design documents** (the brief, functional spec, UX documents, visual design, technical design) and the edit format are written in Nevada's design sessions with Claude in the Claude app, and arrive as pull requests.
+- **Claude Code** implements them. When the implementation shows a gap, a contradiction, or a requirement that can't be met, raise it with Nevada rather than changing the meaning of a document. Small factual corrections that implementation settled (a library version, a measured number, a detail the design left open and the code decided) may go in Claude Code's own pull requests, said plainly in the description.
+- Decision records can be written by either, as now.
+
 ## Rules that protect user data
 
 These are not negotiable, and tests should enforce them:
@@ -34,7 +40,7 @@ These are not negotiable, and tests should enforce them:
 
 The project is built in the open, with a public devlog on the website (https://seuraphotos.app, repository `seura-photos/seura-photos.github.io`).
 
-- While working, add short dated notes to `docs/journal/` when a decision is made, something fails or surprises, or a mistake is caught. Say who suggested or decided what. See `docs/journal/README.md`.
+- While working, add short dated notes to `docs/journal/` when a decision is made, something fails or surprises, or a mistake is caught. Say who suggested or decided what. The design sessions add notes there too, so read the journal's recent entries before drafting a post. See `docs/journal/README.md`.
 - At the end of each milestone, draft a devlog post in the website repository following its CLAUDE.md, with `draft: true`. Never publish a post Nevada hasn't approved.
 
 ## Build, test, and lint
