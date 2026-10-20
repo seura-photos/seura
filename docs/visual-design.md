@@ -59,4 +59,4 @@ The small version uses fewer, larger dots so it stays recognizable at 16 px. Pla
 
 ## Where to see it
 
-The design canvas has a brand board and the Library (light and dark), Viewer, Editor, and Review screens styled with these tokens. Each styled screen has a light and dark switch. The remaining screens are styled during M2, from these tokens, as each is built.
+The design canvas has a brand board and the Library (light and dark), Viewer, Editor, and Review screens styled with these tokens. Images of them are in [`docs/ux/mockups/`](ux/mockups/). Each styled screen has a light and dark switch. The remaining screens are styled during M2, from these tokens, as each is built.

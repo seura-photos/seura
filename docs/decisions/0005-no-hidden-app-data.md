@@ -1,6 +1,6 @@
 # 0005. App data in Documents, keys in the OS credential store
 
-Status: Accepted · 2026-10-17
+Status: Accepted · 2026-10-17 · Location superseded by [0015](0015-app-data-in-home-folder.md): the folder is now `Seura Photos` in the home folder, not in Documents. The credential store and the rest still stand.
 
 ## Context
 

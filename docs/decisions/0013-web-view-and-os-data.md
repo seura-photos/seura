@@ -1,6 +1,6 @@
 # 0013. Data the web view and operating system keep on their own
 
-Status: Accepted · 2026-10-18
+Status: Accepted · 2026-10-18 · Paths updated by [0015](0015-app-data-in-home-folder.md): read `Documents/Seura Photos` below as `~/Seura Photos`.
 
 Clarifies CLAUDE.md rule 2 and decision 0005; supersedes neither.
 

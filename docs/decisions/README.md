@@ -12,7 +12,7 @@ Short records of significant decisions: what was chosen, why, and what was rejec
 | [0002](0002-edit-files-beside-photos.md) | Edits stored in visible sidecar files beside each photo | Accepted |
 | [0003](0003-settings-not-steps.md) | Edits stored as settings rendered in a fixed order | Accepted |
 | [0004](0004-single-render-pipeline.md) | One GPU render pipeline for preview and export | Accepted |
-| [0005](0005-no-hidden-app-data.md) | App data in Documents, keys in the OS credential store | Accepted |
+| [0005](0005-no-hidden-app-data.md) | App data in Documents, keys in the OS credential store | Location superseded by 0015 |
 | [0006](0006-cross-platform-from-day-one.md) | Cross-platform from the first commit | Accepted |
 | [0007](0007-opinionated-interface.md) | An opinionated interface: one layout, ordered by frequency and process | Accepted |
 | [0008](0008-react-typescript-ui.md) | React and TypeScript for the web UI | Accepted |
@@ -22,3 +22,4 @@ Short records of significant decisions: what was chosen, why, and what was rejec
 | [0012](0012-no-gpl-dependencies.md) | No GPL dependencies; metadata through permissive crates | Accepted (amended for MPL-2.0) |
 | [0013](0013-web-view-and-os-data.md) | Data the web view and operating system keep on their own | Accepted |
 | [0014](0014-heic-system-decoders-only.md) | HEIC decoding: the operating system's decoders only | Accepted |
+| [0015](0015-app-data-in-home-folder.md) | App data in a Seura Photos folder in the home folder | Accepted |
