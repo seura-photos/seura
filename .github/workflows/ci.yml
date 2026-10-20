@@ -1,9 +1,21 @@
 name: CI
 
+# Changes to documentation alone (specs, plans, decisions, the journal,
+# mockups, Markdown anywhere) don't run CI: no build or test reads them. A
+# change that also touches anything else runs everything. design/ isn't
+# skipped, since the app builds from its tokens and icons.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "LICENSE*"
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - "LICENSE*"
   workflow_dispatch:
 
 concurrency:
