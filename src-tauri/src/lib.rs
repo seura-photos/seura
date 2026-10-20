@@ -11,7 +11,8 @@ mod library;
 mod locations;
 mod protocol;
 
-use library::{Library, LibraryChanged, ThumbnailReady};
+use library::{AppSettings, Library, LibraryChanged, ThumbnailReady};
+use std::sync::Mutex;
 use tauri::{App, Manager, RunEvent, WebviewWindowBuilder};
 use tauri_specta::{Builder, Event, collect_commands, collect_events};
 
@@ -52,8 +53,26 @@ pub fn run() {
             for switch in commands::active_switches() {
                 eprintln!("Developer switch on: {switch}");
             }
-            let cache = locations::cache_folder(app.handle())?;
-            app.manage(Library::open(app.handle(), &cache));
+            let (settings, origin) = locations::load_settings(app.handle())?;
+            if let Some(problem) = &settings.problem {
+                eprintln!(
+                    "{} is left as it is, and changes aren't saved: {problem}",
+                    settings.path().display()
+                );
+            }
+            if origin == locations::Origin::CarriedOver {
+                eprintln!(
+                    "Library folders carried over from Documents/Seura Photos (decision 0015)"
+                );
+            }
+            let seura = locations::seura_folder(app.handle())?;
+            let cache = locations::cache_folder(&seura, &settings.settings);
+            app.manage(Library::open(
+                app.handle(),
+                &cache,
+                &settings.settings.library_folders,
+            ));
+            app.manage(AppSettings(Mutex::new(settings)));
             app.manage(editor::Editor::default());
             // Show the snapshot at once (PRF-1), then catch up with the disk.
             let handle = app.handle().clone();
@@ -61,7 +80,7 @@ pub fn run() {
                 handle.state::<Library>().rescan();
                 let _ = LibraryChanged.emit(&handle);
             });
-            create_main_window(app)?;
+            create_main_window(app, &cache)?;
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -82,7 +101,7 @@ pub fn run() {
 ///   the browser survives a restart, so the UI must never rely on it.
 /// - On Windows, WebView2's data folder goes in the cache instead of
 ///   `%LOCALAPPDATA%`. WKWebView has no equivalent setting.
-fn create_main_window(app: &mut App) -> tauri::Result<()> {
+fn create_main_window(app: &mut App, cache: &std::path::Path) -> tauri::Result<()> {
     let config = app
         .config()
         .app
@@ -95,9 +114,9 @@ fn create_main_window(app: &mut App) -> tauri::Result<()> {
     let window = WebviewWindowBuilder::from_config(app.handle(), &config)?.incognito(true);
 
     #[cfg(target_os = "windows")]
-    let window = window.data_directory(locations::web_view_folder(&locations::cache_folder(
-        app.handle(),
-    )?));
+    let window = window.data_directory(locations::web_view_folder(cache));
+    #[cfg(not(target_os = "windows"))]
+    let _ = cache;
 
     window.build()?;
     Ok(())

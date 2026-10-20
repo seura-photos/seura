@@ -10,7 +10,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 
 use crate::editor::Editor;
-use crate::library::{Library, LibraryChanged};
+use crate::library::{AppSettings, Library, LibraryChanged};
 
 /// The app's version, from `Cargo.toml`.
 #[tauri::command]
@@ -88,6 +88,13 @@ pub async fn add_folder(app: AppHandle) -> Result<AddFolderResult, String> {
                 folders: folders.iter().map(|folder| display(folder)).collect(),
             },
         };
+        // The settings file holds the library folders (SET-3).
+        let roots = library.index.read().expect("index lock").roots().to_vec();
+        let settings = app.state::<AppSettings>();
+        let mut settings = settings.0.lock().expect("settings lock");
+        settings.settings.library_folders = roots;
+        settings.save().map_err(|error| error.to_string())?;
+        drop(settings);
         library.rescan();
         let _ = LibraryChanged.emit(&app);
         Ok(result)

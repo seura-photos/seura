@@ -1,6 +1,7 @@
 """Launches the built app, quits it, and lists every file it wrote outside the
-repository: AppData on Windows, ~/Library on macOS, and Documents/Seura Photos
-on both (CLAUDE.md rule 2; decision 0013).
+repository: AppData on Windows, ~/Library on macOS, and the Seura Photos folders
+in the home folder and in Documents on both (CLAUDE.md rule 2; decisions 0013
+and 0015).
 
 Build first, from ui/:
     Windows: npm run tauri -- build --debug --no-bundle
@@ -9,7 +10,8 @@ Then, from the repository root:
     python3 scripts/app_data_audit.py [seconds]
 
 Files whose path names the app are listed, and the audit fails if any of them
-is outside Documents/Seura Photos. Other new files are only counted per folder,
+is outside ~/Seura Photos (decision 0015). Documents/Seura Photos, where M1
+builds wrote, is checked too, so writing there again fails. Other new files are only counted per folder,
 since other programs write there too; check those by eye when the list changes.
 """
 
@@ -26,7 +28,7 @@ HOME = Path.home()
 # Names the app's files and folders carry: product name, binary, and
 # identifier. WebView2's EBWebView folder always sits under one of them.
 MARKERS = ("seura photos", "seura-photos", "seuraphotos")
-ALLOWED = HOME / "Documents" / "Seura Photos"
+ALLOWED = HOME / "Seura Photos"
 # Cloud-sync folders (OneDrive and others; iCloud Drive). They can hold many
 # thousands of files whose metadata the sync client touches constantly, which
 # makes the walk take minutes and floods the report. Seura never writes there.
@@ -74,7 +76,7 @@ def launch_and_quit():
     else:
         sys.exit("Seura runs on Windows and macOS only.")
     time.sleep(3)
-    return roots + [HOME / "Documents" / "Seura Photos"]
+    return roots + [ALLOWED, HOME / "Documents" / "Seura Photos"]
 
 
 def written_since(roots, start):
@@ -124,7 +126,7 @@ def main():
             file.write(report + "\n")
 
     if outside:
-        print("\nOutside Documents/Seura Photos (CLAUDE.md rule 2; decision 0013):")
+        print("\nOutside ~/Seura Photos (CLAUDE.md rule 2; decisions 0013 and 0015):")
         print("\n".join(f"  {path}" for path in outside))
         sys.exit(1)
 
