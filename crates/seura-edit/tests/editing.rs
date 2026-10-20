@@ -67,6 +67,34 @@ fn operations_are_inserted_in_canonical_order() {
     document.to_bytes().expect("still valid");
 }
 
+/// Highlights and shadows go after white balance and before contrast,
+/// whatever order they're set in (edit format: "Operations").
+#[test]
+fn highlights_and_shadows_take_their_place_in_the_tone_stage() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    let edits = vec![
+        Edit::Set(CoreOperation::Contrast(Amount { amount: 10.0 })),
+        Edit::Set(CoreOperation::Shadows(Amount { amount: 35.0 })),
+        exposure(0.5),
+        Edit::Set(CoreOperation::Highlights(Amount { amount: -40.0 })),
+    ];
+    document.apply(&act("Light", edits), now()).unwrap();
+    assert_eq!(
+        ids(&document),
+        [
+            "seura.exposure",
+            "seura.highlights",
+            "seura.shadows",
+            "seura.contrast"
+        ]
+    );
+    assert_eq!(
+        document.core(CoreOpId::Shadows),
+        Some(CoreOperation::Shadows(Amount { amount: 35.0 }))
+    );
+    document.to_bytes().expect("still valid");
+}
+
 #[test]
 fn neutral_settings_remove_the_operation() {
     let mut document = EditDocument::new_for_photo(&photo());

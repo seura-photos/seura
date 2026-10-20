@@ -35,6 +35,8 @@ pub enum CoreOpId {
     RedEye,
     Exposure,
     WhiteBalance,
+    Highlights,
+    Shadows,
     Contrast,
     Saturation,
     BlackAndWhite,
@@ -44,13 +46,15 @@ pub enum CoreOpId {
 
 impl CoreOpId {
     /// Every core operation, in canonical render order.
-    pub const ALL: [CoreOpId; 11] = [
+    pub const ALL: [CoreOpId; 13] = [
         CoreOpId::Orient,
         CoreOpId::Straighten,
         CoreOpId::Crop,
         CoreOpId::RedEye,
         CoreOpId::Exposure,
         CoreOpId::WhiteBalance,
+        CoreOpId::Highlights,
+        CoreOpId::Shadows,
         CoreOpId::Contrast,
         CoreOpId::Saturation,
         CoreOpId::BlackAndWhite,
@@ -67,6 +71,8 @@ impl CoreOpId {
             CoreOpId::RedEye => "seura.redEye",
             CoreOpId::Exposure => "seura.exposure",
             CoreOpId::WhiteBalance => "seura.whiteBalance",
+            CoreOpId::Highlights => "seura.highlights",
+            CoreOpId::Shadows => "seura.shadows",
             CoreOpId::Contrast => "seura.contrast",
             CoreOpId::Saturation => "seura.saturation",
             CoreOpId::BlackAndWhite => "seura.blackAndWhite",
@@ -85,6 +91,8 @@ impl CoreOpId {
             CoreOpId::RedEye => Stage::Retouch,
             CoreOpId::Exposure
             | CoreOpId::WhiteBalance
+            | CoreOpId::Highlights
+            | CoreOpId::Shadows
             | CoreOpId::Contrast
             | CoreOpId::Saturation => Stage::Tone,
             CoreOpId::BlackAndWhite | CoreOpId::Sepia | CoreOpId::Vignette => Stage::Effects,
@@ -112,6 +120,10 @@ pub enum CoreOperation {
     RedEye(RedEye),
     Exposure(Exposure),
     WhiteBalance(WhiteBalance),
+    /// A neighborhood operation (edit format: "Neighborhood operations").
+    Highlights(Amount),
+    /// A neighborhood operation (edit format: "Neighborhood operations").
+    Shadows(Amount),
     Contrast(Amount),
     Saturation(Amount),
     BlackAndWhite(Strength),
@@ -183,7 +195,7 @@ pub struct WhiteBalance {
     pub tint: f64,
 }
 
-/// Contrast and saturation: `amount`, −100 to 100.
+/// Highlights, shadows, contrast, and saturation: `amount`, −100 to 100.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Amount {
@@ -217,6 +229,8 @@ impl CoreOperation {
             CoreOperation::RedEye(_) => CoreOpId::RedEye,
             CoreOperation::Exposure(_) => CoreOpId::Exposure,
             CoreOperation::WhiteBalance(_) => CoreOpId::WhiteBalance,
+            CoreOperation::Highlights(_) => CoreOpId::Highlights,
+            CoreOperation::Shadows(_) => CoreOpId::Shadows,
             CoreOperation::Contrast(_) => CoreOpId::Contrast,
             CoreOperation::Saturation(_) => CoreOpId::Saturation,
             CoreOperation::BlackAndWhite(_) => CoreOpId::BlackAndWhite,
@@ -241,6 +255,8 @@ impl CoreOperation {
             CoreOpId::WhiteBalance => {
                 CoreOperation::WhiteBalance(serde_json::from_value(params).ok()?)
             }
+            CoreOpId::Highlights => CoreOperation::Highlights(serde_json::from_value(params).ok()?),
+            CoreOpId::Shadows => CoreOperation::Shadows(serde_json::from_value(params).ok()?),
             CoreOpId::Contrast => CoreOperation::Contrast(serde_json::from_value(params).ok()?),
             CoreOpId::Saturation => CoreOperation::Saturation(serde_json::from_value(params).ok()?),
             CoreOpId::BlackAndWhite => {
@@ -262,7 +278,10 @@ impl CoreOperation {
             CoreOperation::RedEye(p) => serde_json::to_value(p),
             CoreOperation::Exposure(p) => serde_json::to_value(p),
             CoreOperation::WhiteBalance(p) => serde_json::to_value(p),
-            CoreOperation::Contrast(p) | CoreOperation::Saturation(p) => serde_json::to_value(p),
+            CoreOperation::Highlights(p)
+            | CoreOperation::Shadows(p)
+            | CoreOperation::Contrast(p)
+            | CoreOperation::Saturation(p) => serde_json::to_value(p),
             CoreOperation::BlackAndWhite(p) | CoreOperation::Sepia(p) => serde_json::to_value(p),
             CoreOperation::Vignette(p) => serde_json::to_value(p),
         };
@@ -282,7 +301,10 @@ impl CoreOperation {
             CoreOperation::RedEye(p) => p.regions.is_empty(),
             CoreOperation::Exposure(p) => p.ev == 0.0,
             CoreOperation::WhiteBalance(p) => p.temperature == 0.0 && p.tint == 0.0,
-            CoreOperation::Contrast(p) | CoreOperation::Saturation(p) => p.amount == 0.0,
+            CoreOperation::Highlights(p)
+            | CoreOperation::Shadows(p)
+            | CoreOperation::Contrast(p)
+            | CoreOperation::Saturation(p) => p.amount == 0.0,
             CoreOperation::BlackAndWhite(p) | CoreOperation::Sepia(p) => p.strength == 0.0,
             CoreOperation::Vignette(p) => p.amount == 0.0,
         }
@@ -362,6 +384,8 @@ mod tests {
                 "seura.redEye",
                 "seura.exposure",
                 "seura.whiteBalance",
+                "seura.highlights",
+                "seura.shadows",
                 "seura.contrast",
                 "seura.saturation",
                 "seura.blackAndWhite",
@@ -374,5 +398,22 @@ mod tests {
         let black_and_white = json!({ "id": "seura.blackAndWhite" });
         assert!(order_key(&saturation) < order_key(&plugin));
         assert!(order_key(&plugin) < order_key(&black_and_white));
+    }
+
+    #[test]
+    fn highlights_and_shadows_are_tone_operations_with_an_amount() {
+        for id in [CoreOpId::Highlights, CoreOpId::Shadows] {
+            assert_eq!(id.stage(), Stage::Tone);
+            let op = CoreOperation::from_params(id, 1, &json!({ "amount": -35.5 })).unwrap();
+            assert_eq!(op.id(), id);
+            assert_eq!(op.to_params(), json!({ "amount": -35.5 }));
+            assert!(!op.is_neutral());
+            let neutral = CoreOperation::from_params(id, 1, &json!({ "amount": 0 })).unwrap();
+            assert!(neutral.is_neutral());
+        }
+        let shadows = json!({ "id": "seura.shadows" });
+        assert!(order_key(&json!({ "id": "seura.whiteBalance" })) < order_key(&shadows));
+        assert!(order_key(&json!({ "id": "seura.highlights" })) < order_key(&shadows));
+        assert!(order_key(&shadows) < order_key(&json!({ "id": "seura.contrast" })));
     }
 }
