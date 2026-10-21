@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import type { FolderInfo } from "./bindings";
@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => {
       libraryChanged: event("libraryChanged"),
       thumbnailReady: event("thumbnailReady"),
       menuCommand: event("menuCommand"),
+      scanProgress: event("scanProgress"),
     },
     dev: { active: [] as string[], editorAvailable: false },
     folders: [] as FolderInfo[],
@@ -185,6 +186,28 @@ describe("App", () => {
     await screen.findByText("Seura");
     mocks.handlers.get("menuCommand")?.({ payload: "addFolder" });
     await waitFor(() => expect(mocks.addFolder).toHaveBeenCalledTimes(1));
+  });
+
+  it("shows scan progress in the status bar, and nothing once it's done (LIB-3)", async () => {
+    render(<App />);
+    await screen.findByText("Seura");
+    act(() =>
+      mocks.handlers.get("scanProgress")?.({
+        payload: { scanning: "Pictures", done: 0, total: 0 },
+      }),
+    );
+    expect(screen.getByRole("status").textContent).toBe("Looking for photos in Pictures…");
+    act(() =>
+      mocks.handlers.get("scanProgress")?.({
+        payload: { scanning: null, done: 1240, total: 3862 },
+      }),
+    );
+    expect(screen.getByRole("status").textContent).toBe("Making thumbnails · 1,240 of 3,862");
+    expect(screen.getByRole("progressbar").getAttribute("value")).toBe("1240");
+    act(() =>
+      mocks.handlers.get("scanProgress")?.({ payload: { scanning: null, done: 0, total: 0 } }),
+    );
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("says when a developer switch is on", async () => {

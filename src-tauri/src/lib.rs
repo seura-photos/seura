@@ -16,7 +16,7 @@ mod protocol;
 mod synced;
 mod welcome;
 
-use library::{AppSettings, Library, LibraryChanged, ThumbnailReady};
+use library::{AppSettings, Library, LibraryChanged, ScanProgress, ThumbnailReady};
 use std::sync::Mutex;
 use tauri::{App, Manager, RunEvent, WebviewWindowBuilder};
 use tauri_specta::{Builder, Event, collect_commands, collect_events};
@@ -50,6 +50,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .events(collect_events![
             ThumbnailReady,
             LibraryChanged,
+            ScanProgress,
             menu::MenuCommand
         ])
 }
@@ -100,7 +101,7 @@ pub fn run() {
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 let library = handle.state::<Library>();
-                library.rescan();
+                library.rescan(&handle);
                 let _ = LibraryChanged.emit(&handle);
                 // A drive that's disconnected shows as unavailable and comes
                 // back when it's reconnected (LIB-6), checked every few seconds.
@@ -114,7 +115,7 @@ pub fn run() {
                             .zip(&available)
                             .any(|(now, before)| *now && !before)
                         {
-                            library.rescan();
+                            library.rescan(&handle);
                         }
                         available = now;
                         let _ = LibraryChanged.emit(&handle);

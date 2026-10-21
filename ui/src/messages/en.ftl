@@ -56,6 +56,11 @@ library-remove-cancel = Cancel
 library-removed = Removed from your library. Nothing on disk was changed.
 library-remove-failed = That folder couldn't be removed: { $reason }
 
+## The status bar (LIB-3)
+
+status-scanning = Looking for photos in { $folder }…
+status-thumbnails = Making thumbnails · { $done } of { $total }
+
 ## The grid
 
 grid-label = Photos in { $folder }

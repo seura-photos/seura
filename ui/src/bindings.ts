@@ -98,6 +98,7 @@ export const commands = {
 export const events = {
 	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
+	scanProgress: makeEvent<ScanProgress>("scan-progress"),
 	thumbnailReady: makeEvent<ThumbnailReady>("thumbnail-ready"),
 };
 
@@ -205,6 +206,20 @@ export type PhotoInfo = {
 	height: number | null,
 	/**  Only in the cloud: never downloaded for browsing (LIB-9). */
 	cloudOnly: boolean,
+};
+
+/**
+ *  How far scanning has got, for the status bar (LIB-3): first looking for
+ *  photos in a library folder, then making their thumbnails. All empty and
+ *  zero when there's nothing to do.
+ */
+export type ScanProgress = {
+	/**  The library folder being scanned, by name. */
+	scanning: string | null,
+	/**  Thumbnails made (or found in the cache) in this pass. */
+	done: number,
+	/**  Thumbnails asked for in this pass. */
+	total: number,
 };
 
 /**  A thumbnail finished, or can't be made. */

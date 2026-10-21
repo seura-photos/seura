@@ -25,6 +25,7 @@ export function App() {
           failed: payload.failed,
         });
       }),
+      events.scanProgress.listen(({ payload }) => useStore.setState({ progress: payload })),
       // Menu commands take the same path as the buttons (ACC-4).
       events.menuCommand.listen(({ payload }) => {
         if (payload === "addFolder") void useStore.getState().addFolder();

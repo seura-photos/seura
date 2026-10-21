@@ -243,6 +243,33 @@ button {
   border-top: 1px solid var(--color-border);
 }
 
+.scan-status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+.scan-status progress {
+  width: 9rem;
+  height: 0.25rem;
+  appearance: none;
+  border: 0;
+  border-radius: 0.125rem;
+  background: var(--color-border);
+  accent-color: var(--color-accent);
+}
+
+.scan-status progress::-webkit-progress-bar {
+  border-radius: 0.125rem;
+  background: var(--color-border);
+}
+
+.scan-status progress::-webkit-progress-value {
+  border-radius: 0.125rem;
+  background: var(--color-accent);
+}
+
 .dev-switches {
   margin: 0;
   padding: 0.25rem 1rem;
