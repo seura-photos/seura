@@ -46,6 +46,15 @@ library-folder-meta =
        *[other] { $path } · { $count } photos
     }
 library-pick-folder = Choose a folder on the left.
+library-unavailable = Not connected
+library-unavailable-title = { $path } (drive not connected)
+library-remove-folder = Remove from library…
+library-remove-title = Remove “{ $name }” from your library?
+library-remove-body = Its photos stay where they are, and so do their edits. Seura just stops showing them and clears their thumbnails.
+library-remove-confirm = Remove
+library-remove-cancel = Cancel
+library-removed = Removed from your library. Nothing on disk was changed.
+library-remove-failed = That folder couldn't be removed: { $reason }
 
 ## The grid
 

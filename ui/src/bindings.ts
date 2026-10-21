@@ -16,6 +16,12 @@ export const commands = {
 	/**  The folders that have photos directly in them, by path. */
 	folders: () => __TAURI_INVOKE<FolderInfo[]>("folders"),
 	/**
+	 *  Removes a library folder from the library (LIB-5), by its position among
+	 *  the library folders: nothing on disk is touched, its edit files stay,
+	 *  and its thumbnails leave the cache.
+	 */
+	removeFolder: (root: number) => typedError<null, string>(__TAURI_INVOKE("remove_folder", { root })),
+	/**
 	 *  A folder's own photos (BRW-1), by file name for now; the sort options
 	 *  of BRW-2 arrive in M2. Their thumbnails are queued behind the visible ones.
 	 */
@@ -149,10 +155,23 @@ export type ExportResult =
 
 /**  A folder with photos directly in it. */
 export type FolderInfo = {
-	id: number,
+	/**
+	 *  The folder, for showing its photos; `None` for a library folder that
+	 *  has no photos yet, or whose drive has never been scanned.
+	 */
+	id: number | null,
+	/**  For library folders: which one, for removing it (LIB-5). */
+	root: number | null,
+	/**  For subfolders: the folder above. */
+	parent: number | null,
 	path: string,
 	name: string,
+	/**  Photos directly in the folder, the ones the grid shows (BRW-1). */
 	photos: number,
+	/**  Photos in the folder and everything below it. */
+	total: number,
+	/**  False when its drive isn't connected (LIB-6). */
+	available: boolean,
 };
 
 /**  The library's folders or photos changed, after a scan. */

@@ -8,6 +8,7 @@ fn main() {
         "app_version",
         "add_folder",
         "folders",
+        "remove_folder",
         "photos",
         "show_thumbnails",
         "open_photo",

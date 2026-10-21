@@ -1,7 +1,8 @@
 //! The native menu (ACC-4). macOS always shows an app menu, so Seura gives
-//! it the standard items plus its own commands. Windows has no menu bar for
-//! now: modern Windows apps rarely show one, and the toolbar and keyboard
-//! cover the same commands (a question for a design session).
+//! it the standard items plus its own commands. Windows has no menu bar:
+//! everything in the menu is also in the window and on the keyboard, and
+//! Nevada decided there's no need for one unless something would live only
+//! there (2026-10-21).
 
 use serde::Serialize;
 use specta::Type;
