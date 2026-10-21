@@ -32,6 +32,10 @@ seura-render = { workspace = true }
 time = { workspace = true }
 rfd = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+# The system text size (ACC-3).
+windows = { workspace = true, features = ["UI_ViewManagement"] }
+
 [dev-dependencies]
 half = { workspace = true }
 tempfile = { workspace = true }

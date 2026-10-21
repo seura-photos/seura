@@ -261,6 +261,24 @@ pub async fn export_photo(app: AppHandle, id: u32) -> Result<ExportResult, Strin
     .map_err(|error| error.to_string())?
 }
 
+/// The system's text size as a scale, 1 at the default (ACC-3). Windows
+/// reads it from "Text size" in Accessibility settings. macOS has no
+/// system-wide text size that apps can read, so it's always 1 there.
+#[tauri::command]
+#[specta::specta]
+pub fn text_scale() -> f64 {
+    #[cfg(target_os = "windows")]
+    {
+        windows::UI::ViewManagement::UISettings::new()
+            .and_then(|settings| settings.TextScaleFactor())
+            .unwrap_or(1.0)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        1.0
+    }
+}
+
 /// Developer switches, from environment variables.
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -272,6 +290,9 @@ pub struct DevOptions {
     pub render_check: bool,
     /// The exposure the render check uses, so both sides agree.
     pub check_exposure_ev: f32,
+    /// Whether M1's Editor is available: in development builds only, since
+    /// M2 writes no edit files (M2 work plan).
+    pub editor_available: bool,
     /// Every switch that changes how the app behaves, as `NAME=value`, so
     /// the UI can say they're on: they're easy to leave set by accident.
     pub active: Vec<String>,
@@ -298,6 +319,7 @@ pub fn dev_options() -> DevOptions {
         force_webgl2: std::env::var("SEURA_PREVIEW").as_deref() == Ok("webgl2"),
         render_check: render_check_mode(),
         check_exposure_ev: seura_render::check::CHECK_SETTINGS.exposure_ev,
+        editor_available: cfg!(debug_assertions),
         active: active_switches(),
     }
 }
@@ -364,6 +386,12 @@ fn display(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_text_scale_is_readable_and_sensible() {
+        let scale = super::text_scale();
+        assert!((1.0..=2.25).contains(&scale), "{scale}");
+    }
+
     #[test]
     fn app_version_matches_the_package() {
         assert_eq!(super::app_version(), env!("CARGO_PKG_VERSION"));

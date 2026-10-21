@@ -76,6 +76,7 @@ Run from `ui/`:
 | UI licenses | `npm run licenses` |
 | Regenerate `src/bindings.ts` after changing a command | `npm run bindings` |
 | Regenerate `src/preview/generated/` after changing a shader | `npm run shaders` |
+| Regenerate `src/styles/tokens.css` after changing `design/tokens.json` | `npm run tokens` |
 | Regenerate app icons after changing `design/brand/app-icon*.svg` | `npm run icons` |
 
 CI (`.github/workflows/ci.yml`) runs all of these on Windows and macOS for every pull request.

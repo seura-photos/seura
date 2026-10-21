@@ -15,6 +15,7 @@ fn main() {
         "set_exposure",
         "export_photo",
         "dev_options",
+        "text_scale",
         "check_render",
         "finish_render_check",
     ]);

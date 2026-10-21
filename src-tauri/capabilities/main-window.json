@@ -15,6 +15,7 @@
     "allow-set-exposure",
     "allow-export-photo",
     "allow-dev-options",
+    "allow-text-scale",
     "allow-check-render",
     "allow-finish-render-check",
     "core:event:allow-listen",

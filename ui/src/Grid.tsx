@@ -12,8 +12,9 @@ type Props = {
   folder: string;
   photos: PhotoInfo[];
   thumbs: Map<number, ThumbState>;
-  /** Opens a photo in the Editor: double-click, or Enter on a focused photo. */
-  onOpen: (photo: PhotoInfo) => void;
+  /** Opens a photo: double-click, or Enter on a focused photo. None while
+   * nothing can open it (the Viewer arrives in M2 slice 7). */
+  onOpen?: ((photo: PhotoInfo) => void) | undefined;
 };
 
 /**
@@ -84,7 +85,7 @@ export function Grid({ folder, photos, thumbs, onOpen }: Props) {
 type ThumbnailProps = {
   photo: PhotoInfo;
   state: ThumbState | undefined;
-  onOpen: (photo: PhotoInfo) => void;
+  onOpen?: ((photo: PhotoInfo) => void) | undefined;
 };
 
 function Thumbnail({ photo, state, onOpen }: ThumbnailProps) {
@@ -102,9 +103,9 @@ function Thumbnail({ photo, state, onOpen }: ThumbnailProps) {
       style={{ width: CELL, height: CELL }}
       title={photo.name}
       tabIndex={0}
-      onDoubleClick={() => onOpen(photo)}
+      onDoubleClick={() => onOpen?.(photo)}
       onKeyDown={(event) => {
-        if (event.key === "Enter") onOpen(photo);
+        if (event.key === "Enter") onOpen?.(photo);
       }}
     >
       {label || missing ? (

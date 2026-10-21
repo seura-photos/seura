@@ -9,6 +9,8 @@ mod commands;
 mod editor;
 mod library;
 mod locations;
+mod menu;
+mod messages;
 mod protocol;
 
 use library::{AppSettings, Library, LibraryChanged, ThumbnailReady};
@@ -32,17 +34,25 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::set_exposure,
             commands::export_photo,
             commands::dev_options,
+            commands::text_scale,
             commands::check_render,
             commands::finish_render_check,
         ])
-        .events(collect_events![ThumbnailReady, LibraryChanged])
+        .events(collect_events![
+            ThumbnailReady,
+            LibraryChanged,
+            menu::MenuCommand
+        ])
 }
 
 /// Builds and runs the app. Called from `main`.
 pub fn run() {
     let builder = specta_builder();
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default();
+    #[cfg(target_os = "macos")]
+    let app = app.menu(menu::build);
+    app.on_menu_event(|app, event| menu::handle(app, event.id().as_ref()))
         .invoke_handler(builder.invoke_handler())
         .register_uri_scheme_protocol("seura", |context, request| {
             protocol::respond(context.app_handle(), &request)
