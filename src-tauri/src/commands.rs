@@ -11,6 +11,7 @@ use tauri_specta::Event;
 
 use crate::editor::Editor;
 use crate::library::{AppSettings, Library, LibraryChanged};
+use crate::welcome;
 
 /// The app's version, from `Cargo.toml`.
 #[tauri::command]
@@ -165,7 +166,7 @@ pub fn show_thumbnails(library: State<'_, Library>, ids: Vec<u32>) {
             .filter_map(|id| index.thumbnail_job(PhotoId::new(id)))
             .collect()
     };
-    library.workers.show(jobs);
+    library.show(jobs);
 }
 
 /// A photo opened in the Editor.
@@ -311,10 +312,11 @@ pub struct DevOptions {
 }
 
 /// The developer switches that change the app's behavior.
-const SWITCHES: [&str; 3] = [
+const SWITCHES: [&str; 4] = [
     "SEURA_HEIF_DECODER",
     "SEURA_PREVIEW",
     crate::locale::LOCALE_SWITCH,
+    welcome::WELCOME_SWITCH,
 ];
 
 /// The switches that are set, as `NAME=value`.
@@ -382,6 +384,51 @@ pub fn finish_render_check(app: AppHandle, skipped: Vec<String>, problems: Vec<S
 
 fn render_check_mode() -> bool {
     std::env::var("SEURA_RENDER_CHECK").as_deref() == Ok("1")
+}
+
+/// The Welcome screen's facts: whether it's a first run, Seura's folder,
+/// the suggested Pictures folder, and whether the cache would be synced
+/// (SET-1).
+#[tauri::command]
+#[specta::specta]
+pub fn welcome(app: AppHandle) -> Result<welcome::WelcomeInfo, String> {
+    welcome::info(&app).map_err(|error| error.to_string())
+}
+
+/// Add another folder, on the Welcome screen: the system's folder dialog,
+/// and the folder offered to the UI by id.
+#[tauri::command]
+#[specta::specta]
+pub async fn welcome_add_folder(app: AppHandle) -> Result<Option<welcome::Choice>, String> {
+    Ok(pick_folder(&app)
+        .await?
+        .map(|path| welcome::offer_folder(&app, path, false)))
+}
+
+/// Store thumbnails somewhere else, on the Welcome screen (SET-1).
+#[tauri::command]
+#[specta::specta]
+pub async fn welcome_choose_cache(app: AppHandle) -> Result<Option<welcome::Choice>, String> {
+    Ok(pick_folder(&app)
+        .await?
+        .map(|path| welcome::offer_folder(&app, path, true)))
+}
+
+/// Get started: the chosen folders (by id), the update choice (SET-4), and
+/// the cache location if the user chose one.
+#[tauri::command]
+#[specta::specta]
+pub async fn finish_welcome(
+    app: AppHandle,
+    folders: Vec<u32>,
+    check_for_updates: bool,
+    cache: Option<u32>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        welcome::finish(&app, &folders, check_for_updates, cache)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 /// The system's folder dialog (ACC-4), or `None` if the user cancels.

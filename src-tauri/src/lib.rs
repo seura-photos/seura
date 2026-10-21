@@ -13,6 +13,8 @@ mod locations;
 mod menu;
 mod messages;
 mod protocol;
+mod synced;
+mod welcome;
 
 use library::{AppSettings, Library, LibraryChanged, ThumbnailReady};
 use std::sync::Mutex;
@@ -37,6 +39,10 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::dev_options,
             commands::text_scale,
             commands::region,
+            commands::welcome,
+            commands::welcome_add_folder,
+            commands::welcome_choose_cache,
+            commands::finish_welcome,
             commands::check_render,
             commands::finish_render_check,
         ])
@@ -85,6 +91,9 @@ pub fn run() {
                 &settings.settings.library_folders,
             ));
             app.manage(AppSettings(Mutex::new(settings)));
+            app.manage(welcome::Welcome::new(
+                origin == locations::Origin::FirstRun || welcome::forced(),
+            ));
             app.manage(editor::Editor::default());
             // Show the snapshot at once (PRF-1), then catch up with the disk.
             let handle = app.handle().clone();

@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import { commands, type DevOptions, type FolderInfo, type PhotoInfo } from "./bindings";
+import {
+  commands,
+  type DevOptions,
+  type FolderInfo,
+  type PhotoInfo,
+  type WelcomeInfo,
+} from "./bindings";
 import { setRegion } from "./format";
 import { setPseudo, t } from "./messages";
 import type { ThumbState } from "./thumbState";
@@ -11,6 +17,8 @@ import type { ThumbState } from "./thumbState";
  */
 type State = {
   dev: DevOptions | null;
+  /** The first run's Welcome screen, while it's shown (SET-1). */
+  welcome: WelcomeInfo | null;
   version: string | null;
   folders: FolderInfo[];
   /** The folder whose photos the grid shows. */
@@ -23,6 +31,12 @@ type State = {
   notice: string | null;
 
   start: () => Promise<void>;
+  /** Get started: returns a problem to show, or null. */
+  finishWelcome: (
+    folders: number[],
+    checkForUpdates: boolean,
+    cache: number | null,
+  ) => Promise<string | null>;
   loadFolders: () => Promise<void>;
   selectFolder: (id: number) => Promise<void>;
   addFolder: () => Promise<void>;
@@ -32,6 +46,7 @@ type State = {
 
 export const useStore = create<State>()((set, get) => ({
   dev: null,
+  welcome: null,
   version: null,
   folders: [],
   folderId: null,
@@ -41,15 +56,20 @@ export const useStore = create<State>()((set, get) => ({
   notice: null,
 
   async start() {
-    const [dev, version, region] = await Promise.all([
+    const [dev, version, region, welcome] = await Promise.all([
       commands.devOptions(),
       commands.appVersion(),
       commands.region(),
+      commands.welcome(),
     ]);
     // Text and formats are set before anything is shown (ACC-5 to ACC-7).
     setRegion(region);
     setPseudo(dev.pseudoLocale);
-    set({ dev, version });
+    set({
+      dev,
+      version,
+      welcome: welcome.status === "ok" && welcome.data.needed ? welcome.data : null,
+    });
     await get().loadFolders();
   },
 
@@ -59,6 +79,17 @@ export const useStore = create<State>()((set, get) => ({
     const { folderId } = get();
     // A rescan can change the selected folder's photos.
     if (folderId !== null) set({ photos: await commands.photos(folderId) });
+  },
+
+  async finishWelcome(folders, checkForUpdates, cache) {
+    const result = await commands.finishWelcome(folders, checkForUpdates, cache);
+    if (result.status === "error") return result.error;
+    set({ welcome: null });
+    await get().loadFolders();
+    // The Library opens on the first folder while it's scanned (user flows, flow 1).
+    const first = get().folders[0];
+    if (first) await get().selectFolder(first.id);
+    return null;
   },
 
   async selectFolder(id) {
