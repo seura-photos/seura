@@ -19,13 +19,16 @@
     "shaders": "node scripts/shaders.mjs",
     "licenses": "node scripts/licenses.mjs",
     "icons": "node scripts/icons.mjs",
+    "tokens": "node scripts/tokens.mjs",
     "tauri": "cd .. && tauri"
   },
   "dependencies": {
     "@tanstack/react-virtual": "3.14.13",
     "@tauri-apps/api": "2.12.1",
+    "lucide-react": "1.52.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "zustand": "5.0.15"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

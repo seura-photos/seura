@@ -10,10 +10,15 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     watch: { ignored: ["**/src-tauri/**"] },
+    // The brand mark is read from design/, outside ui/ (visual design).
+    fs: { allow: [".", "../design"] },
   },
   build: {
     // WebView2 on Windows 10 and 11; WKWebView on macOS 13 and later (Safari 16).
     target: ["es2022", "chrome110", "safari16"],
+    // Small images would be inlined as data: URLs, which the app's Content
+    // Security Policy doesn't allow (img-src); emit them as files instead.
+    assetsInlineLimit: 0,
   },
   test: {
     environment: "jsdom",

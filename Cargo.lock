@@ -3630,6 +3630,7 @@ dependencies = [
  "tauri-specta",
  "tempfile",
  "time",
+ "windows",
 ]
 
 [[package]]

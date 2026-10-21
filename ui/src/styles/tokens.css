@@ -1,0 +1,71 @@
+/* Generated from design/tokens.json by `npm run tokens`. Don't edit. */
+
+:root {
+  --color-on-photo: rgba(20,20,20,0.62);
+  --color-toolbar-on-photo: rgba(20,20,20,0.78);
+  --font-app: -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-brand: Figtree, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+  --type-view-title-size: 1.0625rem;
+  --type-view-title-weight: 600;
+  --type-panel-heading-size: 0.8125rem;
+  --type-panel-heading-weight: 600;
+  --type-body-size: 0.8125rem;
+  --type-body-weight: 400;
+  --type-meta-size: 0.75rem;
+  --type-meta-weight: 400;
+  --type-section-label-size: 0.6875rem;
+  --type-section-label-weight: 600;
+  --type-section-label-letter-spacing: 0.06em;
+  --radius-control: 0.375rem;
+  --radius-panel: 0.5rem;
+  --radius-chip: 0.8125rem;
+  --radius-thumbnail: 0.1875rem;
+  --size-tier1-target: 2rem;
+  --size-primary-target: 2.75rem;
+  --size-header: 3.25rem;
+  --size-footer: 1.75rem;
+  --size-sidebar: 14.5rem;
+  --size-info-panel: 17.5rem;
+  --size-edit-panel: 18.75rem;
+  --icon-size: 1.5rem;
+  --icon-stroke: 1.75;
+}
+
+/* Light, unless the system is dark (ACC-3). */
+:root {
+  color-scheme: light dark;
+  --color-photo: #F7F7F7;
+  --color-panel: #F0F0F0;
+  --color-surface: #FFFFFF;
+  --color-border: #D6D6D6;
+  --color-text: #1B1B1B;
+  --color-text-secondary: #5E5E5E;
+  --color-accent: #3352CC;
+  --color-accent-text: #3352CC;
+  --color-accent-subtle: #E3E8FA;
+  --color-on-accent: #FFFFFF;
+  --color-danger: #B3261E;
+  --color-danger-subtle: #FBE9E7;
+  --color-rating: #9A6700;
+  --color-rating-off: #C9C9C9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-photo: #1A1A1A;
+    --color-panel: #222222;
+    --color-surface: #2E2E2E;
+    --color-border: #3A3A3A;
+    --color-text: #ECECEC;
+    --color-text-secondary: #A0A0A0;
+    --color-accent: #3D5BE0;
+    --color-accent-text: #8EA6FF;
+    --color-accent-subtle: #26304F;
+    --color-on-accent: #FFFFFF;
+    --color-danger: #FF8A80;
+    --color-danger-subtle: #4A2523;
+    --color-rating: #E3B341;
+    --color-rating-off: #4D4D4D;
+  }
+}

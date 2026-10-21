@@ -34,6 +34,12 @@ export const commands = {
 	exportPhoto: (id: number) => typedError<ExportResult, string>(__TAURI_INVOKE("export_photo", { id })),
 	devOptions: () => __TAURI_INVOKE<DevOptions>("dev_options"),
 	/**
+	 *  The system's text size as a scale, 1 at the default (ACC-3). Windows
+	 *  reads it from "Text size" in Accessibility settings. macOS has no
+	 *  system-wide text size that apps can read, so it's always 1 there.
+	 */
+	textScale: () => __TAURI_INVOKE<number | null>("text_scale"),
+	/**
 	 *  The render check: one preview path's render of the check image, as 8-bit
 	 *  RGBA, compared with wgpu's. Returns the largest difference.
 	 */
@@ -49,6 +55,7 @@ export const commands = {
 /** Events */
 export const events = {
 	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
+	menuCommand: makeEvent<MenuCommand>("menu-command"),
 	thumbnailReady: makeEvent<ThumbnailReady>("thumbnail-ready"),
 };
 
@@ -74,6 +81,11 @@ export type DevOptions = {
 	/**  The exposure the render check uses, so both sides agree. */
 	checkExposureEv: number | null,
 	/**
+	 *  Whether M1's Editor is available: in development builds only, since
+	 *  M2 writes no edit files (M2 work plan).
+	 */
+	editorAvailable: boolean,
+	/**
 	 *  Every switch that changes how the app behaves, as `NAME=value`, so
 	 *  the UI can say they're on: they're easy to leave set by accident.
 	 */
@@ -95,6 +107,12 @@ export type FolderInfo = {
 
 /**  The library's folders or photos changed, after a scan. */
 export type LibraryChanged = null;
+
+/**
+ *  A menu command for the UI to carry out, so each command has one path
+ *  whether it starts in the menu, the toolbar, or the keyboard.
+ */
+export type MenuCommand = "addFolder";
 
 /**  A photo opened in the Editor. */
 export type OpenedPhoto = {
