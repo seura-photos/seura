@@ -49,6 +49,9 @@ wgpu = { version = "30.0.1", default-features = false, features = ["wgsl", "dx12
 # the test that generates and checks those files.
 naga = { version = "30.0.1", features = ["wgsl-in", "glsl-out"] }
 bytemuck = { version = "1.25.2", features = ["derive"] }
+# Watching library folders for changes (LIB-4). CC0-1.0. The 9.0 line is
+# still in release candidates.
+notify = { version = "8.2.0", default-features = false, features = ["macos_fsevent"] }
 # Waits for wgpu's few async calls; the export runs on a worker thread.
 pollster = "1.0.1"
 # Message catalogs in Project Fluent, as in the UI (ACC-5).
