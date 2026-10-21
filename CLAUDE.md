@@ -52,6 +52,8 @@ On Windows, HEIC photos are decoded by Microsoft's HEIF Image Extensions and HEV
 
 `SEURA_PREVIEW=webgl2` makes the Editor's preview use WebGL2 even where the web view has WebGPU, to check the fallback that macOS 13 to 15 use.
 
+`SEURA_WELCOME=1` shows the first-run Welcome screen on a computer that already has settings; nothing is saved unless you press Get started.
+
 `SEURA_LOCALE=pseudo` pseudo-translates every string, lengthened about 40% and accented, to check that translations would fit (ACC-7). Text lives in Project Fluent catalogs: `ui/src/messages/en.ftl` and `src-tauri/messages/en.ftl`.
 
 Run from the repository root:

@@ -56,7 +56,7 @@ fn thumbnail<R: Runtime>(app: &AppHandle<R>, path: &str) -> Option<Response<Cow<
     let library = app.try_state::<Library>()?;
     // Only photos in the index: never an arbitrary path.
     let job = library.index.read().ok()?.thumbnail_job(PhotoId::new(id))?;
-    let bytes = std::fs::read(library.thumbnails.path(&job.key)).ok()?;
+    let bytes = std::fs::read(library.thumbnail_path(&job.key)).ok()?;
     Response::builder()
         .header(header::CONTENT_TYPE, "image/webp")
         .body(Cow::Owned(bytes))

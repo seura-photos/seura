@@ -6,6 +6,22 @@ app-name = Seura Photos
 app-short-name = Seura
 app-version = Version { $version }
 
+## The Welcome screen (SET-1, SET-4)
+
+welcome-title = Welcome to Seura Photos
+welcome-what = Browse, fix, and organize the photos already on your computer.
+welcome-originals = Your originals are never changed. Edits are saved in small files next to each photo, so you can undo them at any time.
+welcome-seura-folder = Seura keeps its settings and thumbnails in the Seura Photos folder in your home folder: { $folder }
+welcome-which-folders = Which folders hold your photos?
+welcome-add-folder = Add another folder…
+welcome-cache-synced = Your Seura Photos folder is synced to { $service }. Thumbnails take up space and would be uploaded too.
+welcome-cache-still-synced = { $folder } is synced to { $service } too.
+welcome-cache-elsewhere = Store thumbnails somewhere else…
+welcome-cache-chosen = Thumbnails will be stored in { $folder }.
+welcome-check-updates = Check for updates automatically
+welcome-get-started = Get started
+welcome-problem = Something went wrong: { $reason }
+
 ## The Library
 
 library-add-folder = Add folder

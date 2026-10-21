@@ -39,6 +39,12 @@ vi.mock("./bindings", () => ({
   commands: {
     appVersion: vi.fn(() => Promise.resolve("1.2.3")),
     region: vi.fn(() => Promise.resolve("en-US")),
+    welcome: vi.fn(() =>
+      Promise.resolve({
+        status: "ok",
+        data: { needed: false, seuraFolder: "", suggested: [], cacheSyncedTo: null },
+      }),
+    ),
     devOptions: vi.fn(() =>
       Promise.resolve({
         forceWebgl2: false,

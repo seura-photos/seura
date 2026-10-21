@@ -17,6 +17,10 @@ fn main() {
         "dev_options",
         "text_scale",
         "region",
+        "welcome",
+        "welcome_add_folder",
+        "welcome_choose_cache",
+        "finish_welcome",
         "check_render",
         "finish_render_check",
     ]);

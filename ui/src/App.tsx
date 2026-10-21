@@ -5,11 +5,13 @@ import { Library } from "./Library";
 import { t } from "./messages";
 import { RenderCheck } from "./RenderCheck";
 import { useStore } from "./store";
+import { Welcome } from "./Welcome";
 
 /** The window's one view at a time: the Library, or M1's Editor in development builds. */
 export function App() {
   const dev = useStore((state) => state.dev);
   const editing = useStore((state) => state.editing);
+  const welcome = useStore((state) => state.welcome);
   const openEditor = useStore((state) => state.openEditor);
 
   useEffect(() => {
@@ -47,7 +49,9 @@ export function App() {
   return (
     <div className="window">
       {switches}
-      {editing && dev.editorAvailable ? (
+      {welcome ? (
+        <Welcome info={welcome} />
+      ) : editing && dev.editorAvailable ? (
         <Editor photo={editing} forceWebgl2={dev.forceWebgl2} onClose={() => openEditor(null)} />
       ) : (
         <Library />

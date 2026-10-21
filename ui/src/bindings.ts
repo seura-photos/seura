@@ -46,6 +46,36 @@ export const commands = {
 	 */
 	region: () => __TAURI_INVOKE<string>("region"),
 	/**
+	 *  The Welcome screen's facts: whether it's a first run, Seura's folder,
+	 *  the suggested Pictures folder, and whether the cache would be synced
+	 *  (SET-1).
+	 */
+	welcome: () => typedError<WelcomeInfo, string>(__TAURI_INVOKE("welcome")),
+	/**
+	 *  Add another folder, on the Welcome screen: the system's folder dialog,
+	 *  and the folder offered to the UI by id.
+	 */
+	welcomeAddFolder: () => typedError<{
+	id: number,
+	name: string,
+	path: string,
+	/**  The service that syncs it, if any (for a cache location). */
+	syncedTo: string | null,
+} | null, string>(__TAURI_INVOKE("welcome_add_folder")),
+	/**  Store thumbnails somewhere else, on the Welcome screen (SET-1). */
+	welcomeChooseCache: () => typedError<{
+	id: number,
+	name: string,
+	path: string,
+	/**  The service that syncs it, if any (for a cache location). */
+	syncedTo: string | null,
+} | null, string>(__TAURI_INVOKE("welcome_choose_cache")),
+	/**
+	 *  Get started: the chosen folders (by id), the update choice (SET-4), and
+	 *  the cache location if the user chose one.
+	 */
+	finishWelcome: (folders: number[], checkForUpdates: boolean, cache: number | null) => typedError<null, string>(__TAURI_INVOKE("finish_welcome", { folders, checkForUpdates, cache })),
+	/**
 	 *  The render check: one preview path's render of the check image, as 8-bit
 	 *  RGBA, compared with wgpu's. Returns the largest difference.
 	 */
@@ -74,6 +104,15 @@ export type AddFolderResult =
 { kind: "alreadyIncluded"; folder: string } | 
 /**  Added, replacing these library folders inside it. */
 { kind: "absorbed"; folders: string[] };
+
+/**  A folder the user can choose, by id. */
+export type Choice = {
+	id: number,
+	name: string,
+	path: string,
+	/**  The service that syncs it, if any (for a cache location). */
+	syncedTo: string | null,
+};
 
 /**  Developer switches, from environment variables. */
 export type DevOptions = {
@@ -160,6 +199,17 @@ export type ThumbnailReady = {
 	 */
 	needsCodec: boolean,
 	failed: boolean,
+};
+
+export type WelcomeInfo = {
+	/**  Whether this is a first run, so the Welcome screen is shown. */
+	needed: boolean,
+	/**  Where Seura keeps its settings and cache (decision 0015). */
+	seuraFolder: string,
+	/**  Folders suggested to start with: the Pictures folder, if there is one. */
+	suggested: Choice[],
+	/**  The service the default cache location is synced to, if any. */
+	cacheSyncedTo: string | null,
 };
 
 /* Tauri Specta runtime */

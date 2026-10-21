@@ -15,9 +15,31 @@ use tauri_specta::Event;
 
 pub struct Library {
     pub index: RwLock<Index>,
-    pub cache: PathBuf,
-    pub thumbnails: ThumbnailCache,
-    pub workers: ThumbnailWorkers,
+    /// Where the cache is, and the workers filling it; replaced together
+    /// when the cache moves.
+    store: RwLock<Store>,
+}
+
+struct Store {
+    cache: PathBuf,
+    thumbnails: ThumbnailCache,
+    workers: ThumbnailWorkers,
+}
+
+impl Store {
+    fn open<R: Runtime>(app: &AppHandle<R>, cache: &Path) -> Store {
+        let threads = std::thread::available_parallelism().map_or(2, |n| n.get().saturating_sub(1));
+        let handle = app.clone();
+        let workers =
+            ThumbnailWorkers::start(ThumbnailCache::new(cache), threads, move |id, outcome| {
+                finished(&handle, id, outcome);
+            });
+        Store {
+            cache: cache.to_path_buf(),
+            thumbnails: ThumbnailCache::new(cache),
+            workers,
+        }
+    }
 }
 
 /// A thumbnail finished, or can't be made.
@@ -49,18 +71,29 @@ impl Library {
         let index = Index::load_snapshot(cache)
             .filter(|index| index.roots() == folders)
             .unwrap_or_else(|| Index::with_roots(folders.to_vec()));
-        let threads = std::thread::available_parallelism().map_or(2, |n| n.get().saturating_sub(1));
-        let handle = app.clone();
-        let workers =
-            ThumbnailWorkers::start(ThumbnailCache::new(cache), threads, move |id, outcome| {
-                finished(&handle, id, outcome);
-            });
         Library {
             index: RwLock::new(index),
-            cache: cache.to_path_buf(),
-            thumbnails: ThumbnailCache::new(cache),
-            workers,
+            store: RwLock::new(Store::open(app, cache)),
         }
+    }
+
+    /// Moves the cache to `cache`: the workers stop and start again there.
+    /// Thumbnails already made stay where they were; they're rebuilt as
+    /// needed (SET-1, when the default place is synced).
+    pub fn move_cache<R: Runtime>(&self, app: &AppHandle<R>, cache: &Path) {
+        let mut store = self.store.write().expect("store lock");
+        // Dropping the old workers waits for them to stop.
+        *store = Store::open(app, cache);
+    }
+
+    /// The photos now on screen: their thumbnails are made first (LIB-3).
+    pub fn show(&self, jobs: Vec<seura_library::Job>) {
+        self.store.read().expect("store lock").workers.show(jobs);
+    }
+
+    /// Where a thumbnail is, or would be.
+    pub fn thumbnail_path(&self, key: &str) -> PathBuf {
+        self.store.read().expect("store lock").thumbnails.path(key)
     }
 
     /// Rescans every library folder and saves the snapshot. Runs on a
@@ -78,7 +111,7 @@ impl Library {
     pub fn save(&self) {
         let index = self.index.read().expect("index lock");
         // A failed snapshot only costs a full scan next launch.
-        let _ = index.save_snapshot(&self.cache);
+        let _ = index.save_snapshot(&self.store.read().expect("store lock").cache);
     }
 
     /// Queues thumbnails for a folder's photos behind whatever is on screen.
@@ -90,7 +123,11 @@ impl Library {
             .filter_map(|id| index.thumbnail_job(id))
             .collect();
         drop(index);
-        self.workers.queue_background(jobs);
+        self.store
+            .read()
+            .expect("store lock")
+            .workers
+            .queue_background(jobs);
     }
 }
 

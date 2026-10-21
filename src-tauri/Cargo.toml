@@ -34,8 +34,12 @@ rfd = { workspace = true }
 fluent-bundle = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-# The system text size (ACC-3) and region (ACC-6).
-windows = { workspace = true, features = ["UI_ViewManagement", "Win32_Globalization"] }
+# The system text size (ACC-3), region (ACC-6), and sync folders (SET-1).
+windows = { workspace = true, features = [
+    "UI_ViewManagement",
+    "Win32_Globalization",
+    "Win32_Storage_CloudFilters",
+] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # The system region (ACC-6).
