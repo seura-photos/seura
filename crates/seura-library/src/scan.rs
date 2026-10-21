@@ -34,16 +34,40 @@ impl Index {
     /// new and changed photos are read, missing ones removed. Unchanged
     /// photos (same size and modification time) aren't opened at all.
     pub fn scan(&mut self, root: &Path) -> ScanReport {
+        self.scan_folder(root, root)
+    }
+
+    /// Scans `folder`, inside library folder `root`, and everything below
+    /// it, as [`Index::scan`] does for a whole library folder. Used when
+    /// watching reports a change there (LIB-4), so one new photo doesn't
+    /// mean walking the whole library. A folder that's gone takes its
+    /// photos with it, and folders above it left with no photos go too.
+    pub fn scan_folder(&mut self, root: &Path, folder: &Path) -> ScanReport {
         let mut report = ScanReport::default();
-        if fs::read_dir(root).is_err() {
-            report.unavailable = true;
+        if !folder.starts_with(root) {
+            return report;
+        }
+        if fs::read_dir(folder).is_err() {
+            if folder == root {
+                report.unavailable = true;
+                report.photos = self.photos_under(root).len();
+                return report;
+            }
+            // The folder is gone: so is everything that was in it.
+            for id in self.photos_under(folder) {
+                self.remove_photo(id);
+                report.removed += 1;
+            }
+            self.prune(folder, &HashSet::new());
+            self.prune_above(root, folder);
             report.photos = self.photos_under(root).len();
             return report;
         }
 
+        let parent = self.ensure_folders_above(root, folder);
         let mut seen_folders = HashSet::new();
         let mut seen_photos = HashSet::new();
-        let mut pending = vec![(root.to_path_buf(), None)];
+        let mut pending = vec![(folder.to_path_buf(), parent)];
         while let Some((folder_path, parent)) = pending.pop() {
             let Ok(listing) = list(&folder_path) else {
                 continue;
@@ -73,25 +97,66 @@ impl Index {
             }
         }
 
-        // Anything under this root that wasn't seen is gone.
-        for id in self.photos_under(root) {
+        // Anything under this folder that wasn't seen is gone.
+        for id in self.photos_under(folder) {
             if !seen_photos.contains(&id) {
                 self.remove_photo(id);
                 report.removed += 1;
             }
         }
-        // Folders that are gone, or left with no photos anywhere inside them,
-        // aren't kept. Deepest first, so a parent sees its children removed.
-        let mut folders = self.folders_under(root);
+        self.prune(folder, &seen_folders);
+        self.prune_above(root, folder);
+        report.photos = self.photos_under(root).len();
+        report
+    }
+
+    /// Removes folders under `folder` that are gone (not in `seen`) or left
+    /// with no photos anywhere inside them. Deepest first, so a parent sees
+    /// its children removed.
+    fn prune(&mut self, folder: &Path, seen: &HashSet<FolderId>) {
+        let mut folders = self.folders_under(folder);
         folders.sort_by_key(|(_, path)| std::cmp::Reverse(path.components().count()));
         for (id, _) in folders {
             let empty = self.folder_len(id) == 0 && !self.has_subfolders(id);
-            if !seen_folders.contains(&id) || empty {
+            if !seen.contains(&id) || empty {
                 self.remove_folder(id);
             }
         }
-        report.photos = self.photos_under(root).len();
-        report
+    }
+
+    /// Removes the folders between `folder` and `root` (both included) that
+    /// a change below left with no photos anywhere inside them.
+    fn prune_above(&mut self, root: &Path, folder: &Path) {
+        for above in folder.ancestors().skip(1) {
+            if !above.starts_with(root) {
+                break;
+            }
+            if let Some(id) = self.folder_id(above)
+                && self.folder_len(id) == 0
+                && !self.has_subfolders(id)
+            {
+                self.remove_folder(id);
+            }
+        }
+    }
+
+    /// Makes sure the folders from `root` down to `folder`'s parent are in
+    /// the index, and returns that parent, if `folder` isn't `root` itself.
+    fn ensure_folders_above(&mut self, root: &Path, folder: &Path) -> Option<FolderId> {
+        if folder == root {
+            return None;
+        }
+        let mut chain: Vec<&Path> = folder
+            .ancestors()
+            .skip(1)
+            .take_while(|above| above.starts_with(root))
+            .collect();
+        chain.reverse();
+        let mut parent = None;
+        for above in chain {
+            parent = Some(self.ensure_folder(above, parent));
+        }
+        parent
     }
 
     /// Brings one photo's record up to date. Returns its id, or `None` if

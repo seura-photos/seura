@@ -107,6 +107,7 @@ pub async fn add_folder(app: AppHandle) -> Result<AddFolderResult, String> {
         settings.settings.library_folders = roots;
         settings.save().map_err(|error| error.to_string())?;
         drop(settings);
+        library.rewatch();
         library.rescan(&app);
         let _ = LibraryChanged.emit(&app);
         Ok(result)
@@ -167,6 +168,7 @@ pub async fn remove_folder(app: AppHandle, root: u32) -> Result<(), String> {
             (keys, index.roots().to_vec())
         };
         library.drop_thumbnails(&keys);
+        library.rewatch();
         let settings = app.state::<AppSettings>();
         let mut settings = settings.0.lock().expect("settings lock");
         settings.settings.library_folders = roots;

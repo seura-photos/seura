@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use seura_library::{
     Filter, FolderId, Index, Outcome, PhotoId, Scope, SettingsFile, ThumbnailCache,
-    ThumbnailWorkers,
+    ThumbnailWorkers, Watcher,
 };
 use specta::Type;
 use tauri::{AppHandle, Manager, Runtime};
@@ -18,6 +18,8 @@ pub struct Library {
     pub index: RwLock<Index>,
     /// How far the current scan and thumbnail pass has got (LIB-3).
     progress: Mutex<Progress>,
+    /// Watches the library folders while the app runs (LIB-4).
+    watcher: Mutex<Option<Watcher>>,
     /// Where the cache is, and the workers filling it; replaced together
     /// when the cache moves.
     store: RwLock<Store>,
@@ -102,8 +104,51 @@ impl Library {
         Library {
             index: RwLock::new(index),
             progress: Mutex::new(Progress::default()),
+            watcher: Mutex::new(None),
             store: RwLock::new(Store::open(app, cache)),
         }
+    }
+
+    /// Starts watching the library folders for changes (LIB-4), ignoring
+    /// Seura's own cache in case it's inside one. Called again when the
+    /// cache moves, so the new place is the one ignored.
+    pub fn start_watching<R: Runtime>(&self, app: &AppHandle<R>) {
+        let cache = self.store.read().expect("store lock").cache.clone();
+        let handle = app.clone();
+        let watcher = Watcher::start(vec![cache], move |folders| {
+            if let Some(library) = handle.try_state::<Library>() {
+                library.changed(&handle, &folders);
+            }
+        });
+        // Without a watcher, changes still show at the next launch's scan.
+        *self.watcher.lock().expect("watcher lock") = watcher.ok();
+        self.rewatch();
+    }
+
+    /// Watches exactly the current library folders: after one is added or
+    /// removed, or a drive comes back (LIB-6).
+    pub fn rewatch(&self) {
+        let roots = self.index.read().expect("index lock").roots().to_vec();
+        if let Some(watcher) = self.watcher.lock().expect("watcher lock").as_mut() {
+            watcher.watch(&roots);
+        }
+    }
+
+    /// Brings the index up to date with folders the watcher reported, then
+    /// saves it, queues new thumbnails, and tells the UI (LIB-4).
+    fn changed<R: Runtime>(&self, app: &AppHandle<R>, folders: &[PathBuf]) {
+        {
+            let mut index = self.index.write().expect("index lock");
+            let roots = index.roots().to_vec();
+            for folder in folders {
+                if let Some(root) = roots.iter().find(|root| folder.starts_with(root)) {
+                    index.scan_folder(root, folder);
+                }
+            }
+        }
+        self.save();
+        self.queue_all(app);
+        let _ = LibraryChanged.emit(app);
     }
 
     /// Moves the cache to `cache`: the workers stop and start again there.
@@ -116,6 +161,7 @@ impl Library {
         // the lock is released: a worker finishing a job reads the store to
         // report progress, and would otherwise wait for this forever.
         drop(old);
+        self.start_watching(app);
     }
 
     /// The photos now on screen: their thumbnails are made first (LIB-3).

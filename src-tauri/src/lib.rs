@@ -98,6 +98,7 @@ pub fn run() {
             ));
             app.manage(editor::Editor::default());
             // Show the snapshot at once (PRF-1), then catch up with the disk.
+            app.state::<Library>().start_watching(app.handle());
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 let library = handle.state::<Library>();
@@ -118,6 +119,7 @@ pub fn run() {
                             library.rescan(&handle);
                         }
                         available = now;
+                        library.rewatch();
                         let _ = LibraryChanged.emit(&handle);
                     }
                 }

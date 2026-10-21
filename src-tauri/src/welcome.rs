@@ -165,6 +165,7 @@ pub fn finish<R: Runtime>(
     drop(settings);
     welcome.needed.store(false, Ordering::Relaxed);
 
+    library.rewatch();
     let handle = app.clone();
     std::thread::spawn(move || {
         handle.state::<Library>().rescan(&handle);

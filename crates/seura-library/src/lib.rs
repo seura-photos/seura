@@ -2,7 +2,7 @@
 //! cache, fingerprints, and the settings file (technical design, section 4;
 //! decisions 0010 and 0015).
 //!
-//! Watching for changes (LIB-4) and renamed photos (FIL-6) come later.
+//! Renamed photos (FIL-6) come later.
 
 mod fingerprint;
 mod formats;
@@ -15,6 +15,7 @@ mod snapshot;
 pub mod synthetic;
 mod thumbnails;
 mod tree;
+mod watch;
 
 pub use fingerprint::{fingerprint_file, to_hex};
 pub use formats::Format;
@@ -31,3 +32,4 @@ pub use settings::{
 pub use snapshot::SNAPSHOT_FILE;
 pub use thumbnails::{Job, Made, Outcome, THUMBS_FOLDER, ThumbnailCache, ThumbnailWorkers};
 pub use tree::FolderEntry;
+pub use watch::{Watcher, folders_to_scan};
