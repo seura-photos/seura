@@ -39,17 +39,19 @@ export function App() {
   // Developer switches are easy to leave set in a terminal, so they're always shown.
   const switches = dev.active.length > 0 && (
     <p className="dev-switches" role="note">
-      {t("dev.switchesOn", { switches: dev.active.join(", ") })}
+      {t("dev-switches-on", { switches: dev.active.join(", ") })}
     </p>
   );
+  // One column: the developer-switch line, if any, takes its height from the
+  // view below rather than pushing it past the window's edge.
   return (
-    <>
+    <div className="window">
       {switches}
       {editing && dev.editorAvailable ? (
         <Editor photo={editing} forceWebgl2={dev.forceWebgl2} onClose={() => openEditor(null)} />
       ) : (
         <Library />
       )}
-    </>
+    </div>
   );
 }

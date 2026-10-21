@@ -57,7 +57,7 @@ export function RenderCheck({ exposureEv }: { exposureEv: number }) {
 
   return (
     <main className="render-check">
-      <p>{t("check.running")}</p>
+      <p>{t("check-running")}</p>
       <ul>
         {log.map((line) => (
           <li key={line}>{line}</li>

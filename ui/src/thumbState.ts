@@ -10,8 +10,8 @@ export type ThumbState = {
 
 /** What a tile says instead of showing a thumbnail, if anything. */
 export function thumbLabel(state: ThumbState | undefined): string | null {
-  if (state?.cloudOnly) return t("grid.cloudOnly");
-  if (state?.needsCodec) return t("grid.needsHeifExtensions");
-  if (state?.failed) return t("grid.failed");
+  if (state?.cloudOnly) return t("grid-cloud-only");
+  if (state?.needsCodec) return t("grid-needs-heif-extensions");
+  if (state?.failed) return t("grid-failed");
   return null;
 }

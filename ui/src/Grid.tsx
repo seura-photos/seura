@@ -58,7 +58,7 @@ export function Grid({ folder, photos, thumbs, onOpen }: Props) {
   }, [photos, first, last, columns]);
 
   return (
-    <div ref={scroller} className="grid" role="grid" aria-label={t("grid.label", { folder })}>
+    <div ref={scroller} className="grid" role="grid" aria-label={t("grid-label", { folder })}>
       <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
         {items.map((row) => (
           <div

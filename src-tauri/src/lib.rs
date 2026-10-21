@@ -8,6 +8,7 @@
 mod commands;
 mod editor;
 mod library;
+mod locale;
 mod locations;
 mod menu;
 mod messages;
@@ -35,6 +36,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::export_photo,
             commands::dev_options,
             commands::text_scale,
+            commands::region,
             commands::check_render,
             commands::finish_render_check,
         ])

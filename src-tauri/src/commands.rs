@@ -279,6 +279,15 @@ pub fn text_scale() -> f64 {
     }
 }
 
+/// The operating system's region as a BCP 47 tag, such as `de-DE`, for
+/// formatting dates, numbers, and sizes (ACC-6). The interface itself is in
+/// English; the web view's own locale follows the display language.
+#[tauri::command]
+#[specta::specta]
+pub fn region() -> String {
+    crate::locale::region()
+}
+
 /// Developer switches, from environment variables.
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -288,6 +297,9 @@ pub struct DevOptions {
     pub force_webgl2: bool,
     /// `SEURA_RENDER_CHECK=1` runs the render check instead of the app.
     pub render_check: bool,
+    /// `SEURA_LOCALE=pseudo` pseudo-translates every string, to check that
+    /// longer translations fit (ACC-7).
+    pub pseudo_locale: bool,
     /// The exposure the render check uses, so both sides agree.
     pub check_exposure_ev: f32,
     /// Whether M1's Editor is available: in development builds only, since
@@ -299,7 +311,11 @@ pub struct DevOptions {
 }
 
 /// The developer switches that change the app's behavior.
-const SWITCHES: [&str; 2] = ["SEURA_HEIF_DECODER", "SEURA_PREVIEW"];
+const SWITCHES: [&str; 3] = [
+    "SEURA_HEIF_DECODER",
+    "SEURA_PREVIEW",
+    crate::locale::LOCALE_SWITCH,
+];
 
 /// The switches that are set, as `NAME=value`.
 pub fn active_switches() -> Vec<String> {
@@ -318,6 +334,7 @@ pub fn dev_options() -> DevOptions {
     DevOptions {
         force_webgl2: std::env::var("SEURA_PREVIEW").as_deref() == Ok("webgl2"),
         render_check: render_check_mode(),
+        pseudo_locale: crate::locale::pseudo(),
         check_exposure_ev: seura_render::check::CHECK_SETTINGS.exposure_ev,
         editor_available: cfg!(debug_assertions),
         active: active_switches(),

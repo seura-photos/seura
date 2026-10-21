@@ -31,10 +31,15 @@ seura-image = { workspace = true }
 seura-render = { workspace = true }
 time = { workspace = true }
 rfd = { workspace = true }
+fluent-bundle = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-# The system text size (ACC-3).
-windows = { workspace = true, features = ["UI_ViewManagement"] }
+# The system text size (ACC-3) and region (ACC-6).
+windows = { workspace = true, features = ["UI_ViewManagement", "Win32_Globalization"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# The system region (ACC-6).
+objc2-core-foundation = { workspace = true, features = ["CFLocale", "CFString"] }
 
 [dev-dependencies]
 half = { workspace = true }
