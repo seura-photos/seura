@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { commands, type DevOptions, type FolderInfo, type PhotoInfo } from "./bindings";
-import { t } from "./messages";
+import { setRegion } from "./format";
+import { setPseudo, t } from "./messages";
 import type { ThumbState } from "./thumbState";
 
 /**
@@ -40,7 +41,14 @@ export const useStore = create<State>()((set, get) => ({
   notice: null,
 
   async start() {
-    const [dev, version] = await Promise.all([commands.devOptions(), commands.appVersion()]);
+    const [dev, version, region] = await Promise.all([
+      commands.devOptions(),
+      commands.appVersion(),
+      commands.region(),
+    ]);
+    // Text and formats are set before anything is shown (ACC-5 to ACC-7).
+    setRegion(region);
+    setPseudo(dev.pseudoLocale);
     set({ dev, version });
     await get().loadFolders();
   },
@@ -62,17 +70,17 @@ export const useStore = create<State>()((set, get) => ({
   async addFolder() {
     const result = await commands.addFolder();
     if (result.status === "error") {
-      set({ notice: t("library.addFailed", { reason: result.error }) });
+      set({ notice: t("library-add-failed", { reason: result.error }) });
       return;
     }
     const outcome = result.data;
     if (outcome.kind === "cancelled") return;
     const notice =
       outcome.kind === "alreadyIncluded"
-        ? t("library.alreadyIncluded", { folder: outcome.folder })
+        ? t("library-already-included", { folder: outcome.folder })
         : outcome.kind === "absorbed"
-          ? t("library.absorbed", { count: String(outcome.folders.length) })
-          : t("library.added");
+          ? t("library-absorbed", { count: outcome.folders.length })
+          : t("library-added");
     set({ notice });
     await get().loadFolders();
   },

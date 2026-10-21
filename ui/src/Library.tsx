@@ -1,5 +1,6 @@
 import { Folder, Plus } from "lucide-react";
 import mark from "../../design/brand/seura-mark-small.svg";
+import { formatNumber } from "./format";
 import { Grid } from "./Grid";
 import { t } from "./messages";
 import { useStore } from "./store";
@@ -26,11 +27,11 @@ export function Library() {
     <div className="shell">
       <header className="header">
         <img className="mark" src={mark} alt="" />
-        <span className="wordmark">{t("app.shortName")}</span>
+        <span className="wordmark">{t("app-short-name")}</span>
       </header>
 
-      <nav className="sidebar" aria-label={t("library.folders")}>
-        <h2 className="section-label">{t("library.folders")}</h2>
+      <nav className="sidebar" aria-label={t("library-folders")}>
+        <h2 className="section-label">{t("library-folders")}</h2>
         <ul className="folders">
           {folders.map((item) => (
             <li key={item.id}>
@@ -43,14 +44,14 @@ export function Library() {
               >
                 <Folder className="icon" aria-hidden />
                 <span className="folder-name">{item.name}</span>
-                <span className="count">{item.photos.toLocaleString()}</span>
+                <span className="count">{formatNumber(item.photos)}</span>
               </button>
             </li>
           ))}
         </ul>
         <button type="button" className="link-button" onClick={() => void addFolder()}>
           <Plus className="icon" aria-hidden />
-          {t("library.addFolder")}
+          {t("library-add-folder")}
         </button>
         {notice && (
           <p className="notice" role="status">
@@ -61,15 +62,15 @@ export function Library() {
 
       <main className="main">
         {folders.length === 0 ? (
-          <p className="empty">{t("library.empty")}</p>
+          <p className="empty">{t("library-empty")}</p>
         ) : folder ? (
           <>
             <div className="folder-heading">
               <h1 className="view-title">{folder.name}</h1>
               <span className="meta">
-                {t("library.folderMeta", {
+                {t("library-folder-meta", {
                   path: folder.path,
-                  count: folder.photos.toLocaleString(),
+                  count: folder.photos,
                 })}
               </span>
             </div>
@@ -81,14 +82,12 @@ export function Library() {
             />
           </>
         ) : (
-          <p className="empty">{t("library.pickFolder")}</p>
+          <p className="empty">{t("library-pick-folder")}</p>
         )}
       </main>
 
       <footer className="status-bar">
-        {folder && (
-          <span>{t("library.photoCount", { count: folder.photos.toLocaleString() })}</span>
-        )}
+        {folder && <span>{t("library-photo-count", { count: folder.photos })}</span>}
       </footer>
     </div>
   );

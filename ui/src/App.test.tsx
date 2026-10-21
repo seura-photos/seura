@@ -38,12 +38,14 @@ vi.stubGlobal(
 vi.mock("./bindings", () => ({
   commands: {
     appVersion: vi.fn(() => Promise.resolve("1.2.3")),
+    region: vi.fn(() => Promise.resolve("en-US")),
     devOptions: vi.fn(() =>
       Promise.resolve({
         forceWebgl2: false,
         renderCheck: false,
         checkExposureEv: 0.7,
         editorAvailable: mocks.dev.editorAvailable,
+        pseudoLocale: false,
         active: mocks.dev.active,
       }),
     ),

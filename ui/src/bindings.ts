@@ -40,6 +40,12 @@ export const commands = {
 	 */
 	textScale: () => __TAURI_INVOKE<number | null>("text_scale"),
 	/**
+	 *  The operating system's region as a BCP 47 tag, such as `de-DE`, for
+	 *  formatting dates, numbers, and sizes (ACC-6). The interface itself is in
+	 *  English; the web view's own locale follows the display language.
+	 */
+	region: () => __TAURI_INVOKE<string>("region"),
+	/**
 	 *  The render check: one preview path's render of the check image, as 8-bit
 	 *  RGBA, compared with wgpu's. Returns the largest difference.
 	 */
@@ -78,6 +84,11 @@ export type DevOptions = {
 	forceWebgl2: boolean,
 	/**  `SEURA_RENDER_CHECK=1` runs the render check instead of the app. */
 	renderCheck: boolean,
+	/**
+	 *  `SEURA_LOCALE=pseudo` pseudo-translates every string, to check that
+	 *  longer translations fit (ACC-7).
+	 */
+	pseudoLocale: boolean,
 	/**  The exposure the render check uses, so both sides agree. */
 	checkExposureEv: number | null,
 	/**

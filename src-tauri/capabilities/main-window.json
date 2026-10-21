@@ -16,6 +16,7 @@
     "allow-export-photo",
     "allow-dev-options",
     "allow-text-scale",
+    "allow-region",
     "allow-check-render",
     "allow-finish-render-check",
     "core:event:allow-listen",

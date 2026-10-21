@@ -64,9 +64,19 @@ button {
   color: var(--color-text-secondary);
 }
 
+/* The window: one view, under the developer-switch line if it's shown. */
+
+.window {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
 /* The Library's frame (wireframes, "Shared structure"). */
 
 .shell {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: var(--size-sidebar) minmax(0, 1fr);
   grid-template-rows: var(--size-header) minmax(0, 1fr) var(--size-footer);
@@ -74,7 +84,6 @@ button {
     "header header"
     "sidebar main"
     "status status";
-  height: 100vh;
 }
 
 /* DSP-3: panels widen a little on large windows; controls stay the same. */
@@ -272,9 +281,10 @@ button {
 /* M1's Editor, in development builds only until M4 replaces it. */
 
 .editor {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  height: 100vh;
 }
 
 .editor-bar,

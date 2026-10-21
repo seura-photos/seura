@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { commands, type PhotoInfo } from "./bindings";
+import { formatNumber } from "./format";
 import { t } from "./messages";
 import { type Backend, createPreview, fetchLinear } from "./preview";
 import { fitSize } from "./preview/fit";
@@ -35,7 +36,7 @@ export function Editor({ photo, forceWebgl2, onClose }: Props) {
     (value: number) => {
       saving.current = saving.current.then(async () => {
         const result = await commands.setExposure(photo.id, value);
-        if (result.status === "error") setNotice(t("editor.saveFailed", { reason: result.error }));
+        if (result.status === "error") setNotice(t("editor-save-failed", { reason: result.error }));
       });
       return saving.current;
     },
@@ -71,7 +72,7 @@ export function Editor({ photo, forceWebgl2, onClose }: Props) {
       const opened = await commands.openPhoto(photo.id, Math.max(1, Math.round(longEdge)));
       if (cancelled) return;
       if (opened.status === "error") {
-        setNotice(t("editor.openFailed", { reason: opened.error }));
+        setNotice(t("editor-open-failed", { reason: opened.error }));
         return;
       }
       const image = await fetchLinear("preview");
@@ -89,7 +90,7 @@ export function Editor({ photo, forceWebgl2, onClose }: Props) {
         return;
       }
       if (!created) {
-        setNotice(t("editor.noPreview"));
+        setNotice(t("editor-no-preview"));
         return;
       }
       // Numbers from Rust can be null, which would mean NaN; there is none here.
@@ -102,7 +103,7 @@ export function Editor({ photo, forceWebgl2, onClose }: Props) {
       setReady(true);
     };
     open().catch((error: unknown) => {
-      if (!cancelled) setNotice(t("editor.openFailed", { reason: String(error) }));
+      if (!cancelled) setNotice(t("editor-open-failed", { reason: String(error) }));
     });
     return () => {
       cancelled = true;
@@ -140,9 +141,9 @@ export function Editor({ photo, forceWebgl2, onClose }: Props) {
     const result = await commands.exportPhoto(photo.id);
     setExporting(false);
     if (result.status === "error") {
-      setNotice(t("editor.exportFailed", { reason: result.error }));
+      setNotice(t("editor-export-failed", { reason: result.error }));
     } else if (result.data.kind === "exported") {
-      setNotice(t("editor.exported", { file: result.data.file, folder: result.data.folder }));
+      setNotice(t("editor-exported", { file: result.data.file, folder: result.data.folder }));
     }
   }
 
@@ -150,19 +151,19 @@ export function Editor({ photo, forceWebgl2, onClose }: Props) {
     <div className="editor">
       <div className="editor-bar">
         <button type="button" onClick={onClose}>
-          {t("editor.back")}
+          {t("editor-back")}
         </button>
         <span className="editor-name">{photo.name}</span>
         <button type="button" disabled={!ready || exporting} onClick={() => void exportPhoto()}>
-          {exporting ? t("editor.exporting") : t("editor.export")}
+          {exporting ? t("editor-exporting") : t("editor-export")}
         </button>
       </div>
       <div ref={stage} className="editor-stage">
-        <canvas ref={canvas} aria-label={t("editor.preview", { name: photo.name })} />
+        <canvas ref={canvas} aria-label={t("editor-preview", { name: photo.name })} />
       </div>
       <div className="editor-controls">
         <label>
-          {t("editor.exposure")}
+          {t("editor-exposure")}
           <input
             type="range"
             min={-4}
@@ -173,9 +174,17 @@ export function Editor({ photo, forceWebgl2, onClose }: Props) {
             onChange={(event) => change(Number(event.target.value))}
             onDoubleClick={() => change(0)}
           />
-          <output>{t("editor.ev", { value: (ev > 0 ? "+" : "") + ev.toFixed(2) })}</output>
+          <output>
+            {t("editor-ev", {
+              value: formatNumber(ev, {
+                signDisplay: "exceptZero",
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              }),
+            })}
+          </output>
         </label>
-        {problem !== null && <p role="alert">{t("editor.readOnly", { reason: problem })}</p>}
+        {problem !== null && <p role="alert">{t("editor-read-only", { reason: problem })}</p>}
         {notice !== null && <p role="status">{notice}</p>}
       </div>
     </div>

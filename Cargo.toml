@@ -51,6 +51,8 @@ naga = { version = "30.0.1", features = ["wgsl-in", "glsl-out"] }
 bytemuck = { version = "1.25.2", features = ["derive"] }
 # Waits for wgpu's few async calls; the export runs on a worker thread.
 pollster = "1.0.1"
+# Message catalogs in Project Fluent, as in the UI (ACC-5).
+fluent-bundle = "0.16.0"
 fast_image_resize = "6.1.0"
 # Lossy WebP thumbnails need Google's libwebp (BSD-3-Clause, compiled in);
 # the pure-Rust encoder is lossless only.

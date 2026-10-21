@@ -16,6 +16,7 @@ fn main() {
         "export_photo",
         "dev_options",
         "text_scale",
+        "region",
         "check_render",
         "finish_render_check",
     ]);
