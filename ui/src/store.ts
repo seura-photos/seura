@@ -9,6 +9,7 @@ import {
 } from "./bindings";
 import { setRegion } from "./format";
 import { setPseudo, t } from "./messages";
+import { emptySelection, keepExisting, type Selection, select, selectAll } from "./selection";
 import type { ThumbState } from "./thumbState";
 
 /**
@@ -31,6 +32,12 @@ type State = {
   seenRoots: Set<string>;
   photos: PhotoInfo[];
   thumbs: Map<number, ThumbState>;
+  /** The selected photos in the grid (BRW-4). */
+  selection: Selection;
+  /** The grid's order for the whole app (BRW-2) and cell size (BRW-3). */
+  sortBy: string;
+  ascending: boolean;
+  thumbnailSize: number;
   /** The photo open in M1's Editor (development builds only). */
   editing: PhotoInfo | null;
   /** A one-line message about the last action, such as adding a folder. */
@@ -48,12 +55,18 @@ type State = {
   loadFolders: () => Promise<void>;
   selectFolder: (id: number) => Promise<void>;
   toggleFolder: (key: string) => void;
+  selectPhoto: (id: number, modifiers: { toggle: boolean; range: boolean }) => void;
+  selectAllPhotos: () => void;
+  setSort: (by: string, ascending: boolean) => Promise<void>;
+  setThumbnailSize: (size: number) => void;
   /** Removes a library folder (LIB-5), by its position among them. */
   removeFolder: (root: number) => Promise<void>;
   addFolder: () => Promise<void>;
   thumbnailReady: (id: number, state: Omit<ThumbState, "version">) => void;
   openEditor: (photo: PhotoInfo | null) => void;
 };
+
+let sizeSave = 0;
 
 export const useStore = create<State>()((set, get) => ({
   dev: null,
@@ -65,16 +78,21 @@ export const useStore = create<State>()((set, get) => ({
   seenRoots: new Set(),
   photos: [],
   thumbs: new Map(),
+  selection: emptySelection,
+  sortBy: "dateTaken",
+  ascending: true,
+  thumbnailSize: 160,
   editing: null,
   notice: null,
   progress: { scanning: null, done: 0, total: 0 },
 
   async start() {
-    const [dev, version, region, welcome] = await Promise.all([
+    const [dev, version, region, welcome, view] = await Promise.all([
       commands.devOptions(),
       commands.appVersion(),
       commands.region(),
       commands.welcome(),
+      commands.viewSettings(),
     ]);
     // Text and formats are set before anything is shown (ACC-5 to ACC-7).
     setRegion(region);
@@ -82,6 +100,9 @@ export const useStore = create<State>()((set, get) => ({
     set({
       dev,
       version,
+      sortBy: view.sortBy,
+      ascending: view.ascending,
+      thumbnailSize: view.thumbnailSize,
       welcome: welcome.status === "ok" && welcome.data.needed ? welcome.data : null,
     });
     await get().loadFolders();
@@ -103,9 +124,16 @@ export const useStore = create<State>()((set, get) => ({
     if (folderId === null) return;
     // A rescan can change the selected folder's photos, or remove it.
     if (folders.some((folder) => folder.id === folderId)) {
-      set({ photos: await commands.photos(folderId) });
+      const photos = await commands.photos(folderId);
+      set(({ selection }) => ({
+        photos,
+        selection: keepExisting(
+          selection,
+          photos.map((photo) => photo.id),
+        ),
+      }));
     } else {
-      set({ folderId: null, photos: [] });
+      set({ folderId: null, photos: [], selection: emptySelection });
     }
   },
 
@@ -121,7 +149,7 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   async selectFolder(id) {
-    set({ folderId: id });
+    if (get().folderId !== id) set({ folderId: id, selection: emptySelection });
     const photos = await commands.photos(id);
     if (get().folderId === id) set({ photos });
   },
@@ -142,6 +170,35 @@ export const useStore = create<State>()((set, get) => ({
           : t("library-added");
     set({ notice });
     await get().loadFolders();
+  },
+
+  selectPhoto(id, modifiers) {
+    set(({ selection, photos }) => ({
+      selection: select(
+        selection,
+        photos.map((photo) => photo.id),
+        id,
+        modifiers,
+      ),
+    }));
+  },
+
+  selectAllPhotos() {
+    set(({ photos }) => ({ selection: selectAll(photos.map((photo) => photo.id)) }));
+  },
+
+  async setSort(by, ascending) {
+    set({ sortBy: by, ascending });
+    await commands.setSort(by, ascending);
+    const { folderId } = get();
+    if (folderId !== null) set({ photos: await commands.photos(folderId) });
+  },
+
+  setThumbnailSize(size) {
+    set({ thumbnailSize: size });
+    // Saved once the slider rests.
+    window.clearTimeout(sizeSave);
+    sizeSave = window.setTimeout(() => void commands.setThumbnailSize(size), 400);
   },
 
   toggleFolder(key) {

@@ -22,10 +22,15 @@ export const commands = {
 	 */
 	removeFolder: (root: number) => typedError<null, string>(__TAURI_INVOKE("remove_folder", { root })),
 	/**
-	 *  A folder's own photos (BRW-1), by file name for now; the sort options
-	 *  of BRW-2 arrive in M2. Their thumbnails are queued behind the visible ones.
+	 *  A folder's own photos (BRW-1), in the app's order (BRW-2). Their
+	 *  thumbnails are queued behind the visible ones.
 	 */
 	photos: (folder: number) => __TAURI_INVOKE<PhotoInfo[]>("photos", { folder }),
+	viewSettings: () => __TAURI_INVOKE<ViewSettings>("view_settings"),
+	/**  Sets the grid's order for the whole app, and remembers it (BRW-2). */
+	setSort: (by: string, ascending: boolean) => typedError<null, string>(__TAURI_INVOKE("set_sort", { by, ascending })),
+	/**  Sets the grid's cell size, and remembers it (BRW-3). */
+	setThumbnailSize: (size: number) => typedError<null, string>(__TAURI_INVOKE("set_thumbnail_size", { size })),
 	/**  The photos now on screen, in order: their thumbnails are made first (LIB-3). */
 	showThumbnails: (ids: number[]) => __TAURI_INVOKE<void>("show_thumbnails", { ids }),
 	/**
@@ -206,6 +211,19 @@ export type PhotoInfo = {
 	height: number | null,
 	/**  Only in the cloud: never downloaded for browsing (LIB-9). */
 	cloudOnly: boolean,
+	/**
+	 *  When it was taken, in seconds since 1970 on the camera's own clock,
+	 *  if known (raw values: the UI formats them, ACC-6).
+	 */
+	taken: number | null,
+	/**  The file's modification time, in seconds since 1970. */
+	modified: number | null,
+	/**  0 to 5 stars, from its edit file. */
+	rating: number,
+	/**  Its edit file holds edits. */
+	edited: boolean,
+	/**  Its edit file exists but can't be read (FIL-4). */
+	unreadable: boolean,
 };
 
 /**
@@ -233,6 +251,15 @@ export type ThumbnailReady = {
 	 */
 	needsCodec: boolean,
 	failed: boolean,
+};
+
+/**  The grid's order and size (BRW-2, BRW-3), from the settings. */
+export type ViewSettings = {
+	/**  `dateTaken`, `fileName`, or `dateModified`. */
+	sortBy: string,
+	ascending: boolean,
+	/**  Grid cell size in logical pixels, 96 to 256. */
+	thumbnailSize: number,
 };
 
 export type WelcomeInfo = {

@@ -46,6 +46,7 @@ library-folder-meta =
        *[other] { $path } · { $count } photos
     }
 library-pick-folder = Choose a folder on the left.
+library-selected = { $count } selected
 library-unavailable = Not connected
 library-unavailable-title = { $path } (drive not connected)
 library-remove-folder = Remove from library…
@@ -67,6 +68,21 @@ grid-label = Photos in { $folder }
 grid-cloud-only = In the cloud
 grid-needs-heif-extensions = Needs Microsoft's HEIF and HEVC extensions
 grid-failed = Can't show this photo
+grid-sort = Sort by
+grid-sort-date-taken = Date taken
+grid-sort-file-name = File name
+grid-sort-date-modified = Date modified
+grid-ascending = Oldest or A to Z first
+grid-descending = Newest or Z to A first
+grid-size = Size
+grid-edited = Edited
+grid-unreadable = Its edit file can't be read
+grid-cell-label =
+    { $rating ->
+        [0] { $name }, { $date }
+        [one] { $name }, { $date }, 1 star
+       *[other] { $name }, { $date }, { $rating } stars
+    }
 
 ## M1's Editor (development builds only until M4)
 

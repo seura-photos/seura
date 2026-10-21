@@ -40,13 +40,17 @@ export function formatBytes(bytes: number): string {
 
 /**
  * A date and time, such as "Jul 12, 2026, 6:42 PM" or "12.07.2026, 18:42".
- * Photos record the time on their own clock with no time zone, so the
- * value is shown as it was recorded, not converted.
+ * Photos record the time on their own clock with no time zone, so a date
+ * taken is shown as it was recorded, not converted. A file's own times are
+ * real moments, shown in the computer's time zone (`local`).
  */
-export function formatDateTime(secondsSince1970: number): string {
+export function formatDateTime(
+  secondsSince1970: number,
+  { local = false }: { local?: boolean } = {},
+): string {
   return new Intl.DateTimeFormat(region, {
     dateStyle: "medium",
     timeStyle: "short",
-    timeZone: "UTC",
+    ...(local ? {} : { timeZone: "UTC" }),
   }).format(new Date(secondsSince1970 * 1000));
 }

@@ -29,7 +29,18 @@ vi.mock("./preview", () => ({
   ),
 }));
 
-const photo = { id: 7, name: "IMG_1.jpg", width: 4032, height: 3024, cloudOnly: false };
+const photo = {
+  id: 7,
+  name: "IMG_1.jpg",
+  width: 4032,
+  height: 3024,
+  cloudOnly: false,
+  taken: null,
+  modified: 0,
+  rating: 0,
+  edited: false,
+  unreadable: false,
+};
 
 describe("Editor", () => {
   afterEach(() => {

@@ -105,3 +105,25 @@ describe("regional formats (ACC-6)", () => {
     expect(formatNumber(1)).toBe("1");
   });
 });
+
+describe("grid cell labels (ACC-2)", () => {
+  it("say the name, the date, and the rating", async () => {
+    const { cellLabel } = await import("./cellLabel");
+    const photo = {
+      id: 1,
+      name: "IMG_1.jpg",
+      width: null,
+      height: null,
+      cloudOnly: false,
+      taken: Date.UTC(2026, 6, 12, 18, 42) / 1000,
+      modified: 0,
+      rating: 4,
+      edited: false,
+      unreadable: false,
+    };
+    setRegion("en-US");
+    expect(cellLabel(photo).replace(/\s/g, " ")).toBe("IMG_1.jpg, Jul 12, 2026, 6:42 PM, 4 stars");
+    expect(cellLabel({ ...photo, rating: 1 })).toMatch(/, 1 star$/);
+    expect(cellLabel({ ...photo, rating: 0 })).not.toMatch(/star/);
+  });
+});
