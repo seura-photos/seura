@@ -91,6 +91,22 @@ impl Library {
         self.store.read().expect("store lock").workers.show(jobs);
     }
 
+    /// Removes thumbnails from the cache, for photos no longer in the
+    /// library. The cache is Seura's own and rebuilt from the photos, so
+    /// they're deleted, not sent to the Trash; only files in the cache.
+    pub fn drop_thumbnails(&self, keys: &[String]) {
+        let store = self.store.read().expect("store lock");
+        for key in keys {
+            let _ = std::fs::remove_file(store.thumbnails.path(key));
+        }
+    }
+
+    /// Which library folders' drives are connected now (LIB-6).
+    pub fn availability(&self) -> Vec<bool> {
+        let roots = self.index.read().expect("index lock").roots().to_vec();
+        roots.iter().map(|root| root.is_dir()).collect()
+    }
+
     /// Where a thumbnail is, or would be.
     pub fn thumbnail_path(&self, key: &str) -> PathBuf {
         self.store.read().expect("store lock").thumbnails.path(key)

@@ -8,6 +8,7 @@
     "allow-app-version",
     "allow-add-folder",
     "allow-folders",
+    "allow-remove-folder",
     "allow-photos",
     "allow-show-thumbnails",
     "allow-open-photo",

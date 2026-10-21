@@ -1,6 +1,7 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import type { FolderInfo } from "./bindings";
 import { useStore } from "./store";
 
 // vi.mock is hoisted above imports, so what it uses must be hoisted too.
@@ -20,7 +21,8 @@ const mocks = vi.hoisted(() => {
       menuCommand: event("menuCommand"),
     },
     dev: { active: [] as string[], editorAvailable: false },
-    folders: [] as { id: number; path: string; name: string; photos: number }[],
+    folders: [] as FolderInfo[],
+    removeFolder: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
     addFolder: vi.fn(() => Promise.resolve({ status: "ok", data: { kind: "cancelled" } })),
   };
 });
@@ -59,9 +61,23 @@ vi.mock("./bindings", () => ({
     photos: vi.fn(() => Promise.resolve([])),
     showThumbnails: vi.fn(() => Promise.resolve()),
     addFolder: mocks.addFolder,
+    removeFolder: mocks.removeFolder,
   },
   events: mocks.events,
 }));
+
+function folder(fields: Partial<FolderInfo> & { name: string }): FolderInfo {
+  return {
+    id: null,
+    root: null,
+    parent: null,
+    path: `C:\\${fields.parent ? "Pictures\\" : ""}${fields.name}`,
+    photos: 0,
+    total: 0,
+    available: true,
+    ...fields,
+  };
+}
 
 describe("App", () => {
   afterEach(() => {
@@ -69,6 +85,7 @@ describe("App", () => {
     mocks.dev.active = [];
     mocks.folders = [];
     mocks.addFolder.mockClear();
+    mocks.removeFolder.mockClear();
     useStore.setState(useStore.getInitialState(), true);
   });
 
@@ -83,19 +100,84 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Add folder" })).toBeDefined();
   });
 
-  it("lists folders with their counts, and shows the chosen one", async () => {
+  it("shows the folder tree, and a chosen folder's own photos", async () => {
     mocks.folders = [
-      { id: 1, path: "C:\\Pictures\\Summer", name: "Summer", photos: 1214 },
-      { id: 2, path: "C:\\Pictures\\Scans", name: "Scans", photos: 38 },
+      folder({ id: 1, root: 0, name: "Pictures", photos: 2, total: 1216 }),
+      folder({ id: 2, parent: 1, name: "Summer", photos: 1214, total: 1214 }),
     ];
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: /Summer/ }));
+    // Library folders start open, so their subfolders show.
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Summer/ }));
     expect(await screen.findByRole("heading", { name: "Summer" })).toBeDefined();
     expect(screen.getByText("C:\\Pictures\\Summer · 1,214 photos")).toBeDefined();
     expect(screen.getByText("1,214 photos")).toBeDefined();
-    expect(screen.getByRole("button", { name: /Summer/ }).getAttribute("aria-current")).toBe(
+    expect(screen.getByRole("treeitem", { name: /Summer/ }).getAttribute("aria-selected")).toBe(
       "true",
     );
+    // Each folder counts everything below it.
+    expect(
+      within(screen.getByRole("treeitem", { name: /Pictures/ })).getByText("1,216"),
+    ).toBeDefined();
+  });
+
+  it("moves through the tree with the keyboard (ACC-1)", async () => {
+    mocks.folders = [
+      folder({ id: 1, root: 0, name: "Pictures", photos: 1, total: 3 }),
+      folder({ id: 2, parent: 1, name: "Summer", photos: 2, total: 2 }),
+    ];
+    render(<App />);
+    const pictures = await screen.findByRole("treeitem", { name: /Pictures/ });
+    pictures.focus();
+    fireEvent.keyDown(pictures, { key: "ArrowDown" });
+    expect(await screen.findByRole("heading", { name: "Summer" })).toBeDefined();
+    const summer = screen.getByRole("treeitem", { name: /Summer/ });
+    expect(document.activeElement).toBe(summer);
+    // Left on a closed folder goes to its parent; Left again closes it.
+    fireEvent.keyDown(summer, { key: "ArrowLeft" });
+    expect(await screen.findByRole("heading", { name: "Pictures" })).toBeDefined();
+    fireEvent.keyDown(pictures, { key: "ArrowLeft" });
+    expect(pictures.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("treeitem", { name: /Summer/ })).toBeNull();
+    fireEvent.keyDown(pictures, { key: "ArrowRight" });
+    expect(await screen.findByRole("treeitem", { name: /Summer/ })).toBeDefined();
+  });
+
+  it("removes a library folder only after it's confirmed (LIB-5)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 2, total: 2 })];
+    render(<App />);
+    fireEvent.contextMenu(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Remove from library/ }));
+    const dialog = screen.getByRole("alertdialog");
+    expect(dialog.textContent).toContain("Its photos stay where they are");
+    // Cancel has the focus, so Enter is safe (INT-5).
+    expect(document.activeElement?.textContent).toBe("Cancel");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(mocks.removeFolder).not.toHaveBeenCalled();
+
+    fireEvent.contextMenu(screen.getByRole("treeitem", { name: /Pictures/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Remove from library/ }));
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", { name: "Remove" }),
+    );
+    await waitFor(() => expect(mocks.removeFolder).toHaveBeenCalledWith(0));
+  });
+
+  it("shows nothing as chosen until a folder is, even an empty library folder", async () => {
+    mocks.folders = [folder({ id: null, root: 0, name: "Pictures" })];
+    render(<App />);
+    await screen.findByRole("treeitem", { name: /Pictures/ });
+    expect(screen.queryByRole("heading", { name: "Pictures" })).toBeNull();
+    expect(screen.getByText("Choose a folder on the left.")).toBeDefined();
+  });
+
+  it("shows a disconnected drive's folder as not connected (LIB-6)", async () => {
+    mocks.folders = [
+      folder({ id: 1, root: 0, name: "Backup", photos: 5, total: 5, available: false }),
+    ];
+    render(<App />);
+    const row = await screen.findByRole("treeitem", { name: /Backup/ });
+    expect(row.textContent).toContain("Not connected");
+    expect(row.getAttribute("aria-disabled")).toBe("true");
   });
 
   it("adds a folder from the native menu, the same way as the button (ACC-4)", async () => {

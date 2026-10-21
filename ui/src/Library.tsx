@@ -1,8 +1,11 @@
-import { Folder, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+import { useCallback, useState } from "react";
 import mark from "../../design/brand/seura-mark-small.svg";
-import { formatNumber } from "./format";
+import type { FolderInfo } from "./bindings";
+import { FolderTree } from "./FolderTree";
 import { Grid } from "./Grid";
 import { t } from "./messages";
+import { ConfirmRemove, FolderMenu } from "./RemoveFolder";
 import { useStore } from "./store";
 
 /**
@@ -18,10 +21,19 @@ export function Library() {
   const photos = useStore((state) => state.photos);
   const thumbs = useStore((state) => state.thumbs);
   const notice = useStore((state) => state.notice);
-  const selectFolder = useStore((state) => state.selectFolder);
+  const removeFolder = useStore((state) => state.removeFolder);
   const addFolder = useStore((state) => state.addFolder);
   const openEditor = useStore((state) => state.openEditor);
-  const folder = folders.find((candidate) => candidate.id === folderId) ?? null;
+  // An empty library folder has no id, so nothing selected must not match it.
+  const folder =
+    folderId === null ? null : (folders.find((candidate) => candidate.id === folderId) ?? null);
+  const [menu, setMenu] = useState<{ folder: FolderInfo; x: number; y: number } | null>(null);
+  const [removing, setRemoving] = useState<FolderInfo | null>(null);
+  const openMenu = useCallback(
+    (target: FolderInfo, x: number, y: number) => setMenu({ folder: target, x, y }),
+    [],
+  );
+  const closeMenu = useCallback(() => setMenu(null), []);
 
   return (
     <div className="shell">
@@ -32,23 +44,7 @@ export function Library() {
 
       <nav className="sidebar" aria-label={t("library-folders")}>
         <h2 className="section-label">{t("library-folders")}</h2>
-        <ul className="folders">
-          {folders.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                className="folder-row"
-                aria-current={item.id === folderId}
-                title={item.path}
-                onClick={() => void selectFolder(item.id)}
-              >
-                <Folder className="icon" aria-hidden />
-                <span className="folder-name">{item.name}</span>
-                <span className="count">{formatNumber(item.photos)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <FolderTree onMenu={openMenu} />
         <button type="button" className="link-button" onClick={() => void addFolder()}>
           <Plus className="icon" aria-hidden />
           {t("library-add-folder")}
@@ -85,6 +81,30 @@ export function Library() {
           <p className="empty">{t("library-pick-folder")}</p>
         )}
       </main>
+
+      {menu && (
+        <FolderMenu
+          folder={menu.folder}
+          x={menu.x}
+          y={menu.y}
+          onClose={closeMenu}
+          onRemove={() => {
+            setRemoving(menu.folder);
+            setMenu(null);
+          }}
+        />
+      )}
+      {removing && removing.root !== null && (
+        <ConfirmRemove
+          folder={removing}
+          onCancel={() => setRemoving(null)}
+          onConfirm={() => {
+            const root = removing.root;
+            setRemoving(null);
+            if (root !== null) void removeFolder(root);
+          }}
+        />
+      )}
 
       <footer className="status-bar">
         {folder && <span>{t("library-photo-count", { count: folder.photos })}</span>}

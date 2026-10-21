@@ -24,10 +24,21 @@ pub fn app_version() -> String {
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FolderInfo {
-    pub id: u32,
+    /// The folder, for showing its photos; `None` for a library folder that
+    /// has no photos yet, or whose drive has never been scanned.
+    pub id: Option<u32>,
+    /// For library folders: which one, for removing it (LIB-5).
+    pub root: Option<u32>,
+    /// For subfolders: the folder above.
+    pub parent: Option<u32>,
     pub path: String,
     pub name: String,
+    /// Photos directly in the folder, the ones the grid shows (BRW-1).
     pub photos: u32,
+    /// Photos in the folder and everything below it.
+    pub total: u32,
+    /// False when its drive isn't connected (LIB-6).
+    pub available: bool,
 }
 
 /// A photo, as the grid needs it.
@@ -109,23 +120,64 @@ pub async fn add_folder(app: AppHandle) -> Result<AddFolderResult, String> {
 #[specta::specta]
 pub fn folders(library: State<'_, Library>) -> Vec<FolderInfo> {
     let index = library.index.read().expect("index lock");
-    let mut folders: Vec<FolderInfo> = index
-        .folders()
-        .filter_map(|(id, folder)| {
-            let photos = index.folder_len(id);
-            (photos > 0).then(|| FolderInfo {
-                id: id.value(),
-                path: display(&folder.path),
-                name: folder.path.file_name().map_or_else(
-                    || display(&folder.path),
-                    |name| name.to_string_lossy().into_owned(),
-                ),
-                photos: photos as u32,
-            })
-        })
+    let available: Vec<(PathBuf, bool)> = index
+        .roots()
+        .iter()
+        .map(|root| (root.clone(), root.is_dir()))
         .collect();
-    folders.sort_by_key(|folder| folder.path.to_lowercase());
-    folders
+    index
+        .folder_tree()
+        .into_iter()
+        .map(|entry| FolderInfo {
+            id: entry.id.map(|id| id.value()),
+            root: entry.root.map(|position| position as u32),
+            parent: entry.parent.map(|id| id.value()),
+            name: entry.path.file_name().map_or_else(
+                || display(&entry.path),
+                |name| name.to_string_lossy().into_owned(),
+            ),
+            path: display(&entry.path),
+            photos: entry.photos as u32,
+            total: entry.total as u32,
+            // A subfolder is available when its library folder is.
+            available: available
+                .iter()
+                .find(|(root, _)| entry.path.starts_with(root))
+                .is_none_or(|(_, available)| *available),
+        })
+        .collect()
+}
+
+/// Removes a library folder from the library (LIB-5), by its position among
+/// the library folders: nothing on disk is touched, its edit files stay,
+/// and its thumbnails leave the cache.
+#[tauri::command]
+#[specta::specta]
+pub async fn remove_folder(app: AppHandle, root: u32) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let library = app.state::<Library>();
+        let (keys, roots) = {
+            let mut index = library.index.write().expect("index lock");
+            let path = index
+                .roots()
+                .get(root as usize)
+                .cloned()
+                .ok_or("that folder isn't in the library")?;
+            let keys = index.remove_root(&path);
+            (keys, index.roots().to_vec())
+        };
+        library.drop_thumbnails(&keys);
+        let settings = app.state::<AppSettings>();
+        let mut settings = settings.0.lock().expect("settings lock");
+        settings.settings.library_folders = roots;
+        settings.save().map_err(|error| error.to_string())?;
+        drop(settings);
+        library.save();
+        let _ = LibraryChanged.emit(&app);
+        Ok(())
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 /// A folder's own photos (BRW-1), by file name for now; the sort options

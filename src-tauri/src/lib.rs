@@ -30,6 +30,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::app_version,
             commands::add_folder,
             commands::folders,
+            commands::remove_folder,
             commands::photos,
             commands::show_thumbnails,
             commands::open_photo,
@@ -98,8 +99,27 @@ pub fn run() {
             // Show the snapshot at once (PRF-1), then catch up with the disk.
             let handle = app.handle().clone();
             std::thread::spawn(move || {
-                handle.state::<Library>().rescan();
+                let library = handle.state::<Library>();
+                library.rescan();
                 let _ = LibraryChanged.emit(&handle);
+                // A drive that's disconnected shows as unavailable and comes
+                // back when it's reconnected (LIB-6), checked every few seconds.
+                let mut available = library.availability();
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(4));
+                    let now = library.availability();
+                    if now != available {
+                        if now
+                            .iter()
+                            .zip(&available)
+                            .any(|(now, before)| *now && !before)
+                        {
+                            library.rescan();
+                        }
+                        available = now;
+                        let _ = LibraryChanged.emit(&handle);
+                    }
+                }
             });
             create_main_window(app, &cache)?;
             Ok(())

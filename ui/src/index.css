@@ -133,6 +133,7 @@ button {
 }
 
 .folder-row {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -150,9 +151,25 @@ button {
   background: var(--color-surface);
 }
 
-.folder-row[aria-current="true"] {
+.folder-row[aria-selected="true"] {
   background: var(--color-accent-subtle);
   font-weight: var(--type-panel-heading-weight);
+}
+
+.folder-row[data-unavailable] {
+  color: var(--color-text-secondary);
+}
+
+.folder-toggle {
+  display: inline-flex;
+  width: 1.125rem;
+  flex: none;
+  color: var(--color-text-secondary);
+}
+
+.folder-toggle .icon {
+  width: 1rem;
+  height: 1rem;
 }
 
 .folder-name {
@@ -269,6 +286,80 @@ button {
   color: var(--color-accent-text);
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* Menus and dialogs. */
+
+.menu-backdrop,
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}
+
+.dialog-backdrop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 0.35);
+}
+
+.menu {
+  position: fixed;
+  min-width: 12rem;
+  padding: 0.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  box-shadow: 0 0.25rem 1rem rgb(0 0 0 / 0.2);
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  min-height: var(--size-tier1-target);
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--color-accent-subtle);
+}
+
+.dialog {
+  box-sizing: border-box;
+  width: min(28rem, calc(100% - 2rem));
+  padding: 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+}
+
+.dialog-title {
+  margin: 0 0 0.5rem;
+  font-size: var(--type-view-title-size);
+  font-weight: var(--type-view-title-weight);
+}
+
+.dialog p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.dialog-actions .button.primary {
+  min-height: var(--size-tier1-target);
 }
 
 /* The Welcome screen: one centered card (wireframe). */

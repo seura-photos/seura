@@ -23,6 +23,11 @@ type State = {
   folders: FolderInfo[];
   /** The folder whose photos the grid shows. */
   folderId: number | null;
+  /** Folder tree rows that are open, by key (`folderKey`). Library folders
+   * start open; the rest is remembered for the session. */
+  expanded: Set<string>;
+  /** Library folders already seen, so one the user closed stays closed. */
+  seenRoots: Set<string>;
   photos: PhotoInfo[];
   thumbs: Map<number, ThumbState>;
   /** The photo open in M1's Editor (development builds only). */
@@ -39,6 +44,9 @@ type State = {
   ) => Promise<string | null>;
   loadFolders: () => Promise<void>;
   selectFolder: (id: number) => Promise<void>;
+  toggleFolder: (key: string) => void;
+  /** Removes a library folder (LIB-5), by its position among them. */
+  removeFolder: (root: number) => Promise<void>;
   addFolder: () => Promise<void>;
   thumbnailReady: (id: number, state: Omit<ThumbState, "version">) => void;
   openEditor: (photo: PhotoInfo | null) => void;
@@ -50,6 +58,8 @@ export const useStore = create<State>()((set, get) => ({
   version: null,
   folders: [],
   folderId: null,
+  expanded: new Set(),
+  seenRoots: new Set(),
   photos: [],
   thumbs: new Map(),
   editing: null,
@@ -75,10 +85,24 @@ export const useStore = create<State>()((set, get) => ({
 
   async loadFolders() {
     const folders = await commands.folders();
-    set({ folders });
+    const { expanded, seenRoots } = get();
+    const nextExpanded = new Set(expanded);
+    const nextSeen = new Set(seenRoots);
+    for (const folder of folders) {
+      if (folder.root === null) continue;
+      const key = folder.id !== null ? `f${folder.id}` : `r${folder.root}`;
+      if (!nextSeen.has(key)) nextExpanded.add(key);
+      nextSeen.add(key);
+    }
+    set({ folders, expanded: nextExpanded, seenRoots: nextSeen });
     const { folderId } = get();
-    // A rescan can change the selected folder's photos.
-    if (folderId !== null) set({ photos: await commands.photos(folderId) });
+    if (folderId === null) return;
+    // A rescan can change the selected folder's photos, or remove it.
+    if (folders.some((folder) => folder.id === folderId)) {
+      set({ photos: await commands.photos(folderId) });
+    } else {
+      set({ folderId: null, photos: [] });
+    }
   },
 
   async finishWelcome(folders, checkForUpdates, cache) {
@@ -87,8 +111,8 @@ export const useStore = create<State>()((set, get) => ({
     set({ welcome: null });
     await get().loadFolders();
     // The Library opens on the first folder while it's scanned (user flows, flow 1).
-    const first = get().folders[0];
-    if (first) await get().selectFolder(first.id);
+    const first = get().folders.find((folder) => folder.id !== null);
+    if (first?.id != null) await get().selectFolder(first.id);
     return null;
   },
 
@@ -113,6 +137,25 @@ export const useStore = create<State>()((set, get) => ({
           ? t("library-absorbed", { count: outcome.folders.length })
           : t("library-added");
     set({ notice });
+    await get().loadFolders();
+  },
+
+  toggleFolder(key) {
+    set(({ expanded }) => {
+      const next = new Set(expanded);
+      if (!next.delete(key)) next.add(key);
+      return { expanded: next };
+    });
+  },
+
+  async removeFolder(root) {
+    const result = await commands.removeFolder(root);
+    set({
+      notice:
+        result.status === "error"
+          ? t("library-remove-failed", { reason: result.error })
+          : t("library-removed"),
+    });
     await get().loadFolders();
   },
 
