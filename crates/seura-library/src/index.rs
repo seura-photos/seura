@@ -187,6 +187,14 @@ impl Index {
         index
     }
 
+    /// An empty index of these library folders, to be scanned.
+    pub fn with_roots(roots: Vec<PathBuf>) -> Index {
+        Index {
+            roots,
+            ..Index::default()
+        }
+    }
+
     /// The library folders.
     pub fn roots(&self) -> &[PathBuf] {
         &self.roots

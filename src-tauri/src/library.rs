@@ -2,11 +2,12 @@
 //! workers that fill it (technical design, sections 3 and 4).
 
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 
 use serde::Serialize;
 use seura_library::{
-    Filter, FolderId, Index, Outcome, PhotoId, Scope, ThumbnailCache, ThumbnailWorkers,
+    Filter, FolderId, Index, Outcome, PhotoId, Scope, SettingsFile, ThumbnailCache,
+    ThumbnailWorkers,
 };
 use specta::Type;
 use tauri::{AppHandle, Manager, Runtime};
@@ -36,11 +37,18 @@ pub struct ThumbnailReady {
 #[derive(Clone, Debug, Serialize, Type, Event)]
 pub struct LibraryChanged;
 
+/// The settings file, as the app holds it (SET-3).
+pub struct AppSettings(pub Mutex<SettingsFile>);
+
 impl Library {
     /// Loads the index snapshot from the cache (PRF-1) and starts the
-    /// thumbnail workers, one fewer than the processor's threads.
-    pub fn open<R: Runtime>(app: &AppHandle<R>, cache: &Path) -> Library {
-        let index = Index::load_snapshot(cache).unwrap_or_default();
+    /// thumbnail workers, one fewer than the processor's threads. The
+    /// library folders come from the settings; a snapshot of other folders
+    /// is set aside, which only costs a full scan.
+    pub fn open<R: Runtime>(app: &AppHandle<R>, cache: &Path, folders: &[PathBuf]) -> Library {
+        let index = Index::load_snapshot(cache)
+            .filter(|index| index.roots() == folders)
+            .unwrap_or_else(|| Index::with_roots(folders.to_vec()));
         let threads = std::thread::available_parallelism().map_or(2, |n| n.get().saturating_sub(1));
         let handle = app.clone();
         let workers =

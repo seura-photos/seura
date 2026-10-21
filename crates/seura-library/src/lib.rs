@@ -1,5 +1,6 @@
 //! Library folders, scanning, the in-memory index and its snapshot, the
-//! cache, and fingerprints (technical design, section 4; decision 0010).
+//! cache, fingerprints, and the settings file (technical design, section 4;
+//! decisions 0010 and 0015).
 //!
 //! Watching for changes (LIB-4), renamed photos (FIL-6), and removing
 //! folders (LIB-5) come in later milestones.
@@ -9,6 +10,7 @@ mod formats;
 mod index;
 mod platform;
 mod scan;
+mod settings;
 mod snapshot;
 #[doc(hidden)]
 pub mod synthetic;
@@ -22,5 +24,9 @@ pub use index::{
 };
 pub use platform::is_placeholder;
 pub use scan::ScanReport;
+pub use settings::{
+    DEFAULT_THUMBNAIL_SIZE, SETTINGS_FILE, Settings, SettingsError, SettingsFile, Sort, SortBy,
+    THUMBNAIL_SIZES,
+};
 pub use snapshot::SNAPSHOT_FILE;
 pub use thumbnails::{Job, Made, Outcome, THUMBS_FOLDER, ThumbnailCache, ThumbnailWorkers};
