@@ -98,6 +98,7 @@ AI is optional and off by default. At launch it uses the user's own API key with
 - Importing edits from Apple `.AAE` files and old Picasa `.picasa.ini` files
 - Slideshows, printing, and sharing to online services
 - A plugin system (the edit format already allows plugin operations)
+- Translations of the app. The display language follows the operating system's, with a setting to override it; Windows has no per-app language choice, so the setting is needed there. Translations would likely come from volunteers through a free translation platform for open-source projects, or as AI drafts reviewed by native speakers. Right-to-left languages (Arabic, Hebrew), which mirror the whole layout, after that. v1 is built so this needs no rework (functional spec, ACC-5 to ACC-7).
 - Linux
 
 ## The project beyond the app
