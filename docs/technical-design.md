@@ -181,7 +181,10 @@ A compute pass in the core builds a luminance histogram and the average of near-
 - **Grid virtualization** (TanStack Virtual) renders only visible thumbnails, so 100,000-photo folders scroll at 60 fps (PRF-4). Thumbnails are `<img>` elements pointing at `seura://thumb/...` URLs.
 - **Commands** are typed on both sides: the Rust command signatures generate TypeScript bindings (`tauri-specta` or equivalent), so the UI can't call a command with the wrong arguments.
 - **Keyboard:** one keymap module implementing the shortcuts in the user flows document, with the tier rules (single letters ignored while typing in a field).
-- **Text** lives in a message catalog from the start (ACC-5), English only in v1.
+- **Text** lives in message catalogs from the start (ACC-5), English only in v1, in **Project Fluent** (`.ftl` files): `fluent-bundle` in the core for menus, dialogs, and notifications, and `@fluent/bundle` in the UI, so both sides use one format and one set of translator tools. Fluent was designed with Mozilla's translators for plurals, grammatical variation, and word order, which simple placeholder strings can't express. Both are MIT or Apache-2.0 (decision 0012). It replaces M1's JSON catalogs during M2, while there are only a few dozen strings; if implementation finds a blocker, raise it before choosing another format.
+- **Regional formats** (ACC-6): the UI formats dates, times, numbers, and file sizes with the web view's `Intl` APIs in the operating system's region. The core passes raw values (timestamps, byte counts), never preformatted text.
+- **Pseudo-translation** (ACC-7): a developer switch, `SEURA_LOCALE=pseudo`, renders every string lengthened by about 40% and with accented letters, for screenshots and checks of each screen.
+- **Tag matching** (TAG-2): Unicode NFC normalization and full case folding in the core (`unicode-normalization` and `caseless`, or equivalent), never ASCII-only lowercasing.
 - **Accessibility:** native elements wherever possible; the grid implements the ARIA grid pattern; every action reachable by keyboard (ACC-1, ACC-2).
 
 ## 9. Platform specifics

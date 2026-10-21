@@ -76,7 +76,7 @@ Edits from one photo can be reused on others, either directly or through a saved
 Tags and ratings are stored in each photo's edit file, so they travel with the photo.
 
 - **TAG-1 Tag structure.** A tag is one string; slashes mark levels for display only. `family`, `kids`, and `family/kids` are three separate tags. In the tag tree, `family/kids` appears as `kids` under `family`. The `family` node exists in the tree even when no photo has the plain tag `family`.
-- **TAG-2 Clean-up of typed tags.** Leading and trailing spaces and slashes, and empty levels such as `family//kids`, are removed. Matching is case-insensitive: typing `Family` when `family` exists selects the existing tag.
+- **TAG-2 Clean-up of typed tags.** Leading and trailing spaces and slashes, and empty levels such as `family//kids`, are removed. Matching is case-insensitive: typing `Family` when `family` exists selects the existing tag. Case-insensitive matching uses full Unicode case folding on normalized text (NFC), so it works for every language, not just A to Z: `Ärzte` matches `ärzte`, and `STRASSE` matches `straße`. The tag keeps the form the user first typed.
 - **TAG-3 Tag picker.** Lists all existing tags for the user to click. Typing filters the list to tags containing the typed text. Enter adds the highlighted tag, or creates a new tag when nothing matches. With several photos selected, the tag is added to all of them.
 - **TAG-4 Removing tags.** A tag can be removed from one photo or a selection. A tag no photo uses disappears from the tree. There is no renaming or merging.
 - **TAG-5 Tag tree.** Selecting a node shows the photos with exactly that tag, not tags beneath it. Each node shows its photo count.
@@ -183,7 +183,9 @@ The app should feel at home on each platform and be usable without a mouse or wi
 - **ACC-2 Screen readers.** Every control has a label, and thumbnails are announced by file name, date, and rating.
 - **ACC-3 Display.** Text and controls meet WCAG AA contrast, scale with the system text size, and respect light or dark mode and reduced-motion settings.
 - **ACC-4 Native pieces.** System menus, file and folder dialogs, notifications, and Trash or Recycle Bin.
-- **ACC-5 Language.** English only in v1, with all text kept separate from code so translations can be added later.
+- **ACC-5 Language.** English only in v1, with all text kept in message catalogs, never in code, so translations can be added later. The interface and the core (menus, dialogs, notifications) share one catalog format, and it handles each language's plural forms and word order: "1 photo" and "214 photos" are one message, not a word with an "s" appended.
+- **ACC-6 Regional formats.** Dates, times, numbers, and file sizes follow the operating system's region settings, even while the interface is in English. A German region shows `12.07.2026, 18:42` and `2,1 MB`; a US region shows `Jul 12, 2026, 6:42 PM` and `2.1 MB`.
+- **ACC-7 Room for translation.** Labels, buttons, menus, and panels allow text about 40% longer than English without truncating or overlapping at the minimum window size (DSP-2), since languages such as German and French often run that much longer. Checked with a pseudo-translated build: every string lengthened and accented, so clipped or untranslated text stands out.
 
 ## Decisions log
 
@@ -199,6 +201,7 @@ The app should feel at home on each platform and be usable without a mouse or wi
 | iCloud Photos on a Mac | Not supported in v1: the photos live inside the Photos app's library, not a folder. Users can export from Photos or use a folder-based service (Nevada, 2026-10-18). |
 | Update checks | Asked during first run, defaulting to on (SET-4). |
 | Reference hardware | A mid-range laptop from about 2020 with integrated graphics, on each platform. Until the M7 beta, measured on faster machines, aiming for about half the target time (Nevada, 2026-10-20). |
+| Translations | English only in v1, built to be translated: one shared catalog format with plurals (ACC-5), regional formats from the operating system (ACC-6), room for longer text (ACC-7), and Unicode-aware tag matching (TAG-2). Translations, a language setting, and right-to-left languages come after v1 (product brief, "Not in v1"). Raised by Nevada, 2026-10-20. |
 | Where Seura keeps its own files | A visible `Seura Photos` folder in the home folder, not Documents, because Documents is often cloud-synced and neither the cache nor the settings should sync (decision 0015). Raised by Nevada, 2026-10-20. |
 | Sort order and thumbnail size | One app-wide sort order (BRW-2); thumbnails 96 to 256 px, default 160 (BRW-3). |
 | HEIC and JPEG pairs | Both shown, as separate files (LIB-8); may be revisited after 1.0. |
