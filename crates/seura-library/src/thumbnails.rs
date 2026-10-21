@@ -134,7 +134,7 @@ impl Queue {
 
     /// The photos now on screen go first; earlier visible jobs not yet
     /// started drop back to the front of the background queue.
-    fn show(&mut self, jobs: Vec<Job>) {
+    fn show(&mut self, jobs: Vec<Job>) -> usize {
         let previous: Vec<Job> = self.visible.drain(..).collect();
         let shown: HashSet<PhotoId> = jobs.iter().map(|job| job.id).collect();
         self.background.retain(|job| !shown.contains(&job.id));
@@ -145,18 +145,23 @@ impl Queue {
         {
             self.background.push_front(job);
         }
+        let mut added = 0;
         for job in jobs {
-            self.queued.insert(job.id);
+            added += usize::from(self.queued.insert(job.id));
             self.visible.push_back(job);
         }
+        added
     }
 
-    fn queue_background(&mut self, jobs: Vec<Job>) {
+    fn queue_background(&mut self, jobs: Vec<Job>) -> usize {
+        let mut added = 0;
         for job in jobs {
             if self.queued.insert(job.id) {
                 self.background.push_back(job);
+                added += 1;
             }
         }
+        added
     }
 }
 
@@ -189,22 +194,27 @@ impl ThumbnailWorkers {
 
     /// The photos now on screen, in the order they should appear. They go
     /// first; earlier visible jobs not yet started drop back to the front
-    /// of the background queue.
-    pub fn show(&self, jobs: Vec<Job>) {
+    /// of the background queue. Returns how many weren't queued already.
+    pub fn show(&self, jobs: Vec<Job>) -> usize {
         let (lock, wake) = &*self.shared;
-        lock.lock()
+        let added = lock
+            .lock()
             .expect("the queue lock isn't poisoned")
             .show(jobs);
         wake.notify_all();
+        added
     }
 
-    /// Photos to do when nothing visible is waiting.
-    pub fn queue_background(&self, jobs: Vec<Job>) {
+    /// Photos to do when nothing visible is waiting. Returns how many
+    /// weren't queued already.
+    pub fn queue_background(&self, jobs: Vec<Job>) -> usize {
         let (lock, wake) = &*self.shared;
-        lock.lock()
+        let added = lock
+            .lock()
             .expect("the queue lock isn't poisoned")
             .queue_background(jobs);
         wake.notify_all();
+        added
     }
 
     /// Jobs waiting, visible and background.
@@ -282,6 +292,18 @@ mod tests {
         std::iter::from_fn(|| queue.next())
             .map(|job| job.id.0)
             .collect()
+    }
+
+    /// Scan progress counts the jobs each call adds (LIB-3), so a photo
+    /// queued twice must count once.
+    #[test]
+    fn only_new_jobs_are_counted() {
+        let mut queue = Queue::default();
+        assert_eq!(queue.queue_background(vec![job(1), job(2)]), 2);
+        assert_eq!(queue.queue_background(vec![job(2), job(3)]), 1);
+        // Showing a queued photo moves it up without counting it again.
+        assert_eq!(queue.show(vec![job(3), job(4)]), 1);
+        assert_eq!(order(&mut queue), [3, 4, 1, 2]);
     }
 
     #[test]

@@ -3,6 +3,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, RwLock};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use seura_library::{
@@ -15,6 +16,8 @@ use tauri_specta::Event;
 
 pub struct Library {
     pub index: RwLock<Index>,
+    /// How far the current scan and thumbnail pass has got (LIB-3).
+    progress: Mutex<Progress>,
     /// Where the cache is, and the workers filling it; replaced together
     /// when the cache moves.
     store: RwLock<Store>,
@@ -59,6 +62,31 @@ pub struct ThumbnailReady {
 #[derive(Clone, Debug, Serialize, Type, Event)]
 pub struct LibraryChanged;
 
+/// How far scanning has got, for the status bar (LIB-3): first looking for
+/// photos in a library folder, then making their thumbnails. All empty and
+/// zero when there's nothing to do.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanProgress {
+    /// The library folder being scanned, by name.
+    pub scanning: Option<String>,
+    /// Thumbnails made (or found in the cache) in this pass.
+    pub done: u32,
+    /// Thumbnails asked for in this pass.
+    pub total: u32,
+}
+
+#[derive(Default)]
+struct Progress {
+    scanning: Option<String>,
+    /// Thumbnail jobs added since the queue was last empty.
+    total: usize,
+    last_sent: Option<Instant>,
+}
+
+/// Progress is sent at most this often while thumbnails are being made.
+const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
+
 /// The settings file, as the app holds it (SET-3).
 pub struct AppSettings(pub Mutex<SettingsFile>);
 
@@ -73,6 +101,7 @@ impl Library {
             .unwrap_or_else(|| Index::with_roots(folders.to_vec()));
         Library {
             index: RwLock::new(index),
+            progress: Mutex::new(Progress::default()),
             store: RwLock::new(Store::open(app, cache)),
         }
     }
@@ -81,14 +110,67 @@ impl Library {
     /// Thumbnails already made stay where they were; they're rebuilt as
     /// needed (SET-1, when the default place is synced).
     pub fn move_cache<R: Runtime>(&self, app: &AppHandle<R>, cache: &Path) {
-        let mut store = self.store.write().expect("store lock");
-        // Dropping the old workers waits for them to stop.
-        *store = Store::open(app, cache);
+        let new = Store::open(app, cache);
+        let old = std::mem::replace(&mut *self.store.write().expect("store lock"), new);
+        // Dropping the old workers waits for them to stop. That happens after
+        // the lock is released: a worker finishing a job reads the store to
+        // report progress, and would otherwise wait for this forever.
+        drop(old);
     }
 
     /// The photos now on screen: their thumbnails are made first (LIB-3).
     pub fn show(&self, jobs: Vec<seura_library::Job>) {
-        self.store.read().expect("store lock").workers.show(jobs);
+        let added = self.store.read().expect("store lock").workers.show(jobs);
+        self.progress.lock().expect("progress lock").total += added;
+    }
+
+    /// Queues thumbnails for every photo in the library, behind whatever is
+    /// on screen, so the whole library is ready to browse (LIB-3, PRF-3).
+    /// Thumbnails already in the cache are skipped almost at once.
+    pub fn queue_all<R: Runtime>(&self, app: &AppHandle<R>) {
+        let index = self.index.read().expect("index lock");
+        let jobs: Vec<_> = index
+            .photo_ids()
+            .filter_map(|id| index.thumbnail_job(id))
+            .collect();
+        drop(index);
+        let added = self
+            .store
+            .read()
+            .expect("store lock")
+            .workers
+            .queue_background(jobs);
+        self.progress.lock().expect("progress lock").total += added;
+        self.send_progress(app, true);
+    }
+
+    /// Says how far the pass has got, at most every 250 ms unless `now`.
+    fn send_progress<R: Runtime>(&self, app: &AppHandle<R>, now: bool) {
+        let pending = self.store.read().expect("store lock").workers.pending();
+        let mut progress = self.progress.lock().expect("progress lock");
+        let due = progress
+            .last_sent
+            .is_none_or(|sent| sent.elapsed() >= PROGRESS_INTERVAL);
+        let finished = pending == 0 && progress.scanning.is_none();
+        if !(now || due || finished) {
+            return;
+        }
+        let event = if finished {
+            progress.total = 0;
+            ScanProgress {
+                scanning: None,
+                ..ScanProgress::default()
+            }
+        } else {
+            ScanProgress {
+                scanning: progress.scanning.clone(),
+                done: progress.total.saturating_sub(pending) as u32,
+                total: progress.total as u32,
+            }
+        };
+        progress.last_sent = Some(Instant::now());
+        drop(progress);
+        let _ = event.emit(app);
     }
 
     /// Removes thumbnails from the cache, for photos no longer in the
@@ -112,16 +194,25 @@ impl Library {
         self.store.read().expect("store lock").thumbnails.path(key)
     }
 
-    /// Rescans every library folder and saves the snapshot. Runs on a
-    /// background thread; the grid shows the snapshot meanwhile.
-    pub fn rescan(&self) {
+    /// Rescans every library folder, saves the snapshot, and queues the
+    /// thumbnails. Runs on a background thread; the grid shows the snapshot
+    /// meanwhile, and the status bar says how far it's got (LIB-3).
+    pub fn rescan<R: Runtime>(&self, app: &AppHandle<R>) {
         let roots = self.index.read().expect("index lock").roots().to_vec();
         for root in roots {
-            // Scanned outside the lock would be better for a large library;
-            // M2's scanning work moves the walk off the lock.
+            let name = root.file_name().map_or_else(
+                || root.display().to_string(),
+                |name| name.to_string_lossy().into_owned(),
+            );
+            self.progress.lock().expect("progress lock").scanning = Some(name);
+            self.send_progress(app, true);
+            // The walk holds the index for one library folder at a time; a
+            // very large first scan should move off the lock (M2 slice 6).
             self.index.write().expect("index lock").scan(&root);
         }
+        self.progress.lock().expect("progress lock").scanning = None;
         self.save();
+        self.queue_all(app);
     }
 
     pub fn save(&self) {
@@ -139,11 +230,13 @@ impl Library {
             .filter_map(|id| index.thumbnail_job(id))
             .collect();
         drop(index);
-        self.store
+        let added = self
+            .store
             .read()
             .expect("store lock")
             .workers
             .queue_background(jobs);
+        self.progress.lock().expect("progress lock").total += added;
     }
 }
 
@@ -159,6 +252,7 @@ fn finished<R: Runtime>(app: &AppHandle<R>, id: PhotoId, outcome: Outcome) {
             .expect("index lock")
             .record_details(id, made);
     }
+    library.send_progress(app, false);
     let event = ThumbnailReady {
         id: id.value(),
         cloud_only: outcome == Outcome::CloudOnly,

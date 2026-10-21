@@ -167,7 +167,7 @@ pub fn finish<R: Runtime>(
 
     let handle = app.clone();
     std::thread::spawn(move || {
-        handle.state::<Library>().rescan();
+        handle.state::<Library>().rescan(&handle);
         let _ = LibraryChanged.emit(&handle);
     });
     Ok(())

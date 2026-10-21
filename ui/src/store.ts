@@ -4,6 +4,7 @@ import {
   type DevOptions,
   type FolderInfo,
   type PhotoInfo,
+  type ScanProgress,
   type WelcomeInfo,
 } from "./bindings";
 import { setRegion } from "./format";
@@ -34,6 +35,8 @@ type State = {
   editing: PhotoInfo | null;
   /** A one-line message about the last action, such as adding a folder. */
   notice: string | null;
+  /** How far scanning has got, for the status bar (LIB-3). */
+  progress: ScanProgress;
 
   start: () => Promise<void>;
   /** Get started: returns a problem to show, or null. */
@@ -64,6 +67,7 @@ export const useStore = create<State>()((set, get) => ({
   thumbs: new Map(),
   editing: null,
   notice: null,
+  progress: { scanning: null, done: 0, total: 0 },
 
   async start() {
     const [dev, version, region, welcome] = await Promise.all([

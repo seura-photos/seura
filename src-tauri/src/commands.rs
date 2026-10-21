@@ -107,7 +107,7 @@ pub async fn add_folder(app: AppHandle) -> Result<AddFolderResult, String> {
         settings.settings.library_folders = roots;
         settings.save().map_err(|error| error.to_string())?;
         drop(settings);
-        library.rescan();
+        library.rescan(&app);
         let _ = LibraryChanged.emit(&app);
         Ok(result)
     })
