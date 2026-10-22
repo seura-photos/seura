@@ -6,3 +6,4 @@
 - **A false number caught on the way:** one rerun reported 50,000 photos at 835 a second, but its cache was half built from the failed run; the script always starts that run from an empty Seura folder, so its number is honest.
 - **Windows' console** can't print "×" or "…", which came out as "�"; the script prints plain text.
 - **Nevada watched the runs on his PC** and judged the performance "most excellent", which matters as much as the numbers: they describe what a person sees.
+- **The measuring code stays** (Nevada, 2026-10-22): the targets need checking again as each milestone adds features, and it does nothing unless its switches are set. Both switches work in release builds, which is what gets measured; whether to keep them out of builds given to others is to be looked at again before the M7 beta.
