@@ -25,6 +25,9 @@ small ones instead, for a quick check. Prints the results as a Markdown
 table and saves them, with every number, as results.json in the work folder.
 """
 
+# `int | None` annotations on the Python 3.9 that comes with macOS.
+from __future__ import annotations
+
 import argparse
 import json
 import os

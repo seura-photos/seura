@@ -7,3 +7,5 @@
 - **Windows' console** can't print "×" or "…", which came out as "�"; the script prints plain text.
 - **Nevada watched the runs on his PC** and judged the performance "most excellent", which matters as much as the numbers: they describe what a person sees.
 - **The measuring code stays** (Nevada, 2026-10-22): the targets need checking again as each milestone adds features, and it does nothing unless its switches are set. Both switches work in release builds, which is what gets measured; whether to keep them out of builds given to others is to be looked at again before the M7 beta.
+- **The Mac passed every target too**, measured by the Mac Claude session: launch 0.48 s, opening the folder 0.06 s, first scan 92 photos a second, next photo 36 ms, 170 MB with 50,000 photos. Its thumbnails are slower than the PC's (92 against 147 a second, and 134 against 745 for 50,000 small photos), the expected cost of fewer cores and a decoder without a fast path for Apple's processors; scrolling showed 60 frames a second, WebKit's limit.
+- **The Mac session found a bug:** the script used a Python 3.10 annotation, and macOS's built-in Python is 3.9; fixed.

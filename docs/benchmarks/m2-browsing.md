@@ -1,6 +1,6 @@
 # M2 browsing and scanning targets
 
-Status: Windows recorded 2026-10-22; the Mac to come · [Functional spec, "Performance targets"](../functional-spec.md#performance-targets)
+Status: recorded 2026-10-22 on both machines · [Functional spec, "Performance targets"](../functional-spec.md#performance-targets)
 
 The browsing targets measured on a release build, as M2 slice 10 asks: PRF-1, PRF-2, PRF-3, PRF-4, PRF-5, and PRF-7. (PRF-6, the Editor's live preview, belongs to M4.) The targets are for a mid-range laptop from about 2020; on Nevada's much faster machines the aim is about half each target, and a reference-class laptop is tested in the M7 beta.
 
@@ -8,16 +8,22 @@ The browsing targets measured on a release build, as M2 slice 10 asks: PRF-1, PR
 
 | Target | Measure | Goal (aim on these machines) | Windows PC | Mac |
 | --- | --- | --- | --- | --- |
-| PRF-1 | Launch to a usable grid, cache built | under 2 s (1 s) | 0.53 s | |
-| PRF-2 | Open a folder of 1,000 photos, cache built, until every thumbnail on screen is in | under 1 s (0.5 s) | 0.05 s | |
-| PRF-3 | First scan of 1,000 12-megapixel photos, with their thumbnails | at least 30 a second (60) | 147 a second | |
-| PRF-4 | Scrolling the grid | 60 frames a second | 120 a second, the display's rate; 95% of frames within 8 ms, none over 33 ms | |
-| PRF-5 | Next photo in the Viewer, until it's drawn | under 150 ms (75 ms) | median 48 ms, slowest 52 ms | |
-| PRF-7 | Memory with a 50,000-photo library | under 1 GB (500 MB) | 70 MB (peak 93 MB) | |
+| PRF-1 | Launch to a usable grid, cache built | under 2 s (1 s) | 0.53 s | 0.48 s |
+| PRF-2 | Open a folder of 1,000 photos, cache built, until every thumbnail on screen is in | under 1 s (0.5 s) | 0.05 s | 0.06 s |
+| PRF-3 | First scan of 1,000 12-megapixel photos, with their thumbnails | at least 30 a second (60) | 147 a second | 92 a second |
+| PRF-4 | Scrolling the grid | 60 frames a second | 120 a second, the display's rate; 95% of frames within 8 ms, none over 33 ms | 60 a second, WebKit's limit; 95% of frames within 17 ms |
+| PRF-5 | Next photo in the Viewer, until it's drawn | under 150 ms (75 ms) | median 48 ms, slowest 52 ms | median 36 ms, slowest 40 ms |
+| PRF-7 | Memory with a 50,000-photo library | under 1 GB (500 MB) | 70 MB (peak 93 MB) | 170 MB (peak; macOS reports only the peak) |
 
-Every target is met on the PC, the closest by a factor of three (PRF-5, against the 150 ms target). The 50,000 small photos were scanned with their thumbnails at 745 a second.
+Every target is met on both machines; every result is also within the half-target aim. The closest to its aim is the Mac's first scan, 92 photos a second against 60.
 
-**Windows PC:** AMD Ryzen 7 7800X3D (8 cores), 32 GB, NVIDIA GeForce RTX 4070 SUPER, Windows 11 Home; the app's window 1440 × 900 at 100% scale, on a 120 Hz display.
+- **The Mac's thumbnails are slower than the PC's:** 92 a second for 12-megapixel photos (PC 147), and 134 a second for the 50,000 small ones (PC 745; 6 minutes against 67 seconds). The Mac has fewer cores for the workers, and `jpeg-decoder`, which decodes thumbnails at reduced size, has no fast path for Apple's processors on stable Rust (noted in M2 slice 6). Comfortably within the target, but the first place to look if a reference-class Mac falls short in the M7 beta.
+- **Scrolling on the Mac shows 60 frames a second** because WebKit runs animation frames at 60 a second even on a 120 Hz display; 95% of frames arrived within 17 ms, so it kept up.
+- **The Mac's memory** is its peak, the only figure macOS gives this way; the PC's current use was 70 MB against a 93 MB peak.
+
+**Windows PC:** AMD Ryzen 7 7800X3D (8 cores), 32 GB, NVIDIA GeForce RTX 4070 SUPER, Windows 11 Home; the app's window 1440 × 900 at 100% scale, on a 120 Hz display. Measured by Claude Code.
+
+**Mac:** 14-inch MacBook Pro (2021), Apple M1 Max (10 cores), 32 GB, macOS 26.6.2; the built-in Liquid Retina XDR display (ProMotion, up to 120 Hz); the app's window 1440 × 868 at 2× scale. Measured by the Mac Claude session, with Homebrew's Python 3.13.
 
 ## How it's measured
 
