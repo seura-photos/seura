@@ -235,3 +235,43 @@ mod platform {
         None
     }
 }
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::*;
+
+    /// Quick Look makes thumbnails of files on disk too, so CI can check the
+    /// request and the drawing work; whether a cloud-only file stays in the
+    /// cloud is checked by hand with `system_thumbnail_check`.
+    #[test]
+    fn quick_look_makes_a_thumbnail_of_a_jpeg() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = folder.path().join("red.jpg");
+        let mut bytes = Vec::new();
+        jpeg_encoder::Encoder::new(&mut bytes, 90)
+            .encode(
+                &[200, 30, 30].repeat(800 * 600),
+                800,
+                600,
+                jpeg_encoder::ColorType::Rgb,
+            )
+            .unwrap();
+        std::fs::write(&path, bytes).unwrap();
+
+        let image = system_thumbnail(&path, 256).expect("a thumbnail");
+
+        assert!(
+            image.width.max(image.height) <= 512,
+            "{}×{}",
+            image.width,
+            image.height
+        );
+        assert!(image.width > image.height);
+        let middle = (((image.height / 2) * image.width + image.width / 2) * 4) as usize;
+        let pixel = &image.pixels[middle..middle + 4];
+        assert!(
+            pixel[0] > 150 && pixel[1] < 80 && pixel[3] == 255,
+            "{pixel:?}"
+        );
+    }
+}
