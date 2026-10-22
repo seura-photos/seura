@@ -723,6 +723,9 @@ button {
 .viewer {
   position: absolute;
   inset: 0;
+  /* Above everything in the Library, such as the sidebar's sticky heading;
+     below menus and dialogs. */
+  z-index: 5;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--size-info-panel);
   grid-template-rows: var(--size-header) minmax(0, 1fr) var(--size-footer);
