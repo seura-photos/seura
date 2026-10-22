@@ -17,6 +17,7 @@ fn main() {
         "open_photo",
         "close_photo",
         "view_photo",
+        "view_region",
         "close_viewer",
         "set_exposure",
         "export_photo",

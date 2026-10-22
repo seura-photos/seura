@@ -14,7 +14,7 @@ use zune_jpeg::zune_core::options::DecoderOptions;
 use crate::exif::{self, ExifInfo};
 use crate::heif;
 use crate::raster::{LinearImage, Rgba8};
-use crate::thumbnail::fit;
+use crate::thumbnail::{Region, fit, resize_region};
 
 /// Photos larger than this on either side aren't decoded (about 268
 /// megapixels), so a damaged or hostile file can't exhaust memory.
@@ -167,6 +167,48 @@ pub fn decode_linear(path: &Path, long_edge: Option<u32>) -> Result<LinearImage,
         None => source.image,
     };
     Ok(image.to_linear_p3(source.icc.as_deref()))
+}
+
+/// A photo decoded at full size, upright, before color conversion: what the
+/// Viewer keeps while zoomed in, so each part it shows is cut from it.
+pub struct Upright {
+    image: Rgba8,
+    icc: Option<Vec<u8>>,
+}
+
+/// Decodes a photo at full size, with orientation applied, for cutting
+/// parts from ([`Upright::region_linear`]).
+pub fn decode_upright(path: &Path) -> Result<Upright, DecodeError> {
+    let source = decode_source(path)?;
+    Ok(Upright {
+        image: source.image,
+        icc: source.icc,
+    })
+}
+
+impl Upright {
+    pub fn width(&self) -> u32 {
+        self.image.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.image.height
+    }
+
+    /// The part `region` of the photo (kept within it), scaled to `width` ×
+    /// `height`, in the working space, as [`decode_linear`] gives it.
+    pub fn region_linear(&self, region: Region, width: u32, height: u32) -> LinearImage {
+        let x = region.x.min(self.image.width.saturating_sub(1));
+        let y = region.y.min(self.image.height.saturating_sub(1));
+        let region = Region {
+            x,
+            y,
+            width: region.width.clamp(1, self.image.width - x),
+            height: region.height.clamp(1, self.image.height - y),
+        };
+        resize_region(&self.image, region, width.max(1), height.max(1))
+            .to_linear_p3(self.icc.as_deref())
+    }
 }
 
 fn decode_source(path: &Path) -> Result<Source, DecodeError> {

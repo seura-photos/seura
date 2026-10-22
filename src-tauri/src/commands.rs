@@ -327,6 +327,9 @@ pub enum ViewedPhoto {
     Shown {
         width: u32,
         height: u32,
+        /// The photo's own upright size, for zooming.
+        full_width: u32,
+        full_height: u32,
         exposure_ev: f64,
     },
     /// Only in the cloud. It isn't read, which would download it (LIB-9).
@@ -346,18 +349,7 @@ pub async fn view_photo(
     height: u32,
 ) -> Result<ViewedPhoto, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let wanted = |id: u32| -> Option<(Wanted, bool)> {
-            let library = app.state::<Library>();
-            let index = library.index.read().expect("index lock");
-            let photo = index.photo(PhotoId::new(id))?;
-            let path = index.path(PhotoId::new(id))?;
-            let wanted = Wanted {
-                id,
-                path,
-                dimensions: photo.dimensions,
-            };
-            Some((wanted, photo.placeholder))
-        };
+        let wanted = |id: u32| viewable(&app, id);
         let (photo, cloud_only) = wanted(id).ok_or("that photo isn't in the library")?;
         let neighbors: Vec<Wanted> = neighbors
             .into_iter()
@@ -374,8 +366,63 @@ pub async fn view_photo(
         Ok(ViewedPhoto::Shown {
             width: shown.width,
             height: shown.height,
+            full_width: shown.full_width,
+            full_height: shown.full_height,
             exposure_ev: shown.exposure_ev,
         })
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// A photo the Viewer may read, and whether it's only in the cloud.
+fn viewable(app: &AppHandle, id: u32) -> Option<(Wanted, bool)> {
+    let library = app.state::<Library>();
+    let index = library.index.read().expect("index lock");
+    let photo = index.photo(PhotoId::new(id))?;
+    let path = index.path(PhotoId::new(id))?;
+    Some((Wanted { id, path }, photo.placeholder))
+}
+
+/// A part of a photo, cut for the Viewer.
+#[derive(Clone, Debug, Serialize, Type)]
+pub struct RegionSize {
+    pub width: u32,
+    pub height: u32,
+}
+
+/// Zoomed in (BRW-5): cuts the part of photo `id` at `x`, `y`, `width` ×
+/// `height` (in its own upright pixels) at full resolution, scaled to
+/// `outWidth` × `outHeight` but never enlarged, for `seura://…/view-region`.
+/// Never for a cloud-only photo (LIB-9).
+#[tauri::command]
+#[specta::specta]
+#[allow(clippy::too_many_arguments)]
+pub async fn view_region(
+    app: AppHandle,
+    id: u32,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    out_width: u32,
+    out_height: u32,
+) -> Result<RegionSize, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (photo, cloud_only) = viewable(&app, id).ok_or("that photo isn't in the library")?;
+        if cloud_only {
+            return Err("that photo is only in the cloud".into());
+        }
+        let region = seura_image::Region {
+            x,
+            y,
+            width,
+            height,
+        };
+        let (width, height) = app
+            .state::<Viewer>()
+            .region(&photo, region, out_width, out_height)?;
+        Ok(RegionSize { width, height })
     })
     .await
     .map_err(|error| error.to_string())?

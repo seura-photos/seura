@@ -33,11 +33,11 @@ export function params(exposureEv: number, outputSrgb: boolean): ArrayBuffer {
 /**
  * Fetches working-space pixels from the `seura://` protocol: `preview` (the
  * photo open in the Editor), `view-<id>` (a photo decoded for the Viewer),
- * or `check-image`. The body is the width and height as little-endian
+ * `view-region` (the part cut for it while zoomed in), or `check-image`. The body is the width and height as little-endian
  * 32-bit integers, then the half floats.
  */
 export async function fetchLinear(
-  path: "preview" | "check-image" | `view-${number}`,
+  path: "preview" | "check-image" | "view-region" | `view-${number}`,
 ): Promise<LinearImage> {
   const response = await fetch(convertFileSrc(path, "seura"), { cache: "no-store" });
   if (!response.ok) throw new Error(`${path}: ${response.status}`);

@@ -45,6 +45,13 @@ export const commands = {
 	 *  Cloud-only photos aren't read, nor decoded ahead.
 	 */
 	viewPhoto: (id: number, neighbors: number[], width: number, height: number) => typedError<ViewedPhoto, string>(__TAURI_INVOKE("view_photo", { id, neighbors, width, height })),
+	/**
+	 *  Zoomed in (BRW-5): cuts the part of photo `id` at `x`, `y`, `width` ×
+	 *  `height` (in its own upright pixels) at full resolution, scaled to
+	 *  `outWidth` × `outHeight` but never enlarged, for `seura://…/view-region`.
+	 *  Never for a cloud-only photo (LIB-9).
+	 */
+	viewRegion: (id: number, x: number, y: number, width: number, height: number, outWidth: number, outHeight: number) => typedError<RegionSize, string>(__TAURI_INVOKE("view_region", { id, x, y, width, height, outWidth, outHeight })),
 	/**  The Viewer closed: its decoded photos are let go. */
 	closeViewer: () => __TAURI_INVOKE<void>("close_viewer"),
 	/**  Sets the open photo's exposure (EDT-5) and saves its edit file (EDT-11). */
@@ -234,6 +241,12 @@ export type PhotoInfo = {
 	unreadable: boolean,
 };
 
+/**  A part of a photo, cut for the Viewer. */
+export type RegionSize = {
+	width: number,
+	height: number,
+};
+
 /**
  *  How far scanning has got, for the status bar (LIB-3): first looking for
  *  photos in a library folder, then making their thumbnails. All empty and
@@ -273,7 +286,9 @@ export type ViewSettings = {
 /**  What the Viewer can show of a photo (BRW-5). */
 export type ViewedPhoto = 
 /**  Decoded: its pixels are at `seura://…/view-<id>`. */
-{ kind: "shown"; width: number; height: number; exposureEv: number | null } | 
+{ kind: "shown"; width: number; height: number; 
+/**  The photo's own upright size, for zooming. */
+fullWidth: number; fullHeight: number; exposureEv: number | null } | 
 /**  Only in the cloud. It isn't read, which would download it (LIB-9). */
 { kind: "cloudOnly" };
 
