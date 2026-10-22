@@ -139,7 +139,7 @@ mod platform {
     /// Quick Look's thumbnail, which for a cloud-only file comes from the
     /// sync service's File Provider, as Finder shows it.
     pub fn thumbnail(path: &Path, size: u32) -> Option<Rgba8> {
-        let url = unsafe { NSURL::fileURLWithPath(&NSString::from_str(path.to_str()?)) };
+        let url = NSURL::fileURLWithPath(&NSString::from_str(path.to_str()?));
         let side = CGFloat::from(size as f32);
         // A thumbnail only: never the file type's icon instead.
         let request = unsafe {
