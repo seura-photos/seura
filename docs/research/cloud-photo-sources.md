@@ -36,6 +36,20 @@ Photos from dedicated cameras usually arrive by card reader or cable straight in
 
 A public bug report against another tool shows what goes wrong otherwise: a directory scan on Windows with iCloud for Windows installed triggered large downloads, because it read files without checking for the attribute first.
 
+## Downloading a cloud-only photo
+
+When the user opens a cloud-only photo, Seura reads it, which downloads it (LIB-9). How that download behaves was measured on 2026-10-22 with OneDrive on both platforms, on two cloud-only JPEGs of about 9 MB each from Nevada's library, by reading only:
+
+| | Windows (Cloud Files API) | macOS 26.6.2 (File Provider) |
+| --- | --- | --- |
+| When it downloads | While the file is being opened: 3.0 s for 9.4 MB. Reading afterwards took 7 ms. | During the first read: about 3.5 s for 9.4 MB. Opening is instant. |
+| Progress visible to the app | None. The size on disk stays at 0, then jumps to the full size. | None. The size on disk stays at 0, then jumps to the full size (sampled every 200 ms). |
+| The reader abandons it after 1 s | The download finishes anyway, about a second later. | The download stops, and the file stays cloud-only. |
+
+So neither platform tells a reading app how far a download has got, and abandoning one means different things on each. LIB-9 was settled accordingly (#44): an indicator with the photo's size, no progress bar, no cancel button; moving on just stops waiting, and Seura relies on neither platform's behavior.
+
+Measured by Claude Code on Nevada's PC (PowerShell, opening with `FileShare.ReadWrite` and timing each 1 MB read, and killing a separate process mid-open), and by the Mac Claude session (Python, `os.open` and `os.read`, sampling `st_flags` and `st_blocks` from a second thread). On the Mac the abandoned reader was killed about 1 s after it started; Python starts in about 30 ms, so it was almost certainly blocked in the read, though the script didn't prove it.
+
 ## Two gaps outside Seura's reach
 
 These aren't about downloading; they're about where the photos are at all.
@@ -60,4 +74,4 @@ These aren't about downloading; they're about where the photos are at all.
 - iCloud for Windows: that iCloud Photos files carry the Cloud Files attribute (needs a PC with iCloud for Windows signed in).
 - Dropbox on Windows: the same.
 - Google Drive on Windows: reading the mount point from the registry, and whether the system thumbnail works there without downloading.
-- System thumbnails for cloud-only files (Windows shell, macOS Quick Look): that they come from the service's cached preview rather than a download. Planned for slice 4, on Nevada's OneDrive camera roll.
+- ~~System thumbnails for cloud-only files~~: checked. The Windows shell on Nevada's OneDrive camera roll (M1 slice 4), and macOS Quick Look on four of the 5,997 cloud-only photos in his OneDrive Pictures folder (M2 slice 6b, 2026-10-22): all got thumbnails and stayed cloud-only.

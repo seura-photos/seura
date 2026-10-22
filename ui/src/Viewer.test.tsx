@@ -102,7 +102,7 @@ describe("Viewer (BRW-5)", () => {
     expect(screen.getByText("2 of 3")).toBeTruthy();
     await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalledWith(0.5));
     const scale = window.devicePixelRatio;
-    expect(mocks.viewPhoto).toHaveBeenCalledWith(2, [1, 3], 800 * scale, 600 * scale);
+    expect(mocks.viewPhoto).toHaveBeenCalledWith(2, [1, 3], 800 * scale, 600 * scale, false);
     expect(mocks.fetchLinear).toHaveBeenCalledWith("view-2");
     expect(mocks.backend.upload).toHaveBeenCalled();
     // 800 × 600 CSS pixels of stage for a 1600-pixel photo.
@@ -120,6 +120,7 @@ describe("Viewer (BRW-5)", () => {
         [2],
         expect.any(Number),
         expect.any(Number),
+        false,
       ),
     );
     expect(screen.getByRole("button", { name: "Next photo" })).toHaveProperty("disabled", true);
@@ -139,11 +140,64 @@ describe("Viewer (BRW-5)", () => {
     expect(state.reveal).toEqual({ id: 1 });
   });
 
-  it("doesn't download a cloud-only photo (LIB-9)", async () => {
-    mocks.viewed = { kind: "cloudOnly" };
+  it("shows a cloud-only photo as downloading, then the photo (LIB-9)", async () => {
+    let finish: (value: unknown) => void = () => {};
+    mocks.viewPhoto.mockImplementation((_id, _neighbors, _w, _h, download: boolean) =>
+      download
+        ? new Promise((resolve) => {
+            finish = resolve;
+          })
+        : Promise.resolve({ status: "ok", data: { kind: "cloudOnly", size: 9_400_000 } }),
+    );
     show(1);
-    await screen.findByText(/in the cloud/);
-    expect(mocks.fetchLinear).not.toHaveBeenCalled();
+    expect(await screen.findByText(/^Downloading 9\.4 MB from the cloud…$/)).toBeTruthy();
+    expect(mocks.viewPhoto).toHaveBeenLastCalledWith(
+      1,
+      [2],
+      expect.any(Number),
+      expect.any(Number),
+      true,
+    );
+    // No progress bar and no cancel button.
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.queryByRole("button", { name: /cancel/i })).toBeNull();
+    finish({ status: "ok", data: mocks.viewed });
+    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalledWith(0.5));
+    expect(screen.queryByText(/Downloading/)).toBeNull();
+  });
+
+  it("says when a download fails, and tries again (LIB-9)", async () => {
+    let fail = true;
+    mocks.viewPhoto.mockImplementation((_id, _neighbors, _w, _h, download: boolean) =>
+      Promise.resolve(
+        !download
+          ? { status: "ok", data: { kind: "cloudOnly", size: 1000 } }
+          : fail
+            ? { status: "error", error: "offline" }
+            : { status: "ok", data: mocks.viewed },
+      ),
+    );
+    show(1);
+    expect(await screen.findByText(/couldn't be downloaded/)).toBeTruthy();
+    fail = false;
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalledWith(0.5));
+  });
+
+  it("moves on from a download without waiting for it (LIB-9)", async () => {
+    mocks.viewPhoto.mockImplementation((id: number, _neighbors, _w, _h, download: boolean) =>
+      id === 1
+        ? download
+          ? new Promise(() => {})
+          : Promise.resolve({ status: "ok", data: { kind: "cloudOnly", size: 1000 } })
+        : Promise.resolve({ status: "ok", data: mocks.viewed }),
+    );
+    show(1);
+    await screen.findByText(/Downloading/);
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalled());
+    expect(screen.getByText("2 of 3")).toBeTruthy();
+    expect(screen.queryByText(/Downloading/)).toBeNull();
   });
 
   it("opens the Editor with E only where it's available", async () => {
