@@ -16,7 +16,11 @@ The library is the set of folders the user adds; the app works on them in place 
 - **LIB-6 Unavailable folders.** A folder on a disconnected drive is shown as unavailable, not removed, and returns when the drive reconnects.
 - **LIB-7 Skipped items.** Hidden files and folders, and system folders such as the Recycle Bin and Trash, are ignored.
 - **LIB-8 Formats.** JPEG, HEIC/HEIF, and PNG are shown. Other files are ignored silently. For iPhone Live Photos, the still image is shown and its paired video ignored. When the same photo exists as both HEIC and JPEG (for example, from iCloud for Windows), both files are shown: they are separate files, each with its own edits and tags.
-- **LIB-9 Cloud-only photos.** Folders synced by OneDrive, iCloud, Google Drive, or Dropbox often hold photos whose contents are still in the cloud. Adding, scanning, and browsing such a folder never downloads them: their thumbnails come from the system or the sync service, or show as a placeholder marked as in the cloud, and they sort by file date until their date taken is known (BRW-2). A cloud-only photo is downloaded only when the user opens it in the Viewer or Editor, edits it, or exports it, one photo at a time, with progress shown and a way to cancel. Tagging and rating don't download it: its edit file records the fingerprint and dimensions once the photo is read (edit format, "Photo identity"). Seura never downloads photos in bulk and never changes whether a file is kept on the device. PRF-5 applies to photos already on the device. See `docs/research/cloud-photo-sources.md`.
+- **LIB-9 Cloud-only photos.** Folders synced by OneDrive, iCloud, Google Drive, or Dropbox often hold photos whose contents are still in the cloud. Adding, scanning, and browsing such a folder never downloads them: their thumbnails come from the system or the sync service, or show as a placeholder marked as in the cloud, and they sort by file date until their date taken is known (BRW-2). A cloud-only photo is downloaded only when the user opens it in the Viewer or Editor, edits it, or exports it, one photo at a time. While it downloads:
+  - **The screen shows that it's downloading, and how big it is:** the photo's cached thumbnail, enlarged and slightly blurred, with an indicator and "Downloading 9.4 MB from the cloud…". There is no progress bar: neither Windows nor macOS tells an app how much of a download is done.
+  - **The user is never held up.** They can move to the next or previous photo, or leave, at any time; moving on is how a download is abandoned, and there is no separate cancel button. Seura simply stops waiting. What the system then does with the download is up to it (on Windows it finishes in the background; on the Mac it stops), and Seura makes no promise either way.
+  - **A failed download says so,** for example when the computer is offline: "This photo is in the cloud, and it couldn't be downloaded. Check your connection." with **Try again**. It never spins indefinitely.
+  - **Nothing reads ahead:** the Viewer's look-ahead for next and previous (PRF-5) skips cloud-only photos, so browsing never downloads a photo the user hasn't opened. Tagging and rating don't download it: its edit file records the fingerprint and dimensions once the photo is read (edit format, "Photo identity"). Seura never downloads photos in bulk and never changes whether a file is kept on the device. PRF-5 applies to photos already on the device. See `docs/research/cloud-photo-sources.md`.
 
 ## Browsing
 
@@ -26,7 +30,7 @@ Selecting a folder or tag shows its photos in a thumbnail grid; opening one show
 - **BRW-2 Sorting.** By date taken (default; falls back to file date when the photo has none), file name, or date modified, ascending or descending. One sort order for the whole app, remembered; not per folder.
 - **BRW-3 Thumbnail size.** Adjustable with a slider from 96 to 256 logical pixels per cell, 160 by default; the setting is remembered. Cached thumbnails are 512 pixels, sharp at the largest size on 2× screens (DSP-4).
 - **BRW-4 Selection.** Click, Ctrl/Cmd-click, Shift-click, and Select All, following platform conventions. The number selected is always visible.
-- **BRW-5 Viewer.** Double-click or Enter opens a photo full size. Arrow keys move to the next or previous photo in grid order. Zoom to fit, zoom to 100%, zoom in and out, and pan when zoomed. Esc returns to the grid at the same scroll position. The Viewer shows the photo with its edits applied, like the thumbnails; comparing with the original is in the Editor (EDT-1).
+- **BRW-5 Viewer.** Double-click or Enter opens a photo full size. Arrow keys move to the next or previous photo in grid order. Zoom to fit, zoom to 100%, zoom in and out, and pan when zoomed. Esc returns to the grid at the same scroll position. A cloud-only photo downloads as LIB-9 describes. The Viewer shows the photo with its edits applied, like the thumbnails; comparing with the original is in the Editor (EDT-1).
 - **BRW-6 Photo info.** A panel, always visible in the Library and Viewer, shows file name, date taken, dimensions, file size, camera and lens, location as coordinates, tags, and rating.
 - **BRW-7 Correct display.** Orientation stored in the photo's metadata is honored, and embedded color profiles are applied, so iPhone photos show their true colors.
 - **BRW-8 Open elsewhere.** Show in Explorer or Finder, and open in the system's default app.
@@ -48,7 +52,7 @@ A guided pass through a batch of photos: sort, lightly fix, and tag them one at 
 
 Every edit is a stored setting, never a change to pixels in the original, so any edit can be adjusted or removed later.
 
-- **EDT-1 Edit mode.** Opened from the viewer or grid. A compare control (button, or holding a key) shows the original while held.
+- **EDT-1 Edit mode.** Opened from the viewer or grid. A compare control (button, or holding a key) shows the original while held. Opening a cloud-only photo shows the same downloading state as the Viewer (LIB-9).
 - **EDT-2 Crop.** Freeform, or fixed ratios: original, 1:1, 4:3, 3:2, 16:9, and 5:4, each switchable between landscape and portrait. A rule-of-thirds overlay shows while cropping. Reopening crop shows the whole photo with the current crop box, so the crop can be widened again.
 - **EDT-3 Straighten.** From −45° to +45° in 0.1° steps. The crop shrinks automatically so no empty corners appear.
 - **EDT-4 Rotate and flip.** Rotate 90° left or right, and flip horizontally or vertically. Also available in the grid for a whole selection.
@@ -100,7 +104,7 @@ Export is the only way edits leave the app: it writes new files and never touche
 - **EXP-3 Naming.** Files keep their original names with the new extension. A name already taken gets a number, as in `IMG_1234 (1).jpg`. Export never overwrites any file.
 - **EXP-4 Metadata.** Date, camera, and other metadata are kept. Orientation is applied to the pixels and the orientation tag reset, so every viewer shows the photo the right way up. Options: remove location data; include tags and rating as keywords other photo apps can read.
 - **EXP-5 Color.** Wide-color originals, such as iPhone photos, are converted to the standard sRGB color space with its profile embedded, so the export looks right everywhere.
-- **EXP-6 Progress.** Batch exports show progress and can be canceled. A summary at the end reports results and offers to open the folder.
+- **EXP-6 Progress.** Batch exports show progress and can be canceled. A cloud-only photo shows as downloading, with its size, while the export waits for it (LIB-9); canceling stops waiting. A summary at the end reports results, including any photos that couldn't be downloaded, and offers to open the folder.
 
 ## Edit files on disk
 
@@ -202,6 +206,7 @@ The app should feel at home on each platform and be usable without a mouse or wi
 | Update checks | Asked during first run, defaulting to on (SET-4). |
 | Reference hardware | A mid-range laptop from about 2020 with integrated graphics, on each platform. Until the M7 beta, measured on faster machines, aiming for about half the target time (Nevada, 2026-10-20). |
 | Translations | English only in v1, built to be translated: one shared catalog format with plurals (ACC-5), regional formats from the operating system (ACC-6), room for longer text (ACC-7), and Unicode-aware tag matching (TAG-2). Translations, a language setting, and right-to-left languages come after v1 (product brief, "Not in v1"). Raised by Nevada, 2026-10-20. |
+| Downloading cloud-only photos | An indicator and the photo's size, no progress bar and no cancel button: measured on OneDrive on both platforms, neither system reports download progress to the reading app, and abandoning a download finishes it on Windows but stops it on the Mac. Moving on is how a download is abandoned; Seura only stops waiting (LIB-9). Found by Claude Code and Nevada, 2026-10-22; Nevada's proposal. |
 | Where Seura keeps its own files | A visible `Seura Photos` folder in the home folder, not Documents, because Documents is often cloud-synced and neither the cache nor the settings should sync (decision 0015). Raised by Nevada, 2026-10-20. |
 | Sort order and thumbnail size | One app-wide sort order (BRW-2); thumbnails 96 to 256 px, default 160 (BRW-3). |
 | HEIC and JPEG pairs | Both shown, as separate files (LIB-8); may be revisited after 1.0. |
