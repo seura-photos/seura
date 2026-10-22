@@ -34,6 +34,12 @@ export const commands = {
 	/**  The photos now on screen, in order: their thumbnails are made first (LIB-3). */
 	showThumbnails: (ids: number[]) => __TAURI_INVOKE<void>("show_thumbnails", { ids }),
 	/**
+	 *  A photo's details for the Info panel (BRW-6): what the index knows, and
+	 *  the camera, lens, and location from its EXIF, read now (decision 0012).
+	 */
+	photoDetails: (id: number) => typedError<PhotoDetails, string>(__TAURI_INVOKE("photo_details", { id })),
+	selectionSummary: (ids: number[]) => __TAURI_INVOKE<SelectionSummary>("selection_summary", { ids }),
+	/**
 	 *  Opens a photo in the Editor, with a preview `longEdge` pixels on its long
 	 *  side (the canvas size × the device pixel ratio, DSP-1).
 	 */
@@ -217,6 +223,36 @@ export type OpenedPhoto = {
 	problem: string | null,
 };
 
+/**  One photo's details for the Info panel (BRW-6). Read-only in M2. */
+export type PhotoDetails = {
+	id: number,
+	name: string,
+	/**  The folder, from its library folder down: `["Pictures", "2026", "Summer"]`. */
+	folder: string[],
+	/**  In bytes. */
+	size: number | null,
+	width: number | null,
+	height: number | null,
+	/**  As in `PhotoInfo`. */
+	taken: number | null,
+	rating: number,
+	tags: string[],
+	edited: boolean,
+	unreadable: boolean,
+	/**
+	 *  Only in the cloud: its metadata isn't read, which would download it
+	 *  (LIB-9), so the camera, lens, and location are unknown.
+	 */
+	cloudOnly: boolean,
+	camera: string | null,
+	lens: string | null,
+	/**  In millimeters. */
+	focalLength: number | null,
+	fNumber: number | null,
+	latitude: number | null,
+	longitude: number | null,
+};
+
 /**  A photo, as the grid needs it. */
 export type PhotoInfo = {
 	id: number,
@@ -259,6 +295,23 @@ export type ScanProgress = {
 	done: number,
 	/**  Thumbnails asked for in this pass. */
 	total: number,
+};
+
+/**
+ *  What several selected photos share, for the Info panel (BRW-6). From the
+ *  index alone: nothing is read.
+ */
+export type SelectionSummary = {
+	count: number,
+	/**  Their sizes added up, in bytes. */
+	size: number | null,
+	/**  The earliest and latest date taken among those that have one. */
+	firstTaken: number | null,
+	lastTaken: number | null,
+	/**  Their rating, if they all have the same one. */
+	rating: number | null,
+	/**  Tags every one of them has. */
+	tags: string[],
 };
 
 /**  A thumbnail finished, or can't be made. */

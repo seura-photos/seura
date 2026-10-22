@@ -84,6 +84,42 @@ grid-cell-label =
        *[other] { $name }, { $date }, { $rating } stars
     }
 
+## The Info panel (BRW-6)
+
+info-label = Info
+info-nothing = Select a photo to see its details.
+info-size = Size
+info-dimensions-size = { $width } × { $height } · { $size }
+info-camera = Camera
+info-lens = Lens
+info-focal-length = { $mm } mm
+info-aperture = ƒ/{ $value }
+info-location = Location
+info-coordinates = { $latitude }, { $longitude }
+info-folder = Folder
+info-edits = Edits
+info-edited = Edited
+info-not-edited = None
+info-unreadable = Its edit file can't be read
+info-cloud-only = This photo is in the cloud. Its camera, lens, and location show once it's on this computer.
+info-rating = Rating
+info-stars =
+    { $rating ->
+        [0] Not rated
+        [one] 1 star
+       *[other] { $rating } stars
+    }
+info-rating-mixed = Not all the same
+info-tags = Tags
+info-shared-tags = Tags they share
+info-no-tags = None
+info-selected =
+    { $count ->
+        [one] 1 photo selected
+       *[other] { $count } photos selected
+    }
+info-date-range = { $first } to { $last }
+
 ## Viewer (BRW-5)
 
 viewer-back = Back to { $folder }

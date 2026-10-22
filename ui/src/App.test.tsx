@@ -67,6 +67,17 @@ vi.mock("./bindings", () => ({
     setSort: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
     setThumbnailSize: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
     showThumbnails: vi.fn(() => Promise.resolve()),
+    photoDetails: vi.fn(() => Promise.resolve({ status: "error", error: "not in the test" })),
+    selectionSummary: vi.fn(() =>
+      Promise.resolve({
+        count: 0,
+        size: 0,
+        firstTaken: null,
+        lastTaken: null,
+        rating: null,
+        tags: [],
+      }),
+    ),
     addFolder: mocks.addFolder,
     removeFolder: mocks.removeFolder,
   },

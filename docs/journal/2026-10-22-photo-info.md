@@ -1,0 +1,8 @@
+# The Info panel (M2 slice 8)
+
+- **The Info panel** now sits beside the grid and the Viewer, from the styled mockups: the photo's name and date taken, its size, camera, lens, location, edits, rating, and tags. Read-only until tagging and rating arrive in M3. In the Library it shows the thumbnail at the top, and in the Viewer the folder the photo is in.
+- **Camera, lens, and location come from the photo's EXIF**, read when the photo is chosen, from its first few kilobytes only. A cloud-only photo's EXIF isn't read at all, since that would download it; the panel says its camera, lens, and location will show once it's on the computer.
+- **With several photos selected**, the panel says how many, their dates from first to last, their total size, their rating if they all share one, and the tags they all have, all from the index without reading any files.
+- **A test caught a formatting slip:** photo sizes came out as "4,032 × 3,024". Numbers in Seura's text are formatted for the region, which adds thousands separators, but pixel dimensions read better without them, as in the mockup.
+- **Camera names** join make and model, leaving out the make when the model already starts with it ("Canon EOS R6", not "Canon Canon EOS R6"). Olympus writes its make as "OLYMPUS IMAGING CORP.", so Nevada's E-500 shows as "OLYMPUS IMAGING CORP. E-500", as Windows reports it.
+- **Meanwhile, LIB-9 was settled** by Nevada and the design session (#44), after Claude Code measured downloads on both machines: no real progress can be shown on either platform, and stopping a download only works on the Mac. The Viewer will show the blurred thumbnail with "Downloading … from the cloud" and no cancel; moving on just stops waiting.

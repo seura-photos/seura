@@ -14,6 +14,8 @@ fn main() {
         "set_sort",
         "set_thumbnail_size",
         "show_thumbnails",
+        "photo_details",
+        "selection_summary",
         "open_photo",
         "close_photo",
         "view_photo",
