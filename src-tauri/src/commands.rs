@@ -460,16 +460,20 @@ pub fn selection_summary(library: State<'_, Library>, ids: Vec<u32>) -> Selectio
     }
 }
 
-/// At most this many photos open in the default app at once, so a large
-/// selection doesn't open a window for each (BRW-8).
-pub const OPEN_AT_ONCE: usize = 20;
-
 /// The files of photos in the index, never any other path.
 fn photo_paths(library: &Library, ids: &[u32]) -> Vec<PathBuf> {
     let index = library.index.read().expect("index lock");
     ids.iter()
         .filter_map(|id| index.path(PhotoId::new(*id)))
         .collect()
+}
+
+/// Whether any photo is chosen (selected, or shown in the Viewer), so the
+/// macOS menu bar's photo commands can be turned on or off (BRW-8).
+#[tauri::command]
+#[specta::specta]
+pub fn photos_chosen(app: AppHandle, chosen: bool) {
+    crate::menu::photos_chosen(&app, chosen);
 }
 
 /// Shows photos in Explorer or Finder, selected there (BRW-8). Only their
@@ -488,16 +492,41 @@ pub async fn show_in_folder(app: AppHandle, ids: Vec<u32>) -> Result<(), String>
     .map_err(|error| error.to_string())?
 }
 
-/// Opens photos in the system's default app for them (BRW-8), at most
-/// [`OPEN_AT_ONCE`]. That app reads them, so it downloads a cloud-only one:
-/// the user asked for it (LIB-9).
+/// What opening photos in the default app would involve, for the UI to
+/// confirm first when it's many or some are in the cloud (BRW-8, LIB-9).
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Opening {
+    pub count: u32,
+    /// How many are cloud-only, asked of the files' attributes: opening
+    /// them downloads them.
+    pub cloud_only: u32,
+}
+
+#[tauri::command(async)]
+#[specta::specta]
+pub fn opening(library: State<'_, Library>, ids: Vec<u32>) -> Opening {
+    let paths = photo_paths(&library, &ids);
+    let cloud_only = paths
+        .iter()
+        .filter(|path| std::fs::metadata(path).is_ok_and(|metadata| is_placeholder(&metadata)))
+        .count();
+    Opening {
+        count: paths.len() as u32,
+        cloud_only: cloud_only as u32,
+    }
+}
+
+/// Opens photos in the system's default app for them (BRW-8). That app
+/// reads them, so it downloads a cloud-only one: the user asked for it, and
+/// the UI confirms first when it's several (LIB-9).
 #[tauri::command]
 #[specta::specta]
 pub async fn open_in_default_app(app: AppHandle, ids: Vec<u32>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let paths = photo_paths(&app.state::<Library>(), &ids);
-        if paths.is_empty() || paths.len() > OPEN_AT_ONCE {
-            return Err(format!("choose 1 to {OPEN_AT_ONCE} photos to open"));
+        if paths.is_empty() {
+            return Err("those photos aren't in the library".to_string());
         }
         for path in paths {
             tauri_plugin_opener::open_path(&path, None::<&str>)

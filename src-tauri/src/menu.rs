@@ -20,9 +20,17 @@ use crate::messages::t;
 #[serde(rename_all = "camelCase")]
 pub enum MenuCommand {
     AddFolder,
+    /// For the chosen photos (BRW-8).
+    ShowInFolder,
+    OpenInDefaultApp,
 }
 
 const ADD_FOLDER: &str = "add-folder";
+const SHOW_IN_FOLDER: &str = "show-in-folder";
+const OPEN_IN_DEFAULT_APP: &str = "open-in-default-app";
+/// Commands for the chosen photos, off while none is chosen.
+#[cfg(target_os = "macos")]
+const PHOTO_COMMANDS: [&str; 2] = [SHOW_IN_FOLDER, OPEN_IN_DEFAULT_APP];
 
 #[cfg(target_os = "macos")]
 pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
@@ -47,6 +55,24 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         true,
         &[
             &MenuItem::with_id(app, ADD_FOLDER, t("menu-add-folder"), true, None::<&str>)?,
+            &separator()?,
+            // The photo menu's commands, also here: a context menu is hidden
+            // by default, so Apple's guidelines put its items in the menu
+            // bar too (BRW-8). Off until a photo is chosen.
+            &MenuItem::with_id(
+                app,
+                SHOW_IN_FOLDER,
+                t("menu-show-in-finder"),
+                false,
+                Some("Alt+CmdOrCtrl+R"),
+            )?,
+            &MenuItem::with_id(
+                app,
+                OPEN_IN_DEFAULT_APP,
+                t("menu-open-in-default-app"),
+                false,
+                Some("Alt+CmdOrCtrl+O"),
+            )?,
             &separator()?,
             &PredefinedMenuItem::close_window(app, Some(t("menu-close-window").as_str()))?,
         ],
@@ -80,7 +106,28 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 
 /// Passes Seura's own menu commands to the UI.
 pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
-    if id == ADD_FOLDER {
-        let _ = MenuCommand::AddFolder.emit(app);
+    let command = match id {
+        ADD_FOLDER => MenuCommand::AddFolder,
+        SHOW_IN_FOLDER => MenuCommand::ShowInFolder,
+        OPEN_IN_DEFAULT_APP => MenuCommand::OpenInDefaultApp,
+        _ => return,
+    };
+    let _ = command.emit(app);
+}
+
+/// Turns the photo commands on while a photo is chosen. Windows has no
+/// menu bar.
+#[cfg(target_os = "macos")]
+pub fn photos_chosen<R: Runtime>(app: &AppHandle<R>, chosen: bool) {
+    let Some(menu) = app.menu() else {
+        return;
+    };
+    for id in PHOTO_COMMANDS {
+        if let Some(item) = menu.get(id).as_ref().and_then(|item| item.as_menuitem()) {
+            let _ = item.set_enabled(chosen);
+        }
     }
 }
+
+#[cfg(not(target_os = "macos"))]
+pub fn photos_chosen<R: Runtime>(_app: &AppHandle<R>, _chosen: bool) {}

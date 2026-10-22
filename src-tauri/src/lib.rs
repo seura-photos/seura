@@ -40,6 +40,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::show_thumbnails,
             commands::show_in_folder,
             commands::open_in_default_app,
+            commands::opening,
+            commands::photos_chosen,
             commands::photo_details,
             commands::selection_summary,
             commands::open_photo,

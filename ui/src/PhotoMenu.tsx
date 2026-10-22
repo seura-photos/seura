@@ -2,9 +2,6 @@ import { Menu } from "./Menu";
 import { t } from "./messages";
 import { useStore } from "./store";
 
-/** At most this many photos open in the default app at once (the core's `OPEN_AT_ONCE`). */
-export const OPEN_AT_ONCE = 20;
-
 const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
 type Props = {
@@ -24,7 +21,6 @@ type Props = {
 export function PhotoMenu({ ids, x, y, onClose }: Props) {
   const showInFolder = useStore((state) => state.showInFolder);
   const openInDefaultApp = useStore((state) => state.openInDefaultApp);
-  const tooMany = ids.length > OPEN_AT_ONCE;
 
   return (
     <Menu x={x} y={y} onClose={onClose}>
@@ -43,8 +39,6 @@ export function PhotoMenu({ ids, x, y, onClose }: Props) {
         type="button"
         role="menuitem"
         className="menu-item"
-        disabled={tooMany}
-        title={tooMany ? t("photo-open-too-many", { count: OPEN_AT_ONCE }) : undefined}
         onClick={() => {
           onClose();
           void openInDefaultApp(ids);

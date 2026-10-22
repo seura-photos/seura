@@ -16,6 +16,8 @@
     "allow-show-thumbnails",
     "allow-show-in-folder",
     "allow-open-in-default-app",
+    "allow-opening",
+    "allow-photos-chosen",
     "allow-photo-details",
     "allow-selection-summary",
     "allow-open-photo",

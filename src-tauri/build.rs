@@ -16,6 +16,8 @@ fn main() {
         "show_thumbnails",
         "show_in_folder",
         "open_in_default_app",
+        "opening",
+        "photos_chosen",
         "photo_details",
         "selection_summary",
         "open_photo",

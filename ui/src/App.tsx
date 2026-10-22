@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { events } from "./bindings";
+import { commands, events } from "./bindings";
+import { ConfirmOpen } from "./ConfirmOpen";
 import { Editor } from "./Editor";
 import { Library } from "./Library";
 import { t } from "./messages";
@@ -28,13 +29,22 @@ export function App() {
       events.scanProgress.listen(({ payload }) => useStore.setState({ progress: payload })),
       // Menu commands take the same path as the buttons (ACC-4).
       events.menuCommand.listen(({ payload }) => {
-        if (payload === "addFolder") void useStore.getState().addFolder();
+        const store = useStore.getState();
+        if (payload === "addFolder") void store.addFolder();
+        else if (payload === "showInFolder") void store.showInFolder(store.chosenPhotos());
+        else void store.openInDefaultApp(store.chosenPhotos());
       }),
     ];
     return () => {
       for (const subscription of subscriptions) void subscription.then((stop) => stop());
     };
   }, []);
+
+  // The macOS menu bar's photo commands are on while a photo is chosen (BRW-8).
+  const anyChosen = useStore((state) => state.viewing !== null || state.selection.ids.size > 0);
+  useEffect(() => {
+    void commands.photosChosen(anyChosen);
+  }, [anyChosen]);
 
   if (dev === null) return null;
   if (dev.renderCheck) return <RenderCheck exposureEv={dev.checkExposureEv ?? 0} />;
@@ -68,6 +78,7 @@ export function App() {
           )}
         </div>
       )}
+      <ConfirmOpen />
     </div>
   );
 }
