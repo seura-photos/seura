@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use seura_library::{
-    Filter, FolderId, Index, Outcome, PhotoId, Scope, SettingsFile, ThumbnailCache,
+    ApplyEdits, Filter, FolderId, Index, Outcome, PhotoId, Scope, SettingsFile, ThumbnailCache,
     ThumbnailWorkers, Watcher,
 };
 use specta::Type;
@@ -35,10 +35,12 @@ impl Store {
     fn open<R: Runtime>(app: &AppHandle<R>, cache: &Path) -> Store {
         let threads = std::thread::available_parallelism().map_or(2, |n| n.get().saturating_sub(1));
         let handle = app.clone();
-        let workers =
-            ThumbnailWorkers::start(ThumbnailCache::new(cache), threads, move |id, outcome| {
-                finished(&handle, id, outcome);
-            });
+        // Edited photos' thumbnails show their edits (BRW-1).
+        let thumbnails = ThumbnailCache::new(cache)
+            .with_edits(ApplyEdits(std::sync::Arc::new(crate::gpu::apply_edits)));
+        let workers = ThumbnailWorkers::start(thumbnails, threads, move |id, outcome| {
+            finished(&handle, id, outcome);
+        });
         Store {
             cache: cache.to_path_buf(),
             thumbnails: ThumbnailCache::new(cache),

@@ -60,12 +60,12 @@ pub(crate) fn decode(path: &Path) -> Result<Source, DecodeError> {
             _ => None,
         }
     };
-    // Date taken from HEIF's EXIF item arrives with the metadata work; until
-    // then HEIC photos sort by file date (BRW-2).
+    // The date taken, from the EXIF item, so HEIC photos sort by it (BRW-2).
+    // Its orientation is ignored: the container's applies (see container.rs).
     Ok(Source {
         image,
         icc,
-        taken: None,
+        taken: crate::exif::read_file(path).taken,
     })
 }
 
