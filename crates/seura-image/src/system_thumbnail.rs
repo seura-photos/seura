@@ -133,8 +133,10 @@ mod platform {
 
     use crate::raster::Rgba8;
 
-    /// How long to wait for Quick Look before showing the placeholder.
-    const WAIT: Duration = Duration::from_secs(10);
+    /// How long to wait for Quick Look before showing the placeholder (it's
+    /// tried again next launch). OneDrive's first answers took up to 6 s on
+    /// Nevada's Mac, later ones under 1 s.
+    const WAIT: Duration = Duration::from_secs(30);
 
     /// Quick Look's thumbnail, which for a cloud-only file comes from the
     /// sync service's File Provider, as Finder shows it.
