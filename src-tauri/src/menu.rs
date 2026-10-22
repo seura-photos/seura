@@ -7,6 +7,8 @@
 use serde::Serialize;
 use specta::Type;
 #[cfg(target_os = "macos")]
+use tauri::Manager;
+#[cfg(target_os = "macos")]
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Runtime};
 use tauri_specta::Event;
@@ -28,9 +30,11 @@ pub enum MenuCommand {
 const ADD_FOLDER: &str = "add-folder";
 const SHOW_IN_FOLDER: &str = "show-in-folder";
 const OPEN_IN_DEFAULT_APP: &str = "open-in-default-app";
-/// Commands for the chosen photos, off while none is chosen.
+/// The menu bar's commands for the chosen photos, kept so they can be
+/// turned on and off. (A menu's lookup by id searches only its top level,
+/// not the File menu inside it, so they're held rather than looked up.)
 #[cfg(target_os = "macos")]
-const PHOTO_COMMANDS: [&str; 2] = [SHOW_IN_FOLDER, OPEN_IN_DEFAULT_APP];
+struct PhotoCommands<R: Runtime>([MenuItem<R>; 2]);
 
 #[cfg(target_os = "macos")]
 pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
@@ -49,6 +53,27 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &PredefinedMenuItem::quit(app, Some(t("menu-quit").as_str()))?,
         ],
     )?;
+    // The photo menu's commands, also in the File menu: a context menu is
+    // hidden by default, so Apple's guidelines put its items in the menu bar
+    // too (BRW-8). Off until a photo is chosen.
+    let show_in_folder = MenuItem::with_id(
+        app,
+        SHOW_IN_FOLDER,
+        t("menu-show-in-finder"),
+        false,
+        Some("Alt+CmdOrCtrl+R"),
+    )?;
+    let open_in_default_app = MenuItem::with_id(
+        app,
+        OPEN_IN_DEFAULT_APP,
+        t("menu-open-in-default-app"),
+        false,
+        Some("Alt+CmdOrCtrl+O"),
+    )?;
+    app.manage(PhotoCommands([
+        show_in_folder.clone(),
+        open_in_default_app.clone(),
+    ]));
     let file = Submenu::with_items(
         app,
         t("menu-file"),
@@ -56,23 +81,8 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         &[
             &MenuItem::with_id(app, ADD_FOLDER, t("menu-add-folder"), true, None::<&str>)?,
             &separator()?,
-            // The photo menu's commands, also here: a context menu is hidden
-            // by default, so Apple's guidelines put its items in the menu
-            // bar too (BRW-8). Off until a photo is chosen.
-            &MenuItem::with_id(
-                app,
-                SHOW_IN_FOLDER,
-                t("menu-show-in-finder"),
-                false,
-                Some("Alt+CmdOrCtrl+R"),
-            )?,
-            &MenuItem::with_id(
-                app,
-                OPEN_IN_DEFAULT_APP,
-                t("menu-open-in-default-app"),
-                false,
-                Some("Alt+CmdOrCtrl+O"),
-            )?,
+            &show_in_folder,
+            &open_in_default_app,
             &separator()?,
             &PredefinedMenuItem::close_window(app, Some(t("menu-close-window").as_str()))?,
         ],
@@ -119,11 +129,8 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
 /// menu bar.
 #[cfg(target_os = "macos")]
 pub fn photos_chosen<R: Runtime>(app: &AppHandle<R>, chosen: bool) {
-    let Some(menu) = app.menu() else {
-        return;
-    };
-    for id in PHOTO_COMMANDS {
-        if let Some(item) = menu.get(id).as_ref().and_then(|item| item.as_menuitem()) {
+    if let Some(commands) = app.try_state::<PhotoCommands<R>>() {
+        for item in &commands.0 {
             let _ = item.set_enabled(chosen);
         }
     }
