@@ -1,6 +1,6 @@
 # M2 work plan: Browse
 
-Status: ready to start · Last updated: 2026-10-20
+Status: slices 1 to 9 done; slice 10 waiting on Nevada's daily use of build 0.1.1 (see "Status") · Last updated: 2026-10-22
 
 The working plan for milestone M2 from the [milestone plan](milestone-plan.md): Seura replaces Nevada's photo viewer. It breaks the milestone into slices, one pull request each, in order. Drafted by Claude Code from the milestone plan, the [functional spec](functional-spec.md), the [user flows](ux/user-flows.md) and [wireframes](ux/wireframes.md), the [visual design](visual-design.md), and the [technical design](technical-design.md). The questions it raised were answered in a design session (PR #16; [journal](journal/2026-10-20-m2-plan-review.md)), and the plan follows those answers.
 
@@ -105,10 +105,40 @@ Carried from M1:
 ### 10. Performance and wrap-up
 
 - Measure the browsing and scanning targets on both machines and CI with release builds: PRF-1, PRF-2, PRF-3, PRF-4, PRF-5, and PRF-7. These machines are much faster than the 2020 reference laptop, so the aim is about half each target's time (functional spec, "Performance targets"); a reference-class laptop is tested in the M7 beta. Record the results in `docs/benchmarks/`.
-- Node 26, LTS from 2026-10-28, once it has been LTS for a few weeks (planned in M1).
+- ~~Node 26, LTS from 2026-10-28, once it has been LTS for a few weeks (planned in M1).~~ Moved to early M3: it isn't LTS until after M2's end, and the plan is to wait a few weeks after that.
 - Pre-release build 0.1 (milestone plan, "Working within a milestone"), unsigned, for Nevada's own use, with M1's Editor hidden.
 - Confirm every "done when" above and the milestone's; draft the devlog post, including the move of Seura's folder out of Documents and its reasoning ([journal](journal/2026-10-20-m2-plan-review.md)).
 - **Done when:** Nevada has used build 0.1 as his photo viewer on both machines.
+
+## Status
+
+Reviewed 2026-10-22, in slice 10. Pull requests #28 to #68.
+
+| Slice | "Done when" | Status |
+| --- | --- | --- |
+| 1. Foundations (#28, #29, #32) | Styled shell in light and dark on both machines; settings and cache in `~/Seura Photos`; the M1 library carried over; the library survives deleting the cache | Met. Nevada checked the shell by eye on both machines in both modes; the carry-over and surviving a deleted cache are covered by tests. |
+| 2. Welcome (#33) | A first run on each machine ends in a scanning Library | Met: checked by Nevada on both machines. |
+| 3. Library sidebar and status bar (#34, #35) | The library as a tree on both machines; a disconnected drive dims and returns | The tree: met, in daily use on both machines. The disconnected drive: covered by tests, not yet tried with a real drive. |
+| 4. Watching (#36) | Adding, renaming, and deleting in Explorer and Finder shows within 5 s, with integration tests | Met: integration tests on both platforms in CI; Nevada checked it by hand on Windows. |
+| 5. The grid (#37, #38) | A 1,000-photo folder sorts, resizes, and selects, scrolling at 60 fps, by mouse and keyboard | Met: measured scrolling at the display's rate on both machines (`docs/benchmarks/m2-browsing.md`); sorting, sizing, and selecting in daily use. |
+| 6. Thumbnails (#39, #41) | A first scan meets the PRF-3 aim on both machines; cloud thumbnails on the Mac without downloading | Met: 147 and 92 photos a second against an aim of 60; Quick Look thumbnails checked on four cloud-only photos by the Mac Claude session, none downloaded. Issue #23 closed. |
+| 7. Viewer (#42, #43, #48) | Arrow keys through a folder, and zooming, on both machines | Met: checked by Nevada; issue #24 closed. |
+| 8. Photo info (#45, #55, #56) | The panel matches Explorer and Finder for a sample | Met: checked by Nevada, who asked for the 35 mm focal length and the exposure row along the way; issue #25 closed. iPhone HDR brightness is a separate design question, #60. |
+| 9. Open elsewhere (#47, #49 to #52) | Both commands for a photo and a selection on both machines | Met: checked by Nevada; issue #26 closed. |
+| 10. Performance and wrap-up (#62 to #68) | Nevada uses build 0.1 as his photo viewer on both machines | Under way: the targets are measured and met on both machines; build 0.1.1 is published as a pre-release; the devlog post is drafted. |
+
+**The milestone's "done when"** (Nevada browses his real library daily on both machines) is met with slice 10's.
+
+**Carried forward:**
+
+| Item | Where |
+| --- | --- |
+| Node 26 | Early M3, a few weeks after it becomes LTS (2026-10-28) |
+| Whether Seura shows HDR photos as HDR (#60) | A design session |
+| M1's Editor showing the downloading state for cloud-only photos (LIB-9) | M4, with the Editor |
+| Thumbnails on Apple's processors: `jpeg-decoder` has no fast path there (92 a second on the Mac against 147 on the PC) | The first thing to look at if a reference-class Mac falls short in the M7 beta |
+| Whether the measuring switches (`SEURA_MEASURE`, `SEURA_DATA`) stay in builds given to others | Before the M7 beta |
+| A disconnected drive dimming and returning, tried with a real drive | Integration testing, whenever a removable drive is handy |
 
 ## Carried from M1, and where it lands
 
