@@ -3781,6 +3781,7 @@ version = "0.0.0"
 dependencies = [
  "fluent-bundle",
  "half",
+ "jpeg-encoder",
  "objc2-core-foundation",
  "rfd",
  "serde",

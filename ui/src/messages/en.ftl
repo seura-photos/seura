@@ -84,6 +84,20 @@ grid-cell-label =
        *[other] { $name }, { $date }, { $rating } stars
     }
 
+## Viewer (BRW-5)
+
+viewer-back = Back to { $folder }
+viewer-position = { $position } of { $total }
+viewer-previous = Previous photo
+viewer-next = Next photo
+viewer-photo = { $name }
+viewer-fit = Fit · { $percent }
+viewer-keys = ← → next and previous · Esc back to { $folder }
+viewer-keys-edit = ← → next and previous · E edit · Esc back to { $folder }
+viewer-cloud-only = This photo is in the cloud and hasn't been downloaded to this computer.
+viewer-failed = This photo can't be shown: { $reason }
+viewer-no-preview = This computer's graphics can't show photos here.
+
 ## M1's Editor (development builds only until M4)
 
 editor-back = Back to photos

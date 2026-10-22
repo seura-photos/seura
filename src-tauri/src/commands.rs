@@ -13,6 +13,7 @@ use tauri_specta::Event;
 
 use crate::editor::Editor;
 use crate::library::{AppSettings, Library, LibraryChanged};
+use crate::viewer::{Viewer, Wanted};
 use crate::welcome;
 
 /// The app's version, from `Cargo.toml`.
@@ -315,6 +316,76 @@ pub struct OpenedPhoto {
     /// Why the photo can't be edited, if it can't: its edit file can't be
     /// read, and is never overwritten (FIL-4).
     pub problem: Option<String>,
+}
+
+/// What the Viewer can show of a photo (BRW-5).
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ViewedPhoto {
+    /// Decoded: its pixels are at `seura://…/view-<id>`.
+    #[serde(rename_all = "camelCase")]
+    Shown {
+        width: u32,
+        height: u32,
+        exposure_ev: f64,
+    },
+    /// Only in the cloud. It isn't read, which would download it (LIB-9).
+    CloudOnly,
+}
+
+/// Shows photo `id` in the Viewer, decoded to fit an area of `width` ×
+/// `height` device pixels (DSP-1), and decodes `neighbors` ahead (PRF-5).
+/// Cloud-only photos aren't read, nor decoded ahead.
+#[tauri::command]
+#[specta::specta]
+pub async fn view_photo(
+    app: AppHandle,
+    id: u32,
+    neighbors: Vec<u32>,
+    width: u32,
+    height: u32,
+) -> Result<ViewedPhoto, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let wanted = |id: u32| -> Option<(Wanted, bool)> {
+            let library = app.state::<Library>();
+            let index = library.index.read().expect("index lock");
+            let photo = index.photo(PhotoId::new(id))?;
+            let path = index.path(PhotoId::new(id))?;
+            let wanted = Wanted {
+                id,
+                path,
+                dimensions: photo.dimensions,
+            };
+            Some((wanted, photo.placeholder))
+        };
+        let (photo, cloud_only) = wanted(id).ok_or("that photo isn't in the library")?;
+        let neighbors: Vec<Wanted> = neighbors
+            .into_iter()
+            .filter_map(wanted)
+            .filter(|(_, cloud_only)| !cloud_only)
+            .map(|(wanted, _)| wanted)
+            .collect();
+        if cloud_only {
+            return Ok(ViewedPhoto::CloudOnly);
+        }
+        let shown = app
+            .state::<Viewer>()
+            .show(&photo, &neighbors, (width, height))?;
+        Ok(ViewedPhoto::Shown {
+            width: shown.width,
+            height: shown.height,
+            exposure_ev: shown.exposure_ev,
+        })
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// The Viewer closed: its decoded photos are let go.
+#[tauri::command]
+#[specta::specta]
+pub fn close_viewer(viewer: State<'_, Viewer>) {
+    viewer.close();
 }
 
 /// Opens a photo in the Editor, with a preview `longEdge` pixels on its long

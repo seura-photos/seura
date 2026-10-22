@@ -10,6 +10,8 @@
 //! - `preview`: the photo open in the Editor, in the working space (see
 //!   `editor::encode_linear`).
 //! - `check-image`: the render check's reference image, in the same form.
+//! - `view-<id>`: a photo decoded for the Viewer, in the same form (see
+//!   `viewer`). Only photos the Viewer has decoded.
 
 use std::borrow::Cow;
 
@@ -19,6 +21,7 @@ use tauri::{AppHandle, Manager, Runtime};
 
 use crate::editor::{Editor, check_image_bytes};
 use crate::library::Library;
+use crate::viewer::Viewer;
 
 pub fn respond<R: Runtime>(
     app: &AppHandle<R>,
@@ -31,6 +34,7 @@ pub fn respond<R: Runtime>(
             .and_then(|editor| editor.preview())
             .and_then(|bytes| pixels(bytes.as_ref().clone())),
         "/check-image" => pixels(check_image_bytes()),
+        _ if path.starts_with("/view-") => viewed(app, path),
         _ => thumbnail(app, path),
     };
     response.unwrap_or_else(|| {
@@ -49,6 +53,12 @@ fn pixels(bytes: Vec<u8>) -> Option<Response<Cow<'static, [u8]>>> {
         .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
         .body(Cow::Owned(bytes))
         .ok()
+}
+
+fn viewed<R: Runtime>(app: &AppHandle<R>, path: &str) -> Option<Response<Cow<'static, [u8]>>> {
+    let id: u32 = path.strip_prefix("/view-")?.parse().ok()?;
+    let bytes = app.try_state::<Viewer>()?.pixels(id)?;
+    pixels(bytes.as_ref().clone())
 }
 
 fn thumbnail<R: Runtime>(app: &AppHandle<R>, path: &str) -> Option<Response<Cow<'static, [u8]>>> {

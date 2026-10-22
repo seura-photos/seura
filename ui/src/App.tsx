@@ -5,6 +5,7 @@ import { Library } from "./Library";
 import { t } from "./messages";
 import { RenderCheck } from "./RenderCheck";
 import { useStore } from "./store";
+import { Viewer } from "./Viewer";
 import { Welcome } from "./Welcome";
 
 /** The window's one view at a time: the Library, or M1's Editor in development builds. */
@@ -13,6 +14,10 @@ export function App() {
   const editing = useStore((state) => state.editing);
   const welcome = useStore((state) => state.welcome);
   const openEditor = useStore((state) => state.openEditor);
+  const viewing = useStore((state) => state.viewing);
+  const folderName = useStore(
+    (state) => state.folders.find((folder) => folder.id === state.folderId)?.name ?? "",
+  );
 
   useEffect(() => {
     void useStore.getState().start();
@@ -55,7 +60,18 @@ export function App() {
       ) : editing && dev.editorAvailable ? (
         <Editor photo={editing} forceWebgl2={dev.forceWebgl2} onClose={() => openEditor(null)} />
       ) : (
-        <Library />
+        // The Viewer opens over the Library, which stays as it was behind
+        // it, so Esc returns to the same scroll position (BRW-5).
+        <div className="views">
+          <Library inert={viewing !== null} />
+          {viewing !== null && (
+            <Viewer
+              folder={folderName}
+              forceWebgl2={dev.forceWebgl2}
+              editorAvailable={dev.editorAvailable}
+            />
+          )}
+        </div>
       )}
     </div>
   );

@@ -15,6 +15,7 @@ mod menu;
 mod messages;
 mod protocol;
 mod synced;
+mod viewer;
 mod welcome;
 
 use library::{AppSettings, Library, LibraryChanged, ScanProgress, ThumbnailReady};
@@ -39,6 +40,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::show_thumbnails,
             commands::open_photo,
             commands::close_photo,
+            commands::view_photo,
+            commands::close_viewer,
             commands::set_exposure,
             commands::export_photo,
             commands::dev_options,
@@ -101,6 +104,7 @@ pub fn run() {
                 origin == locations::Origin::FirstRun || welcome::forced(),
             ));
             app.manage(editor::Editor::default());
+            app.manage(viewer::Viewer::default());
             // Show the snapshot at once (PRF-1), then catch up with the disk.
             app.state::<Library>().start_watching(app.handle());
             let handle = app.handle().clone();

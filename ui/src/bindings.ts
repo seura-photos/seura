@@ -39,6 +39,14 @@ export const commands = {
 	 */
 	openPhoto: (id: number, longEdge: number) => typedError<OpenedPhoto, string>(__TAURI_INVOKE("open_photo", { id, longEdge })),
 	closePhoto: () => __TAURI_INVOKE<void>("close_photo"),
+	/**
+	 *  Shows photo `id` in the Viewer, decoded to fit an area of `width` ×
+	 *  `height` device pixels (DSP-1), and decodes `neighbors` ahead (PRF-5).
+	 *  Cloud-only photos aren't read, nor decoded ahead.
+	 */
+	viewPhoto: (id: number, neighbors: number[], width: number, height: number) => typedError<ViewedPhoto, string>(__TAURI_INVOKE("view_photo", { id, neighbors, width, height })),
+	/**  The Viewer closed: its decoded photos are let go. */
+	closeViewer: () => __TAURI_INVOKE<void>("close_viewer"),
 	/**  Sets the open photo's exposure (EDT-5) and saves its edit file (EDT-11). */
 	setExposure: (id: number, ev: number | null) => typedError<null, string>(__TAURI_INVOKE("set_exposure", { id, ev })),
 	/**  Asks for a folder and exports the open photo there as JPEG (EXP-1, EXP-5). */
@@ -261,6 +269,13 @@ export type ViewSettings = {
 	/**  Grid cell size in logical pixels, 96 to 256. */
 	thumbnailSize: number,
 };
+
+/**  What the Viewer can show of a photo (BRW-5). */
+export type ViewedPhoto = 
+/**  Decoded: its pixels are at `seura://…/view-<id>`. */
+{ kind: "shown"; width: number; height: number; exposureEv: number | null } | 
+/**  Only in the cloud. It isn't read, which would download it (LIB-9). */
+{ kind: "cloudOnly" };
 
 export type WelcomeInfo = {
 	/**  Whether this is a first run, so the Welcome screen is shown. */

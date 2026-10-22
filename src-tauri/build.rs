@@ -16,6 +16,8 @@ fn main() {
         "show_thumbnails",
         "open_photo",
         "close_photo",
+        "view_photo",
+        "close_viewer",
         "set_exposure",
         "export_photo",
         "dev_options",

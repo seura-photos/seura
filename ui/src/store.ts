@@ -38,6 +38,10 @@ type State = {
   sortBy: string;
   ascending: boolean;
   thumbnailSize: number;
+  /** The photo shown in the Viewer (BRW-5), by id. */
+  viewing: number | null;
+  /** The photo the grid scrolls to and focuses, after the Viewer closes. */
+  reveal: { id: number } | null;
   /** The photo open in M1's Editor (development builds only). */
   editing: PhotoInfo | null;
   /** A one-line message about the last action, such as adding a folder. */
@@ -63,6 +67,10 @@ type State = {
   removeFolder: (root: number) => Promise<void>;
   addFolder: () => Promise<void>;
   thumbnailReady: (id: number, state: Omit<ThumbState, "version">) => void;
+  /** Opens the Viewer on a photo, or moves it to another. */
+  view: (id: number) => void;
+  /** Closes the Viewer: back to the grid with the last photo selected. */
+  closeViewer: () => void;
   openEditor: (photo: PhotoInfo | null) => void;
 };
 
@@ -82,6 +90,8 @@ export const useStore = create<State>()((set, get) => ({
   sortBy: "dateTaken",
   ascending: true,
   thumbnailSize: 160,
+  viewing: null,
+  reveal: null,
   editing: null,
   notice: null,
   progress: { scanning: null, done: 0, total: 0 },
@@ -226,6 +236,25 @@ export const useStore = create<State>()((set, get) => ({
       next.set(id, { ...state, version: (thumbs.get(id)?.version ?? 0) + 1 });
       return { thumbs: next };
     });
+  },
+
+  view(id) {
+    set({ viewing: id });
+  },
+
+  closeViewer() {
+    const id = get().viewing;
+    if (id === null) return;
+    set(({ photos }) => ({
+      viewing: null,
+      reveal: { id },
+      selection: select(
+        emptySelection,
+        photos.map((photo) => photo.id),
+        id,
+        { toggle: false, range: false },
+      ),
+    }));
   },
 
   openEditor(photo) {
