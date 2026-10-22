@@ -106,8 +106,128 @@ mod platform {
     }
 }
 
-/// macOS (Quick Look) follows; until then cloud-only photos show a placeholder.
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+mod platform {
+    #![allow(
+        unsafe_code,
+        reason = "Quick Look and Core Graphics are Objective-C and C APIs"
+    )]
+
+    use std::path::Path;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    use block2::RcBlock;
+    use objc2::AllocAnyThread;
+    use objc2::rc::Retained;
+    use objc2_core_foundation::{CGFloat, CGPoint, CGRect, CGSize};
+    use objc2_core_graphics::{
+        CGBitmapContextCreate, CGColorSpace, CGContext, CGImage, CGImageAlphaInfo,
+        kCGColorSpaceSRGB,
+    };
+    use objc2_foundation::{NSError, NSString, NSURL};
+    use objc2_quick_look_thumbnailing::{
+        QLThumbnailGenerationRequest, QLThumbnailGenerationRequestRepresentationTypes,
+        QLThumbnailGenerator, QLThumbnailRepresentation, QLThumbnailRepresentationType,
+    };
+
+    use crate::raster::Rgba8;
+
+    /// How long to wait for Quick Look before showing the placeholder (it's
+    /// tried again next launch). OneDrive's first answers took up to 6 s on
+    /// Nevada's Mac, later ones under 1 s.
+    const WAIT: Duration = Duration::from_secs(30);
+
+    /// Quick Look's thumbnail, which for a cloud-only file comes from the
+    /// sync service's File Provider, as Finder shows it.
+    pub fn thumbnail(path: &Path, size: u32) -> Option<Rgba8> {
+        let url = NSURL::fileURLWithPath(&NSString::from_str(path.to_str()?));
+        let side = CGFloat::from(size as f32);
+        // A thumbnail only: never the file type's icon instead.
+        let request = unsafe {
+            QLThumbnailGenerationRequest::initWithFileAtURL_size_scale_representationTypes(
+                QLThumbnailGenerationRequest::alloc(),
+                &url,
+                CGSize {
+                    width: side,
+                    height: side,
+                },
+                1.0,
+                QLThumbnailGenerationRequestRepresentationTypes::Thumbnail,
+            )
+        };
+        let (sender, receiver) = mpsc::channel();
+        let handler = RcBlock::new(
+            move |representation: *mut QLThumbnailRepresentation, _error: *mut NSError| {
+                // Quick Look owns the representation for the handler's call.
+                let pixels = unsafe { representation.as_ref() }
+                    .filter(|representation| unsafe {
+                        representation.r#type() == QLThumbnailRepresentationType::Thumbnail
+                    })
+                    .and_then(|representation| {
+                        let image = unsafe { representation.CGImage() };
+                        // The binding wraps a Core Graphics image as an
+                        // Objective-C one; it's borrowed while `image` holds it.
+                        pixels(unsafe { &*Retained::as_ptr(&image) })
+                    });
+                let _ = sender.send(pixels);
+            },
+        );
+        let generator = unsafe { QLThumbnailGenerator::sharedGenerator() };
+        unsafe {
+            generator.generateBestRepresentationForRequest_completionHandler(&request, &handler)
+        };
+        match receiver.recv_timeout(WAIT) {
+            Ok(pixels) => pixels,
+            Err(_) => {
+                unsafe { generator.cancelRequest(&request) };
+                None
+            }
+        }
+    }
+
+    /// Draws an image into an sRGB bitmap, as top-down RGBA.
+    fn pixels(image: &CGImage) -> Option<Rgba8> {
+        let width = CGImage::width(Some(image));
+        let height = CGImage::height(Some(image));
+        if width == 0 || height == 0 {
+            return None;
+        }
+        let srgb = CGColorSpace::with_name(Some(unsafe { kCGColorSpaceSRGB }))?;
+        let mut pixels = vec![0u8; width * height * 4];
+        {
+            let context: Option<_> = unsafe {
+                CGBitmapContextCreate(
+                    pixels.as_mut_ptr().cast(),
+                    width,
+                    height,
+                    8,
+                    width * 4,
+                    Some(&srgb),
+                    CGImageAlphaInfo::PremultipliedLast.0,
+                )
+            };
+            let bounds = CGRect {
+                origin: CGPoint { x: 0.0, y: 0.0 },
+                size: CGSize {
+                    width: width as CGFloat,
+                    height: height as CGFloat,
+                },
+            };
+            let context = context?;
+            CGContext::draw_image(Some(&context), bounds, Some(image));
+            // The context writes into `pixels`; it's dropped here, before they're used.
+        }
+        // Photo thumbnails are opaque.
+        for pixel in pixels.as_chunks_mut::<4>().0 {
+            pixel[3] = 255;
+        }
+        Some(Rgba8::new(width as u32, height as u32, pixels))
+    }
+}
+
+/// Other platforms aren't supported; cloud-only photos show a placeholder.
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 mod platform {
     use std::path::Path;
 
@@ -115,5 +235,45 @@ mod platform {
 
     pub fn thumbnail(_path: &Path, _size: u32) -> Option<Rgba8> {
         None
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::*;
+
+    /// Quick Look makes thumbnails of files on disk too, so CI can check the
+    /// request and the drawing work; whether a cloud-only file stays in the
+    /// cloud is checked by hand with `system_thumbnail_check`.
+    #[test]
+    fn quick_look_makes_a_thumbnail_of_a_jpeg() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = folder.path().join("red.jpg");
+        let mut bytes = Vec::new();
+        jpeg_encoder::Encoder::new(&mut bytes, 90)
+            .encode(
+                &[200, 30, 30].repeat(800 * 600),
+                800,
+                600,
+                jpeg_encoder::ColorType::Rgb,
+            )
+            .unwrap();
+        std::fs::write(&path, bytes).unwrap();
+
+        let image = system_thumbnail(&path, 256).expect("a thumbnail");
+
+        assert!(
+            image.width.max(image.height) <= 512,
+            "{}×{}",
+            image.width,
+            image.height
+        );
+        assert!(image.width > image.height);
+        let middle = (((image.height / 2) * image.width + image.width / 2) * 4) as usize;
+        let pixel = &image.pixels[middle..middle + 4];
+        assert!(
+            pixel[0] > 150 && pixel[1] < 80 && pixel[3] == 255,
+            "{pixel:?}"
+        );
     }
 }

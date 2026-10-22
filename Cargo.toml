@@ -71,10 +71,15 @@ rfd = "0.17.2"
 # Windows only: WIC, for HEIC with Microsoft's extensions (decision 0014),
 # and the system thumbnails of cloud-only photos.
 windows = "0.62.2"
-# macOS only: ImageIO decodes HEIC (decision 0014).
+# macOS only: ImageIO decodes HEIC (decision 0014), and Quick Look makes
+# the thumbnails of cloud-only photos.
 objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std"] }
 objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["std"] }
 objc2-image-io = { version = "0.3.2", default-features = false, features = ["std"] }
+objc2-quick-look-thumbnailing = { version = "0.3.2", default-features = false, features = ["std"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std"] }
+objc2 = "0.6.5"
+block2 = "0.6.2"
 
 tauri = "2.12.1"
 tauri-build = "2.7.1"
