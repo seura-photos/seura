@@ -4013,7 +4013,7 @@ dependencies = [
 
 [[package]]
 name = "seura-edit"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "jsonschema",
  "serde",
@@ -4025,7 +4025,7 @@ dependencies = [
 
 [[package]]
 name = "seura-image"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "block2",
  "fast_image_resize",
@@ -4050,7 +4050,7 @@ dependencies = [
 
 [[package]]
 name = "seura-library"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "jpeg-encoder",
  "notify",
@@ -4067,7 +4067,7 @@ dependencies = [
 
 [[package]]
 name = "seura-photos"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "fluent-bundle",
  "half",
@@ -4093,7 +4093,7 @@ dependencies = [
 
 [[package]]
 name = "seura-render"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "bytemuck",
  "half",
@@ -4108,7 +4108,7 @@ dependencies = [
 
 [[package]]
 name = "seura-tests"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "png 0.18.1",
  "serde_json",
