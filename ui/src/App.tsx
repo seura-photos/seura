@@ -3,6 +3,7 @@ import { commands, events } from "./bindings";
 import { ConfirmOpen } from "./ConfirmOpen";
 import { Editor } from "./Editor";
 import { Library } from "./Library";
+import { measure } from "./measure";
 import { t } from "./messages";
 import { RenderCheck } from "./RenderCheck";
 import { useStore } from "./store";
@@ -21,7 +22,13 @@ export function App() {
   );
 
   useEffect(() => {
-    void useStore.getState().start();
+    void useStore
+      .getState()
+      .start()
+      .then(() => {
+        // SEURA_MEASURE=1: the release build measures itself (M2 slice 10).
+        if (useStore.getState().dev?.measure) void measure();
+      });
     const subscriptions = [
       events.libraryChanged.listen(() => void useStore.getState().loadFolders()),
       // Finished thumbnails arrive in batches, about ten a second.

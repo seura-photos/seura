@@ -36,6 +36,9 @@ fn main() {
         "finish_welcome",
         "check_render",
         "finish_render_check",
+        "measure_elapsed",
+        "scan_progress",
+        "measure_report",
     ]);
 
     // tauri-build would embed the Windows application manifest into the app

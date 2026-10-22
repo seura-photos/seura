@@ -5,6 +5,7 @@ import { commands } from "./bindings";
 import { formatBytes, formatNumber } from "./format";
 import { t } from "./messages";
 import { InfoPanel } from "./InfoPanel";
+import { SHOWN_EVENT } from "./measure";
 import { PhotoMenu } from "./PhotoMenu";
 import { type Backend, createPreview, fetchLinear } from "./preview";
 import { useStore } from "./store";
@@ -207,6 +208,8 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
         full: { width: data.fullWidth, height: data.fullHeight },
         exposureEv,
       });
+      // For the measurement script (PRF-5): this photo is drawn.
+      window.dispatchEvent(new CustomEvent(SHOWN_EVENT, { detail: viewing }));
     };
     show().catch((error: unknown) => {
       if (live) setStatus({ kind: "failed", reason: String(error) });

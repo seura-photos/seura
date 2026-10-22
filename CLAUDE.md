@@ -66,6 +66,8 @@ The first build after adding it takes longer; later ones don't. It's kept out of
 
 `SEURA_WELCOME=1` shows the first-run Welcome screen on a computer that already has settings; nothing is saved unless you press Get started.
 
+`SEURA_DATA=<folder>` uses that folder as Seura's folder (settings, cache) instead of `Seura Photos` in the home folder, so measuring or testing never touches a real library. `SEURA_MEASURE=1` makes a build measure the performance targets on itself, write `measurement.json` to Seura's folder, and quit; `scripts/measure.py` sets both up.
+
 `SEURA_LOCALE=pseudo` pseudo-translates every string, lengthened about 40% and accented, to check that translations would fit (ACC-7). Text lives in Project Fluent catalogs: `ui/src/messages/en.ftl` and `src-tauri/messages/en.ftl`.
 
 Run from the repository root:
@@ -80,6 +82,7 @@ Run from the repository root:
 | Index benchmarks (decision 0010; fail if a target is missed) | `cargo bench -p seura-library --bench index` |
 | Check where the app writes (rule 2) | build with `npm run tauri -- build --debug --no-bundle` in `ui/` (macOS: `--bundles app`), then `python3 scripts/app_data_audit.py` |
 | Check the preview renders like export, in the real web view | build as above, then `python3 scripts/render_check.py` |
+| Measure the performance targets (PRF-1 to PRF-5, PRF-7) | build for release (`npm run tauri -- build --no-bundle` in `ui/`; macOS: `--bundles app`), then `python3 scripts/measure.py` (about 5 GB of generated test photos in `target/measure`; `--small` for a quick check). In CI: the Measure workflow, run by hand |
 
 Run from `ui/`:
 

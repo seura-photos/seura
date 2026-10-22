@@ -11,6 +11,7 @@ mod gpu;
 mod library;
 mod locale;
 mod locations;
+mod measure;
 mod menu;
 mod messages;
 mod protocol;
@@ -60,6 +61,9 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::finish_welcome,
             commands::check_render,
             commands::finish_render_check,
+            commands::measure_elapsed,
+            commands::scan_progress,
+            commands::measure_report,
         ])
         .events(collect_events![
             ThumbnailsReady,
@@ -71,6 +75,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
 
 /// Builds and runs the app. Called from `main`.
 pub fn run() {
+    measure::start();
     let builder = specta_builder();
 
     let app = tauri::Builder::default();

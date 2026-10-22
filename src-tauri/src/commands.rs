@@ -856,17 +856,21 @@ pub struct DevOptions {
     /// Whether M1's Editor is available: in development builds only, since
     /// M2 writes no edit files (M2 work plan).
     pub editor_available: bool,
+    /// `SEURA_MEASURE=1` runs the measurement script (M2 slice 10).
+    pub measure: bool,
     /// Every switch that changes how the app behaves, as `NAME=value`, so
     /// the UI can say they're on: they're easy to leave set by accident.
     pub active: Vec<String>,
 }
 
 /// The developer switches that change the app's behavior.
-const SWITCHES: [&str; 4] = [
+const SWITCHES: [&str; 6] = [
     "SEURA_HEIF_DECODER",
     "SEURA_PREVIEW",
     crate::locale::LOCALE_SWITCH,
     welcome::WELCOME_SWITCH,
+    crate::locations::DATA_SWITCH,
+    crate::measure::MEASURE_SWITCH,
 ];
 
 /// The switches that are set, as `NAME=value`.
@@ -889,8 +893,35 @@ pub fn dev_options() -> DevOptions {
         pseudo_locale: crate::locale::pseudo(),
         check_exposure_ev: seura_render::check::CHECK_SETTINGS.exposure_ev,
         editor_available: cfg!(debug_assertions),
+        measure: crate::measure::active(),
         active: active_switches(),
     }
+}
+
+/// How far scanning and thumbnails have got, now, for the measurement script.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn scan_progress(library: State<'_, Library>) -> crate::library::ScanProgress {
+    library.progress_now()
+}
+
+/// Milliseconds since the app started, for the measurement script.
+#[tauri::command]
+#[specta::specta]
+pub fn measure_elapsed() -> f64 {
+    crate::measure::elapsed_ms()
+}
+
+/// The measurement script's results, as JSON: written with the core's
+/// memory to `measurement.json` in Seura's folder, and then the app quits.
+/// Only while `SEURA_MEASURE=1`.
+#[tauri::command]
+#[specta::specta]
+pub fn measure_report(app: AppHandle, report: String) -> Result<(), String> {
+    if !crate::measure::active() {
+        return Err("not measuring".into());
+    }
+    crate::measure::report(&app, &report)
 }
 
 /// The render check: one preview path's render of the check image, as 8-bit

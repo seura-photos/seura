@@ -1,0 +1,7 @@
+# Measuring the browsing targets (M2 slice 10)
+
+- **How:** the app measures itself. With `SEURA_MEASURE=1`, a release build runs a fixed script on itself (launch, opening a folder, scrolling, next photo, memory) and writes the results to its Seura folder, which `SEURA_DATA` points somewhere else, so Nevada's real library is never touched. Nevada approved both switches. `scripts/measure.py` makes generated test libraries (1,000 photos of 12 megapixels, 50,000 small ones) and runs it all.
+- **On Nevada's PC every target is met**, the closest (next photo, 48 ms) by three times: launch 0.53 s, opening a 1,000-photo folder 0.05 s, first scan 147 photos a second, scrolling at the display's 120 frames a second, 70 MB with 50,000 photos.
+- **The first full run failed,** and it took three tries to see why: the measurement watched for the launch scan through the UI's progress events, but the first one can arrive before the UI listens, and with 50,000 files the scan took over a second to start. So the script thought nothing was happening, opened the Viewer while the library was still being scanned underneath it, and a photo "never showed". It now asks the core directly, and waits up to 15 seconds for the scan to begin.
+- **A false number caught on the way:** one rerun reported 50,000 photos at 835 a second, but its cache was half built from the failed run; the script always starts that run from an empty Seura folder, so its number is honest.
+- **Windows' console** can't print "×" or "…", which came out as "�"; the script prints plain text.

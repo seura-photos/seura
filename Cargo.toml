@@ -75,6 +75,8 @@ tauri-plugin-opener = { version = "=2.7.0", default-features = false }
 # Windows only: WIC, for HEIC with Microsoft's extensions (decision 0014),
 # and the system thumbnails of cloud-only photos.
 windows = "0.62.2"
+# macOS only: the process's peak memory, for measuring PRF-7.
+libc = "0.2.191"
 # macOS only: ImageIO decodes HEIC (decision 0014), and Quick Look makes
 # the thumbnails of cloud-only photos.
 objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std"] }

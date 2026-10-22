@@ -143,6 +143,16 @@ export const commands = {
 	 *  web view doesn't have are listed, not failed. Does nothing outside the check.
 	 */
 	finishRenderCheck: (skipped: string[], problems: string[]) => __TAURI_INVOKE<void>("finish_render_check", { skipped, problems }),
+	/**  Milliseconds since the app started, for the measurement script. */
+	measureElapsed: () => __TAURI_INVOKE<number | null>("measure_elapsed"),
+	/**  How far scanning and thumbnails have got, now, for the measurement script. */
+	scanProgress: () => __TAURI_INVOKE<ScanProgress>("scan_progress"),
+	/**
+	 *  The measurement script's results, as JSON: written with the core's
+	 *  memory to `measurement.json` in Seura's folder, and then the app quits.
+	 *  Only while `SEURA_MEASURE=1`.
+	 */
+	measureReport: (report: string) => typedError<null, string>(__TAURI_INVOKE("measure_report", { report })),
 };
 
 /** Events */
@@ -193,6 +203,8 @@ export type DevOptions = {
 	 *  M2 writes no edit files (M2 work plan).
 	 */
 	editorAvailable: boolean,
+	/**  `SEURA_MEASURE=1` runs the measurement script (M2 slice 10). */
+	measure: boolean,
 	/**
 	 *  Every switch that changes how the app behaves, as `NAME=value`, so
 	 *  the UI can say they're on: they're easy to leave set by accident.
