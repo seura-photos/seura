@@ -2,10 +2,12 @@
 //! generates the permission the UI's capability grants for it.
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use seura_library::{
     AddFolder, EditFileState, Filter, FolderId, PhotoId, Scope, Sort, SortBy, THUMBNAIL_SIZES,
+    is_placeholder,
 };
 use specta::Type;
 use tauri::{AppHandle, Manager, State};
@@ -358,7 +360,8 @@ pub async fn photo_details(app: AppHandle, id: u32) -> Result<PhotoDetails, Stri
                     .collect(),
                 edited: photo.edit_file == EditFileState::Read { edited: true },
                 unreadable: photo.edit_file == EditFileState::Unreadable,
-                cloud_only: photo.placeholder,
+                cloud_only: std::fs::metadata(&path)
+                    .map_or(photo.placeholder, |metadata| is_placeholder(&metadata)),
                 camera: None,
                 lens: None,
                 focal_length: None,
@@ -493,13 +496,25 @@ pub enum ViewedPhoto {
         full_height: u32,
         exposure_ev: f64,
     },
-    /// Only in the cloud. It isn't read, which would download it (LIB-9).
-    CloudOnly,
+    /// Only in the cloud, and not read: ask again with `download` to read
+    /// it, which downloads it (LIB-9).
+    #[serde(rename_all = "camelCase")]
+    CloudOnly {
+        /// In bytes, from the placeholder: what the download will be.
+        size: f64,
+    },
 }
+
+/// How long the Viewer waits for a cloud-only photo before saying it
+/// couldn't be downloaded. Neither system reports progress (LIB-9), so this
+/// is generous: about 1 Mbit/s for a 20 MB photo.
+const DOWNLOAD_WAIT: Duration = Duration::from_secs(180);
 
 /// Shows photo `id` in the Viewer, decoded to fit an area of `width` ×
 /// `height` device pixels (DSP-1), and decodes `neighbors` ahead (PRF-5).
-/// Cloud-only photos aren't read, nor decoded ahead.
+/// A cloud-only photo is read, downloading it, only with `download`, and
+/// then waited for at most [`DOWNLOAD_WAIT`]; neighbors in the cloud are
+/// never decoded ahead (LIB-9).
 #[tauri::command]
 #[specta::specta]
 pub async fn view_photo(
@@ -508,22 +523,38 @@ pub async fn view_photo(
     neighbors: Vec<u32>,
     width: u32,
     height: u32,
+    download: bool,
 ) -> Result<ViewedPhoto, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let wanted = |id: u32| viewable(&app, id);
-        let (photo, cloud_only) = wanted(id).ok_or("that photo isn't in the library")?;
+        let (photo, cloud_only, size) = wanted(id).ok_or("that photo isn't in the library")?;
         let neighbors: Vec<Wanted> = neighbors
             .into_iter()
             .filter_map(wanted)
-            .filter(|(_, cloud_only)| !cloud_only)
-            .map(|(wanted, _)| wanted)
+            .filter(|(_, cloud_only, _)| !cloud_only)
+            .map(|(wanted, _, _)| wanted)
             .collect();
-        if cloud_only {
-            return Ok(ViewedPhoto::CloudOnly);
+        if cloud_only && !download {
+            return Ok(ViewedPhoto::CloudOnly { size: size as f64 });
         }
-        let shown = app
-            .state::<Viewer>()
-            .show(&photo, &neighbors, (width, height))?;
+        let shown = if cloud_only {
+            // Read on a thread of its own, so a download that never ends
+            // doesn't hold the Viewer: past the wait, its result is dropped.
+            let (sender, receiver) = std::sync::mpsc::channel();
+            let handle = app.clone();
+            std::thread::spawn(move || {
+                let shown = handle
+                    .state::<Viewer>()
+                    .show(&photo, &neighbors, (width, height));
+                let _ = sender.send(shown);
+            });
+            receiver
+                .recv_timeout(DOWNLOAD_WAIT)
+                .map_err(|_| "the download took too long".to_string())??
+        } else {
+            app.state::<Viewer>()
+                .show(&photo, &neighbors, (width, height))?
+        };
         Ok(ViewedPhoto::Shown {
             width: shown.width,
             height: shown.height,
@@ -536,13 +567,18 @@ pub async fn view_photo(
     .map_err(|error| error.to_string())?
 }
 
-/// A photo the Viewer may read, and whether it's only in the cloud.
-fn viewable(app: &AppHandle, id: u32) -> Option<(Wanted, bool)> {
-    let library = app.state::<Library>();
-    let index = library.index.read().expect("index lock");
-    let photo = index.photo(PhotoId::new(id))?;
-    let path = index.path(PhotoId::new(id))?;
-    Some((Wanted { id, path }, photo.placeholder))
+/// A photo the Viewer may read, whether it's only in the cloud, and its
+/// size. Whether it's in the cloud is asked of the file itself, which only
+/// reads its attributes: one downloaded since the last scan opens at once.
+fn viewable(app: &AppHandle, id: u32) -> Option<(Wanted, bool, u64)> {
+    let (path, indexed, size) = {
+        let library = app.state::<Library>();
+        let index = library.index.read().expect("index lock");
+        let photo = index.photo(PhotoId::new(id))?;
+        (index.path(PhotoId::new(id))?, photo.placeholder, photo.size)
+    };
+    let cloud_only = std::fs::metadata(&path).map_or(indexed, |metadata| is_placeholder(&metadata));
+    Some((Wanted { id, path }, cloud_only, size))
 }
 
 /// A part of a photo, cut for the Viewer.
@@ -570,7 +606,7 @@ pub async fn view_region(
     out_height: u32,
 ) -> Result<RegionSize, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let (photo, cloud_only) = viewable(&app, id).ok_or("that photo isn't in the library")?;
+        let (photo, cloud_only, _) = viewable(&app, id).ok_or("that photo isn't in the library")?;
         if cloud_only {
             return Err("that photo is only in the cloud".into());
         }
