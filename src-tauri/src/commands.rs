@@ -292,6 +292,167 @@ pub fn photos(
     photos
 }
 
+/// One photo's details for the Info panel (BRW-6). Read-only in M2.
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PhotoDetails {
+    pub id: u32,
+    pub name: String,
+    /// The folder, from its library folder down: `["Pictures", "2026", "Summer"]`.
+    pub folder: Vec<String>,
+    /// In bytes.
+    pub size: f64,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    /// As in `PhotoInfo`.
+    pub taken: Option<f64>,
+    pub rating: u8,
+    pub tags: Vec<String>,
+    pub edited: bool,
+    pub unreadable: bool,
+    /// Only in the cloud: its metadata isn't read, which would download it
+    /// (LIB-9), so the camera, lens, and location are unknown.
+    pub cloud_only: bool,
+    pub camera: Option<String>,
+    pub lens: Option<String>,
+    /// In millimeters.
+    pub focal_length: Option<f64>,
+    pub f_number: Option<f64>,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+}
+
+/// A photo's details for the Info panel (BRW-6): what the index knows, and
+/// the camera, lens, and location from its EXIF, read now (decision 0012).
+#[tauri::command]
+#[specta::specta]
+pub async fn photo_details(app: AppHandle, id: u32) -> Result<PhotoDetails, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (mut details, path) = {
+            let library = app.state::<Library>();
+            let index = library.index.read().expect("index lock");
+            let photo = index
+                .photo(PhotoId::new(id))
+                .ok_or("that photo isn't in the library")?;
+            let path = index
+                .path(PhotoId::new(id))
+                .ok_or("that photo isn't in the library")?;
+            let root = index.roots().iter().find(|root| path.starts_with(root));
+            let folder = path
+                .parent()
+                .map(|parent| folder_names(root.map(PathBuf::as_path), parent))
+                .unwrap_or_default();
+            let details = PhotoDetails {
+                id,
+                name: photo.name.to_string(),
+                folder,
+                size: photo.size as f64,
+                width: photo.dimensions.map(|(width, _)| width),
+                height: photo.dimensions.map(|(_, height)| height),
+                taken: photo.taken.map(|seconds| seconds as f64),
+                rating: photo.rating,
+                tags: photo
+                    .tags
+                    .iter()
+                    .filter_map(|tag| index.tag(*tag).map(str::to_string))
+                    .collect(),
+                edited: photo.edit_file == EditFileState::Read { edited: true },
+                unreadable: photo.edit_file == EditFileState::Unreadable,
+                cloud_only: photo.placeholder,
+                camera: None,
+                lens: None,
+                focal_length: None,
+                f_number: None,
+                latitude: None,
+                longitude: None,
+            };
+            (details, path)
+        };
+        if !details.cloud_only {
+            let exif = seura_image::details(&path);
+            details.taken = details.taken.or(exif.taken.map(|seconds| seconds as f64));
+            details.camera = exif.camera;
+            details.lens = exif.lens;
+            details.focal_length = exif.focal_length;
+            details.f_number = exif.f_number;
+            details.latitude = exif.latitude;
+            details.longitude = exif.longitude;
+        }
+        Ok(details)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// A folder's names from its library folder down, or just its own name
+/// outside one.
+fn folder_names(root: Option<&Path>, folder: &Path) -> Vec<String> {
+    let name = |path: &Path| {
+        path.file_name().map_or_else(
+            || path.display().to_string(),
+            |name| name.to_string_lossy().into_owned(),
+        )
+    };
+    match root.and_then(|root| Some((root, folder.strip_prefix(root).ok()?))) {
+        Some((root, below)) => std::iter::once(name(root))
+            .chain(
+                below
+                    .components()
+                    .map(|part| part.as_os_str().to_string_lossy().into_owned()),
+            )
+            .collect(),
+        None => vec![name(folder)],
+    }
+}
+
+/// What several selected photos share, for the Info panel (BRW-6). From the
+/// index alone: nothing is read.
+#[derive(Clone, Debug, Default, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SelectionSummary {
+    pub count: u32,
+    /// Their sizes added up, in bytes.
+    pub size: f64,
+    /// The earliest and latest date taken among those that have one.
+    pub first_taken: Option<f64>,
+    pub last_taken: Option<f64>,
+    /// Their rating, if they all have the same one.
+    pub rating: Option<u8>,
+    /// Tags every one of them has.
+    pub tags: Vec<String>,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn selection_summary(library: State<'_, Library>, ids: Vec<u32>) -> SelectionSummary {
+    let index = library.index.read().expect("index lock");
+    let photos: Vec<_> = ids
+        .iter()
+        .filter_map(|id| index.photo(PhotoId::new(*id)))
+        .collect();
+    let Some(first) = photos.first() else {
+        return SelectionSummary::default();
+    };
+    let taken = photos.iter().filter_map(|photo| photo.taken);
+    let rating = first.rating;
+    SelectionSummary {
+        count: photos.len() as u32,
+        size: photos.iter().map(|photo| photo.size as f64).sum(),
+        first_taken: taken.clone().min().map(|seconds| seconds as f64),
+        last_taken: taken.max().map(|seconds| seconds as f64),
+        rating: photos
+            .iter()
+            .all(|photo| photo.rating == rating)
+            .then_some(rating),
+        tags: first
+            .tags
+            .iter()
+            .filter(|tag| photos.iter().all(|photo| photo.tags.contains(tag)))
+            .filter_map(|tag| index.tag(*tag).map(str::to_string))
+            .collect(),
+    }
+}
+
 /// The photos now on screen, in order: their thumbnails are made first (LIB-3).
 #[tauri::command]
 #[specta::specta]
@@ -703,6 +864,19 @@ fn display(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn a_folder_is_named_from_its_library_folder_down() {
+        let root = Path::new("C:/Users/Nevada/Pictures");
+        assert_eq!(
+            folder_names(Some(root), &root.join("2026").join("Summer")),
+            ["Pictures", "2026", "Summer"]
+        );
+        assert_eq!(folder_names(Some(root), root), ["Pictures"]);
+        assert_eq!(folder_names(None, Path::new("D:/Scans")), ["Scans"]);
+    }
+
     #[test]
     fn the_text_scale_is_readable_and_sensible() {
         let scale = super::text_scale();

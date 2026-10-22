@@ -4,6 +4,7 @@ import { type PointerEvent, useEffect, useEffectEvent, useRef, useState } from "
 import { commands } from "./bindings";
 import { formatNumber } from "./format";
 import { t } from "./messages";
+import { InfoPanel } from "./InfoPanel";
 import { type Backend, createPreview, fetchLinear } from "./preview";
 import { useStore } from "./store";
 import {
@@ -481,6 +482,8 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
           <ChevronRight className="icon" aria-hidden />
         </button>
       </div>
+
+      <InfoPanel ids={[photo.id]} version={photos} folder />
 
       <footer className="status-bar viewer-status">
         <span>

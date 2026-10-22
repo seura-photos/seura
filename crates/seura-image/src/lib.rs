@@ -18,6 +18,7 @@ pub use decode::{
     decode_upright,
 };
 pub use encode::{JPEG_QUALITY, encode_jpeg};
+pub use exif::{Details, details};
 pub use raster::{LinearImage, Rgba8, decode_transfer};
 pub use system_thumbnail::system_thumbnail;
 pub use thumbnail::{Region, THUMBNAIL_SIZE, fit, thumbnail};

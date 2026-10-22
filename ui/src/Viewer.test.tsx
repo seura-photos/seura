@@ -20,6 +20,7 @@ vi.mock("./bindings", () => ({
     viewPhoto: mocks.viewPhoto,
     viewRegion: mocks.viewRegion,
     closeViewer: mocks.closeViewer,
+    photoDetails: vi.fn(() => Promise.resolve({ status: "error", error: "not in the test" })),
   },
 }));
 

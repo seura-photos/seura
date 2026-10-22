@@ -4,6 +4,7 @@ import mark from "../../design/brand/seura-mark-small.svg";
 import type { FolderInfo, ScanProgress } from "./bindings";
 import { FolderTree } from "./FolderTree";
 import { Grid } from "./Grid";
+import { InfoPanel } from "./InfoPanel";
 import { t } from "./messages";
 import { ConfirmRemove, FolderMenu } from "./RemoveFolder";
 import { useStore } from "./store";
@@ -152,6 +153,8 @@ export function Library({ inert = false }: { inert?: boolean }) {
           <p className="empty">{t("library-pick-folder")}</p>
         )}
       </main>
+
+      <InfoPanel ids={[...selection.ids]} version={photos} preview />
 
       {menu && (
         <FolderMenu
