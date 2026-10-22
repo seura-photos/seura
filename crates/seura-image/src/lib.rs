@@ -13,7 +13,7 @@ mod raster;
 mod system_thumbnail;
 mod thumbnail;
 
-pub use decode::{DecodeError, Decoded, MAX_SIDE, decode, decode_linear};
+pub use decode::{DecodeError, Decoded, MAX_SIDE, Reduced, decode, decode_linear, decode_reduced};
 pub use encode::{JPEG_QUALITY, encode_jpeg};
 pub use raster::{LinearImage, Rgba8, decode_transfer};
 pub use system_thumbnail::system_thumbnail;

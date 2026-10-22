@@ -12,11 +12,17 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
+use std::time::{Duration, SystemTime};
 
 use seura_image::Rgba8;
 use sha2::{Digest, Sha256};
 
 use crate::index::{FileTime, PhotoId};
+
+/// A thumbnail no photo uses is deleted once it's been left alone this long,
+/// so a photo that's out of the library only for a while (a folder renamed
+/// and renamed back) keeps it.
+pub const SWEEP_AFTER: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
 /// The thumbnail folder inside the cache.
 pub const THUMBS_FOLDER: &str = "thumbs";
@@ -121,12 +127,12 @@ impl ThumbnailCache {
     /// `edited` (BRW-1). The photo is only read; the thumbnail is written
     /// atomically (CLAUDE.md rules 1 and 3).
     pub fn make(&self, photo: &Path, key: &str, edited: bool) -> Outcome {
-        let decoded = match seura_image::decode(photo) {
+        let decoded = match seura_image::decode_reduced(photo, seura_image::THUMBNAIL_SIZE) {
             Ok(decoded) => decoded,
             Err(seura_image::DecodeError::HeifUnavailable(_)) => return Outcome::NeedsCodec,
             Err(error) => return Outcome::Failed(error.to_string()),
         };
-        let small = seura_image::fit(&decoded.image, seura_image::THUMBNAIL_SIZE);
+        let small = decoded.image;
         let small = match (&self.edits, edited) {
             (Some(ApplyEdits(apply)), true) => apply(photo, small),
             _ => small,
@@ -136,8 +142,8 @@ impl ThumbnailCache {
             return Outcome::Failed(error.to_string());
         }
         Outcome::Ready(Some(Made {
-            width: decoded.image.width,
-            height: decoded.image.height,
+            width: decoded.width,
+            height: decoded.height,
             taken: decoded.taken,
         }))
     }
@@ -148,6 +154,64 @@ impl ThumbnailCache {
         fs::create_dir_all(path.parent().expect("thumbnails are in folders"))?;
         seura_edit::write_atomically(&path, bytes)
     }
+
+    /// Deletes thumbnails no photo uses: those whose key isn't in `keep`
+    /// and that haven't changed for `unused_for`. Only files named as this
+    /// cache names thumbnails, in its own folders, are touched, and folders
+    /// left empty go too. Returns how many thumbnails were deleted.
+    pub fn sweep(&self, keep: &HashSet<String>, unused_for: Duration) -> usize {
+        let now = SystemTime::now();
+        let mut deleted = 0;
+        for first in subfolders(&self.root) {
+            for second in subfolders(&first) {
+                let Ok(entries) = fs::read_dir(&second) else {
+                    continue;
+                };
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    let Some(key) = thumbnail_key(&path) else {
+                        continue;
+                    };
+                    if keep.contains(key) || path != self.path(key) {
+                        continue;
+                    }
+                    let unused = entry
+                        .metadata()
+                        .and_then(|metadata| metadata.modified())
+                        .is_ok_and(|modified| {
+                            now.duration_since(modified)
+                                .is_ok_and(|age| age >= unused_for)
+                        });
+                    if unused && fs::remove_file(&path).is_ok() {
+                        deleted += 1;
+                    }
+                }
+                // Only succeeds if it's empty.
+                let _ = fs::remove_dir(&second);
+            }
+            let _ = fs::remove_dir(&first);
+        }
+        deleted
+    }
+}
+
+/// The folders directly inside `folder`.
+fn subfolders(folder: &Path) -> Vec<PathBuf> {
+    fs::read_dir(folder)
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+                .map(|entry| entry.path())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// `…/ab/cd/abcd….webp` → `abcd…`, for files named as thumbnails are.
+fn thumbnail_key(path: &Path) -> Option<&str> {
+    let key = path.file_name()?.to_str()?.strip_suffix(".webp")?;
+    (key.len() == 32 && key.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))).then_some(key)
 }
 
 /// One photo to make a thumbnail for.
@@ -345,6 +409,55 @@ mod tests {
 
     /// Scan progress counts the jobs each call adds (LIB-3), so a photo
     /// queued twice must count once.
+    #[test]
+    fn a_sweep_deletes_only_old_thumbnails_no_photo_uses() {
+        let folder = tempfile::tempdir().unwrap();
+        let cache = ThumbnailCache::new(folder.path());
+        let week_ago = SystemTime::now() - SWEEP_AFTER - Duration::from_secs(60);
+        let make = |key: &str, modified: SystemTime| {
+            cache.store(key, b"webp").unwrap();
+            fs::File::options()
+                .write(true)
+                .open(cache.path(key))
+                .unwrap()
+                .set_modified(modified)
+                .unwrap();
+        };
+        let (used, orphan, recent) = ("a".repeat(32), "b".repeat(32), "c".repeat(32));
+        make(&used, week_ago);
+        make(&orphan, week_ago);
+        make(&recent, SystemTime::now());
+        // Something that isn't a thumbnail, where thumbnails are.
+        let other = cache.path(&orphan).with_file_name("notes.webp");
+        fs::write(&other, b"not ours").unwrap();
+        fs::File::options()
+            .write(true)
+            .open(&other)
+            .unwrap()
+            .set_modified(week_ago)
+            .unwrap();
+
+        let keep = HashSet::from([used.clone()]);
+        assert_eq!(cache.sweep(&keep, SWEEP_AFTER), 1);
+
+        assert!(cache.path(&used).exists());
+        assert!(!cache.path(&orphan).exists());
+        assert!(cache.path(&recent).exists());
+        assert!(other.exists());
+    }
+
+    #[test]
+    fn a_sweep_removes_folders_it_empties() {
+        let folder = tempfile::tempdir().unwrap();
+        let cache = ThumbnailCache::new(folder.path());
+        let key = "d".repeat(32);
+        cache.store(&key, b"webp").unwrap();
+
+        assert_eq!(cache.sweep(&HashSet::new(), Duration::ZERO), 1);
+
+        assert!(!folder.path().join(THUMBS_FOLDER).join("dd").exists());
+    }
+
     #[test]
     fn only_new_jobs_are_counted() {
         let mut queue = Queue::default();

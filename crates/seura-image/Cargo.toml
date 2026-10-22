@@ -11,6 +11,7 @@ publish = false
 
 [dependencies]
 zune-jpeg = { workspace = true }
+jpeg-decoder = { workspace = true }
 png = { workspace = true }
 kamadak-exif = { workspace = true }
 moxcms = { workspace = true }

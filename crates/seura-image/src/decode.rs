@@ -43,6 +43,19 @@ pub struct Decoded {
     pub taken: Option<i64>,
 }
 
+/// A photo decoded for its thumbnail: scaled to fit `size` × `size`, with
+/// the full photo's dimensions and date taken.
+#[derive(Clone, Debug)]
+pub struct Reduced {
+    /// Upright, in sRGB, at most `size` on its long edge.
+    pub image: Rgba8,
+    /// The full photo's upright dimensions.
+    pub width: u32,
+    pub height: u32,
+    /// Seconds since 1970 on the photo's own clock, from EXIF.
+    pub taken: Option<i64>,
+}
+
 /// Decoded pixels before color conversion: upright, 8-bit, in the color
 /// space of the photo's profile (sRGB without one).
 pub(crate) struct Source {
@@ -59,6 +72,89 @@ pub fn decode(path: &Path) -> Result<Decoded, DecodeError> {
         image: source.image.from_profile(source.icc.as_deref()),
         taken: source.taken,
     })
+}
+
+/// Decodes a photo for its thumbnail (PRF-3). JPEGs are decoded at a half,
+/// quarter, or eighth of their size, the smallest still at least `size` on
+/// the long edge, which is several times faster than decoding them whole.
+/// A JPEG that way can't read is decoded whole, as other formats are.
+pub fn decode_reduced(path: &Path, size: u32) -> Result<Reduced, DecodeError> {
+    let name = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_lowercase();
+    let source = if name.ends_with(".jpg") || name.ends_with(".jpeg") {
+        let bytes = fs::read(path)?;
+        // A decoder bug on a damaged file mustn't stop the thumbnail worker.
+        match std::panic::catch_unwind(|| decode_jpeg_scaled(&bytes, size)) {
+            Ok(Some(scaled)) => scaled,
+            _ => full_size(decode_jpeg(&bytes)?),
+        }
+    } else {
+        full_size(decode_source(path)?)
+    };
+    let (source, width, height) = source;
+    Ok(Reduced {
+        image: fit(&source.image.from_profile(source.icc.as_deref()), size),
+        width,
+        height,
+        taken: source.taken,
+    })
+}
+
+/// A decoded photo and its dimensions, which are the image's own.
+fn full_size(source: Source) -> (Source, u32, u32) {
+    let (width, height) = (source.image.width, source.image.height);
+    (source, width, height)
+}
+
+/// A JPEG decoded at reduced size, with its full upright dimensions; `None`
+/// if it isn't 8-bit gray or RGB, or can't be read this way.
+fn decode_jpeg_scaled(bytes: &[u8], size: u32) -> Option<(Source, u32, u32)> {
+    use jpeg_decoder::{Decoder, PixelFormat};
+
+    let mut decoder = Decoder::new(bytes);
+    decoder.read_info().ok()?;
+    let full = decoder.info()?;
+    let (width, height) = (u32::from(full.width), u32::from(full.height));
+    if width > MAX_SIDE || height > MAX_SIDE {
+        return None;
+    }
+    let requested = u16::try_from(size).ok()?;
+    decoder.scale(requested, requested).ok()?;
+    let pixels = decoder.decode().ok()?;
+    let info = decoder.info()?;
+    let pixels: Vec<u8> = match info.pixel_format {
+        PixelFormat::RGB24 => pixels
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .flat_map(|[r, g, b]| [*r, *g, *b, 255])
+            .collect(),
+        PixelFormat::L8 => pixels.iter().flat_map(|&v| [v, v, v, 255]).collect(),
+        PixelFormat::L16 | PixelFormat::CMYK32 => return None,
+    };
+    let (scaled_width, scaled_height) = (u32::from(info.width), u32::from(info.height));
+    if pixels.len() != (scaled_width * scaled_height * 4) as usize {
+        return None;
+    }
+    let exif = decoder.exif_data().map(exif::read).unwrap_or(ExifInfo {
+        orientation: 1,
+        taken: None,
+    });
+    // Orientations 5 to 8 turn the photo a quarter turn.
+    let (width, height) = if exif.orientation >= 5 {
+        (height, width)
+    } else {
+        (width, height)
+    };
+    let source = Source {
+        image: Rgba8::new(scaled_width, scaled_height, pixels).orient(exif.orientation),
+        icc: decoder.icc_profile(),
+        taken: exif.taken,
+    };
+    Some((source, width, height))
 }
 
 /// Decodes a photo into the working space (linear light, Display P3), for

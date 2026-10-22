@@ -348,3 +348,47 @@ fn fingerprints_are_cached_until_the_file_changes() {
     assert_ne!(first, second);
     assert_eq!(second, fingerprint_file(&path).unwrap());
 }
+
+/// A long scan doesn't hold the index (M2 slice 6): it can be read between
+/// folders, and a library folder removed meanwhile stays removed.
+#[test]
+fn a_shared_scan_lets_the_index_be_read_and_stops_when_its_folder_goes() {
+    const FOLDERS: usize = 500;
+    let folder = Folder::new();
+    for n in 0..FOLDERS {
+        folder.photo(&format!("F{n:03}/a.jpg"), JPEG);
+    }
+    let root = folder.root();
+    let mut index = Index::new();
+    index.add_root(&root).unwrap();
+    let index = std::sync::RwLock::new(index);
+
+    let mut partly_scanned = false;
+    std::thread::scope(|scope| {
+        let scan = scope.spawn(|| Index::scan_shared(&index, &root, &root));
+        while !scan.is_finished() {
+            let len = index.read().unwrap().len();
+            if len > 0 && len < FOLDERS {
+                partly_scanned = true;
+                index.write().unwrap().remove_root(&root);
+                break;
+            }
+        }
+    });
+
+    assert!(partly_scanned, "the index was never read during the scan");
+    let index = index.into_inner().unwrap();
+    assert_eq!(index.len(), 0);
+    assert!(index.folder_tree().is_empty());
+}
+
+#[test]
+fn a_shared_scan_of_a_folder_no_longer_in_the_library_does_nothing() {
+    let folder = Folder::new();
+    folder.photo("a.jpg", JPEG);
+    let index = std::sync::RwLock::new(Index::new());
+
+    Index::scan_shared(&index, &folder.root(), &folder.root());
+
+    assert_eq!(index.into_inner().unwrap().len(), 0);
+}

@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs::{self, Metadata};
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::RwLock;
 
 use seura_edit::{EditFile, edit_file_path};
 
@@ -43,28 +44,51 @@ impl Index {
     /// mean walking the whole library. A folder that's gone takes its
     /// photos with it, and folders above it left with no photos go too.
     pub fn scan_folder(&mut self, root: &Path, folder: &Path) -> ScanReport {
+        let shared = RwLock::new(std::mem::take(self));
+        let report = Index::scan_locked(&shared, root, folder, false);
+        *self = shared
+            .into_inner()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        report
+    }
+
+    /// [`Index::scan_folder`] for an index others are reading meanwhile:
+    /// folders are listed without the lock, which is taken for one folder's
+    /// photos at a time, so browsing goes on during a long first scan. One
+    /// scan runs at a time (the caller sees to that); if `root` stops being
+    /// a library folder meanwhile, the scan stops.
+    pub fn scan_shared(index: &RwLock<Index>, root: &Path, folder: &Path) -> ScanReport {
+        Index::scan_locked(index, root, folder, true)
+    }
+
+    /// The walk, holding the lock for one folder at a time. With
+    /// `check_root`, it stops if `root` stops being a library folder.
+    fn scan_locked(
+        index: &RwLock<Index>,
+        root: &Path,
+        folder: &Path,
+        check_root: bool,
+    ) -> ScanReport {
+        let write = || {
+            let index = index
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            (!check_root || index.roots().iter().any(|other| other == root)).then_some(index)
+        };
         let mut report = ScanReport::default();
         if !folder.starts_with(root) {
             return report;
         }
         if fs::read_dir(folder).is_err() {
-            if folder == root {
-                report.unavailable = true;
-                report.photos = self.photos_under(root).len();
-                return report;
+            if let Some(mut index) = write() {
+                index.gone(root, folder, &mut report);
             }
-            // The folder is gone: so is everything that was in it.
-            for id in self.photos_under(folder) {
-                self.remove_photo(id);
-                report.removed += 1;
-            }
-            self.prune(folder, &HashSet::new());
-            self.prune_above(root, folder);
-            report.photos = self.photos_under(root).len();
             return report;
         }
 
-        let parent = self.ensure_folders_above(root, folder);
+        let Some(parent) = write().map(|mut index| index.ensure_folders_above(root, folder)) else {
+            return report;
+        };
         let mut seen_folders = HashSet::new();
         let mut seen_photos = HashSet::new();
         let mut pending = vec![(folder.to_path_buf(), parent)];
@@ -72,7 +96,10 @@ impl Index {
             let Ok(listing) = list(&folder_path) else {
                 continue;
             };
-            let folder = self.ensure_folder(&folder_path, parent);
+            let Some(mut index) = write() else {
+                return report;
+            };
+            let folder = index.ensure_folder(&folder_path, parent);
             seen_folders.insert(folder);
             for name in &listing.folders {
                 pending.push((folder_path.join(name), Some(folder)));
@@ -83,7 +110,7 @@ impl Index {
                 };
                 let path = folder_path.join(name);
                 let edit_file = listing.files.get(&edit_file_name(name));
-                if let Some(id) = self.reconcile(
+                if let Some(id) = index.reconcile(
                     folder,
                     &path,
                     name,
@@ -97,17 +124,36 @@ impl Index {
             }
         }
 
+        let Some(mut index) = write() else {
+            return report;
+        };
         // Anything under this folder that wasn't seen is gone.
-        for id in self.photos_under(folder) {
+        for id in index.photos_under(folder) {
             if !seen_photos.contains(&id) {
-                self.remove_photo(id);
+                index.remove_photo(id);
                 report.removed += 1;
             }
         }
-        self.prune(folder, &seen_folders);
-        self.prune_above(root, folder);
-        report.photos = self.photos_under(root).len();
+        index.prune(folder, &seen_folders);
+        index.prune_above(root, folder);
+        report.photos = index.photos_under(root).len();
         report
+    }
+
+    /// `folder` can't be read: a library folder is unavailable (LIB-6), and
+    /// a folder in one is gone, with everything that was in it.
+    fn gone(&mut self, root: &Path, folder: &Path, report: &mut ScanReport) {
+        if folder == root {
+            report.unavailable = true;
+        } else {
+            for id in self.photos_under(folder) {
+                self.remove_photo(id);
+                report.removed += 1;
+            }
+            self.prune(folder, &HashSet::new());
+            self.prune_above(root, folder);
+        }
+        report.photos = self.photos_under(root).len();
     }
 
     /// Removes folders under `folder` that are gone (not in `seen`) or left

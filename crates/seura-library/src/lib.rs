@@ -33,7 +33,7 @@ pub use settings::{
 pub use snapshot::SNAPSHOT_FILE;
 pub use sort::natural;
 pub use thumbnails::{
-    ApplyEdits, Job, Made, Outcome, THUMBS_FOLDER, ThumbnailCache, ThumbnailWorkers,
+    ApplyEdits, Job, Made, Outcome, SWEEP_AFTER, THUMBS_FOLDER, ThumbnailCache, ThumbnailWorkers,
 };
 pub use tree::FolderEntry;
 pub use watch::{Watcher, folders_to_scan};

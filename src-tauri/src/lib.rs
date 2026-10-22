@@ -108,6 +108,7 @@ pub fn run() {
                 let library = handle.state::<Library>();
                 library.rescan(&handle);
                 let _ = LibraryChanged.emit(&handle);
+                library.sweep_thumbnails();
                 // A drive that's disconnected shows as unavailable and comes
                 // back when it's reconnected (LIB-6), checked every few seconds.
                 let mut available = library.availability();
