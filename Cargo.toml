@@ -87,3 +87,13 @@ unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# Development builds (`cargo tauri dev`) optimize the libraries and Seura's
+# image code, which are many times slower unoptimized: opening a 12-megapixel
+# photo in the Editor took 13 s instead of 0.23 s. Seura's other code stays
+# unoptimized, so it still rebuilds quickly and debugs well.
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev.package.seura-image]
+opt-level = 3
