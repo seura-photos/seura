@@ -93,6 +93,7 @@ info-dimensions-size = { $width } × { $height } · { $size }
 info-camera = Camera
 info-lens = Lens
 info-focal-length = { $mm } mm
+info-focal-length-actual = { $mm } mm actual
 info-aperture = ƒ/{ $value }
 info-location = Location
 info-coordinates = { $latitude }, { $longitude }

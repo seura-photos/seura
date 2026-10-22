@@ -91,12 +91,26 @@ function Photo({
           size: formatBytes(details.size ?? 0),
         })
       : formatBytes(details.size ?? 0);
+  // The 35 mm equivalent where the photo records one, as phones show it;
+  // the actual focal length then goes in the tooltip, with the lens's name.
+  // Values as recorded, to two decimals: ƒ/1.78, not ƒ/1.8.
+  const equivalent = details.focalLength35mm ?? null;
+  const focal = equivalent ?? details.focalLength ?? null;
   const optics = [
-    details.focalLength ? t("info-focal-length", { mm: decimal(details.focalLength, 1) }) : null,
-    details.fNumber ? t("info-aperture", { value: decimal(details.fNumber, 1) }) : null,
+    focal ? t("info-focal-length", { mm: decimal(focal, 2) }) : null,
+    details.fNumber ? t("info-aperture", { value: decimal(details.fNumber, 2) }) : null,
   ]
     .filter((part) => part !== null)
     .join(" ");
+  const lensTitle =
+    [
+      equivalent && details.focalLength
+        ? t("info-focal-length-actual", { mm: decimal(details.focalLength, 2) })
+        : null,
+      details.lens,
+    ]
+      .filter((part) => part)
+      .join(" · ") || undefined;
   const location =
     details.latitude != null && details.longitude != null
       ? t("info-coordinates", {
@@ -129,7 +143,7 @@ function Photo({
         {(optics || details.lens) && (
           <>
             <dt>{t("info-lens")}</dt>
-            <dd title={details.lens ?? undefined}>{optics || details.lens}</dd>
+            <dd title={lensTitle}>{optics || details.lens}</dd>
           </>
         )}
         {location && (

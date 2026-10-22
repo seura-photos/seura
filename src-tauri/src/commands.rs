@@ -323,6 +323,8 @@ pub struct PhotoDetails {
     pub lens: Option<String>,
     /// In millimeters.
     pub focal_length: Option<f64>,
+    /// The 35 mm equivalent, where the photo records it.
+    pub focal_length_35mm: Option<f64>,
     pub f_number: Option<f64>,
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
@@ -369,6 +371,7 @@ pub async fn photo_details(app: AppHandle, id: u32) -> Result<PhotoDetails, Stri
                 camera: None,
                 lens: None,
                 focal_length: None,
+                focal_length_35mm: None,
                 f_number: None,
                 latitude: None,
                 longitude: None,
@@ -381,6 +384,7 @@ pub async fn photo_details(app: AppHandle, id: u32) -> Result<PhotoDetails, Stri
             details.camera = exif.camera;
             details.lens = exif.lens;
             details.focal_length = exif.focal_length;
+            details.focal_length_35mm = exif.focal_length_35mm;
             details.f_number = exif.f_number;
             details.latitude = exif.latitude;
             details.longitude = exif.longitude;
