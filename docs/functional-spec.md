@@ -1,6 +1,6 @@
 # Seura Photos — Functional Spec (v1)
 
-Status: approved · Last updated: 2026-10-17
+Status: approved · Last updated: 2026-10-22
 
 This spec defines what Seura Photos v1 does, as behaviors with testable acceptance criteria. It builds on the [product brief](product-brief.md). Screen layout comes in the design phase, and the edit file format has its own specification in [seura-photos/edit-format](https://github.com/seura-photos/edit-format). Each requirement has an ID (LIB-1, EDT-3) so tests, commits, and code can reference it.
 
@@ -31,7 +31,7 @@ Selecting a folder or tag shows its photos in a thumbnail grid; opening one show
 - **BRW-3 Thumbnail size.** Adjustable with a slider from 96 to 256 logical pixels per cell, 160 by default; the setting is remembered. Cached thumbnails are 512 pixels, sharp at the largest size on 2× screens (DSP-4).
 - **BRW-4 Selection.** Click, Ctrl/Cmd-click, Shift-click, and Select All, following platform conventions. The number selected is always visible.
 - **BRW-5 Viewer.** Double-click or Enter opens a photo full size. Arrow keys move to the next or previous photo in grid order. Zoom to fit, zoom to 100%, zoom in and out, and pan when zoomed. Esc returns to the grid at the same scroll position. A cloud-only photo downloads as LIB-9 describes. The Viewer shows the photo with its edits applied, like the thumbnails; comparing with the original is in the Editor (EDT-1).
-- **BRW-6 Photo info.** A panel, always visible in the Library and Viewer, shows file name, date taken, dimensions, file size, camera and lens, location as coordinates, tags, and rating.
+- **BRW-6 Photo info.** A panel, always visible in the Library and Viewer, shows file name, date taken, dimensions, file size, camera and lens, exposure settings (shutter speed and ISO, plus exposure compensation when there was some), location as coordinates, tags, and rating. A photo with no date taken, such as a scan or a screenshot, shows its date modified instead, labeled as such.
 - **BRW-7 Correct display.** Orientation stored in the photo's metadata is honored, and embedded color profiles are applied, so iPhone photos show their true colors.
 - **BRW-8 Open elsewhere.** Show in Explorer or Finder, and open in the system's default app.
 - **BRW-9 Delete.** On explicit request and after confirmation, moves the selected photos and their edit files to the system Recycle Bin or Trash. Never permanent deletion. Not available in read-only folders.
@@ -207,6 +207,7 @@ The app should feel at home on each platform and be usable without a mouse or wi
 | Reference hardware | A mid-range laptop from about 2020 with integrated graphics, on each platform. Until the M7 beta, measured on faster machines, aiming for about half the target time (Nevada, 2026-10-20). |
 | Translations | English only in v1, built to be translated: one shared catalog format with plurals (ACC-5), regional formats from the operating system (ACC-6), room for longer text (ACC-7), and Unicode-aware tag matching (TAG-2). Translations, a language setting, and right-to-left languages come after v1 (product brief, "Not in v1"). Raised by Nevada, 2026-10-20. |
 | Downloading cloud-only photos | An indicator and the photo's size, no progress bar and no cancel button: measured on OneDrive on both platforms, neither system reports download progress to the reading app, and abandoning a download finishes it on Windows but stops it on the Mac. Moving on is how a download is abandoned; Seura only stops waiting (LIB-9). Found by Claude Code and Nevada, 2026-10-22; Nevada's proposal. |
+| What photo info shows | BRW-6's fields plus exposure settings, and date modified only when there's no date taken. Compared against Explorer's details pane and Finder's Get Info (about twenty items between them); the rest stays out to keep the panel short, with the reasons in the [journal](journal/2026-10-23-info-panel-fields.md). Nevada's review, Claude's recommendation, 2026-10-22. |
 | Where Seura keeps its own files | A visible `Seura Photos` folder in the home folder, not Documents, because Documents is often cloud-synced and neither the cache nor the settings should sync (decision 0015). Raised by Nevada, 2026-10-20. |
 | Sort order and thumbnail size | One app-wide sort order (BRW-2); thumbnails 96 to 256 px, default 160 (BRW-3). |
 | HEIC and JPEG pairs | Both shown, as separate files (LIB-8); may be revisited after 1.0. |

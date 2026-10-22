@@ -1,6 +1,6 @@
 # Mockups
 
-Images of the screens on the design canvas, for checking each slice against. Rendered from the canvas on 2026-10-20, with the Library images refreshed on 2026-10-23 (Add folder in the FOLDERS heading); the canvas is the source, and these are refreshed when it changes. The photos are placeholders.
+Images of the screens on the design canvas, for checking each slice against. Rendered from the canvas on 2026-10-20, with the Library and Viewer images refreshed on 2026-10-22 (Add folder in the FOLDERS heading; the Exposure row in photo info); the canvas is the source, and these are refreshed when it changes. The photos are placeholders.
 
 **Styled** (visual design, `docs/visual-design.md`), each in light and dark:
 
