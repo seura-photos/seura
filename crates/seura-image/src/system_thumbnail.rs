@@ -119,6 +119,7 @@ mod platform {
 
     use block2::RcBlock;
     use objc2::AllocAnyThread;
+    use objc2::rc::Retained;
     use objc2_core_foundation::{CGFloat, CGPoint, CGRect, CGSize};
     use objc2_core_graphics::{
         CGBitmapContextCreate, CGColorSpace, CGContext, CGImage, CGImageAlphaInfo,
@@ -161,7 +162,12 @@ mod platform {
                     .filter(|representation| unsafe {
                         representation.r#type() == QLThumbnailRepresentationType::Thumbnail
                     })
-                    .and_then(|representation| pixels(&unsafe { representation.CGImage() }));
+                    .and_then(|representation| {
+                        let image = unsafe { representation.CGImage() };
+                        // The binding wraps a Core Graphics image as an
+                        // Objective-C one; it's borrowed while `image` holds it.
+                        pixels(unsafe { &*Retained::as_ptr(&image) })
+                    });
                 let _ = sender.send(pixels);
             },
         );
@@ -206,7 +212,8 @@ mod platform {
                     height: height as CGFloat,
                 },
             };
-            CGContext::draw_image(Some(&context?), bounds, Some(image));
+            let context = context?;
+            CGContext::draw_image(Some(&context), bounds, Some(image));
             // The context writes into `pixels`; it's dropped here, before they're used.
         }
         // Photo thumbnails are opaque.
