@@ -21,10 +21,15 @@ sha2 = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+jpeg-encoder = { workspace = true }
 png = { workspace = true }
 
 [[bench]]
 name = "index"
+harness = false
+
+[[bench]]
+name = "thumbnails"
 harness = false
 
 [lints]

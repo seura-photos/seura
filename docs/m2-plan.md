@@ -74,7 +74,9 @@ New in M2:
 
 Carried from M1:
 
-- Thumbnail speed: smaller decodes (JPEG's scaled decoding, embedded previews where they're good enough), measured in release builds against PRF-3.
+- Thumbnail speed: smaller decodes (JPEG's scaled decoding, embedded previews where they're good enough), measured in release builds against PRF-3. Measured first with a benchmark (`cargo bench -p seura-library --bench thumbnails`, run in CI): resizing without first copying the full-size image took 12-megapixel JPEGs from 46 to 67 a second on Nevada's PC, past the aim, so scaled decoding waits until a machine needs it.
+- A long scan no longer holds the index: folders are listed without it and it's locked for one folder's photos at a time, so browsing goes on during a large first scan (carried from slice 3b).
+- After the launch scan, in the background, thumbnails no indexed photo uses that haven't been touched for about a week are deleted, so renamed or deleted folders don't leave theirs in the cache for good (added by Nevada, 2026-10-21).
 - macOS: thumbnails for cloud-only photos from Quick Look, which keeps the sync service's preview, instead of the placeholder M1 shows. Checked with `cloud_check`, as on Windows.
 - **Done when:** a first scan of Nevada's library meets the PRF-3 aim (slice 10) on both machines, and his cloud camera roll shows thumbnails on the Mac without downloading anything.
 

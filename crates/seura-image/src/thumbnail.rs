@@ -1,7 +1,7 @@
 //! Thumbnails: large enough for the biggest grid size on a 2× screen
 //! (DSP-4), WebP for size (technical design, section 4).
 
-use fast_image_resize::images::Image;
+use fast_image_resize::images::{Image, ImageRef};
 use fast_image_resize::{PixelType, ResizeAlg, ResizeOptions, Resizer};
 
 use crate::raster::Rgba8;
@@ -22,13 +22,9 @@ pub fn fit(image: &Rgba8, size: u32) -> Rgba8 {
     let scale = f64::from(size) / f64::from(long);
     let width = ((f64::from(image.width) * scale).round() as u32).max(1);
     let height = ((f64::from(image.height) * scale).round() as u32).max(1);
-    let source = Image::from_vec_u8(
-        image.width,
-        image.height,
-        image.pixels.clone(),
-        PixelType::U8x4,
-    )
-    .expect("the buffer matches the image size");
+    // Borrowed, not copied: a 12-megapixel photo is about 48 MB.
+    let source = ImageRef::new(image.width, image.height, &image.pixels, PixelType::U8x4)
+        .expect("the buffer matches the image size");
     let mut target = Image::new(width, height, PixelType::U8x4);
     let options = ResizeOptions::new().resize_alg(ResizeAlg::Convolution(
         fast_image_resize::FilterType::Lanczos3,

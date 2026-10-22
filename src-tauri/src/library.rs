@@ -1,14 +1,15 @@
 //! The library as the app holds it: the index, the thumbnail cache, and the
 //! workers that fill it (technical design, sections 3 and 4).
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use seura_library::{
-    ApplyEdits, Filter, FolderId, Index, Outcome, PhotoId, Scope, SettingsFile, ThumbnailCache,
-    ThumbnailWorkers, Watcher,
+    ApplyEdits, Filter, FolderId, Index, Outcome, PhotoId, SWEEP_AFTER, Scope, SettingsFile,
+    ThumbnailCache, ThumbnailWorkers, Watcher,
 };
 use specta::Type;
 use tauri::{AppHandle, Manager, Runtime};
@@ -16,6 +17,10 @@ use tauri_specta::Event;
 
 pub struct Library {
     pub index: RwLock<Index>,
+    /// Held while scanning: one scan at a time, so a scan never removes a
+    /// photo another just found. The index itself is locked one folder at
+    /// a time, so browsing goes on meanwhile.
+    scanning: Mutex<()>,
     /// How far the current scan and thumbnail pass has got (LIB-3).
     progress: Mutex<Progress>,
     /// Watches the library folders while the app runs (LIB-4).
@@ -105,6 +110,7 @@ impl Library {
             .unwrap_or_else(|| Index::with_roots(folders.to_vec()));
         Library {
             index: RwLock::new(index),
+            scanning: Mutex::new(()),
             progress: Mutex::new(Progress::default()),
             watcher: Mutex::new(None),
             store: RwLock::new(Store::open(app, cache)),
@@ -140,11 +146,11 @@ impl Library {
     /// saves it, queues new thumbnails, and tells the UI (LIB-4).
     fn changed<R: Runtime>(&self, app: &AppHandle<R>, folders: &[PathBuf]) {
         {
-            let mut index = self.index.write().expect("index lock");
-            let roots = index.roots().to_vec();
+            let _scanning = self.scanning.lock().expect("scan lock");
+            let roots = self.index.read().expect("index lock").roots().to_vec();
             for folder in folders {
                 if let Some(root) = roots.iter().find(|root| folder.starts_with(root)) {
-                    index.scan_folder(root, folder);
+                    Index::scan_shared(&self.index, root, folder);
                 }
             }
         }
@@ -231,6 +237,23 @@ impl Library {
         }
     }
 
+    /// Deletes thumbnails no photo in the library uses any more, such as
+    /// those of photos deleted or folders renamed while the app was closed,
+    /// once they've been unused for a week. Photos on a disconnected drive
+    /// are still in the library, so theirs are kept (LIB-6).
+    pub fn sweep_thumbnails(&self) {
+        let keep: HashSet<String> = {
+            let index = self.index.read().expect("index lock");
+            index
+                .photo_ids()
+                .filter_map(|id| index.thumbnail_job(id))
+                .map(|job| job.key)
+                .collect()
+        };
+        let thumbnails = self.store.read().expect("store lock").thumbnails.clone();
+        thumbnails.sweep(&keep, SWEEP_AFTER);
+    }
+
     /// Which library folders' drives are connected now (LIB-6).
     pub fn availability(&self) -> Vec<bool> {
         let roots = self.index.read().expect("index lock").roots().to_vec();
@@ -246,6 +269,7 @@ impl Library {
     /// thumbnails. Runs on a background thread; the grid shows the snapshot
     /// meanwhile, and the status bar says how far it's got (LIB-3).
     pub fn rescan<R: Runtime>(&self, app: &AppHandle<R>) {
+        let scanning = self.scanning.lock().expect("scan lock");
         let roots = self.index.read().expect("index lock").roots().to_vec();
         for root in roots {
             let name = root.file_name().map_or_else(
@@ -254,10 +278,9 @@ impl Library {
             );
             self.progress.lock().expect("progress lock").scanning = Some(name);
             self.send_progress(app, true);
-            // The walk holds the index for one library folder at a time; a
-            // very large first scan should move off the lock (M2 slice 6).
-            self.index.write().expect("index lock").scan(&root);
+            Index::scan_shared(&self.index, &root, &root);
         }
+        drop(scanning);
         self.progress.lock().expect("progress lock").scanning = None;
         self.save();
         self.queue_all(app);
