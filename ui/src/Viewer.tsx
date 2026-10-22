@@ -67,6 +67,8 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
   const detailCanvas = useRef<HTMLCanvasElement>(null);
   const backend = useRef<Promise<Backend | null> | null>(null);
   const detailBackend = useRef<Promise<Backend | null> | null>(null);
+  /** Settles once the last renderers made on these canvases are destroyed. */
+  const released = useRef<Promise<void>>(Promise.resolve());
   // The stage's size in CSS pixels: `area` follows the window at once, to
   // refit; `settled` waits for a resize to rest, to decode again.
   const [area, setArea] = useState({ width: 0, height: 0 });
@@ -108,16 +110,22 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     const element = canvas.current;
     const detailElement = detailCanvas.current;
     if (!element || !detailElement) return;
-    const created = createPreview(element, forceWebgl2);
-    const createdDetail = createPreview(detailElement, forceWebgl2);
+    // A canvas has one WebGPU context, shared by every renderer made on it:
+    // a new renderer waits until the last one has let it go, or that one's
+    // teardown would unconfigure the new one's canvas (seen on macOS, where
+    // development builds mount the Viewer twice).
+    const created = released.current.then(() => createPreview(element, forceWebgl2));
+    const createdDetail = released.current.then(() => createPreview(detailElement, forceWebgl2));
     backend.current = created;
     detailBackend.current = createdDetail;
     void created.then((made) => {
       if (!made) setNoPreview(true);
     });
     return () => {
-      void created.then((made) => made?.destroy());
-      void createdDetail.then((made) => made?.destroy());
+      released.current = Promise.all([
+        created.then((made) => made?.destroy()),
+        createdDetail.then((made) => made?.destroy()),
+      ]).then(() => {});
       backend.current = null;
       detailBackend.current = null;
       void commands.closeViewer();
