@@ -6,7 +6,7 @@
 //! (Windows), where the path is:
 //!
 //! - `thumb-<id>`: a thumbnail. One that isn't made yet is a 404; the UI asks
-//!   again when the `ThumbnailReady` event arrives.
+//!   again when the `ThumbnailsReady` event names it.
 //! - `preview`: the photo open in the Editor, in the working space (see
 //!   `editor::encode_linear`).
 //! - `check-image`: the render check's reference image, in the same form.

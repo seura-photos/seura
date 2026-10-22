@@ -5,6 +5,7 @@ import {
   type FolderInfo,
   type PhotoInfo,
   type ScanProgress,
+  type ThumbnailReady,
   type WelcomeInfo,
 } from "./bindings";
 import { setRegion } from "./format";
@@ -66,7 +67,8 @@ type State = {
   /** Removes a library folder (LIB-5), by its position among them. */
   removeFolder: (root: number) => Promise<void>;
   addFolder: () => Promise<void>;
-  thumbnailReady: (id: number, state: Omit<ThumbState, "version">) => void;
+  /** Thumbnails finished since the last batch: one update for them all. */
+  thumbnailsReady: (ready: ThumbnailReady[]) => void;
   /** Opens the Viewer on a photo, or moves it to another. */
   view: (id: number) => void;
   /** Closes the Viewer: back to the grid with the last photo selected. */
@@ -234,10 +236,12 @@ export const useStore = create<State>()((set, get) => ({
     await get().loadFolders();
   },
 
-  thumbnailReady(id, state) {
+  thumbnailsReady(ready) {
     set(({ thumbs }) => {
       const next = new Map(thumbs);
-      next.set(id, { ...state, version: (thumbs.get(id)?.version ?? 0) + 1 });
+      for (const { id, cloudOnly, needsCodec, failed } of ready) {
+        next.set(id, { cloudOnly, needsCodec, failed, version: (next.get(id)?.version ?? 0) + 1 });
+      }
       return { thumbs: next };
     });
   },

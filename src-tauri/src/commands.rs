@@ -191,7 +191,11 @@ pub async fn add_folder(app: AppHandle) -> Result<AddFolderResult, String> {
 }
 
 /// The folders that have photos directly in them, by path.
-#[tauri::command]
+///
+/// This and the other quick commands that read the index run off the main
+/// thread (`async`): the main thread also delivers events to the UI, and a
+/// command waiting there waits behind them.
+#[tauri::command(async)]
 #[specta::specta]
 pub fn folders(library: State<'_, Library>) -> Vec<FolderInfo> {
     let index = library.index.read().expect("index lock");
@@ -258,7 +262,7 @@ pub async fn remove_folder(app: AppHandle, root: u32) -> Result<(), String> {
 
 /// A folder's own photos (BRW-1), in the app's order (BRW-2). Their
 /// thumbnails are queued behind the visible ones.
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn photos(
     library: State<'_, Library>,
@@ -425,7 +429,7 @@ pub struct SelectionSummary {
     pub tags: Vec<String>,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn selection_summary(library: State<'_, Library>, ids: Vec<u32>) -> SelectionSummary {
     let index = library.index.read().expect("index lock");
@@ -506,7 +510,7 @@ pub async fn open_in_default_app(app: AppHandle, ids: Vec<u32>) -> Result<(), St
 }
 
 /// The photos now on screen, in order: their thumbnails are made first (LIB-3).
-#[tauri::command]
+#[tauri::command(async)]
 #[specta::specta]
 pub fn show_thumbnails(library: State<'_, Library>, ids: Vec<u32>) {
     let jobs = {

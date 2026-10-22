@@ -23,13 +23,8 @@ export function App() {
     void useStore.getState().start();
     const subscriptions = [
       events.libraryChanged.listen(() => void useStore.getState().loadFolders()),
-      events.thumbnailReady.listen(({ payload }) => {
-        useStore.getState().thumbnailReady(payload.id, {
-          cloudOnly: payload.cloudOnly,
-          needsCodec: payload.needsCodec,
-          failed: payload.failed,
-        });
-      }),
+      // Finished thumbnails arrive in batches, about ten a second.
+      events.thumbnailsReady.listen(({ payload }) => useStore.getState().thumbnailsReady(payload)),
       events.scanProgress.listen(({ payload }) => useStore.setState({ progress: payload })),
       // Menu commands take the same path as the buttons (ACC-4).
       events.menuCommand.listen(({ payload }) => {
