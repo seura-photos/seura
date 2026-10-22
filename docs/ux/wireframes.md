@@ -9,7 +9,7 @@ All screens were drawn at 1280×800 logical pixels, close to the 1280×720 minim
 ## Shared structure
 
 - **Toolbar** (52 px) across the top of every view; **status bar** (28 px) at the bottom of the Library and Viewer.
-- **Sidebar** (232 px; 260 px at 1920 wide): FOLDERS tree, then TAGS tree, each row with a count.
+- **Sidebar** (232 px; 260 px at 1920 wide): FOLDERS tree, then TAGS tree, each row with a count. The FOLDERS heading has an Add folder button (+, 32 px, accent color) at its right and stays in view while the tree scrolls; the last action's one-line notice (for example "Added. Scanning for photos…") shows under it. A link at the end of the tree scrolled out of sight with many folders, and a button pinned to the bottom of the sidebar would end up below TAGS in M3. TAGS can follow the same pattern if tags get an add action (Nevada, 2026-10-23).
 - **Info panel** (280 px; 320 px at 1920 wide), always shown in Library and Viewer: preview, file name, date, size, camera, lens, location, edit state with Revert, rating stars, tag chips with Add tag.
 - Dark surround (#2b2d30 in the wireframes) behind photos in the Viewer, Editor, and Review, so photos aren't judged against a bright frame.
 - Control sizes are fixed across window sizes; only photo areas and panel widths grow.
