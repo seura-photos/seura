@@ -72,6 +72,10 @@ type State = {
   /** Closes the Viewer: back to the grid with the last photo selected. */
   closeViewer: () => void;
   openEditor: (photo: PhotoInfo | null) => void;
+  /** Shows photos in Explorer or Finder (BRW-8). */
+  showInFolder: (ids: number[]) => Promise<void>;
+  /** Opens photos in the system's default app (BRW-8). */
+  openInDefaultApp: (ids: number[]) => Promise<void>;
 };
 
 let sizeSave = 0;
@@ -259,5 +263,17 @@ export const useStore = create<State>()((set, get) => ({
 
   openEditor(photo) {
     set({ editing: photo });
+  },
+
+  async showInFolder(ids) {
+    const result = await commands.showInFolder(ids);
+    if (result.status === "error")
+      set({ notice: t("photo-show-failed", { reason: result.error }) });
+  },
+
+  async openInDefaultApp(ids) {
+    const result = await commands.openInDefaultApp(ids);
+    if (result.status === "error")
+      set({ notice: t("photo-open-failed", { reason: result.error }) });
   },
 }));

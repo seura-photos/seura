@@ -5,6 +5,7 @@ import { commands } from "./bindings";
 import { formatBytes, formatNumber } from "./format";
 import { t } from "./messages";
 import { InfoPanel } from "./InfoPanel";
+import { PhotoMenu } from "./PhotoMenu";
 import { type Backend, createPreview, fetchLinear } from "./preview";
 import { useStore } from "./store";
 import {
@@ -83,6 +84,8 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
   const [zoomed, setZoomed] = useState<{ id: number; view: View } | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const drag = useRef<{ pointer: number; x: number; y: number } | null>(null);
+  // The photo menu (BRW-8), where it was opened.
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
 
   const index = photos.findIndex((photo) => photo.id === viewing);
   const photo = index >= 0 ? photos[index] : undefined;
@@ -292,7 +295,10 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     if (event.key === "ArrowLeft") move(previous?.id);
     else if (event.key === "ArrowRight") move(next?.id);
     else if (event.key === "Escape") closeViewer();
-    else if (event.key === "+" || event.key === "=") zoomStep(1);
+    else if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+      const box = stage.current?.getBoundingClientRect();
+      setMenu({ x: box ? box.left + box.width / 2 : 0, y: box ? box.top + box.height / 2 : 0 });
+    } else if (event.key === "+" || event.key === "=") zoomStep(1);
     else if (event.key === "-") zoomStep(-1);
     else if (editorAvailable && photo && event.key.toLowerCase() === "e") openEditor(photo);
     else return;
@@ -449,6 +455,10 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          setMenu({ x: event.clientX, y: event.clientY });
+        }}
       >
         <canvas
           ref={canvas}
@@ -516,6 +526,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
       </div>
 
       <InfoPanel ids={[photo.id]} version={photos} folder />
+      {menu && <PhotoMenu ids={[photo.id]} x={menu.x} y={menu.y} onClose={() => setMenu(null)} />}
 
       <footer className="status-bar viewer-status">
         <span>

@@ -68,6 +68,10 @@ jpeg-encoder = "0.7.1"
 # Native folder dialog, from Rust (ACC-4). Not tauri-plugin-dialog: it
 # depends on the file-system plugin, which decision 0009 keeps out.
 rfd = "0.17.2"
+# Show in Explorer or Finder, and open in the default app (BRW-8): its Rust
+# functions only. The plugin isn't registered, so the UI gets no new access
+# (decision 0009).
+tauri-plugin-opener = { version = "=2.7.0", default-features = false }
 # Windows only: WIC, for HEIC with Microsoft's extensions (decision 0014),
 # and the system thumbnails of cloud-only photos.
 windows = "0.62.2"

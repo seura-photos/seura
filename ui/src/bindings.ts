@@ -34,6 +34,17 @@ export const commands = {
 	/**  The photos now on screen, in order: their thumbnails are made first (LIB-3). */
 	showThumbnails: (ids: number[]) => __TAURI_INVOKE<void>("show_thumbnails", { ids }),
 	/**
+	 *  Shows photos in Explorer or Finder, selected there (BRW-8). Only their
+	 *  attributes are read, so a cloud-only photo isn't downloaded (LIB-9).
+	 */
+	showInFolder: (ids: number[]) => typedError<null, string>(__TAURI_INVOKE("show_in_folder", { ids })),
+	/**
+	 *  Opens photos in the system's default app for them (BRW-8), at most
+	 *  [`OPEN_AT_ONCE`]. That app reads them, so it downloads a cloud-only one:
+	 *  the user asked for it (LIB-9).
+	 */
+	openInDefaultApp: (ids: number[]) => typedError<null, string>(__TAURI_INVOKE("open_in_default_app", { ids })),
+	/**
 	 *  A photo's details for the Info panel (BRW-6): what the index knows, and
 	 *  the camera, lens, and location from its EXIF, read now (decision 0012).
 	 */
