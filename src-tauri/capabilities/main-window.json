@@ -17,6 +17,7 @@
     "allow-open-photo",
     "allow-close-photo",
     "allow-view-photo",
+    "allow-view-region",
     "allow-close-viewer",
     "allow-set-exposure",
     "allow-export-photo",

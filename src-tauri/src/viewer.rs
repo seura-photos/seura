@@ -4,7 +4,9 @@
 //! Each photo is decoded to fit the Viewer's area at the screen's density
 //! (DSP-1), in the working space, and served by the `seura://` protocol as
 //! `view-<id>` (technical design, section 6). At most the shown photo and
-//! its two neighbors are kept. Cloud-only photos are never read here: that
+//! its two neighbors are kept. Zoomed in, the part on screen is cut from the
+//! photo decoded at full size, which is kept while that photo is shown, and
+//! served as `view-region`. Cloud-only photos are never read here: that
 //! would download them (LIB-9).
 
 use std::collections::HashMap;
@@ -12,11 +14,12 @@ use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
 
 use seura_edit::{EditFile, edit_file_path};
+use seura_image::{Region, Upright};
 use seura_render::Settings;
 
 use crate::editor::encode_linear;
 
-/// A photo's long edge is kept within this, whatever the window.
+/// A decoded image's long edge is kept within this, whatever the window.
 const MAX_LONG_EDGE: u32 = 8192;
 
 /// A photo to show or decode ahead, as the index knows it.
@@ -24,8 +27,6 @@ const MAX_LONG_EDGE: u32 = 8192;
 pub struct Wanted {
     pub id: u32,
     pub path: PathBuf,
-    /// Upright pixel dimensions, if the index knows them.
-    pub dimensions: Option<(u32, u32)>,
 }
 
 /// The shown photo, decoded.
@@ -34,6 +35,9 @@ pub struct Shown {
     /// The decoded size, fetched from `seura://…/view-<id>`.
     pub width: u32,
     pub height: u32,
+    /// The photo's own upright size, for zooming.
+    pub full_width: u32,
+    pub full_height: u32,
     /// Its edits, from its edit file; none if that can't be read.
     pub exposure_ev: f64,
 }
@@ -41,6 +45,10 @@ pub struct Shown {
 #[derive(Default)]
 pub struct Viewer {
     inner: Arc<Inner>,
+    /// The shown photo at full size, while it's zoomed into.
+    full: Mutex<Option<(u32, Arc<Upright>)>>,
+    /// The last part cut from it, for the protocol.
+    region: Mutex<Option<Arc<Vec<u8>>>>,
 }
 
 #[derive(Default)]
@@ -60,9 +68,16 @@ struct Cache {
 #[derive(Clone)]
 enum Slot {
     Decoding,
-    /// Width, height, and the bytes the protocol serves.
-    Ready(u32, u32, Arc<Vec<u8>>),
+    Ready(Decoded),
     Failed(String),
+}
+
+#[derive(Clone)]
+struct Decoded {
+    size: (u32, u32),
+    full: (u32, u32),
+    /// What the protocol serves.
+    bytes: Arc<Vec<u8>>,
 }
 
 impl Viewer {
@@ -75,6 +90,12 @@ impl Viewer {
         neighbors: &[Wanted],
         area: (u32, u32),
     ) -> Result<Shown, String> {
+        let mut full = self.full.lock().expect("viewer lock");
+        if full.as_ref().is_some_and(|(id, _)| *id != photo.id) {
+            *full = None;
+        }
+        drop(full);
+
         let mut cache = self.inner.cache.lock().expect("viewer lock");
         if cache.area != area {
             cache.area = area;
@@ -93,9 +114,9 @@ impl Viewer {
             }
         }
 
-        let (width, height) = loop {
+        let decoded = loop {
             match cache.slots.get(&photo.id).cloned() {
-                Some(Slot::Ready(width, height, _)) => break (width, height),
+                Some(Slot::Ready(decoded)) => break decoded,
                 Some(Slot::Failed(error)) => return Err(error),
                 Some(Slot::Decoding) => {
                     cache = self.inner.decoded.wait(cache).expect("viewer lock");
@@ -110,8 +131,10 @@ impl Viewer {
         };
         drop(cache);
         Ok(Shown {
-            width,
-            height,
+            width: decoded.size.0,
+            height: decoded.size.1,
+            full_width: decoded.full.0,
+            full_height: decoded.full.1,
             exposure_ev: f64::from(edits(photo).exposure_ev),
         })
     }
@@ -120,14 +143,57 @@ impl Viewer {
     pub fn pixels(&self, id: u32) -> Option<Arc<Vec<u8>>> {
         let cache = self.inner.cache.lock().expect("viewer lock");
         match cache.slots.get(&id) {
-            Some(Slot::Ready(_, _, bytes)) => Some(Arc::clone(bytes)),
+            Some(Slot::Ready(decoded)) => Some(Arc::clone(&decoded.bytes)),
             _ => None,
         }
+    }
+
+    /// Cuts `region` (in the photo's own pixels) from `photo` at full size,
+    /// scaled to `width` × `height`, never larger than the region itself
+    /// (the Viewer enlarges it), and keeps it for `view-region`. Returns its
+    /// size. The first part of a photo decodes it at full size.
+    pub fn region(
+        &self,
+        photo: &Wanted,
+        region: Region,
+        width: u32,
+        height: u32,
+    ) -> Result<(u32, u32), String> {
+        let kept = self
+            .full
+            .lock()
+            .expect("viewer lock")
+            .as_ref()
+            .filter(|(id, _)| *id == photo.id)
+            .map(|(_, full)| Arc::clone(full));
+        let full = match kept {
+            Some(full) => full,
+            None => {
+                let full = Arc::new(
+                    seura_image::decode_upright(&photo.path).map_err(|error| error.to_string())?,
+                );
+                *self.full.lock().expect("viewer lock") = Some((photo.id, Arc::clone(&full)));
+                full
+            }
+        };
+        let width = width.clamp(1, region.width.max(1)).min(MAX_LONG_EDGE);
+        let height = height.clamp(1, region.height.max(1)).min(MAX_LONG_EDGE);
+        let image = full.region_linear(region, width, height);
+        let size = (image.width, image.height);
+        *self.region.lock().expect("viewer lock") = Some(Arc::new(encode_linear(&image)));
+        Ok(size)
+    }
+
+    /// The bytes for `view-region`: the last part cut.
+    pub fn region_pixels(&self) -> Option<Arc<Vec<u8>>> {
+        self.region.lock().expect("viewer lock").clone()
     }
 
     /// The Viewer closed: its photos are let go.
     pub fn close(&self) {
         self.inner.cache.lock().expect("viewer lock").slots.clear();
+        *self.full.lock().expect("viewer lock") = None;
+        *self.region.lock().expect("viewer lock") = None;
     }
 }
 
@@ -135,9 +201,23 @@ impl Inner {
     /// Decodes a photo and keeps it, if it's still wanted for this area
     /// when it's done. Only reads the photo (CLAUDE.md rule 1).
     fn decode(&self, photo: &Wanted, area: (u32, u32)) {
-        let long_edge = long_edge(photo.dimensions, area);
-        let slot = match seura_image::decode_linear(&photo.path, Some(long_edge)) {
-            Ok(image) => Slot::Ready(image.width, image.height, Arc::new(encode_linear(&image))),
+        let slot = match seura_image::decode_upright(&photo.path) {
+            Ok(upright) => {
+                let full = (upright.width(), upright.height());
+                let size = fitted(full, area);
+                let whole = Region {
+                    x: 0,
+                    y: 0,
+                    width: full.0,
+                    height: full.1,
+                };
+                let image = upright.region_linear(whole, size.0, size.1);
+                Slot::Ready(Decoded {
+                    size,
+                    full,
+                    bytes: Arc::new(encode_linear(&image)),
+                })
+            }
             Err(error) => Slot::Failed(error.to_string()),
         };
         let mut cache = self.cache.lock().expect("viewer lock");
@@ -152,20 +232,16 @@ impl Inner {
     }
 }
 
-/// The long edge at which a photo fills `area` without being enlarged. A
-/// photo whose size isn't known yet is decoded to the area's long edge.
-fn long_edge(dimensions: Option<(u32, u32)>, area: (u32, u32)) -> u32 {
-    let (area_width, area_height) = (area.0.max(1), area.1.max(1));
-    let edge = match dimensions {
-        Some((width, height)) if width > 0 && height > 0 => {
-            let scale = (f64::from(area_width) / f64::from(width))
-                .min(f64::from(area_height) / f64::from(height))
-                .min(1.0);
-            (f64::from(width.max(height)) * scale).round() as u32
-        }
-        _ => area_width.max(area_height),
-    };
-    edge.clamp(1, MAX_LONG_EDGE)
+/// The size at which a photo of `full` size fills `area` without being
+/// enlarged, keeping its shape.
+fn fitted(full: (u32, u32), area: (u32, u32)) -> (u32, u32) {
+    let (width, height) = (f64::from(full.0.max(1)), f64::from(full.1.max(1)));
+    let scale = (f64::from(area.0.max(1)) / width)
+        .min(f64::from(area.1.max(1)) / height)
+        .min(f64::from(MAX_LONG_EDGE) / width.max(height))
+        .min(1.0);
+    let size = |side: f64| ((side * scale).round() as u32).max(1);
+    (size(width), size(height))
 }
 
 /// A photo's edits, from its edit file. One that can't be read shows the
@@ -197,24 +273,22 @@ mod tests {
         fs::write(path, bytes).unwrap();
     }
 
-    fn wanted(folder: &Path, id: u32, dimensions: Option<(u32, u32)>) -> Wanted {
+    fn wanted(folder: &Path, id: u32) -> Wanted {
         Wanted {
             id,
             path: folder.join(format!("{id}.jpg")),
-            dimensions,
         }
     }
 
     #[test]
     fn a_photo_is_decoded_to_fit_the_area_without_enlarging() {
-        assert_eq!(long_edge(Some((4000, 3000)), (2000, 2000)), 2000);
+        assert_eq!(fitted((4000, 3000), (2000, 2000)), (2000, 1500));
         // A portrait photo in a wide area fits its height.
-        assert_eq!(long_edge(Some((3000, 4000)), (2000, 1000)), 1000);
-        assert_eq!(long_edge(Some((800, 600)), (2000, 2000)), 800);
-        assert_eq!(long_edge(None, (1600, 900)), 1600);
+        assert_eq!(fitted((3000, 4000), (2000, 1000)), (750, 1000));
+        assert_eq!(fitted((800, 600), (2000, 2000)), (800, 600));
         assert_eq!(
-            long_edge(Some((40_000, 30_000)), (20_000, 20_000)),
-            MAX_LONG_EDGE
+            fitted((40_000, 30_000), (20_000, 20_000)),
+            (MAX_LONG_EDGE, 6144)
         );
     }
 
@@ -224,14 +298,14 @@ mod tests {
         for id in 1..=4 {
             jpeg(&folder.path().join(format!("{id}.jpg")), 400, 300);
         }
-        let [one, two, three, four] =
-            [1, 2, 3, 4].map(|id| wanted(folder.path(), id, Some((400, 300))));
+        let [one, two, three, four] = [1, 2, 3, 4].map(|id| wanted(folder.path(), id));
         let viewer = Viewer::default();
 
         let shown = viewer
             .show(&two, &[one.clone(), three.clone()], (200, 200))
             .unwrap();
         assert_eq!((shown.width, shown.height), (200, 150));
+        assert_eq!((shown.full_width, shown.full_height), (400, 300));
         assert!(viewer.pixels(2).is_some());
 
         // Moving on finds 3 decoded, or waits for it; 1 is let go.
@@ -253,7 +327,7 @@ mod tests {
     fn a_new_area_means_a_new_decode() {
         let folder = tempfile::tempdir().unwrap();
         jpeg(&folder.path().join("1.jpg"), 400, 300);
-        let one = wanted(folder.path(), 1, None);
+        let one = wanted(folder.path(), 1);
         let viewer = Viewer::default();
         assert_eq!(viewer.show(&one, &[], (100, 100)).unwrap().width, 100);
         assert_eq!(viewer.show(&one, &[], (300, 300)).unwrap().width, 300);
@@ -266,8 +340,37 @@ mod tests {
         let viewer = Viewer::default();
         assert!(
             viewer
-                .show(&wanted(folder.path(), 1, None), &[], (100, 100))
+                .show(&wanted(folder.path(), 1), &[], (100, 100))
                 .is_err()
         );
+    }
+
+    #[test]
+    fn zoomed_in_a_part_is_cut_at_full_size_never_enlarged() {
+        let folder = tempfile::tempdir().unwrap();
+        jpeg(&folder.path().join("1.jpg"), 400, 300);
+        let one = wanted(folder.path(), 1);
+        let viewer = Viewer::default();
+        viewer.show(&one, &[], (100, 100)).unwrap();
+        let part = Region {
+            x: 100,
+            y: 50,
+            width: 120,
+            height: 80,
+        };
+        // At 100%: the part's own pixels.
+        assert_eq!(viewer.region(&one, part, 120, 80).unwrap(), (120, 80));
+        // At 50%: scaled down.
+        assert_eq!(viewer.region(&one, part, 60, 40).unwrap(), (60, 40));
+        // At 200%: still its own pixels; the Viewer enlarges them.
+        assert_eq!(viewer.region(&one, part, 240, 160).unwrap(), (120, 80));
+        let bytes = viewer.region_pixels().unwrap();
+        assert_eq!(&bytes[..8], &[120, 0, 0, 0, 80, 0, 0, 0]);
+        // Moving to another photo lets the full-size one go.
+        jpeg(&folder.path().join("2.jpg"), 400, 300);
+        viewer
+            .show(&wanted(folder.path(), 2), &[], (100, 100))
+            .unwrap();
+        assert!(viewer.full.lock().unwrap().is_none());
     }
 }

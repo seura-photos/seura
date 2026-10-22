@@ -723,6 +723,56 @@ button {
   overflow: hidden;
 }
 
+/* Placed by the Viewer: the photo, and the sharp part over it when zoomed. */
+.viewer-photo {
+  position: absolute;
+}
+
+.viewer-stage.zoomed {
+  cursor: grab;
+  touch-action: none;
+}
+
+.viewer-stage.zoomed:active {
+  cursor: grabbing;
+}
+
+/* −, Fit, 100%, + (styled mockup): one control in four parts. */
+.viewer-zoom {
+  display: inline-flex;
+  margin-left: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.viewer-zoom button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--size-tier1-target);
+  min-height: var(--size-tier1-target);
+  padding: 0 0.625rem;
+  border: 0;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.viewer-zoom button:first-child {
+  border-left: 0;
+}
+
+.viewer-zoom button[aria-pressed="true"] {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-text);
+}
+
+.viewer-zoom button:disabled {
+  color: var(--color-text-secondary);
+  cursor: default;
+}
+
 .viewer-thumbnail {
   max-width: 60%;
   max-height: 60%;

@@ -1,15 +1,29 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
+import { type PointerEvent, useEffect, useEffectEvent, useRef, useState } from "react";
 import { commands } from "./bindings";
 import { formatNumber } from "./format";
 import { t } from "./messages";
 import { type Backend, createPreview, fetchLinear } from "./preview";
-import { fitSize } from "./preview/fit";
 import { useStore } from "./store";
+import {
+  clampView,
+  fitView,
+  isFit,
+  type Region,
+  type Size,
+  step,
+  type View,
+  visibleRegion,
+  zoomAt,
+} from "./zoom";
 
 /** A resize must rest this long before the photo is decoded again for the new size. */
 const RESIZE_SETTLE = 250;
+/** Zooming or panning must rest this long before the sharp part is fetched. */
+const ZOOM_SETTLE = 150;
+/** The sharp part reaches this far past the stage on each side (a fraction of it). */
+const MARGIN = 0.25;
 
 type Props = {
   /** The folder's name, for the way back. */
@@ -21,17 +35,24 @@ type Props = {
 
 type Status =
   | { kind: "loading" }
-  | { kind: "shown"; width: number; height: number }
+  | { kind: "shown"; id: number; full: Size; exposureEv: number }
   | { kind: "cloudOnly" }
   | { kind: "failed"; reason: string };
 
+/** The sharp part on screen while zoomed in, and which photo it's from. */
+type Detail = { id: number; region: Region };
+
 /**
  * The Viewer (BRW-5; styled mockup in docs/ux/mockups/): one photo on the
- * surround, fitted to the window, with its edits applied by the preview
- * renderer (decision 0004). Arrow keys and the buttons move through the
- * grid's order; the core decodes the neighbors ahead (PRF-5). Esc goes
- * back to the grid. Zoom, the Info panel, and downloading cloud-only
- * photos arrive with their slices.
+ * surround with its edits applied by the preview renderer (decision 0004).
+ * Arrow keys and the buttons move through the grid's order; the core
+ * decodes the neighbors ahead (PRF-5). Esc goes back to the grid.
+ *
+ * Fitted, the photo is the one the core decoded to fit the stage. Zoomed
+ * in, that photo is enlarged underneath while the part on screen is cut
+ * from the full-size photo and drawn sharp over it once zooming or panning
+ * rests (technical design §6). Wheel, pinch, the buttons, and + and − zoom;
+ * dragging pans.
  */
 export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
   const photos = useStore((state) => state.photos);
@@ -43,18 +64,32 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const detailCanvas = useRef<HTMLCanvasElement>(null);
   const backend = useRef<Promise<Backend | null> | null>(null);
+  const detailBackend = useRef<Promise<Backend | null> | null>(null);
   // The stage's size in CSS pixels: `area` follows the window at once, to
   // refit; `settled` waits for a resize to rest, to decode again.
   const [area, setArea] = useState({ width: 0, height: 0 });
   const [settled, setSettled] = useState({ width: 0, height: 0 });
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [noPreview, setNoPreview] = useState(false);
+  // Zoomed in on a photo; none while it's fitted.
+  const [zoomed, setZoomed] = useState<{ id: number; view: View } | null>(null);
+  const [detail, setDetail] = useState<Detail | null>(null);
+  const drag = useRef<{ pointer: number; x: number; y: number } | null>(null);
 
   const index = photos.findIndex((photo) => photo.id === viewing);
   const photo = index >= 0 ? photos[index] : undefined;
   const previous = index > 0 ? photos[index - 1] : undefined;
   const next = index >= 0 ? photos[index + 1] : undefined;
+
+  const scale = window.devicePixelRatio;
+  const stageSize: Size = { width: area.width * scale, height: area.height * scale };
+  const shown = status.kind === "shown" && status.id === viewing ? status : null;
+  const fitted = shown ? fitView(shown.full, stageSize) : null;
+  const current =
+    shown && zoomed?.id === shown.id ? clampView(zoomed.view, shown.full, stageSize) : fitted;
+  const isZoomed = shown !== null && current !== null && !isFit(current, shown.full, stageSize);
 
   // A photo removed while it's shown (a rescan) closes the Viewer.
   useEffect(() => {
@@ -67,18 +102,24 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     root.current?.focus();
   }, []);
 
-  // One renderer for the Viewer's life; each photo is uploaded to it.
+  // Two renderers for the Viewer's life, the photo and the sharp part over
+  // it while zoomed in; each new image is uploaded to one of them.
   useEffect(() => {
     const element = canvas.current;
-    if (!element) return;
+    const detailElement = detailCanvas.current;
+    if (!element || !detailElement) return;
     const created = createPreview(element, forceWebgl2);
+    const createdDetail = createPreview(detailElement, forceWebgl2);
     backend.current = created;
+    detailBackend.current = createdDetail;
     void created.then((made) => {
       if (!made) setNoPreview(true);
     });
     return () => {
       void created.then((made) => made?.destroy());
+      void createdDetail.then((made) => made?.destroy());
       backend.current = null;
+      detailBackend.current = null;
       void commands.closeViewer();
     };
   }, [forceWebgl2]);
@@ -107,8 +148,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
   const neighborKey = neighborIds.join(",");
   useEffect(() => {
     if (viewing === null || settled.width === 0 || settled.height === 0) return;
-    let current = true;
-    const scale = window.devicePixelRatio;
+    let live = true;
     const show = async () => {
       const result = await commands.viewPhoto(
         viewing,
@@ -116,7 +156,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
         Math.round(settled.width * scale),
         Math.round(settled.height * scale),
       );
-      if (!current) return;
+      if (!live) return;
       if (result.status === "error") {
         setStatus({ kind: "failed", reason: result.error });
         return;
@@ -125,62 +165,189 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
         setStatus({ kind: "cloudOnly" });
         return;
       }
-      const shown = result.data;
+      const data = result.data;
       const image = await fetchLinear(`view-${viewing}`);
       const renderer = await backend.current;
       const element = canvas.current;
-      if (!current || !renderer || !element) return;
+      if (!live || !renderer || !element) return;
       element.width = image.width;
       element.height = image.height;
       renderer.upload(image);
       // Numbers from Rust can be null, which would mean NaN; there is none here.
-      renderer.draw(shown.exposureEv ?? 0);
-      setStatus({ kind: "shown", width: image.width, height: image.height });
+      const exposureEv = data.exposureEv ?? 0;
+      renderer.draw(exposureEv);
+      setStatus({
+        kind: "shown",
+        id: viewing,
+        full: { width: data.fullWidth, height: data.fullHeight },
+        exposureEv,
+      });
     };
     show().catch((error: unknown) => {
-      if (current) setStatus({ kind: "failed", reason: String(error) });
+      if (live) setStatus({ kind: "failed", reason: String(error) });
     });
     return () => {
-      current = false;
+      live = false;
     };
-  }, [viewing, neighborKey, settled]);
+  }, [viewing, neighborKey, settled, scale]);
 
-  const move = useCallback(
-    (to: number | undefined) => {
-      if (to !== undefined) view(to);
-    },
-    [view],
-  );
+  // Zoomed in, the part on screen is fetched sharp once zooming and
+  // panning rest.
+  const wanted =
+    shown && isZoomed && current ? visibleRegion(current, shown.full, stageSize, MARGIN) : null;
+  const wantedKey =
+    wanted && current
+      ? `${wanted.x},${wanted.y},${wanted.width},${wanted.height},${current.zoom}`
+      : "";
+  useEffect(() => {
+    if (!shown || !wanted || !current) return;
+    let live = true;
+    const zoom = Math.min(1, current.zoom);
+    const timer = window.setTimeout(() => {
+      const fetchPart = async () => {
+        const result = await commands.viewRegion(
+          shown.id,
+          wanted.x,
+          wanted.y,
+          wanted.width,
+          wanted.height,
+          Math.max(1, Math.round(wanted.width * zoom)),
+          Math.max(1, Math.round(wanted.height * zoom)),
+        );
+        if (!live || result.status === "error") return;
+        const image = await fetchLinear("view-region");
+        const renderer = await detailBackend.current;
+        const element = detailCanvas.current;
+        if (!live || !renderer || !element) return;
+        // A newer part may have replaced this one in the core meanwhile.
+        if (image.width !== result.data.width || image.height !== result.data.height) return;
+        element.width = image.width;
+        element.height = image.height;
+        renderer.upload(image);
+        renderer.draw(shown.exposureEv);
+        setDetail({ id: shown.id, region: wanted });
+      };
+      void fetchPart().catch(() => {});
+    }, ZOOM_SETTLE);
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+    };
+    // The key stands for `wanted` and `current`, which are new objects each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantedKey, shown?.id, shown?.exposureEv]);
+
+  function move(to: number | undefined) {
+    if (to === undefined) return;
+    // Each photo opens fitted.
+    setZoomed(null);
+    view(to);
+  }
+
+  /** Zooms to `zoom` about `point` (device pixels from the stage's center). */
+  function zoomTo(zoom: number, point = { x: 0, y: 0 }) {
+    if (!shown || !current) return;
+    setZoomed({ id: shown.id, view: zoomAt(current, zoom, point, shown.full, stageSize) });
+  }
+
+  function zoomStep(direction: 1 | -1) {
+    if (shown && current) zoomTo(step(current, direction, shown.full, stageSize));
+  }
+
+  /** A pointer position as device pixels from the stage's center. */
+  function pointFrom(clientX: number, clientY: number) {
+    const rect = stage.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
+    return {
+      x: (clientX - rect.left - rect.width / 2) * scale,
+      y: (clientY - rect.top - rect.height / 2) * scale,
+    };
+  }
+
+  // Listeners are added once; these see the latest state when they run.
+  const onKey = useEffectEvent((event: KeyboardEvent) => {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.key === "ArrowLeft") move(previous?.id);
+    else if (event.key === "ArrowRight") move(next?.id);
+    else if (event.key === "Escape") closeViewer();
+    else if (event.key === "+" || event.key === "=") zoomStep(1);
+    else if (event.key === "-") zoomStep(-1);
+    else if (editorAvailable && photo && event.key.toLowerCase() === "e") openEditor(photo);
+    else return;
+    event.preventDefault();
+  });
+  // Wheel and trackpad pinch zoom about the pointer. Chromium reports a
+  // pinch as a wheel with Ctrl; WebKit as gesture events, whose scale is
+  // relative to where the pinch started.
+  const pinchStart = useRef(1);
+  const onWheel = useEffectEvent((event: WheelEvent) => {
+    event.preventDefault();
+    if (!current) return;
+    const lines = event.deltaMode === 1 ? 16 : 1;
+    const factor = Math.exp(-event.deltaY * lines * (event.ctrlKey ? 0.01 : 0.002));
+    zoomTo(current.zoom * factor, pointFrom(event.clientX, event.clientY));
+  });
+  const onGesture = useEffectEvent((event: Event, starting: boolean) => {
+    event.preventDefault();
+    if (!current) return;
+    const gesture = event as UIEvent & { scale: number; clientX: number; clientY: number };
+    if (starting) pinchStart.current = current.zoom;
+    else zoomTo(pinchStart.current * gesture.scale, pointFrom(gesture.clientX, gesture.clientY));
+  });
 
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.altKey || event.ctrlKey || event.metaKey) return;
-      if (event.key === "ArrowLeft") move(previous?.id);
-      else if (event.key === "ArrowRight") move(next?.id);
-      else if (event.key === "Escape") closeViewer();
-      else if (editorAvailable && photo && event.key.toLowerCase() === "e") openEditor(photo);
-      else return;
-      event.preventDefault();
+    const element = stage.current;
+    const key = (event: KeyboardEvent) => onKey(event);
+    const wheel = (event: WheelEvent) => onWheel(event);
+    const start = (event: Event) => onGesture(event, true);
+    const change = (event: Event) => onGesture(event, false);
+    window.addEventListener("keydown", key);
+    element?.addEventListener("wheel", wheel, { passive: false });
+    element?.addEventListener("gesturestart", start);
+    element?.addEventListener("gesturechange", change);
+    return () => {
+      window.removeEventListener("keydown", key);
+      element?.removeEventListener("wheel", wheel);
+      element?.removeEventListener("gesturestart", start);
+      element?.removeEventListener("gesturechange", change);
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [move, previous, next, photo, editorAvailable, closeViewer, openEditor]);
+  }, []);
+
+  function onPointerDown(event: PointerEvent) {
+    if (!isZoomed || event.button !== 0) return;
+    if ((event.target as HTMLElement).closest("button")) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = { pointer: event.pointerId, x: event.clientX, y: event.clientY };
+  }
+
+  function onPointerMove(event: PointerEvent) {
+    const start = drag.current;
+    if (!start || start.pointer !== event.pointerId || !shown || !current) return;
+    const dx = ((event.clientX - start.x) * scale) / current.zoom;
+    const dy = ((event.clientY - start.y) * scale) / current.zoom;
+    drag.current = { ...start, x: event.clientX, y: event.clientY };
+    setZoomed({ id: shown.id, view: { ...current, x: current.x - dx, y: current.y - dy } });
+  }
+
+  function onPointerUp(event: PointerEvent) {
+    if (drag.current?.pointer === event.pointerId) drag.current = null;
+  }
 
   if (!photo) return null;
 
-  const scale = window.devicePixelRatio;
-  const fitted =
-    status.kind === "shown"
-      ? fitSize(status.width, status.height, area.width, area.height, scale)
-      : null;
-  // How large the photo is shown, against its own pixels (the status bar).
-  const percent =
-    fitted && photo.width
-      ? formatNumber((fitted.width * scale) / photo.width, {
-          style: "percent",
-          maximumFractionDigits: 0,
-        })
-      : null;
+  // Where a part of the photo goes on the stage, in CSS pixels.
+  const place = (region: Region) =>
+    current && {
+      left: area.width / 2 + ((region.x - current.x) * current.zoom) / scale,
+      top: area.height / 2 + ((region.y - current.y) * current.zoom) / scale,
+      width: (region.width * current.zoom) / scale,
+      height: (region.height * current.zoom) / scale,
+    };
+  const whole = shown ? place({ x: 0, y: 0, ...shown.full }) : null;
+  const sharp = isZoomed && detail?.id === shown?.id && detail ? place(detail.region) : null;
+  const percent = current
+    ? formatNumber(current.zoom, { style: "percent", maximumFractionDigits: 0 })
+    : null;
   const message =
     status.kind === "cloudOnly"
       ? t("viewer-cloud-only")
@@ -189,6 +356,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
         : noPreview
           ? t("viewer-no-preview")
           : null;
+  const atFullSize = current !== null && Math.abs(current.zoom - 1) < 0.001;
 
   return (
     <div
@@ -209,14 +377,67 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
         <span className="meta">
           {t("viewer-position", { position: index + 1, total: photos.length })}
         </span>
+        <div className="viewer-zoom" role="group" aria-label={t("viewer-zoom")}>
+          <button
+            type="button"
+            aria-label={t("viewer-zoom-out")}
+            title={t("viewer-zoom-out")}
+            disabled={!shown || !isZoomed}
+            onClick={() => zoomStep(-1)}
+          >
+            <Minus className="icon" aria-hidden />
+          </button>
+          <button
+            type="button"
+            aria-pressed={shown !== null && !isZoomed}
+            disabled={!shown}
+            onClick={() => setZoomed(null)}
+          >
+            {t("viewer-zoom-fit")}
+          </button>
+          <button
+            type="button"
+            aria-pressed={atFullSize}
+            disabled={!shown}
+            onClick={() => zoomTo(1)}
+          >
+            {t("viewer-zoom-full", {
+              percent: formatNumber(1, { style: "percent", maximumFractionDigits: 0 }),
+            })}
+          </button>
+          <button
+            type="button"
+            aria-label={t("viewer-zoom-in")}
+            title={t("viewer-zoom-in")}
+            disabled={!shown}
+            onClick={() => zoomStep(1)}
+          >
+            <Plus className="icon" aria-hidden />
+          </button>
+        </div>
       </header>
 
-      <div ref={stage} className="viewer-stage">
+      <div
+        ref={stage}
+        className={isZoomed ? "viewer-stage zoomed" : "viewer-stage"}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+      >
         <canvas
           ref={canvas}
+          className="viewer-photo"
           aria-label={t("viewer-photo", { name: photo.name })}
-          hidden={fitted === null || message !== null}
-          style={fitted ? { width: fitted.width, height: fitted.height } : undefined}
+          hidden={whole === null || message !== null}
+          style={whole ?? undefined}
+        />
+        <canvas
+          ref={detailCanvas}
+          className="viewer-photo"
+          aria-hidden
+          hidden={sharp === null || message !== null}
+          style={sharp ?? undefined}
         />
         {status.kind === "cloudOnly" && (
           <img
@@ -254,7 +475,10 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
       </div>
 
       <footer className="status-bar viewer-status">
-        <span>{percent !== null && t("viewer-fit", { percent })}</span>
+        <span>
+          {percent !== null &&
+            (isZoomed ? t("viewer-zoomed", { percent }) : t("viewer-fit", { percent }))}
+        </span>
         <span className="viewer-keys">
           {editorAvailable ? t("viewer-keys-edit", { folder }) : t("viewer-keys", { folder })}
         </span>

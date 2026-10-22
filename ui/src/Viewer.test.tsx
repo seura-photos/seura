@@ -5,13 +5,9 @@ import { useStore } from "./store";
 import { Viewer } from "./Viewer";
 
 const mocks = vi.hoisted(() => ({
-  viewed: { kind: "shown", width: 800, height: 600, exposureEv: 0.5 } as {
-    kind: string;
-    width?: number;
-    height?: number;
-    exposureEv?: number;
-  },
+  viewed: { kind: "shown" } as Record<string, unknown>,
   viewPhoto: vi.fn(),
+  viewRegion: vi.fn(),
   closeViewer: vi.fn(() => Promise.resolve(null)),
   fetchLinear: vi.fn(() =>
     Promise.resolve({ width: 800, height: 600, data: new Uint16Array(800 * 600 * 4) }),
@@ -20,7 +16,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("./bindings", () => ({
-  commands: { viewPhoto: mocks.viewPhoto, closeViewer: mocks.closeViewer },
+  commands: {
+    viewPhoto: mocks.viewPhoto,
+    viewRegion: mocks.viewRegion,
+    closeViewer: mocks.closeViewer,
+  },
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -75,8 +75,18 @@ function show(id: number, editorAvailable = false) {
 
 describe("Viewer (BRW-5)", () => {
   beforeEach(() => {
-    mocks.viewed = { kind: "shown", width: 800, height: 600, exposureEv: 0.5 };
+    mocks.viewed = {
+      kind: "shown",
+      width: 800,
+      height: 600,
+      fullWidth: 1600,
+      fullHeight: 1200,
+      exposureEv: 0.5,
+    };
     mocks.viewPhoto.mockImplementation(() => Promise.resolve({ status: "ok", data: mocks.viewed }));
+    mocks.viewRegion.mockImplementation(() =>
+      Promise.resolve({ status: "ok", data: { width: 800, height: 600 } }),
+    );
   });
 
   afterEach(() => {
@@ -94,8 +104,8 @@ describe("Viewer (BRW-5)", () => {
     expect(mocks.viewPhoto).toHaveBeenCalledWith(2, [1, 3], 800 * scale, 600 * scale);
     expect(mocks.fetchLinear).toHaveBeenCalledWith("view-2");
     expect(mocks.backend.upload).toHaveBeenCalled();
-    // 800 device pixels of a 1600-pixel photo.
-    await screen.findByText(`Fit · ${String(Math.round(50 / scale))}%`);
+    // 800 × 600 CSS pixels of stage for a 1600-pixel photo.
+    await screen.findByText(`Fit · ${String(Math.round(Math.min(1, scale / 2) * 100))}%`);
   });
 
   it("moves through the grid's order with the arrow keys, stopping at the ends", async () => {
@@ -149,5 +159,50 @@ describe("Viewer (BRW-5)", () => {
     const { unmount } = show(1);
     unmount();
     expect(mocks.closeViewer).toHaveBeenCalled();
+  });
+
+  it("zooms to 100% and fetches the part on screen sharp (BRW-5)", async () => {
+    show(1);
+    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "100%" }));
+    expect(screen.getByRole("button", { name: "100%" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("100%", { selector: ".viewer-status span" })).toBeTruthy();
+    await waitFor(() => expect(mocks.viewRegion).toHaveBeenCalled());
+    // The part on screen with a margin, within the photo, at its own pixels.
+    const [id, x, y, width, height, outWidth, outHeight] = mocks.viewRegion.mock.calls[0] as [
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+      number,
+    ];
+    expect(id).toBe(1);
+    expect(x).toBeGreaterThanOrEqual(0);
+    expect(x + width).toBeLessThanOrEqual(1600);
+    expect(y + height).toBeLessThanOrEqual(1200);
+    expect([outWidth, outHeight]).toEqual([width, height]);
+    await waitFor(() => expect(mocks.fetchLinear).toHaveBeenCalledWith("view-region"));
+    // Fit goes back.
+    fireEvent.click(screen.getByRole("button", { name: "Fit" }));
+    expect(screen.getByRole("button", { name: "Fit" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("zooms with + and −, and opens the next photo fitted", async () => {
+    show(1);
+    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalled());
+    const zoomOut = screen.getByRole("button", { name: "Zoom out" });
+    expect(zoomOut).toHaveProperty("disabled", true);
+    fireEvent.keyDown(window, { key: "+" });
+    expect(zoomOut).toHaveProperty("disabled", false);
+    fireEvent.keyDown(window, { key: "-" });
+    expect(zoomOut).toHaveProperty("disabled", true);
+    fireEvent.keyDown(window, { key: "+" });
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    await waitFor(() => expect(screen.getByText("2 of 3")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Fit" }).getAttribute("aria-pressed")).toBe("true"),
+    );
   });
 });

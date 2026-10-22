@@ -12,6 +12,8 @@
 //! - `check-image`: the render check's reference image, in the same form.
 //! - `view-<id>`: a photo decoded for the Viewer, in the same form (see
 //!   `viewer`). Only photos the Viewer has decoded.
+//! - `view-region`: the last part of the shown photo cut for zooming in, in
+//!   the same form.
 
 use std::borrow::Cow;
 
@@ -34,6 +36,10 @@ pub fn respond<R: Runtime>(
             .and_then(|editor| editor.preview())
             .and_then(|bytes| pixels(bytes.as_ref().clone())),
         "/check-image" => pixels(check_image_bytes()),
+        "/view-region" => app
+            .try_state::<Viewer>()
+            .and_then(|viewer| viewer.region_pixels())
+            .and_then(|bytes| pixels(bytes.as_ref().clone())),
         _ if path.starts_with("/view-") => viewed(app, path),
         _ => thumbnail(app, path),
     };
