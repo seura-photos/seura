@@ -34,6 +34,10 @@ function details(overrides: Partial<PhotoDetails> = {}): PhotoDetails {
     focalLength: 6.86,
     focalLength35mm: 24,
     fNumber: 1.78,
+    exposureTime: 1 / 120,
+    iso: 64,
+    exposureBias: 0,
+    modified: 1_790_000_000,
     latitude: 47.81234,
     longitude: -122.38,
     ...overrides,
@@ -58,7 +62,10 @@ describe("Info panel (BRW-6)", () => {
     expect(lens.getAttribute("title")).toBe(
       "6.86 mm actual · iPhone 15 Pro back camera 6.86mm f/1.78",
     );
+    // No compensation, so no EV.
+    expect(screen.getByText("1/120 s · ISO 64")).toBeTruthy();
     expect(screen.getByText("47.8123, -122.38")).toBeTruthy();
+    expect(screen.queryByText(/^Modified/)).toBeNull();
     expect(screen.getByText("Pictures › 2026 › Summer")).toBeTruthy();
     expect(screen.getByText("Edited")).toBeTruthy();
     expect(screen.getByRole("img", { name: "4 stars" })).toBeTruthy();
@@ -121,5 +128,24 @@ describe("Info panel (BRW-6)", () => {
     render(<InfoPanel ids={[7]} version={0} />);
     const lens = await screen.findByText("50 mm ƒ/2.8");
     expect(lens.getAttribute("title")).toBeNull();
+  });
+
+  it("shows long exposures and compensation", async () => {
+    mocks.photoDetails.mockResolvedValue({
+      status: "ok",
+      data: details({ exposureTime: 2, iso: 800, exposureBias: -0.7 }),
+    });
+    render(<InfoPanel ids={[7]} version={0} />);
+    expect(await screen.findByText("2 s · ISO 800 · -0.7 EV")).toBeTruthy();
+  });
+
+  it("shows when the file was modified when there's no date taken", async () => {
+    mocks.photoDetails.mockResolvedValue({
+      status: "ok",
+      data: details({ taken: null, exposureTime: null, iso: null, exposureBias: null }),
+    });
+    render(<InfoPanel ids={[7]} version={0} />);
+    expect(await screen.findByText(/^Modified /)).toBeTruthy();
+    expect(screen.queryByText("Exposure")).toBeNull();
   });
 });

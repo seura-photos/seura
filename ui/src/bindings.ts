@@ -291,6 +291,15 @@ export type PhotoDetails = {
 	/**  The 35 mm equivalent, where the photo records it. */
 	focalLength35mm: number | null,
 	fNumber: number | null,
+	/**  Shutter speed in seconds, ISO, and exposure compensation in stops. */
+	exposureTime: number | null,
+	iso: number | null,
+	exposureBias: number | null,
+	/**
+	 *  The file's modification time, in seconds since 1970: shown when
+	 *  there's no date taken.
+	 */
+	modified: number | null,
 	latitude: number | null,
 	longitude: number | null,
 };
