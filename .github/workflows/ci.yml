@@ -87,7 +87,8 @@ jobs:
       - name: Index benchmarks
         run: cargo bench -p seura-library --bench index --locked
 
-      # Thumbnails a second, with the real workers; fails below PRF-3.
+      # Thumbnails a second, with the real workers, in the job summary. Only
+      # reports here: the runners have too few cores to judge PRF-3 by.
       - name: Thumbnail benchmark
         run: cargo bench -p seura-library --bench thumbnails --locked
 

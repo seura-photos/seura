@@ -127,12 +127,12 @@ impl ThumbnailCache {
     /// `edited` (BRW-1). The photo is only read; the thumbnail is written
     /// atomically (CLAUDE.md rules 1 and 3).
     pub fn make(&self, photo: &Path, key: &str, edited: bool) -> Outcome {
-        let decoded = match seura_image::decode(photo) {
+        let decoded = match seura_image::decode_reduced(photo, seura_image::THUMBNAIL_SIZE) {
             Ok(decoded) => decoded,
             Err(seura_image::DecodeError::HeifUnavailable(_)) => return Outcome::NeedsCodec,
             Err(error) => return Outcome::Failed(error.to_string()),
         };
-        let small = seura_image::fit(&decoded.image, seura_image::THUMBNAIL_SIZE);
+        let small = decoded.image;
         let small = match (&self.edits, edited) {
             (Some(ApplyEdits(apply)), true) => apply(photo, small),
             _ => small,
@@ -142,8 +142,8 @@ impl ThumbnailCache {
             return Outcome::Failed(error.to_string());
         }
         Outcome::Ready(Some(Made {
-            width: decoded.image.width,
-            height: decoded.image.height,
+            width: decoded.width,
+            height: decoded.height,
             taken: decoded.taken,
         }))
     }

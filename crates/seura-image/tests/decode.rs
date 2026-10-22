@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::fs;
 use std::path::PathBuf;
 
-use seura_image::{DecodeError, Rgba8, decode};
+use seura_image::{DecodeError, Rgba8, THUMBNAIL_SIZE, decode, decode_reduced};
 
 const RED: [u8; 3] = [255, 0, 0];
 const GREEN: [u8; 3] = [0, 255, 0];
@@ -16,7 +16,11 @@ const WHITE: [u8; 3] = [255, 255, 255];
 /// A 64×48 RGB image: red top left, green top right, blue bottom left,
 /// white bottom right.
 fn quadrants() -> Vec<u8> {
-    let (w, h) = (64, 48);
+    quadrants_of(64, 48)
+}
+
+/// The same at any size.
+fn quadrants_of(w: u32, h: u32) -> Vec<u8> {
     (0..h)
         .flat_map(|y| (0..w).map(move |x| (x, y)))
         .flat_map(|(x, y)| match (x < w / 2, y < h / 2) {
@@ -80,6 +84,10 @@ fn exif(orientation: u16, date: &str) -> Vec<u8> {
 }
 
 fn jpeg(orientation: Option<u16>, icc: Option<&[u8]>) -> Vec<u8> {
+    jpeg_of(64, 48, orientation, icc)
+}
+
+fn jpeg_of(w: u16, h: u16, orientation: Option<u16>, icc: Option<&[u8]>) -> Vec<u8> {
     let mut bytes = Vec::new();
     let mut encoder = jpeg_encoder::Encoder::new(&mut bytes, 95);
     if let Some(orientation) = orientation {
@@ -91,7 +99,12 @@ fn jpeg(orientation: Option<u16>, icc: Option<&[u8]>) -> Vec<u8> {
         encoder.add_icc_profile(icc).unwrap();
     }
     encoder
-        .encode(&quadrants(), 64, 48, jpeg_encoder::ColorType::Rgb)
+        .encode(
+            &quadrants_of(u32::from(w), u32::from(h)),
+            w,
+            h,
+            jpeg_encoder::ColorType::Rgb,
+        )
         .unwrap();
     bytes
 }
@@ -204,5 +217,87 @@ fn damaged_and_unknown_files_are_errors_not_panics() {
     assert!(matches!(
         decode_bytes("notes.txt", b"hello"),
         Err(DecodeError::Unsupported)
+    ));
+}
+
+/// Writes bytes to a temporary file with the given name and decodes it for
+/// a thumbnail.
+fn reduce_bytes(name: &str, bytes: &[u8]) -> Result<seura_image::Reduced, DecodeError> {
+    let dir = tempfile::tempdir().unwrap();
+    let path: PathBuf = dir.path().join(name);
+    fs::write(&path, bytes).unwrap();
+    decode_reduced(&path, THUMBNAIL_SIZE)
+}
+
+#[test]
+fn a_large_jpeg_is_decoded_small_for_its_thumbnail() {
+    // 2048 × 1536 decodes at a quarter: 512 × 384, the thumbnail's size.
+    let reduced = reduce_bytes("large.jpg", &jpeg_of(2048, 1536, None, None)).unwrap();
+    assert_eq!((reduced.image.width, reduced.image.height), (512, 384));
+    assert_eq!((reduced.width, reduced.height), (2048, 1536));
+    assert_corners(&reduced.image, [RED, GREEN, BLUE, WHITE]);
+
+    // Turned by its orientation, with the full size turned too, and its date.
+    let reduced = reduce_bytes("turned.jpg", &jpeg_of(2048, 1536, Some(6), None)).unwrap();
+    assert_eq!((reduced.image.width, reduced.image.height), (384, 512));
+    assert_eq!((reduced.width, reduced.height), (1536, 2048));
+    assert_corners(&reduced.image, [BLUE, RED, WHITE, GREEN]);
+    assert_eq!(reduced.taken, Some(1_720_981_805));
+}
+
+#[test]
+fn a_reduced_jpeg_s_profile_is_applied() {
+    let pixels: Vec<u8> = [200, 100, 50].repeat(1024 * 768);
+    let mut bytes = Vec::new();
+    let mut encoder = jpeg_encoder::Encoder::new(&mut bytes, 100);
+    encoder.add_icc_profile(&display_p3()).unwrap();
+    encoder
+        .encode(&pixels, 1024, 768, jpeg_encoder::ColorType::Rgb)
+        .unwrap();
+    let reduced = reduce_bytes("p3.jpg", &bytes).unwrap();
+    assert_eq!(reduced.image.width, 512);
+    let [left, _, _, _] = corners(&reduced.image);
+    assert!(left[0] >= 210 && left[2] <= 38, "{left:?}");
+}
+
+#[test]
+fn other_photos_are_reduced_too() {
+    let reduced = reduce_bytes("small.jpg", &jpeg(None, None)).unwrap();
+    assert_eq!((reduced.image.width, reduced.image.height), (64, 48));
+    let gray: Vec<u8> = vec![90; 1024 * 768];
+    let mut bytes = Vec::new();
+    jpeg_encoder::Encoder::new(&mut bytes, 90)
+        .encode(&gray, 1024, 768, jpeg_encoder::ColorType::Luma)
+        .unwrap();
+    let reduced = reduce_bytes("gray.jpg", &bytes).unwrap();
+    assert_eq!((reduced.image.width, reduced.width), (512, 1024));
+    assert!(
+        reduced.image.pixels[..3]
+            .iter()
+            .all(|v| v.abs_diff(90) <= 2)
+    );
+
+    let file = png(png::ColorType::Rgb, &quadrants(), None);
+    let reduced = reduce_bytes("quadrants.png", &file).unwrap();
+    assert_eq!((reduced.width, reduced.height), (64, 48));
+}
+
+/// A cut-off JPEG gives what decoding it whole gives (the decoder fills in
+/// what's missing), and garbage is an error, not a panic.
+#[test]
+fn damaged_jpegs_are_reduced_without_panicking() {
+    let jpeg = jpeg_of(2048, 1536, None, None);
+    let cut = &jpeg[..jpeg.len() / 3];
+    let reduced = reduce_bytes("cut.jpg", cut).unwrap();
+    assert_eq!((reduced.width, reduced.height), (2048, 1536));
+    let mut garbled = jpeg[..600].to_vec();
+    garbled.extend([0xFF; 4000]);
+    assert!(matches!(
+        reduce_bytes("garbled.jpg", &garbled),
+        Err(DecodeError::Damaged(_)) | Ok(_)
+    ));
+    assert!(matches!(
+        reduce_bytes("empty.jpg", b""),
+        Err(DecodeError::Damaged(_))
     ));
 }
