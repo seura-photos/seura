@@ -6,8 +6,8 @@
 //! `view-<id>` (technical design, section 6). At most the shown photo and
 //! its two neighbors are kept. Zoomed in, the part on screen is cut from the
 //! photo decoded at full size, which is kept while that photo is shown, and
-//! served as `view-region`. Cloud-only photos are never read here: that
-//! would download them (LIB-9).
+//! served as `view-region`. Cloud-only photos are read only when the user
+//! opens one, which downloads it, and never decoded ahead (LIB-9).
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -18,6 +18,9 @@ use seura_image::{Region, Upright};
 use seura_render::Settings;
 
 use crate::editor::encode_linear;
+
+/// Why a photo wasn't shown: the Viewer moved on before it was decoded.
+pub const MOVED_ON: &str = "the Viewer moved on";
 
 /// A decoded image's long edge is kept within this, whatever the window.
 const MAX_LONG_EDGE: u32 = 8192;
@@ -83,7 +86,8 @@ struct Decoded {
 impl Viewer {
     /// Shows `photo`, decoded to fit `area`, and starts decoding
     /// `neighbors` in the background; anything else is let go. Waits if
-    /// `photo` is already being decoded ahead.
+    /// `photo` is already being decoded ahead, and gives up if the Viewer
+    /// moves on meanwhile, rather than reading it again.
     pub fn show(
         &self,
         photo: &Wanted,
@@ -114,13 +118,16 @@ impl Viewer {
             }
         }
 
+        let mut waited = false;
         let decoded = loop {
             match cache.slots.get(&photo.id).cloned() {
                 Some(Slot::Ready(decoded)) => break decoded,
                 Some(Slot::Failed(error)) => return Err(error),
                 Some(Slot::Decoding) => {
                     cache = self.inner.decoded.wait(cache).expect("viewer lock");
+                    waited = true;
                 }
+                None if waited => return Err(MOVED_ON.into()),
                 None => {
                     cache.slots.insert(photo.id, Slot::Decoding);
                     drop(cache);
@@ -343,6 +350,31 @@ mod tests {
                 .show(&wanted(folder.path(), 1), &[], (100, 100))
                 .is_err()
         );
+    }
+
+    /// A request waiting for a photo being decoded ahead gives up when the
+    /// Viewer moves on, rather than reading it itself: for a cloud-only
+    /// photo, that read would download it again (LIB-9).
+    #[test]
+    fn waiting_for_a_photo_the_viewer_moved_on_from_gives_up() {
+        let folder = tempfile::tempdir().unwrap();
+        let viewer = Arc::new(Viewer::default());
+        {
+            let mut cache = viewer.inner.cache.lock().unwrap();
+            cache.area = (100, 100);
+            cache.slots.insert(1, Slot::Decoding);
+        }
+        let waiting = {
+            let viewer = Arc::clone(&viewer);
+            let one = wanted(folder.path(), 1);
+            std::thread::spawn(move || viewer.show(&one, &[], (100, 100)))
+        };
+        // Let it start waiting, then move on: its slot goes.
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        viewer.inner.cache.lock().unwrap().slots.clear();
+        viewer.inner.decoded.notify_all();
+
+        assert_eq!(waiting.join().unwrap(), Err(MOVED_ON.to_string()));
     }
 
     #[test]

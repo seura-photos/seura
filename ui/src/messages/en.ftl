@@ -136,7 +136,9 @@ viewer-zoom-fit = Fit
 viewer-zoom-full = { $percent }
 viewer-keys = ← → next and previous · + − zoom · Esc back to { $folder }
 viewer-keys-edit = ← → next and previous · + − zoom · E edit · Esc back to { $folder }
-viewer-cloud-only = This photo is in the cloud and hasn't been downloaded to this computer.
+viewer-downloading = Downloading { $size } from the cloud…
+viewer-download-failed = This photo is in the cloud, and it couldn't be downloaded. Check your connection.
+viewer-try-again = Try again
 viewer-failed = This photo can't be shown: { $reason }
 viewer-no-preview = This computer's graphics can't show photos here.
 

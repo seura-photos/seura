@@ -1,8 +1,8 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, LoaderCircle, Minus, Plus } from "lucide-react";
 import { type PointerEvent, useEffect, useEffectEvent, useRef, useState } from "react";
 import { commands } from "./bindings";
-import { formatNumber } from "./format";
+import { formatBytes, formatNumber } from "./format";
 import { t } from "./messages";
 import { InfoPanel } from "./InfoPanel";
 import { type Backend, createPreview, fetchLinear } from "./preview";
@@ -37,7 +37,8 @@ type Props = {
 type Status =
   | { kind: "loading" }
   | { kind: "shown"; id: number; full: Size; exposureEv: number }
-  | { kind: "cloudOnly" }
+  | { kind: "downloading"; size: number }
+  | { kind: "downloadFailed" }
   | { kind: "failed"; reason: string };
 
 /** The sharp part on screen while zoomed in, and which photo it's from. */
@@ -76,6 +77,8 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
   const [settled, setSettled] = useState({ width: 0, height: 0 });
   const [status, setStatus] = useState<Status>({ kind: "loading" });
   const [noPreview, setNoPreview] = useState(false);
+  // Try again after a failed download asks for the photo once more.
+  const [attempt, setAttempt] = useState(0);
   // Zoomed in on a photo; none while it's fitted.
   const [zoomed, setZoomed] = useState<{ id: number; view: View } | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
@@ -152,29 +155,39 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
 
   // Shows the photo: decoded by the core to fit the stage at the screen's
   // density (DSP-1), fetched, and drawn with its edits. A newer request
-  // replaces an older one still on its way.
+  // replaces an older one still on its way. A cloud-only photo shows as
+  // downloading while it's read (LIB-9); moving on just stops waiting.
   const neighborIds = [previous?.id, next?.id].filter((id) => id !== undefined);
   const neighborKey = neighborIds.join(",");
   useEffect(() => {
     if (viewing === null || settled.width === 0 || settled.height === 0) return;
     let live = true;
-    const show = async () => {
-      const result = await commands.viewPhoto(
+    const ask = (download: boolean) =>
+      commands.viewPhoto(
         viewing,
         neighborKey === "" ? [] : neighborKey.split(",").map(Number),
         Math.round(settled.width * scale),
         Math.round(settled.height * scale),
+        download,
       );
+    const show = async () => {
+      let result = await ask(false);
       if (!live) return;
+      if (result.status === "ok" && result.data.kind === "cloudOnly") {
+        setStatus({ kind: "downloading", size: result.data.size ?? 0 });
+        result = await ask(true);
+        if (!live) return;
+        if (result.status === "error") {
+          setStatus({ kind: "downloadFailed" });
+          return;
+        }
+      }
       if (result.status === "error") {
         setStatus({ kind: "failed", reason: result.error });
         return;
       }
-      if (result.data.kind === "cloudOnly") {
-        setStatus({ kind: "cloudOnly" });
-        return;
-      }
       const data = result.data;
+      if (data.kind === "cloudOnly") return;
       const image = await fetchLinear(`view-${viewing}`);
       const renderer = await backend.current;
       const element = canvas.current;
@@ -198,7 +211,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     return () => {
       live = false;
     };
-  }, [viewing, neighborKey, settled, scale]);
+  }, [viewing, neighborKey, settled, scale, attempt]);
 
   // Zoomed in, the part on screen is fetched sharp once zooming and
   // panning rest.
@@ -358,13 +371,16 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     ? formatNumber(current.zoom, { style: "percent", maximumFractionDigits: 0 })
     : null;
   const message =
-    status.kind === "cloudOnly"
-      ? t("viewer-cloud-only")
-      : status.kind === "failed"
-        ? t("viewer-failed", { reason: status.reason })
-        : noPreview
-          ? t("viewer-no-preview")
-          : null;
+    status.kind === "downloading"
+      ? t("viewer-downloading", { size: formatBytes(status.size) })
+      : status.kind === "downloadFailed"
+        ? t("viewer-download-failed")
+        : status.kind === "failed"
+          ? t("viewer-failed", { reason: status.reason })
+          : noPreview
+            ? t("viewer-no-preview")
+            : null;
+  const inCloud = status.kind === "downloading" || status.kind === "downloadFailed";
   const atFullSize = current !== null && Math.abs(current.zoom - 1) < 0.001;
 
   return (
@@ -448,7 +464,9 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
           hidden={sharp === null || message !== null}
           style={sharp ?? undefined}
         />
-        {status.kind === "cloudOnly" && (
+        {inCloud && (
+          // The cached thumbnail, enlarged and blurred, while the photo
+          // downloads (LIB-9).
           <img
             className="viewer-thumbnail"
             src={convertFileSrc(`thumb-${photo.id}`, "seura")}
@@ -457,9 +475,23 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
           />
         )}
         {message !== null && (
-          <p className="viewer-message" role="status">
-            {message}
-          </p>
+          <div className="viewer-message" role="status">
+            {status.kind === "downloading" && (
+              <LoaderCircle className="icon viewer-spinner" aria-hidden />
+            )}
+            <p>{message}</p>
+            {status.kind === "downloadFailed" && (
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  setAttempt((count) => count + 1);
+                }}
+              >
+                {t("viewer-try-again")}
+              </button>
+            )}
+          </div>
         )}
         <button
           type="button"

@@ -48,9 +48,11 @@ export const commands = {
 	/**
 	 *  Shows photo `id` in the Viewer, decoded to fit an area of `width` ×
 	 *  `height` device pixels (DSP-1), and decodes `neighbors` ahead (PRF-5).
-	 *  Cloud-only photos aren't read, nor decoded ahead.
+	 *  A cloud-only photo is read, downloading it, only with `download`, and
+	 *  then waited for at most [`DOWNLOAD_WAIT`]; neighbors in the cloud are
+	 *  never decoded ahead (LIB-9).
 	 */
-	viewPhoto: (id: number, neighbors: number[], width: number, height: number) => typedError<ViewedPhoto, string>(__TAURI_INVOKE("view_photo", { id, neighbors, width, height })),
+	viewPhoto: (id: number, neighbors: number[], width: number, height: number, download: boolean) => typedError<ViewedPhoto, string>(__TAURI_INVOKE("view_photo", { id, neighbors, width, height, download })),
 	/**
 	 *  Zoomed in (BRW-5): cuts the part of photo `id` at `x`, `y`, `width` ×
 	 *  `height` (in its own upright pixels) at full resolution, scaled to
@@ -342,8 +344,13 @@ export type ViewedPhoto =
 { kind: "shown"; width: number; height: number; 
 /**  The photo's own upright size, for zooming. */
 fullWidth: number; fullHeight: number; exposureEv: number | null } | 
-/**  Only in the cloud. It isn't read, which would download it (LIB-9). */
-{ kind: "cloudOnly" };
+/**
+ *  Only in the cloud, and not read: ask again with `download` to read
+ *  it, which downloads it (LIB-9).
+ */
+{ kind: "cloudOnly"; 
+/**  In bytes, from the placeholder: what the download will be. */
+size: number | null };
 
 export type WelcomeInfo = {
 	/**  Whether this is a first run, so the Welcome screen is shown. */
