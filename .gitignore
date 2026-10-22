@@ -1,6 +1,8 @@
 # Rust
 /target/
 **/target/
+# Local Cargo settings, such as faster development builds (see CLAUDE.md)
+/.cargo/config.toml
 
 # Node and frontend build output
 node_modules/

@@ -50,6 +50,18 @@ Clone with `git clone --recurse-submodules`, or run `git submodule update --init
 
 On Windows, HEIC photos are decoded by Microsoft's HEIF Image Extensions and HEVC Video Extensions from the Microsoft Store (decision 0014); without them the HEIC tests are skipped. `SEURA_HEIF_DECODER=none` makes the app behave as if they were missing.
 
+**Faster development builds (optional, local).** Unoptimized, `cargo tauri dev` takes many seconds to open a photo (13 s for 12 megapixels, against 0.23 s optimized). To optimize the libraries and Seura's image code in your development builds only, create `.cargo/config.toml` in the repository (git-ignored, so CI and other clones aren't affected) with:
+
+```toml
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev.package.seura-image]
+opt-level = 3
+```
+
+The first build after adding it takes longer; later ones don't. It's kept out of `Cargo.toml` because it made CI's uncached builds take twice as long.
+
 `SEURA_PREVIEW=webgl2` makes the Editor's preview use WebGL2 even where the web view has WebGPU, to check the fallback that macOS 13 to 15 use.
 
 `SEURA_WELCOME=1` shows the first-run Welcome screen on a computer that already has settings; nothing is saved unless you press Get started.

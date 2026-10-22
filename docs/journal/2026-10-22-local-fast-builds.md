@@ -1,0 +1,5 @@
+# Faster development builds become a local setting
+
+- **Nevada noticed** #56's Windows CI job still running after 35 minutes, and suggested reverting the earlier change that compiles the libraries optimized in development builds (#40), keeping it as something he can turn on locally.
+- **Claude Code measured the job first:** its cache restored almost nothing, so everything compiled from scratch, and with the libraries optimized that's 9 minutes of clippy and 18 of Rust tests. Before #40, a Windows run that missed the cache took 12 to 15 minutes in all. Cache misses turned out more common than expected, so the setting cost CI more than it saved anyone.
+- **Agreed:** the setting leaves `Cargo.toml` and goes into a git-ignored `.cargo/config.toml`, which Cargo reads automatically, so Nevada's machines keep fast development builds without a flag to remember, while CI and new clones build unoptimized. CLAUDE.md gives the file's contents. Claude created it on Nevada's PC and checked that Cargo applies it; the Mac needs the same file once.
