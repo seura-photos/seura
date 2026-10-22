@@ -5,3 +5,4 @@
 - **The first full run failed,** and it took three tries to see why: the measurement watched for the launch scan through the UI's progress events, but the first one can arrive before the UI listens, and with 50,000 files the scan took over a second to start. So the script thought nothing was happening, opened the Viewer while the library was still being scanned underneath it, and a photo "never showed". It now asks the core directly, and waits up to 15 seconds for the scan to begin.
 - **A false number caught on the way:** one rerun reported 50,000 photos at 835 a second, but its cache was half built from the failed run; the script always starts that run from an empty Seura folder, so its number is honest.
 - **Windows' console** can't print "×" or "…", which came out as "�"; the script prints plain text.
+- **Nevada watched the runs on his PC** and judged the performance "most excellent", which matters as much as the numbers: they describe what a person sees.
