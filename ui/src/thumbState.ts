@@ -1,6 +1,6 @@
 import { t } from "./messages";
 
-/** What's known about each photo's thumbnail, from `thumbnailReady` events. */
+/** What's known about each photo's thumbnail, from `thumbnailsReady` events. */
 export type ThumbState = {
   version: number;
   cloudOnly: boolean;

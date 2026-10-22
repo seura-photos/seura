@@ -13,7 +13,13 @@ export const commands = {
 	 *  (decision 0009).
 	 */
 	addFolder: () => typedError<AddFolderResult, string>(__TAURI_INVOKE("add_folder")),
-	/**  The folders that have photos directly in them, by path. */
+	/**
+	 *  The folders that have photos directly in them, by path.
+	 * 
+	 *  This and the other quick commands that read the index run off the main
+	 *  thread (`async`): the main thread also delivers events to the UI, and a
+	 *  command waiting there waits behind them.
+	 */
 	folders: () => __TAURI_INVOKE<FolderInfo[]>("folders"),
 	/**
 	 *  Removes a library folder from the library (LIB-5), by its position among
@@ -138,7 +144,7 @@ export const events = {
 	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
 	scanProgress: makeEvent<ScanProgress>("scan-progress"),
-	thumbnailReady: makeEvent<ThumbnailReady>("thumbnail-ready"),
+	thumbnailsReady: makeEvent<ThumbnailsReady>("thumbnails-ready"),
 };
 
 /* Types */
@@ -339,6 +345,9 @@ export type ThumbnailReady = {
 	needsCodec: boolean,
 	failed: boolean,
 };
+
+/**  Thumbnails finished, or that can't be made, since the last of these. */
+export type ThumbnailsReady = ThumbnailReady[];
 
 /**  The grid's order and size (BRW-2, BRW-3), from the settings. */
 export type ViewSettings = {

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { Menu } from "./Menu";
 import { t } from "./messages";
 import { useStore } from "./store";
 
@@ -24,59 +24,34 @@ type Props = {
 export function PhotoMenu({ ids, x, y, onClose }: Props) {
   const showInFolder = useStore((state) => state.showInFolder);
   const openInDefaultApp = useStore((state) => state.openInDefaultApp);
-  const first = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    first.current?.focus();
-    const close = () => onClose();
-    window.addEventListener("blur", close);
-    return () => window.removeEventListener("blur", close);
-  }, [onClose]);
   const tooMany = ids.length > OPEN_AT_ONCE;
 
   return (
-    <div
-      className="menu-backdrop"
-      onClick={onClose}
-      onContextMenu={(event) => event.preventDefault()}
-    >
-      <div
-        className="menu"
-        role="menu"
-        style={{ left: x, top: y }}
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.stopPropagation();
-            onClose();
-          }
+    <Menu x={x} y={y} onClose={onClose}>
+      <button
+        type="button"
+        role="menuitem"
+        className="menu-item"
+        onClick={() => {
+          onClose();
+          void showInFolder(ids);
         }}
       >
-        <button
-          ref={first}
-          type="button"
-          role="menuitem"
-          className="menu-item"
-          onClick={() => {
-            onClose();
-            void showInFolder(ids);
-          }}
-        >
-          {isMac ? t("photo-show-in-finder") : t("photo-show-in-explorer")}
-        </button>
-        <button
-          type="button"
-          role="menuitem"
-          className="menu-item"
-          disabled={tooMany}
-          title={tooMany ? t("photo-open-too-many", { count: OPEN_AT_ONCE }) : undefined}
-          onClick={() => {
-            onClose();
-            void openInDefaultApp(ids);
-          }}
-        >
-          {t("photo-open", { count: ids.length })}
-        </button>
-      </div>
-    </div>
+        {isMac ? t("photo-show-in-finder") : t("photo-show-in-explorer")}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className="menu-item"
+        disabled={tooMany}
+        title={tooMany ? t("photo-open-too-many", { count: OPEN_AT_ONCE }) : undefined}
+        onClick={() => {
+          onClose();
+          void openInDefaultApp(ids);
+        }}
+      >
+        {t("photo-open", { count: ids.length })}
+      </button>
+    </Menu>
   );
 }

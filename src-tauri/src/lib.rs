@@ -18,7 +18,7 @@ mod synced;
 mod viewer;
 mod welcome;
 
-use library::{AppSettings, Library, LibraryChanged, ScanProgress, ThumbnailReady};
+use library::{AppSettings, Library, LibraryChanged, ScanProgress, ThumbnailsReady};
 use std::sync::Mutex;
 use tauri::{App, Manager, RunEvent, WebviewWindowBuilder};
 use tauri_specta::{Builder, Event, collect_commands, collect_events};
@@ -60,7 +60,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::finish_render_check,
         ])
         .events(collect_events![
-            ThumbnailReady,
+            ThumbnailsReady,
             LibraryChanged,
             ScanProgress,
             menu::MenuCommand
@@ -112,6 +112,14 @@ pub fn run() {
             app.manage(viewer::Viewer::default());
             // Show the snapshot at once (PRF-1), then catch up with the disk.
             app.state::<Library>().start_watching(app.handle());
+            // Finished thumbnails reach the UI in batches.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(library::THUMBNAILS_INTERVAL);
+                    handle.state::<Library>().send_thumbnails(&handle);
+                }
+            });
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 let library = handle.state::<Library>();

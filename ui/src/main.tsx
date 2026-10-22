@@ -4,6 +4,7 @@ import { App } from "./App";
 import "./styles/tokens.css";
 import "./index.css";
 import { followTextScale } from "./textScale";
+import { suppressWebViewMenu } from "./webViewMenu";
 
 const root = document.getElementById("root");
 if (root === null) {
@@ -11,6 +12,8 @@ if (root === null) {
 }
 
 followTextScale();
+
+suppressWebViewMenu();
 
 createRoot(root).render(
   <StrictMode>

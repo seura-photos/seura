@@ -28,6 +28,10 @@ pub struct Library {
     /// Where the cache is, and the workers filling it; replaced together
     /// when the cache moves.
     store: RwLock<Store>,
+    /// Thumbnails finished since the UI was last told, sent together by
+    /// [`Library::send_thumbnails`]: one event per thumbnail flooded the UI
+    /// during a large first scan, so clicking a folder waited for them all.
+    ready: Mutex<Vec<ThumbnailReady>>,
 }
 
 struct Store {
@@ -54,8 +58,15 @@ impl Store {
     }
 }
 
-/// A thumbnail finished, or can't be made.
+/// Thumbnails finished, or that can't be made, since the last of these.
 #[derive(Clone, Debug, Serialize, Type, Event)]
+pub struct ThumbnailsReady(pub Vec<ThumbnailReady>);
+
+/// The UI hears about finished thumbnails this often at most.
+pub const THUMBNAILS_INTERVAL: Duration = Duration::from_millis(100);
+
+/// A thumbnail finished, or can't be made.
+#[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ThumbnailReady {
     pub id: u32,
@@ -114,6 +125,7 @@ impl Library {
             progress: Mutex::new(Progress::default()),
             watcher: Mutex::new(None),
             store: RwLock::new(Store::open(app, cache)),
+            ready: Mutex::new(Vec::new()),
         }
     }
 
@@ -227,6 +239,15 @@ impl Library {
         let _ = event.emit(app);
     }
 
+    /// Tells the UI about the thumbnails finished since last time, if any.
+    /// Called every [`THUMBNAILS_INTERVAL`].
+    pub fn send_thumbnails<R: Runtime>(&self, app: &AppHandle<R>) {
+        let ready = std::mem::take(&mut *self.ready.lock().expect("ready lock"));
+        if !ready.is_empty() {
+            let _ = ThumbnailsReady(ready).emit(app);
+        }
+    }
+
     /// Removes thumbnails from the cache, for photos no longer in the
     /// library. The cache is Seura's own and rebuilt from the photos, so
     /// they're deleted, not sent to the Trash; only files in the cache.
@@ -324,11 +345,14 @@ fn finished<R: Runtime>(app: &AppHandle<R>, id: PhotoId, outcome: Outcome) {
             .record_details(id, made);
     }
     library.send_progress(app, false);
-    let event = ThumbnailReady {
-        id: id.value(),
-        cloud_only: outcome == Outcome::CloudOnly,
-        needs_codec: outcome == Outcome::NeedsCodec,
-        failed: matches!(outcome, Outcome::Failed(_)),
-    };
-    let _ = event.emit(app);
+    library
+        .ready
+        .lock()
+        .expect("ready lock")
+        .push(ThumbnailReady {
+            id: id.value(),
+            cloud_only: outcome == Outcome::CloudOnly,
+            needs_codec: outcome == Outcome::NeedsCodec,
+            failed: matches!(outcome, Outcome::Failed(_)),
+        });
 }

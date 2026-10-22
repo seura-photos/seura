@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => {
     handlers,
     events: {
       libraryChanged: event("libraryChanged"),
-      thumbnailReady: event("thumbnailReady"),
+      thumbnailsReady: event("thumbnailsReady"),
       menuCommand: event("menuCommand"),
       scanProgress: event("scanProgress"),
     },

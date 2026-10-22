@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { FolderInfo } from "./bindings";
+import { Menu } from "./Menu";
 import { t } from "./messages";
 
 type MenuProps = {
@@ -12,33 +13,12 @@ type MenuProps = {
 
 /** The menu for a library folder, opened by right-click or the context-menu key. */
 export function FolderMenu({ x, y, onRemove, onClose }: MenuProps) {
-  const first = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    first.current?.focus();
-    const close = () => onClose();
-    window.addEventListener("blur", close);
-    return () => window.removeEventListener("blur", close);
-  }, [onClose]);
   return (
-    <div
-      className="menu-backdrop"
-      onClick={onClose}
-      onContextMenu={(event) => event.preventDefault()}
-    >
-      <div
-        className="menu"
-        role="menu"
-        style={{ left: x, top: y }}
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") onClose();
-        }}
-      >
-        <button ref={first} type="button" role="menuitem" className="menu-item" onClick={onRemove}>
-          {t("library-remove-folder")}
-        </button>
-      </div>
-    </div>
+    <Menu x={x} y={y} onClose={onClose}>
+      <button type="button" role="menuitem" className="menu-item" onClick={onRemove}>
+        {t("library-remove-folder")}
+      </button>
+    </Menu>
   );
 }
 
