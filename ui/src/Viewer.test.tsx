@@ -69,6 +69,14 @@ function photo(id: number): PhotoInfo {
   };
 }
 
+/** Waits until the photo is shown, fitted: drawing comes a moment before
+ * the Viewer records it as shown, and zooming waits for that. */
+async function fitted() {
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Fit" }).getAttribute("aria-pressed")).toBe("true"),
+  );
+}
+
 function show(id: number, editorAvailable = false) {
   useStore.setState({ photos: [photo(1), photo(2), photo(3)], viewing: id });
   return render(<Viewer folder="Summer" forceWebgl2={false} editorAvailable={editorAvailable} />);
@@ -218,7 +226,7 @@ describe("Viewer (BRW-5)", () => {
 
   it("zooms to 100% and fetches the part on screen sharp (BRW-5)", async () => {
     show(1);
-    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalled());
+    await fitted();
     fireEvent.click(screen.getByRole("button", { name: "100%" }));
     expect(screen.getByRole("button", { name: "100%" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByText("100%", { selector: ".viewer-status span" })).toBeTruthy();
@@ -246,7 +254,7 @@ describe("Viewer (BRW-5)", () => {
 
   it("zooms with + and −, and opens the next photo fitted", async () => {
     show(1);
-    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalled());
+    await fitted();
     const zoomOut = screen.getByRole("button", { name: "Zoom out" });
     expect(zoomOut).toHaveProperty("disabled", true);
     fireEvent.keyDown(window, { key: "+" });
