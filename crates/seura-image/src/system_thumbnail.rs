@@ -106,8 +106,119 @@ mod platform {
     }
 }
 
-/// macOS (Quick Look) follows; until then cloud-only photos show a placeholder.
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+mod platform {
+    #![allow(
+        unsafe_code,
+        reason = "Quick Look and Core Graphics are Objective-C and C APIs"
+    )]
+
+    use std::path::Path;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    use block2::RcBlock;
+    use objc2::AllocAnyThread;
+    use objc2_core_foundation::{CGFloat, CGPoint, CGRect, CGSize};
+    use objc2_core_graphics::{
+        CGBitmapContextCreate, CGColorSpace, CGContext, CGImage, CGImageAlphaInfo,
+        kCGColorSpaceSRGB,
+    };
+    use objc2_foundation::{NSError, NSString, NSURL};
+    use objc2_quick_look_thumbnailing::{
+        QLThumbnailGenerationRequest, QLThumbnailGenerationRequestRepresentationTypes,
+        QLThumbnailGenerator, QLThumbnailRepresentation, QLThumbnailRepresentationType,
+    };
+
+    use crate::raster::Rgba8;
+
+    /// How long to wait for Quick Look before showing the placeholder.
+    const WAIT: Duration = Duration::from_secs(10);
+
+    /// Quick Look's thumbnail, which for a cloud-only file comes from the
+    /// sync service's File Provider, as Finder shows it.
+    pub fn thumbnail(path: &Path, size: u32) -> Option<Rgba8> {
+        let url = unsafe { NSURL::fileURLWithPath(&NSString::from_str(path.to_str()?)) };
+        let side = CGFloat::from(size as f32);
+        // A thumbnail only: never the file type's icon instead.
+        let request = unsafe {
+            QLThumbnailGenerationRequest::initWithFileAtURL_size_scale_representationTypes(
+                QLThumbnailGenerationRequest::alloc(),
+                &url,
+                CGSize {
+                    width: side,
+                    height: side,
+                },
+                1.0,
+                QLThumbnailGenerationRequestRepresentationTypes::Thumbnail,
+            )
+        };
+        let (sender, receiver) = mpsc::channel();
+        let handler = RcBlock::new(
+            move |representation: *mut QLThumbnailRepresentation, _error: *mut NSError| {
+                // Quick Look owns the representation for the handler's call.
+                let pixels = unsafe { representation.as_ref() }
+                    .filter(|representation| unsafe {
+                        representation.r#type() == QLThumbnailRepresentationType::Thumbnail
+                    })
+                    .and_then(|representation| pixels(&unsafe { representation.CGImage() }));
+                let _ = sender.send(pixels);
+            },
+        );
+        let generator = unsafe { QLThumbnailGenerator::sharedGenerator() };
+        unsafe {
+            generator.generateBestRepresentationForRequest_completionHandler(&request, &handler)
+        };
+        match receiver.recv_timeout(WAIT) {
+            Ok(pixels) => pixels,
+            Err(_) => {
+                unsafe { generator.cancelRequest(&request) };
+                None
+            }
+        }
+    }
+
+    /// Draws an image into an sRGB bitmap, as top-down RGBA.
+    fn pixels(image: &CGImage) -> Option<Rgba8> {
+        let width = CGImage::width(Some(image));
+        let height = CGImage::height(Some(image));
+        if width == 0 || height == 0 {
+            return None;
+        }
+        let srgb = CGColorSpace::with_name(Some(unsafe { kCGColorSpaceSRGB }))?;
+        let mut pixels = vec![0u8; width * height * 4];
+        {
+            let context: Option<_> = unsafe {
+                CGBitmapContextCreate(
+                    pixels.as_mut_ptr().cast(),
+                    width,
+                    height,
+                    8,
+                    width * 4,
+                    Some(&srgb),
+                    CGImageAlphaInfo::PremultipliedLast.0,
+                )
+            };
+            let bounds = CGRect {
+                origin: CGPoint { x: 0.0, y: 0.0 },
+                size: CGSize {
+                    width: width as CGFloat,
+                    height: height as CGFloat,
+                },
+            };
+            CGContext::draw_image(Some(&context?), bounds, Some(image));
+            // The context writes into `pixels`; it's dropped here, before they're used.
+        }
+        // Photo thumbnails are opaque.
+        for pixel in pixels.as_chunks_mut::<4>().0 {
+            pixel[3] = 255;
+        }
+        Some(Rgba8::new(width as u32, height as u32, pixels))
+    }
+}
+
+/// Other platforms aren't supported; cloud-only photos show a placeholder.
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 mod platform {
     use std::path::Path;
 

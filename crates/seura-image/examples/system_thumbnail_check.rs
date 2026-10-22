@@ -1,12 +1,18 @@
 //! Asks the system for each file's thumbnail and reports whether the file
-//! stayed cloud-only (Windows attribute RECALL_ON_DATA_ACCESS) throughout.
+//! stayed cloud-only (Windows attribute RECALL_ON_DATA_ACCESS, macOS flag
+//! SF_DATALESS) throughout.
 //! `cargo run -p seura-image --example system_thumbnail_check -- <files>`
 #[cfg(windows)]
 fn cloud_only(path: &std::path::Path) -> bool {
     use std::os::windows::fs::MetadataExt;
     std::fs::metadata(path).is_ok_and(|m| m.file_attributes() & 0x40_0000 != 0)
 }
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+fn cloud_only(path: &std::path::Path) -> bool {
+    use std::os::macos::fs::MetadataExt;
+    std::fs::metadata(path).is_ok_and(|m| m.st_flags() & 0x4000_0000 != 0)
+}
+#[cfg(not(any(windows, target_os = "macos")))]
 fn cloud_only(_path: &std::path::Path) -> bool {
     false
 }
