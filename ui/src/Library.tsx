@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { ArrowDownNarrowWide, ArrowUpNarrowWide, Plus } from "lucide-react";
 import { useCallback, useState } from "react";
 import mark from "../../design/brand/seura-mark-small.svg";
 import type { FolderInfo, ScanProgress } from "./bindings";
@@ -41,6 +41,14 @@ export function Library() {
   const photos = useStore((state) => state.photos);
   const thumbs = useStore((state) => state.thumbs);
   const notice = useStore((state) => state.notice);
+  const selection = useStore((state) => state.selection);
+  const selectPhoto = useStore((state) => state.selectPhoto);
+  const selectAllPhotos = useStore((state) => state.selectAllPhotos);
+  const sortBy = useStore((state) => state.sortBy);
+  const ascending = useStore((state) => state.ascending);
+  const setSort = useStore((state) => state.setSort);
+  const thumbnailSize = useStore((state) => state.thumbnailSize);
+  const setThumbnailSize = useStore((state) => state.setThumbnailSize);
   const progress = useStore((state) => state.progress);
   const removeFolder = useStore((state) => state.removeFolder);
   const addFolder = useStore((state) => state.addFolder);
@@ -90,11 +98,52 @@ export function Library() {
                   count: folder.photos,
                 })}
               </span>
+              <div className="view-controls">
+                <label className="view-control">
+                  <span className="visually-hidden">{t("grid-sort")}</span>
+                  <select
+                    value={sortBy}
+                    onChange={(event) => void setSort(event.target.value, ascending)}
+                  >
+                    <option value="dateTaken">{t("grid-sort-date-taken")}</option>
+                    <option value="fileName">{t("grid-sort-file-name")}</option>
+                    <option value="dateModified">{t("grid-sort-date-modified")}</option>
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label={ascending ? t("grid-ascending") : t("grid-descending")}
+                  title={ascending ? t("grid-ascending") : t("grid-descending")}
+                  onClick={() => void setSort(sortBy, !ascending)}
+                >
+                  {ascending ? (
+                    <ArrowUpNarrowWide className="icon" aria-hidden />
+                  ) : (
+                    <ArrowDownNarrowWide className="icon" aria-hidden />
+                  )}
+                </button>
+                <label className="view-control">
+                  {t("grid-size")}
+                  <input
+                    type="range"
+                    min={96}
+                    max={256}
+                    step={8}
+                    value={thumbnailSize}
+                    onChange={(event) => setThumbnailSize(Number(event.target.value))}
+                  />
+                </label>
+              </div>
             </div>
             <Grid
               folder={folder.name}
               photos={photos}
               thumbs={thumbs}
+              size={thumbnailSize}
+              selection={selection}
+              onSelect={selectPhoto}
+              onSelectAll={selectAllPhotos}
               onOpen={dev?.editorAvailable ? openEditor : undefined}
             />
           </>
@@ -129,6 +178,9 @@ export function Library() {
 
       <footer className="status-bar">
         {folder && <span>{t("library-photo-count", { count: folder.photos })}</span>}
+        {selection.ids.size > 0 && (
+          <span>{t("library-selected", { count: selection.ids.size })}</span>
+        )}
         <ScanStatus progress={progress} />
       </footer>
     </div>

@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import type { FolderInfo } from "./bindings";
+import type { FolderInfo, PhotoInfo } from "./bindings";
 import { useStore } from "./store";
 
 // vi.mock is hoisted above imports, so what it uses must be hoisted too.
@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
     },
     dev: { active: [] as string[], editorAvailable: false },
     folders: [] as FolderInfo[],
+    photos: [] as PhotoInfo[],
     removeFolder: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
     addFolder: vi.fn(() => Promise.resolve({ status: "ok", data: { kind: "cancelled" } })),
   };
@@ -59,13 +60,33 @@ vi.mock("./bindings", () => ({
       }),
     ),
     folders: vi.fn(() => Promise.resolve(mocks.folders)),
-    photos: vi.fn(() => Promise.resolve([])),
+    photos: vi.fn(() => Promise.resolve(mocks.photos)),
+    viewSettings: vi.fn(() =>
+      Promise.resolve({ sortBy: "dateTaken", ascending: true, thumbnailSize: 160 }),
+    ),
+    setSort: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
+    setThumbnailSize: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
     showThumbnails: vi.fn(() => Promise.resolve()),
     addFolder: mocks.addFolder,
     removeFolder: mocks.removeFolder,
   },
   events: mocks.events,
 }));
+
+function photo(id: number): PhotoInfo {
+  return {
+    id,
+    name: `IMG_${id}.jpg`,
+    width: null,
+    height: null,
+    cloudOnly: false,
+    taken: null,
+    modified: 0,
+    rating: 0,
+    edited: false,
+    unreadable: false,
+  };
+}
 
 function folder(fields: Partial<FolderInfo> & { name: string }): FolderInfo {
   return {
@@ -85,6 +106,7 @@ describe("App", () => {
     cleanup();
     mocks.dev.active = [];
     mocks.folders = [];
+    mocks.photos = [];
     mocks.addFolder.mockClear();
     mocks.removeFolder.mockClear();
     useStore.setState(useStore.getInitialState(), true);
@@ -169,6 +191,23 @@ describe("App", () => {
     await screen.findByRole("treeitem", { name: /Pictures/ });
     expect(screen.queryByRole("heading", { name: "Pictures" })).toBeNull();
     expect(screen.getByText("Choose a folder on the left.")).toBeDefined();
+  });
+
+  it("counts the selected photos in the status bar (BRW-4)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+    mocks.photos = [1, 2, 3].map((id) => photo(id));
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    expect(await screen.findByRole("grid")).toBeDefined();
+    // The grid is virtualized and jsdom has no layout, so it draws no cells;
+    // clicking is covered by selection.test.ts, and here only the count.
+    act(() => {
+      useStore.getState().selectPhoto(1, { toggle: false, range: false });
+      useStore.getState().selectPhoto(3, { toggle: true, range: false });
+    });
+    expect(screen.getByText("2 selected")).toBeDefined();
+    act(() => useStore.getState().selectAllPhotos());
+    expect(screen.getByText("3 selected")).toBeDefined();
   });
 
   it("shows a disconnected drive's folder as not connected (LIB-6)", async () => {

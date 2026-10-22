@@ -3,8 +3,10 @@
 
 use std::path::{Path, PathBuf};
 
-use serde::Serialize;
-use seura_library::{AddFolder, Filter, FolderId, PhotoId, Scope};
+use serde::{Deserialize, Serialize};
+use seura_library::{
+    AddFolder, EditFileState, Filter, FolderId, PhotoId, Scope, Sort, SortBy, THUMBNAIL_SIZES,
+};
 use specta::Type;
 use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
@@ -52,6 +54,75 @@ pub struct PhotoInfo {
     pub height: Option<u32>,
     /// Only in the cloud: never downloaded for browsing (LIB-9).
     pub cloud_only: bool,
+    /// When it was taken, in seconds since 1970 on the camera's own clock,
+    /// if known (raw values: the UI formats them, ACC-6).
+    pub taken: Option<f64>,
+    /// The file's modification time, in seconds since 1970.
+    pub modified: f64,
+    /// 0 to 5 stars, from its edit file.
+    pub rating: u8,
+    /// Its edit file holds edits.
+    pub edited: bool,
+    /// Its edit file exists but can't be read (FIL-4).
+    pub unreadable: bool,
+}
+
+/// The grid's order and size (BRW-2, BRW-3), from the settings.
+#[derive(Clone, Debug, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ViewSettings {
+    /// `dateTaken`, `fileName`, or `dateModified`.
+    pub sort_by: String,
+    pub ascending: bool,
+    /// Grid cell size in logical pixels, 96 to 256.
+    pub thumbnail_size: u32,
+}
+
+fn sort_name(by: SortBy) -> &'static str {
+    match by {
+        SortBy::DateTaken => "dateTaken",
+        SortBy::FileName => "fileName",
+        SortBy::DateModified => "dateModified",
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn view_settings(settings: State<'_, AppSettings>) -> ViewSettings {
+    let settings = &settings.0.lock().expect("settings lock").settings;
+    ViewSettings {
+        sort_by: sort_name(settings.sort.by).into(),
+        ascending: settings.sort.ascending,
+        thumbnail_size: settings.thumbnail_size,
+    }
+}
+
+/// Sets the grid's order for the whole app, and remembers it (BRW-2).
+#[tauri::command]
+#[specta::specta]
+pub fn set_sort(
+    settings: State<'_, AppSettings>,
+    by: String,
+    ascending: bool,
+) -> Result<(), String> {
+    let by = match by.as_str() {
+        "dateTaken" => SortBy::DateTaken,
+        "fileName" => SortBy::FileName,
+        "dateModified" => SortBy::DateModified,
+        other => return Err(format!("no such order: {other}")),
+    };
+    let mut settings = settings.0.lock().expect("settings lock");
+    settings.settings.sort = Sort { by, ascending };
+    settings.save().map_err(|error| error.to_string())
+}
+
+/// Sets the grid's cell size, and remembers it (BRW-3).
+#[tauri::command]
+#[specta::specta]
+pub fn set_thumbnail_size(settings: State<'_, AppSettings>, size: u32) -> Result<(), String> {
+    let mut settings = settings.0.lock().expect("settings lock");
+    settings.settings.thumbnail_size = size.clamp(THUMBNAIL_SIZES.0, THUMBNAIL_SIZES.1);
+    settings.save().map_err(|error| error.to_string())
 }
 
 /// What adding a folder did (LIB-1).
@@ -182,16 +253,22 @@ pub async fn remove_folder(app: AppHandle, root: u32) -> Result<(), String> {
     .map_err(|error| error.to_string())?
 }
 
-/// A folder's own photos (BRW-1), by file name for now; the sort options
-/// of BRW-2 arrive in M2. Their thumbnails are queued behind the visible ones.
+/// A folder's own photos (BRW-1), in the app's order (BRW-2). Their
+/// thumbnails are queued behind the visible ones.
 #[tauri::command]
 #[specta::specta]
-pub fn photos(library: State<'_, Library>, folder: u32) -> Vec<PhotoInfo> {
+pub fn photos(
+    library: State<'_, Library>,
+    settings: State<'_, AppSettings>,
+    folder: u32,
+) -> Vec<PhotoInfo> {
+    let sort = settings.0.lock().expect("settings lock").settings.sort;
     let folder = FolderId::new(folder);
-    let mut photos: Vec<PhotoInfo> = {
+    let photos: Vec<PhotoInfo> = {
         let index = library.index.read().expect("index lock");
+        let ids = index.query(Scope::Folder(folder), &Filter::default());
         index
-            .query(Scope::Folder(folder), &Filter::default())
+            .sorted(ids, sort)
             .into_iter()
             .filter_map(|id| {
                 let photo = index.photo(id)?;
@@ -201,11 +278,15 @@ pub fn photos(library: State<'_, Library>, folder: u32) -> Vec<PhotoInfo> {
                     width: photo.dimensions.map(|(width, _)| width),
                     height: photo.dimensions.map(|(_, height)| height),
                     cloud_only: photo.placeholder,
+                    taken: photo.taken.map(|seconds| seconds as f64),
+                    modified: photo.modified.secs as f64,
+                    rating: photo.rating,
+                    edited: photo.edit_file == EditFileState::Read { edited: true },
+                    unreadable: photo.edit_file == EditFileState::Unreadable,
                 })
             })
             .collect()
     };
-    photos.sort_by_key(|photo| photo.name.to_lowercase());
     library.queue_folder(folder);
     photos
 }

@@ -11,6 +11,7 @@ mod platform;
 mod scan;
 mod settings;
 mod snapshot;
+mod sort;
 #[doc(hidden)]
 pub mod synthetic;
 mod thumbnails;
@@ -30,6 +31,7 @@ pub use settings::{
     THUMBNAIL_SIZES,
 };
 pub use snapshot::SNAPSHOT_FILE;
+pub use sort::natural;
 pub use thumbnails::{Job, Made, Outcome, THUMBS_FOLDER, ThumbnailCache, ThumbnailWorkers};
 pub use tree::FolderEntry;
 pub use watch::{Watcher, folders_to_scan};
