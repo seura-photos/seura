@@ -326,6 +326,13 @@ pub struct PhotoDetails {
     /// The 35 mm equivalent, where the photo records it.
     pub focal_length_35mm: Option<f64>,
     pub f_number: Option<f64>,
+    /// Shutter speed in seconds, ISO, and exposure compensation in stops.
+    pub exposure_time: Option<f64>,
+    pub iso: Option<u32>,
+    pub exposure_bias: Option<f64>,
+    /// The file's modification time, in seconds since 1970: shown when
+    /// there's no date taken.
+    pub modified: f64,
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
 }
@@ -373,6 +380,10 @@ pub async fn photo_details(app: AppHandle, id: u32) -> Result<PhotoDetails, Stri
                 focal_length: None,
                 focal_length_35mm: None,
                 f_number: None,
+                exposure_time: None,
+                iso: None,
+                exposure_bias: None,
+                modified: photo.modified.secs as f64,
                 latitude: None,
                 longitude: None,
             };
@@ -386,6 +397,9 @@ pub async fn photo_details(app: AppHandle, id: u32) -> Result<PhotoDetails, Stri
             details.focal_length = exif.focal_length;
             details.focal_length_35mm = exif.focal_length_35mm;
             details.f_number = exif.f_number;
+            details.exposure_time = exif.exposure_time;
+            details.iso = exif.iso;
+            details.exposure_bias = exif.exposure_bias;
             details.latitude = exif.latitude;
             details.longitude = exif.longitude;
         }

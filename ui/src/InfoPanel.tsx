@@ -111,6 +111,21 @@ function Photo({
     ]
       .filter((part) => part)
       .join(" · ") || undefined;
+  const exposure = [
+    details.exposureTime ? shutter(details.exposureTime) : null,
+    details.iso ? t("info-iso", { iso: details.iso }) : null,
+    // Compensation only when there was some.
+    details.exposureBias
+      ? t("info-exposure-bias", {
+          ev: formatNumber(details.exposureBias, {
+            maximumFractionDigits: 1,
+            signDisplay: "exceptZero",
+          }),
+        })
+      : null,
+  ]
+    .filter((part) => part !== null)
+    .join(" · ");
   const location =
     details.latitude != null && details.longitude != null
       ? t("info-coordinates", {
@@ -130,7 +145,15 @@ function Photo({
         />
       )}
       <h2 className="info-name">{details.name}</h2>
-      {details.taken != null && <p className="meta">{formatDateTime(details.taken)}</p>}
+      {details.taken != null ? (
+        <p className="meta">{formatDateTime(details.taken)}</p>
+      ) : (
+        // No date taken (scans, screenshots): when the file last changed,
+        // a real moment, so in local time.
+        <p className="meta">
+          {t("info-modified", { date: formatDateTime(details.modified ?? 0, { local: true }) })}
+        </p>
+      )}
       <dl className="info-facts">
         <dt>{t("info-size")}</dt>
         <dd>{size}</dd>
@@ -144,6 +167,12 @@ function Photo({
           <>
             <dt>{t("info-lens")}</dt>
             <dd title={lensTitle}>{optics || details.lens}</dd>
+          </>
+        )}
+        {exposure && (
+          <>
+            <dt>{t("info-exposure")}</dt>
+            <dd>{exposure}</dd>
           </>
         )}
         {location && (
@@ -241,4 +270,16 @@ function Tags({ tags, heading }: { tags: string[]; heading: string }) {
       )}
     </section>
   );
+}
+
+/** A shutter speed as photographers write it: 1/120 s below a second, 2 s above. */
+function shutter(seconds: number): string {
+  if (seconds < 1) {
+    return t("info-shutter-fraction", {
+      denominator: formatNumber(Math.round(1 / seconds), { useGrouping: false }),
+    });
+  }
+  return t("info-shutter-seconds", {
+    seconds: formatNumber(seconds, { maximumFractionDigits: 1 }),
+  });
 }
