@@ -72,6 +72,16 @@ button {
   height: 100vh;
 }
 
+/* The Library, with the Viewer over it while a photo is open. */
+
+.views {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 /* The Library's frame (wireframes, "Shared structure"). */
 
 .shell {
@@ -674,4 +684,100 @@ button {
 
 .editor-controls input[type="range"] {
   width: 15rem;
+}
+
+/* The Viewer (BRW-5; styled mockup): the photo on the surround, between a
+   bar and a status bar, over the Library. */
+
+.viewer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: var(--size-header) minmax(0, 1fr) var(--size-footer);
+  background: var(--color-photo);
+}
+
+/* Focused on opening, for the keyboard; the photo needs no outline. */
+.viewer:focus {
+  outline: none;
+}
+
+.viewer-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 1rem;
+  background: var(--color-panel);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.viewer-name {
+  font-weight: var(--type-panel-heading-weight);
+}
+
+.viewer-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.viewer-thumbnail {
+  max-width: 60%;
+  max-height: 60%;
+  opacity: 0.6;
+}
+
+.viewer-message {
+  position: absolute;
+  bottom: 1.5rem;
+  max-width: 32rem;
+  margin: 0;
+  padding: 0.5rem 0.875rem;
+  border-radius: var(--radius-panel);
+  background: var(--color-toolbar-on-photo);
+  color: #fff;
+  text-align: center;
+}
+
+/* 48 px targets (styled mockup), on the photo's toolbar color. */
+.viewer-nav {
+  position: absolute;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  margin-top: -1.5rem;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-toolbar-on-photo);
+  color: #fff;
+  cursor: pointer;
+}
+
+.viewer-nav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.viewer-previous {
+  left: 1rem;
+}
+
+.viewer-next {
+  right: 1rem;
+}
+
+.viewer-status {
+  grid-area: auto;
+  justify-content: space-between;
+}
+
+.viewer-keys {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

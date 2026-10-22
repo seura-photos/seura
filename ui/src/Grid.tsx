@@ -30,6 +30,8 @@ type Props = {
   onSelectAll: () => void;
   /** Opens a photo: double-click, or Enter. None while nothing can open it. */
   onOpen?: ((photo: PhotoInfo) => void) | undefined;
+  /** A photo to scroll to and focus: the last one shown in the Viewer. */
+  reveal?: { id: number } | null | undefined;
 };
 
 const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
@@ -50,6 +52,7 @@ export function Grid({
   onSelect,
   onSelectAll,
   onOpen,
+  reveal,
 }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -104,6 +107,16 @@ export function Grid({
   });
 
   const current = Math.min(focusIndex, Math.max(0, photos.length - 1));
+
+  // Back from the Viewer: the last photo shown is scrolled to and focused.
+  // `reveal` is a new object each time, so the same photo is revealed again.
+  useEffect(() => {
+    if (!reveal) return;
+    const index = photos.findIndex((photo) => photo.id === reveal.id);
+    if (index >= 0) focusOn(index);
+    // focusOn changes every render; only a new reveal should move the focus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal]);
 
   function focusOn(index: number) {
     setFocusIndex(index);

@@ -34,8 +34,7 @@ function ScanStatus({ progress }: { progress: ScanProgress }) {
  * built is shown (M2 work plan); search, Review, quick actions, tags, and
  * the Info panel arrive with their slices.
  */
-export function Library() {
-  const dev = useStore((state) => state.dev);
+export function Library({ inert = false }: { inert?: boolean }) {
   const folders = useStore((state) => state.folders);
   const folderId = useStore((state) => state.folderId);
   const photos = useStore((state) => state.photos);
@@ -52,7 +51,8 @@ export function Library() {
   const progress = useStore((state) => state.progress);
   const removeFolder = useStore((state) => state.removeFolder);
   const addFolder = useStore((state) => state.addFolder);
-  const openEditor = useStore((state) => state.openEditor);
+  const view = useStore((state) => state.view);
+  const reveal = useStore((state) => state.reveal);
   // An empty library folder has no id, so nothing selected must not match it.
   const folder =
     folderId === null ? null : (folders.find((candidate) => candidate.id === folderId) ?? null);
@@ -65,7 +65,7 @@ export function Library() {
   const closeMenu = useCallback(() => setMenu(null), []);
 
   return (
-    <div className="shell">
+    <div className="shell" inert={inert}>
       <header className="header">
         <img className="mark" src={mark} alt="" />
         <span className="wordmark">{t("app-short-name")}</span>
@@ -144,7 +144,8 @@ export function Library() {
               selection={selection}
               onSelect={selectPhoto}
               onSelectAll={selectAllPhotos}
-              onOpen={dev?.editorAvailable ? openEditor : undefined}
+              onOpen={(photo) => view(photo.id)}
+              reveal={reveal}
             />
           </>
         ) : (

@@ -16,6 +16,8 @@
     "allow-show-thumbnails",
     "allow-open-photo",
     "allow-close-photo",
+    "allow-view-photo",
+    "allow-close-viewer",
     "allow-set-exposure",
     "allow-export-photo",
     "allow-dev-options",
