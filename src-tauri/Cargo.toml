@@ -31,6 +31,7 @@ seura-image = { workspace = true }
 seura-render = { workspace = true }
 time = { workspace = true }
 rfd = { workspace = true }
+tauri-plugin-opener = { workspace = true }
 fluent-bundle = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]

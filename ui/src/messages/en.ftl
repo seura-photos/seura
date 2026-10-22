@@ -119,6 +119,18 @@ info-selected =
        *[other] { $count } photos selected
     }
 info-date-range = { $first } to { $last }
+## Opening photos elsewhere (BRW-8)
+
+photo-show-in-explorer = Show in Explorer
+photo-show-in-finder = Show in Finder
+photo-open =
+    { $count ->
+        [one] Open in default app
+       *[other] Open { $count } in default app
+    }
+photo-open-too-many = Select { $count } photos or fewer to open them.
+photo-show-failed = Couldn't show that in the folder: { $reason }
+photo-open-failed = Couldn't open that: { $reason }
 
 ## Viewer (BRW-5)
 

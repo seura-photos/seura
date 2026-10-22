@@ -456,6 +456,55 @@ pub fn selection_summary(library: State<'_, Library>, ids: Vec<u32>) -> Selectio
     }
 }
 
+/// At most this many photos open in the default app at once, so a large
+/// selection doesn't open a window for each (BRW-8).
+pub const OPEN_AT_ONCE: usize = 20;
+
+/// The files of photos in the index, never any other path.
+fn photo_paths(library: &Library, ids: &[u32]) -> Vec<PathBuf> {
+    let index = library.index.read().expect("index lock");
+    ids.iter()
+        .filter_map(|id| index.path(PhotoId::new(*id)))
+        .collect()
+}
+
+/// Shows photos in Explorer or Finder, selected there (BRW-8). Only their
+/// attributes are read, so a cloud-only photo isn't downloaded (LIB-9).
+#[tauri::command]
+#[specta::specta]
+pub async fn show_in_folder(app: AppHandle, ids: Vec<u32>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let paths = photo_paths(&app.state::<Library>(), &ids);
+        if paths.is_empty() {
+            return Err("those photos aren't in the library".to_string());
+        }
+        tauri_plugin_opener::reveal_items_in_dir(&paths).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// Opens photos in the system's default app for them (BRW-8), at most
+/// [`OPEN_AT_ONCE`]. That app reads them, so it downloads a cloud-only one:
+/// the user asked for it (LIB-9).
+#[tauri::command]
+#[specta::specta]
+pub async fn open_in_default_app(app: AppHandle, ids: Vec<u32>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let paths = photo_paths(&app.state::<Library>(), &ids);
+        if paths.is_empty() || paths.len() > OPEN_AT_ONCE {
+            return Err(format!("choose 1 to {OPEN_AT_ONCE} photos to open"));
+        }
+        for path in paths {
+            tauri_plugin_opener::open_path(&path, None::<&str>)
+                .map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 /// The photos now on screen, in order: their thumbnails are made first (LIB-3).
 #[tauri::command]
 #[specta::specta]

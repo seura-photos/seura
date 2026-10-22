@@ -30,6 +30,9 @@ type Props = {
   onSelectAll: () => void;
   /** Opens a photo: double-click, or Enter. None while nothing can open it. */
   onOpen?: ((photo: PhotoInfo) => void) | undefined;
+  /** The photo menu for these photos, at this point (BRW-8): right-click,
+   * or the context-menu key or Shift+F10. */
+  onMenu?: ((ids: number[], x: number, y: number) => void) | undefined;
   /** A photo to scroll to and focus: the last one shown in the Viewer. */
   reveal?: { id: number } | null | undefined;
 };
@@ -52,6 +55,7 @@ export function Grid({
   onSelect,
   onSelectAll,
   onOpen,
+  onMenu,
   reveal,
 }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
@@ -136,6 +140,13 @@ export function Grid({
       onOpen?.(photo);
       return;
     }
+    if (photo && (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey))) {
+      event.preventDefault();
+      const cell = scroller.current?.querySelector(`[data-index="${current}"]`);
+      const box = cell?.getBoundingClientRect();
+      menuFor(photo, box ? box.left + 24 : 0, box ? box.bottom : 0);
+      return;
+    }
     if (event.key === " " && photo) {
       event.preventDefault();
       onSelect(photo.id, { toggle: ctrl, range: event.shiftKey });
@@ -149,6 +160,18 @@ export function Grid({
     const target = photos[next];
     // The selection follows the focus, unless Ctrl moves only the focus.
     if (target && !ctrl) onSelect(target.id, { toggle: false, range: event.shiftKey });
+  }
+
+  /** The menu acts on the selection; a photo outside it is selected first,
+   * as Explorer and Finder do. */
+  function menuFor(photo: PhotoInfo, x: number, y: number) {
+    if (!onMenu) return;
+    if (selection.ids.has(photo.id)) {
+      onMenu([...selection.ids], x, y);
+    } else {
+      onSelect(photo.id, { toggle: false, range: false });
+      onMenu([photo.id], x, y);
+    }
   }
 
   function onClick(event: MouseEvent, index: number, photo: PhotoInfo) {
@@ -193,6 +216,11 @@ export function Grid({
                   focusable={index === current}
                   onClick={(event) => onClick(event, index, photo)}
                   onOpen={onOpen}
+                  onMenu={(event) => {
+                    event.preventDefault();
+                    setFocusIndex(index);
+                    menuFor(photo, event.clientX, event.clientY);
+                  }}
                 />
               );
             })}
@@ -213,6 +241,7 @@ type ThumbnailProps = {
   focusable: boolean;
   onClick: (event: MouseEvent) => void;
   onOpen?: ((photo: PhotoInfo) => void) | undefined;
+  onMenu: (event: MouseEvent) => void;
 };
 
 function Thumbnail({
@@ -225,6 +254,7 @@ function Thumbnail({
   focusable,
   onClick,
   onOpen,
+  onMenu,
 }: ThumbnailProps) {
   // The version whose image failed to load: a newer version is tried again.
   const [missingVersion, setMissingVersion] = useState<number | null>(null);
@@ -245,6 +275,7 @@ function Thumbnail({
       title={photo.name}
       onClick={onClick}
       onDoubleClick={() => onOpen?.(photo)}
+      onContextMenu={onMenu}
     >
       {label || missing ? (
         <div className="placeholder">{label}</div>

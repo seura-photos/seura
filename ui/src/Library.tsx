@@ -5,6 +5,7 @@ import type { FolderInfo, ScanProgress } from "./bindings";
 import { FolderTree } from "./FolderTree";
 import { Grid } from "./Grid";
 import { InfoPanel } from "./InfoPanel";
+import { PhotoMenu } from "./PhotoMenu";
 import { t } from "./messages";
 import { ConfirmRemove, FolderMenu } from "./RemoveFolder";
 import { useStore } from "./store";
@@ -59,6 +60,8 @@ export function Library({ inert = false }: { inert?: boolean }) {
     folderId === null ? null : (folders.find((candidate) => candidate.id === folderId) ?? null);
   const [menu, setMenu] = useState<{ folder: FolderInfo; x: number; y: number } | null>(null);
   const [removing, setRemoving] = useState<FolderInfo | null>(null);
+  const [photoMenu, setPhotoMenu] = useState<{ ids: number[]; x: number; y: number } | null>(null);
+  const closePhotoMenu = useCallback(() => setPhotoMenu(null), []);
   const openMenu = useCallback(
     (target: FolderInfo, x: number, y: number) => setMenu({ folder: target, x, y }),
     [],
@@ -146,6 +149,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
               onSelect={selectPhoto}
               onSelectAll={selectAllPhotos}
               onOpen={(photo) => view(photo.id)}
+              onMenu={(ids, x, y) => setPhotoMenu({ ids, x, y })}
               reveal={reveal}
             />
           </>
@@ -156,6 +160,9 @@ export function Library({ inert = false }: { inert?: boolean }) {
 
       <InfoPanel ids={[...selection.ids]} version={photos} preview />
 
+      {photoMenu && (
+        <PhotoMenu ids={photoMenu.ids} x={photoMenu.x} y={photoMenu.y} onClose={closePhotoMenu} />
+      )}
       {menu && (
         <FolderMenu
           folder={menu.folder}
