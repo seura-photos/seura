@@ -36,6 +36,9 @@
     "allow-finish-welcome",
     "allow-check-render",
     "allow-finish-render-check",
+    "allow-measure-elapsed",
+    "allow-scan-progress",
+    "allow-measure-report",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

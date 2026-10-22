@@ -40,9 +40,13 @@ windows = { workspace = true, features = [
     "UI_ViewManagement",
     "Win32_Globalization",
     "Win32_Storage_CloudFilters",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Threading",
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+# Peak memory for the measurement script (getrusage).
+libc = { workspace = true }
 # The system region (ACC-6).
 objc2-core-foundation = { workspace = true, features = ["CFLocale", "CFString"] }
 

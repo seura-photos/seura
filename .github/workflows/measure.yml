@@ -1,0 +1,61 @@
+name: Measure
+
+# The performance targets, measured by a release build on GitHub's runners
+# (M2 slice 10; scripts/measure.py). Run by hand from the Actions tab: it
+# takes a while and isn't needed on every pull request. The runners have
+# little disk and few cores, so it uses the small libraries, and the results
+# are for comparing runs, not for judging the targets: those are judged on
+# Nevada's machines and a reference-class laptop.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  measure:
+    name: Measure (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install the Rust toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI packages
+        working-directory: ui
+        run: npm ci
+
+      - name: Build the app (release)
+        working-directory: ui
+        run: npm run tauri -- build ${{ runner.os == 'macOS' && '--bundles app' || '--no-bundle' }}
+
+      - name: Measure
+        shell: bash
+        run: |
+          ${{ runner.os == 'Windows' && 'python' || 'python3' }} scripts/measure.py --small | tee measure.txt
+          { echo "## Performance targets (${{ matrix.os }}, small libraries)"; echo; sed -n '/^| Target/,$p' measure.txt; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: measure-${{ matrix.os }}
+          path: target/measure/results.json
+          if-no-files-found: ignore

@@ -210,6 +210,21 @@ impl Library {
         self.send_progress(app, true);
     }
 
+    /// How far the pass has got right now, unthrottled: for the measurement
+    /// script, which mustn't depend on an event it may have missed.
+    pub fn progress_now(&self) -> ScanProgress {
+        let pending = self.store.read().expect("store lock").workers.pending();
+        let progress = self.progress.lock().expect("progress lock");
+        if pending == 0 && progress.scanning.is_none() {
+            return ScanProgress::default();
+        }
+        ScanProgress {
+            scanning: progress.scanning.clone(),
+            done: progress.total.saturating_sub(pending) as u32,
+            total: progress.total as u32,
+        }
+    }
+
     /// Says how far the pass has got, at most every 250 ms unless `now`.
     fn send_progress<R: Runtime>(&self, app: &AppHandle<R>, now: bool) {
         let pending = self.store.read().expect("store lock").workers.pending();

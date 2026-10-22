@@ -6,15 +6,34 @@ use std::path::{Path, PathBuf};
 use seura_library::{Index, Settings, SettingsFile};
 use tauri::{AppHandle, Manager, Runtime};
 
+/// The developer switch that puts Seura's folder elsewhere, for measuring
+/// and testing without touching the real one (M2 slice 10).
+pub const DATA_SWITCH: &str = "SEURA_DATA";
+
 /// `Seura Photos` in the user's home folder: settings, presets, and by
 /// default the cache (decision 0015). Not Documents, which is often synced.
-/// On Windows the home folder comes from `FOLDERID_Profile`.
+/// On Windows the home folder comes from `FOLDERID_Profile`. With
+/// `SEURA_DATA`, the folder it names instead.
 pub fn seura_folder<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<PathBuf> {
+    if let Some(folder) = data_override() {
+        return Ok(folder);
+    }
     Ok(app.path().home_dir()?.join("Seura Photos"))
+}
+
+/// The folder `SEURA_DATA` names, if it's set.
+fn data_override() -> Option<PathBuf> {
+    std::env::var_os(DATA_SWITCH)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
 }
 
 /// Where M1 builds kept everything, read once to carry the library over.
 fn m1_cache_folder<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
+    // A folder of its own carries nothing over.
+    if data_override().is_some() {
+        return None;
+    }
     Some(
         app.path()
             .document_dir()
