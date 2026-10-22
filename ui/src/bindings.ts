@@ -288,6 +288,8 @@ export type PhotoDetails = {
 	lens: string | null,
 	/**  In millimeters. */
 	focalLength: number | null,
+	/**  The 35 mm equivalent, where the photo records it. */
+	focalLength35mm: number | null,
 	fNumber: number | null,
 	latitude: number | null,
 	longitude: number | null,

@@ -32,6 +32,7 @@ function details(overrides: Partial<PhotoDetails> = {}): PhotoDetails {
     camera: "Apple iPhone 15 Pro",
     lens: "iPhone 15 Pro back camera 6.86mm f/1.78",
     focalLength: 6.86,
+    focalLength35mm: 24,
     fNumber: 1.78,
     latitude: 47.81234,
     longitude: -122.38,
@@ -52,7 +53,11 @@ describe("Info panel (BRW-6)", () => {
     expect(mocks.photoDetails).toHaveBeenCalledWith(7);
     expect(screen.getByText(/4032 × 3024 ·/)).toBeTruthy();
     expect(screen.getByText("Apple iPhone 15 Pro")).toBeTruthy();
-    expect(screen.getByText("6.9 mm ƒ/1.8")).toBeTruthy();
+    // The 35 mm equivalent, as the phone shows it, and the f-number as recorded.
+    const lens = screen.getByText("24 mm ƒ/1.78");
+    expect(lens.getAttribute("title")).toBe(
+      "6.86 mm actual · iPhone 15 Pro back camera 6.86mm f/1.78",
+    );
     expect(screen.getByText("47.8123, -122.38")).toBeTruthy();
     expect(screen.getByText("Pictures › 2026 › Summer")).toBeTruthy();
     expect(screen.getByText("Edited")).toBeTruthy();
@@ -69,6 +74,7 @@ describe("Info panel (BRW-6)", () => {
         lens: null,
         focalLength: null,
         fNumber: null,
+        focalLength35mm: null,
         latitude: null,
         longitude: null,
         rating: 0,
@@ -105,5 +111,15 @@ describe("Info panel (BRW-6)", () => {
   it("invites a selection when there's none", async () => {
     render(<InfoPanel ids={[]} version={0} />);
     expect(await screen.findByText("Select a photo to see its details.")).toBeTruthy();
+  });
+
+  it("shows a camera's actual focal length when it records no equivalent", async () => {
+    mocks.photoDetails.mockResolvedValue({
+      status: "ok",
+      data: details({ focalLength: 50, focalLength35mm: null, fNumber: 2.8, lens: null }),
+    });
+    render(<InfoPanel ids={[7]} version={0} />);
+    const lens = await screen.findByText("50 mm ƒ/2.8");
+    expect(lens.getAttribute("title")).toBeNull();
   });
 });
