@@ -74,13 +74,24 @@ type State = {
   /** Closes the Viewer: back to the grid with the last photo selected. */
   closeViewer: () => void;
   openEditor: (photo: PhotoInfo | null) => void;
+  /** Opening several photos in the default app, waiting to be confirmed. */
+  confirmingOpen: { ids: number[]; count: number; cloudOnly: number } | null;
+  /** The photos the photo commands act on: the one in the Viewer, or the selection. */
+  chosenPhotos: () => number[];
   /** Shows photos in Explorer or Finder (BRW-8). */
   showInFolder: (ids: number[]) => Promise<void>;
-  /** Opens photos in the system's default app (BRW-8). */
+  /** Opens photos in the system's default app (BRW-8), asking first when
+   * it's many or some are in the cloud (LIB-9). */
   openInDefaultApp: (ids: number[]) => Promise<void>;
+  /** The answer to that question. */
+  confirmOpen: (open: boolean) => Promise<void>;
 };
 
 let sizeSave = 0;
+
+/** Opening more photos than this at once in the default app is confirmed
+ * first, as Windows' Explorer guards more than 15 (BRW-8). */
+export const CONFIRM_OPEN_ABOVE = 15;
 
 export const useStore = create<State>()((set, get) => ({
   dev: null,
@@ -98,6 +109,7 @@ export const useStore = create<State>()((set, get) => ({
   thumbnailSize: 160,
   viewing: null,
   reveal: null,
+  confirmingOpen: null,
   editing: null,
   notice: null,
   progress: { scanning: null, done: 0, total: 0 },
@@ -275,8 +287,33 @@ export const useStore = create<State>()((set, get) => ({
       set({ notice: t("photo-show-failed", { reason: result.error }) });
   },
 
+  chosenPhotos() {
+    const { viewing, selection } = get();
+    return viewing !== null ? [viewing] : [...selection.ids];
+  },
+
   async openInDefaultApp(ids) {
+    if (ids.length === 0) return;
+    // One photo opens as asked, like opening it in the Viewer, even from
+    // the cloud. Several are confirmed first when there are many, or when
+    // some would be downloaded.
+    if (ids.length > 1) {
+      const { count, cloudOnly } = await commands.opening(ids);
+      if (count > CONFIRM_OPEN_ABOVE || cloudOnly > 0) {
+        set({ confirmingOpen: { ids, count, cloudOnly } });
+        return;
+      }
+    }
     const result = await commands.openInDefaultApp(ids);
+    if (result.status === "error")
+      set({ notice: t("photo-open-failed", { reason: result.error }) });
+  },
+
+  async confirmOpen(open) {
+    const confirming = get().confirmingOpen;
+    set({ confirmingOpen: null });
+    if (!open || !confirming) return;
+    const result = await commands.openInDefaultApp(confirming.ids);
     if (result.status === "error")
       set({ notice: t("photo-open-failed", { reason: result.error }) });
   },

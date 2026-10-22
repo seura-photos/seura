@@ -128,7 +128,15 @@ photo-open =
         [one] Open in default app
        *[other] Open { $count } in default app
     }
-photo-open-too-many = Select { $count } photos or fewer to open them.
+photo-open-title = Open { $count } photos?
+photo-open-windows = Depending on the app, each may open in its own window.
+photo-open-cloud =
+    { $count ->
+        [one] 1 of them is in the cloud and will be downloaded to this computer.
+       *[other] { $count } of them are in the cloud and will be downloaded to this computer.
+    }
+photo-open-confirm = Open
+photo-open-cancel = Cancel
 photo-show-failed = Couldn't show that in the folder: { $reason }
 photo-open-failed = Couldn't open that: { $reason }
 

@@ -67,6 +67,7 @@ vi.mock("./bindings", () => ({
     setSort: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
     setThumbnailSize: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
     showThumbnails: vi.fn(() => Promise.resolve()),
+    photosChosen: vi.fn(() => Promise.resolve(null)),
     photoDetails: vi.fn(() => Promise.resolve({ status: "error", error: "not in the test" })),
     selectionSummary: vi.fn(() =>
       Promise.resolve({

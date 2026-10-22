@@ -45,11 +45,17 @@ export const commands = {
 	 */
 	showInFolder: (ids: number[]) => typedError<null, string>(__TAURI_INVOKE("show_in_folder", { ids })),
 	/**
-	 *  Opens photos in the system's default app for them (BRW-8), at most
-	 *  [`OPEN_AT_ONCE`]. That app reads them, so it downloads a cloud-only one:
-	 *  the user asked for it (LIB-9).
+	 *  Opens photos in the system's default app for them (BRW-8). That app
+	 *  reads them, so it downloads a cloud-only one: the user asked for it, and
+	 *  the UI confirms first when it's several (LIB-9).
 	 */
 	openInDefaultApp: (ids: number[]) => typedError<null, string>(__TAURI_INVOKE("open_in_default_app", { ids })),
+	opening: (ids: number[]) => __TAURI_INVOKE<Opening>("opening", { ids }),
+	/**
+	 *  Whether any photo is chosen (selected, or shown in the Viewer), so the
+	 *  macOS menu bar's photo commands can be turned on or off (BRW-8).
+	 */
+	photosChosen: (chosen: boolean) => __TAURI_INVOKE<void>("photos_chosen", { chosen }),
 	/**
 	 *  A photo's details for the Info panel (BRW-6): what the index knows, and
 	 *  the camera, lens, and location from its EXIF, read now (decision 0012).
@@ -227,7 +233,9 @@ export type LibraryChanged = null;
  *  A menu command for the UI to carry out, so each command has one path
  *  whether it starts in the menu, the toolbar, or the keyboard.
  */
-export type MenuCommand = "addFolder";
+export type MenuCommand = "addFolder" | 
+/**  For the chosen photos (BRW-8). */
+"showInFolder" | "openInDefaultApp";
 
 /**  A photo opened in the Editor. */
 export type OpenedPhoto = {
@@ -240,6 +248,19 @@ export type OpenedPhoto = {
 	 *  read, and is never overwritten (FIL-4).
 	 */
 	problem: string | null,
+};
+
+/**
+ *  What opening photos in the default app would involve, for the UI to
+ *  confirm first when it's many or some are in the cloud (BRW-8, LIB-9).
+ */
+export type Opening = {
+	count: number,
+	/**
+	 *  How many are cloud-only, asked of the files' attributes: opening
+	 *  them downloads them.
+	 */
+	cloudOnly: number,
 };
 
 /**  One photo's details for the Info panel (BRW-6). Read-only in M2. */
