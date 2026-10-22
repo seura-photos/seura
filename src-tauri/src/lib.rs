@@ -7,6 +7,7 @@
 
 mod commands;
 mod editor;
+mod gpu;
 mod library;
 mod locale;
 mod locations;

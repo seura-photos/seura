@@ -3,7 +3,7 @@
 //! render check that compares the preview with export (M1 slice 5).
 
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 
 use seura_edit::{
     Action, CoreOperation, Edit, EditDocument, EditFile, Exposure, PhotoIdentity, Writer,
@@ -12,7 +12,7 @@ use seura_edit::{
 use seura_image::{LinearImage, Rgba8};
 use seura_library::{fingerprint_file, to_hex};
 use seura_render::check::{CHECK_SETTINGS, CHECK_TOLERANCE, check_image, difference};
-use seura_render::{Output, Renderer, Settings, export_jpeg};
+use seura_render::{Output, Settings, export_jpeg};
 use time::OffsetDateTime;
 
 const WRITER: Writer = Writer {
@@ -29,8 +29,6 @@ const EXPOSURE_RANGE: (f64, f64) = (-4.0, 4.0);
 #[derive(Default)]
 pub struct Editor {
     session: Mutex<Option<Session>>,
-    /// Made on first use; it takes a moment.
-    renderer: OnceLock<Result<Renderer, String>>,
     /// The render check's results so far: backend, and whether it passed.
     checks: Mutex<Vec<(String, bool)>>,
 }
@@ -159,7 +157,8 @@ impl Editor {
                 .unwrap_or_default();
             (session.photo.clone(), settings)
         };
-        export_jpeg(self.renderer()?, &photo, &settings, folder).map_err(|error| error.to_string())
+        crate::gpu::with_renderer(|renderer| export_jpeg(renderer, &photo, &settings, folder))?
+            .map_err(|error| error.to_string())
     }
 
     /// Compares a preview path's render of the check image with wgpu's, and
@@ -171,10 +170,10 @@ impl Editor {
         height: u32,
         pixels: Vec<u8>,
     ) -> Result<u8, String> {
-        let expected = self
-            .renderer()?
-            .render(&check_image(), &CHECK_SETTINGS, Output::Srgb)
-            .map_err(|error| error.to_string())?;
+        let expected = crate::gpu::with_renderer(|renderer| {
+            renderer.render(&check_image(), &CHECK_SETTINGS, Output::Srgb)
+        })?
+        .map_err(|error| error.to_string())?;
         if pixels.len() != width as usize * height as usize * 4 {
             return Err("the pixels don't match the size".into());
         }
@@ -201,13 +200,6 @@ impl Editor {
     pub fn checks_passed(&self) -> bool {
         let checks = self.checks.lock().expect("check lock");
         !checks.is_empty() && checks.iter().all(|(_, passed)| *passed)
-    }
-
-    fn renderer(&self) -> Result<&Renderer, String> {
-        self.renderer
-            .get_or_init(|| Renderer::new().map_err(|error| error.to_string()))
-            .as_ref()
-            .map_err(Clone::clone)
     }
 }
 

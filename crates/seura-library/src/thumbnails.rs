@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 
+use seura_image::Rgba8;
 use sha2::{Digest, Sha256};
 
 use crate::index::{FileTime, PhotoId};
@@ -24,6 +25,23 @@ pub const THUMBS_FOLDER: &str = "thumbs";
 #[derive(Clone, Debug)]
 pub struct ThumbnailCache {
     root: PathBuf,
+    edits: Option<ApplyEdits>,
+}
+
+/// Renders a photo's edits onto its thumbnail-sized image, in sRGB (BRW-1).
+/// Provided by the app, which owns the renderer (decision 0004); without
+/// it, edited photos' thumbnails show the photo as it is.
+#[derive(Clone)]
+pub struct ApplyEdits(pub Arc<EditsFn>);
+
+/// Takes the photo's path and its decoded, thumbnail-sized image in sRGB;
+/// returns the image with the photo's edits.
+pub type EditsFn = dyn Fn(&Path, Rgba8) -> Rgba8 + Send + Sync;
+
+impl std::fmt::Debug for ApplyEdits {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("ApplyEdits")
+    }
 }
 
 /// What making a thumbnail learned about the photo.
@@ -53,16 +71,38 @@ impl ThumbnailCache {
     pub fn new(cache: &Path) -> ThumbnailCache {
         ThumbnailCache {
             root: cache.join(THUMBS_FOLDER),
+            edits: None,
         }
     }
 
-    /// The cache key for a photo as it is now.
-    pub fn key(path: &Path, size: u64, modified: FileTime) -> String {
+    /// The same cache, rendering edited photos' thumbnails with their edits.
+    pub fn with_edits(self, edits: ApplyEdits) -> ThumbnailCache {
+        ThumbnailCache {
+            edits: Some(edits),
+            ..self
+        }
+    }
+
+    /// The cache key for a photo as it is now: its path, size, and date,
+    /// and for an edited photo its edit file's size and date too, so a new
+    /// edit means a new thumbnail. Unedited photos' keys are unchanged.
+    pub fn key(
+        path: &Path,
+        size: u64,
+        modified: FileTime,
+        edit_file: Option<(u64, FileTime)>,
+    ) -> String {
         let mut hasher = Sha256::new();
         hasher.update(path.as_os_str().as_encoded_bytes());
         hasher.update(size.to_le_bytes());
         hasher.update(modified.secs.to_le_bytes());
         hasher.update(modified.nanos.to_le_bytes());
+        if let Some((size, modified)) = edit_file {
+            hasher.update(b"edits");
+            hasher.update(size.to_le_bytes());
+            hasher.update(modified.secs.to_le_bytes());
+            hasher.update(modified.nanos.to_le_bytes());
+        }
         hasher.finalize()[..16]
             .iter()
             .map(|b| format!("{b:02x}"))
@@ -77,15 +117,21 @@ impl ThumbnailCache {
             .join(format!("{key}.webp"))
     }
 
-    /// Makes and stores the thumbnail for a photo. The photo is only read;
-    /// the thumbnail is written atomically (CLAUDE.md rules 1 and 3).
-    pub fn make(&self, photo: &Path, key: &str) -> Outcome {
+    /// Makes and stores the thumbnail for a photo, with its edits if it's
+    /// `edited` (BRW-1). The photo is only read; the thumbnail is written
+    /// atomically (CLAUDE.md rules 1 and 3).
+    pub fn make(&self, photo: &Path, key: &str, edited: bool) -> Outcome {
         let decoded = match seura_image::decode(photo) {
             Ok(decoded) => decoded,
             Err(seura_image::DecodeError::HeifUnavailable(_)) => return Outcome::NeedsCodec,
             Err(error) => return Outcome::Failed(error.to_string()),
         };
-        let bytes = seura_image::thumbnail(&decoded.image);
+        let small = seura_image::fit(&decoded.image, seura_image::THUMBNAIL_SIZE);
+        let small = match (&self.edits, edited) {
+            (Some(ApplyEdits(apply)), true) => apply(photo, small),
+            _ => small,
+        };
+        let bytes = seura_image::thumbnail(&small);
         if let Err(error) = self.store(key, &bytes) {
             return Outcome::Failed(error.to_string());
         }
@@ -112,6 +158,8 @@ pub struct Job {
     pub key: String,
     /// Cloud-only: never decoded.
     pub placeholder: bool,
+    /// Has edits, which its thumbnail shows (BRW-1).
+    pub edited: bool,
 }
 
 #[derive(Default)]
@@ -269,7 +317,7 @@ fn work(shared: &(Mutex<Queue>, Condvar), cache: &ThumbnailCache, done: &dyn Fn(
         } else if job.placeholder {
             from_system(cache, &job)
         } else {
-            cache.make(&job.path, &job.key)
+            cache.make(&job.path, &job.key, job.edited)
         };
         done(job.id, outcome);
     }
@@ -285,6 +333,7 @@ mod tests {
             path: PathBuf::from(format!("{n}.jpg")),
             key: format!("{n:032}"),
             placeholder: false,
+            edited: false,
         }
     }
 
@@ -340,9 +389,16 @@ mod tests {
             secs: 100,
             nanos: 0,
         };
-        let key = ThumbnailCache::key(path, 10, time);
+        let key = ThumbnailCache::key(path, 10, time, None);
         assert_eq!(key.len(), 32);
-        assert_ne!(key, ThumbnailCache::key(path, 11, time));
+        assert_ne!(key, ThumbnailCache::key(path, 11, time, None));
+        // An edited photo's key follows its edit file too (BRW-1).
+        let edited = ThumbnailCache::key(path, 10, time, Some((200, time)));
+        assert_ne!(key, edited);
+        assert_ne!(
+            edited,
+            ThumbnailCache::key(path, 10, time, Some((201, time)))
+        );
         assert_ne!(
             key,
             ThumbnailCache::key(
@@ -351,12 +407,13 @@ mod tests {
                 FileTime {
                     secs: 101,
                     nanos: 0
-                }
+                },
+                None
             )
         );
         assert_ne!(
             key,
-            ThumbnailCache::key(Path::new("/photos/b.jpg"), 10, time)
+            ThumbnailCache::key(Path::new("/photos/b.jpg"), 10, time, None)
         );
         let cache = ThumbnailCache::new(Path::new("cache"));
         let file = cache.path(&key);

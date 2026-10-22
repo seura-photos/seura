@@ -322,11 +322,18 @@ impl Index {
     pub fn thumbnail_job(&self, id: PhotoId) -> Option<crate::thumbnails::Job> {
         let photo = self.photo(id)?;
         let path = self.path(id)?;
+        let edited = photo.edit_file == EditFileState::Read { edited: true };
         Some(crate::thumbnails::Job {
             id,
-            key: crate::thumbnails::ThumbnailCache::key(&path, photo.size, photo.modified),
+            key: crate::thumbnails::ThumbnailCache::key(
+                &path,
+                photo.size,
+                photo.modified,
+                photo.edit_file_stamp.filter(|_| edited),
+            ),
             path,
             placeholder: photo.placeholder,
+            edited,
         })
     }
 
