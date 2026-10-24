@@ -118,6 +118,13 @@ impl Viewer {
             }
         }
 
+        // Asking for a photo that failed tries it again, rather than repeating
+        // the failure: a download the user cancelled, or a drive that's back,
+        // may well work now (Try Again; LIB-9). Neighbors that failed are
+        // tried again when they're shown.
+        if matches!(cache.slots.get(&photo.id), Some(Slot::Failed(_))) {
+            cache.slots.remove(&photo.id);
+        }
         let mut waited = false;
         let decoded = loop {
             match cache.slots.get(&photo.id).cloned() {
@@ -350,6 +357,24 @@ mod tests {
                 .show(&wanted(folder.path(), 1), &[], (100, 100))
                 .is_err()
         );
+    }
+
+    /// Try Again after a failure reads the photo again: found by Nevada,
+    /// whose cancelled OneDrive download kept failing until the Viewer was
+    /// closed (LIB-9).
+    #[test]
+    fn a_photo_that_failed_is_tried_again() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = folder.path().join("1.jpg");
+        fs::write(&path, b"not yet a photo").unwrap();
+        let viewer = Viewer::default();
+        let one = wanted(folder.path(), 1);
+        assert!(viewer.show(&one, &[], (100, 100)).is_err());
+
+        // The download finishes, or the drive comes back.
+        jpeg(&path, 400, 300);
+
+        assert_eq!(viewer.show(&one, &[], (100, 100)).unwrap().width, 100);
     }
 
     /// A request waiting for a photo being decoded ahead gives up when the
