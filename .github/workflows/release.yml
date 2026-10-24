@@ -4,8 +4,12 @@ name: Release
 # "Working within a milestone"): pushing a tag like v0.1.0 builds the
 # Windows installer and the macOS disk image, unsigned, and attaches them to
 # a draft pre-release for Nevada to look over and publish. M1's Editor isn't
-# in release builds. Unsigned, so Windows SmartScreen warns, and on the Mac
-# the app is opened the first time with right-click → Open.
+# in release builds. Not signed for distribution: Windows SmartScreen warns,
+# and the Mac app is only ad-hoc signed (bundle.macOS.signingIdentity "-"): with no
+# signature at all, macOS on Apple Silicon calls a downloaded app
+# "damaged". The first time, macOS blocks it, and System Settings →
+# Privacy & Security → Open Anyway allows it. Signing and notarization
+# come with the beta (M7).
 on:
   push:
     tags: ["v*"]
@@ -83,4 +87,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --draft --prerelease \
             --title "Seura Photos ${GITHUB_REF_NAME#v} (pre-release)" \
-            --notes "A pre-release for the owner's own use, unsigned. Windows: run the installer; SmartScreen may warn (More info → Run anyway). macOS: open the disk image, drag Seura Photos to Applications, and open it the first time with right-click → Open."
+            --notes "A pre-release for the owner's own use, unsigned. Windows: run the installer; SmartScreen may warn (More info → Run anyway). macOS: open the disk image, drag Seura Photos to Applications, and open it. The first time, macOS blocks it because it isn't from an identified developer; then open System Settings → Privacy & Security and choose Open Anyway."
