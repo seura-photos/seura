@@ -63,7 +63,8 @@ describe("tag picker (TAG-3)", () => {
     const field = await open();
     expect(screen.getByRole("dialog", { name: "Tag 3 photos" })).toBeTruthy();
     expect(screen.getByText("Enter adds · Esc closes")).toBeTruthy();
-    expect(screen.getByText("vacation/2026")).toBeTruthy();
+    // The choices come from the core a moment after the picker opens.
+    expect(await screen.findByText("vacation/2026")).toBeTruthy();
     expect(document.activeElement).toBe(field);
     // Tags only some of the photos have come first (TAG-8).
     await waitFor(() =>
@@ -114,7 +115,7 @@ describe("tag picker (TAG-3)", () => {
 
   it("removes a tag with its chip's ×", async () => {
     await open();
-    fireEvent.click(screen.getByRole("button", { name: "Remove vacation/2026" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Remove vacation/2026" }));
     expect(mocks.changePhotos).toHaveBeenCalledWith([1, 2, 3], {
       kind: "removeTag",
       tag: "vacation/2026",
