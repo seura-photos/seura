@@ -363,6 +363,8 @@ describe("App", () => {
         "No photo has exactly “family”. Its photos are under the tags beneath it.",
       ),
     ).toBeTruthy();
+    // No count above the grid or in the status bar either (TAG-5).
+    expect(screen.queryByText(/0 photos/)).toBeNull();
   });
 
   it("shows a disconnected drive's folder as not connected (LIB-6)", async () => {

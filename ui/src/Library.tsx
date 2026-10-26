@@ -90,8 +90,10 @@ export function Library({ inert = false }: { inert?: boolean }) {
     : tagNode
       ? {
           title: tagNode.tag,
-          meta: t("library-tag-meta", { count: tagNode.photos ?? 0 }),
-          count: tagNode.photos ?? 0,
+          // A node no photo has exactly shows no count (TAG-5); the grid's
+          // place says why.
+          meta: tagNode.photos === null ? "" : t("library-tag-meta", { count: tagNode.photos }),
+          count: tagNode.photos,
         }
       : null;
   const [menu, setMenu] = useState<{ folder: FolderInfo; x: number; y: number } | null>(null);
@@ -263,7 +265,9 @@ export function Library({ inert = false }: { inert?: boolean }) {
       )}
 
       <footer className="status-bar">
-        {shown && <span>{t("library-photo-count", { count: shown.count })}</span>}
+        {shown && shown.count !== null && (
+          <span>{t("library-photo-count", { count: shown.count })}</span>
+        )}
         {selection.ids.size > 0 && (
           <span>{t("library-selected", { count: selection.ids.size })}</span>
         )}
