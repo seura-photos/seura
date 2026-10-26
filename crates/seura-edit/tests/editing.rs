@@ -4,7 +4,7 @@
 use serde_json::{Value, json};
 use seura_edit::{
     Action, Amount, CoreOpId, CoreOperation, Edit, EditDocument, EditError, Exposure,
-    HISTORY_LIMIT, PhotoIdentity, Step, Vignette, clean_tags,
+    HISTORY_LIMIT, PhotoIdentity, Step, Vignette, clean_tags, tag_key,
 };
 use time::OffsetDateTime;
 
@@ -606,4 +606,19 @@ fn a_file_is_empty_once_nothing_in_it_needs_keeping() {
         json!({ "format": "seura-edit", "formatVersion": "1.1", "photo": photo() });
     unknown_identity["photo"]["serial"] = json!(7);
     assert!(!parse(unknown_identity).is_empty());
+}
+
+#[test]
+fn tags_match_in_every_language_tag_2() {
+    // TAG-2's own examples: full case folding, not just A to Z.
+    assert_eq!(tag_key("Ärzte"), tag_key("ärzte"));
+    assert_eq!(tag_key("STRASSE"), tag_key("straße"));
+    assert_eq!(tag_key("Family"), tag_key("family"));
+    // The same letter composed or decomposed (macOS often gives the latter).
+    assert_eq!(tag_key("caf\u{e9}"), tag_key("cafe\u{301}"));
+    assert_ne!(tag_key("family"), tag_key("family/kids"));
+
+    // The first form typed wins, and is stored composed.
+    let tags = ["Straße", "STRASSE", "cafe\u{301}", "Café"].map(String::from);
+    assert_eq!(clean_tags(&tags), ["Straße", "caf\u{e9}"]);
 }

@@ -1,10 +1,10 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { Cloud, Lock, Star } from "lucide-react";
+import { Cloud, Lock, Plus, Star, X } from "lucide-react";
 import { useEffect, useId, useState } from "react";
-import { commands, type PhotoDetails, type SelectionSummary } from "./bindings";
+import { commands, type PhotoDetails, type SelectionSummary, type TagCount } from "./bindings";
 import { formatBytes, formatDateTime, formatNumber } from "./format";
 import { t } from "./messages";
-import { useStore } from "./store";
+import { anchorOf, useStore } from "./store";
 
 /** Moving through photos quickly asks for details only once it rests. */
 const SETTLE = 80;
@@ -29,8 +29,9 @@ type Shown =
  * The Info panel (BRW-6; styled mockups in docs/ux/mockups/), always beside
  * the grid and the Viewer: one photo's file name, date taken, size, camera
  * and lens, location, edits, rating, and tags, or what several selected
- * photos share, with the rating to set (TAG-6). A cloud-only photo's
- * metadata isn't read, which would download it (LIB-9).
+ * photos share, with the rating to set (TAG-6) and tags to add and
+ * remove (TAG-3, TAG-4, TAG-8). A cloud-only photo's metadata isn't read,
+ * which would download it (LIB-9).
  */
 export function InfoPanel({ ids, version, preview = false, folder = false }: Props) {
   const [shown, setShown] = useState<Shown>({ kind: "none" });
@@ -209,7 +210,7 @@ function Photo({
       )}
       {details.readOnly && <ReadOnly />}
       <Rating ids={[details.id]} rating={details.rating} disabled={details.readOnly} />
-      <Tags tags={details.tags} heading={t("info-tags")} />
+      <Tags ids={[details.id]} tags={details.tags} partial={[]} disabled={details.readOnly} />
     </>
   );
 }
@@ -240,7 +241,12 @@ function Several({ ids, summary }: { ids: number[]; summary: SelectionSummary })
         rating={summary.rating ?? null}
         disabled={summary.readOnly === summary.count}
       />
-      <Tags tags={summary.tags} heading={t("info-shared-tags")} />
+      <Tags
+        ids={ids}
+        tags={summary.tags}
+        partial={summary.partialTags}
+        disabled={summary.readOnly === summary.count}
+      />
     </>
   );
 }
@@ -307,21 +313,66 @@ function Rating({
   );
 }
 
-function Tags({ tags, heading }: { tags: string[]; heading: string }) {
+/**
+ * The tags as chips, each with × to remove it (TAG-4), and Add tag, which
+ * opens the tag picker beside it (TAG-3). With several photos, a tag only
+ * some have shows how many, and its × removes it from those (TAG-8).
+ */
+function Tags({
+  ids,
+  tags,
+  partial,
+  disabled,
+}: {
+  ids: number[];
+  tags: string[];
+  partial: TagCount[];
+  disabled: boolean;
+}) {
+  const change = useStore((state) => state.change);
+  const openPicker = useStore((state) => state.openPicker);
+  const chips = [
+    ...tags.map((tag) => ({ tag, label: tag })),
+    ...partial.map(({ tag, count }) => ({
+      tag,
+      label: t("info-tag-partial", { tag, count, total: ids.length }),
+    })),
+  ];
   return (
     <section className="info-section">
-      <h3 className="info-heading">{heading}</h3>
-      {tags.length === 0 ? (
+      <h3 className="info-heading">{t("info-tags")}</h3>
+      {chips.length === 0 ? (
         <p className="meta">{t("info-no-tags")}</p>
       ) : (
         <ul className="info-tags">
-          {tags.map((tag) => (
+          {chips.map(({ tag, label }) => (
             <li key={tag} className="chip">
-              {tag}
+              {label}
+              {!disabled && (
+                <button
+                  type="button"
+                  className="chip-remove"
+                  aria-label={t("tag-remove", { tag })}
+                  title={t("tag-remove", { tag })}
+                  onClick={() => void change(ids, { kind: "removeTag", tag })}
+                >
+                  <X className="icon" aria-hidden />
+                </button>
+              )}
             </li>
           ))}
         </ul>
       )}
+      <button
+        type="button"
+        className="button add-tag"
+        data-add-tag
+        disabled={disabled}
+        onClick={(event) => void openPicker(ids, anchorOf(event.currentTarget))}
+      >
+        <Plus className="icon" aria-hidden />
+        {t("info-add-tag")}
+      </button>
     </section>
   );
 }

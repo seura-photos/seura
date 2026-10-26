@@ -5,11 +5,25 @@ import type { FolderInfo, ScanProgress } from "./bindings";
 import { FolderTree } from "./FolderTree";
 import { Grid } from "./Grid";
 import { InfoPanel } from "./InfoPanel";
-import { ratingKey } from "./keys";
+import { isTagKey, ratingKey } from "./keys";
 import { PhotoMenu } from "./PhotoMenu";
 import { t } from "./messages";
 import { ConfirmRemove, FolderMenu } from "./RemoveFolder";
-import { useStore } from "./store";
+import { anchorOf, useStore } from "./store";
+
+/** Where the tag picker sits: beside the last selected photo on screen,
+ * in the grid's order, so it covers unselected ones rather than the
+ * selection; or else the Info panel's Add tag button. */
+function selectionAnchor(ids: number[]) {
+  const selected = new Set(ids.map(String));
+  const cells = [...document.querySelectorAll<HTMLElement>(".grid [data-photo]")].filter((cell) =>
+    selected.has(cell.dataset.photo ?? ""),
+  );
+  const last = cells.at(-1);
+  if (last) return anchorOf(last);
+  const button = document.querySelector(".shell .info-panel [data-add-tag]");
+  return button ? anchorOf(button) : { left: 0, top: 0, width: 0, height: 0 };
+}
 
 /** The status bar's scan progress (LIB-3): what's being scanned, then
  * thumbnails made out of found, with a bar. Nothing when it's all done. */
@@ -45,6 +59,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
   const notice = useStore((state) => state.notice);
   const noticeId = useStore((state) => state.noticeId);
   const rate = useStore((state) => state.rate);
+  const openPicker = useStore((state) => state.openPicker);
   const selection = useStore((state) => state.selection);
   const selectPhoto = useStore((state) => state.selectPhoto);
   const selectAllPhotos = useStore((state) => state.selectAllPhotos);
@@ -71,13 +86,17 @@ export function Library({ inert = false }: { inert?: boolean }) {
   );
   const closeMenu = useCallback(() => setMenu(null), []);
 
-  // 0 to 5 rate the selection (TAG-6), wherever the focus is but a field.
-  // Not while the Viewer is open over the Library: it rates its own photo.
+  // 0 to 5 rate the selection (TAG-6) and T tags it (TAG-3), wherever the
+  // focus is but a field. Not while the Viewer is open over the Library:
+  // it has its own photo.
   const onKey = useEffectEvent((event: KeyboardEvent) => {
+    if (inert || selection.ids.size === 0) return;
+    const ids = [...selection.ids];
     const stars = ratingKey(event);
-    if (inert || stars === null || selection.ids.size === 0) return;
+    if (stars !== null) void rate(ids, stars);
+    else if (isTagKey(event)) void openPicker(ids, selectionAnchor(ids));
+    else return;
     event.preventDefault();
-    void rate([...selection.ids], stars);
   });
   useEffect(() => {
     const key = (event: KeyboardEvent) => onKey(event);

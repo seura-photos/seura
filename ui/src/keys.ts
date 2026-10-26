@@ -14,6 +14,12 @@ export function isTyping(event: KeyboardEvent): boolean {
   );
 }
 
+/** Whether a key press is `T`, for the tag picker (TAG-3). */
+export function isTagKey(event: KeyboardEvent): boolean {
+  if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return false;
+  return event.key === "t" || event.key === "T";
+}
+
 /** The rating a key press asks for, 0 to 5 (TAG-6), or null. */
 export function ratingKey(event: KeyboardEvent): number | null {
   if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return null;

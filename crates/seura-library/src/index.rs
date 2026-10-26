@@ -151,7 +151,7 @@ pub struct Index {
     by_name: HashMap<(FolderId, Box<str>), PhotoId>,
     by_tag: Vec<Vec<PhotoId>>,
     tag_ids: HashMap<Box<str>, TagId>,
-    /// Lowercase names and tags, for search (FND-2).
+    /// Names and tags by [`seura_edit::tag_key`], for search (FND-2).
     search_names: Vec<Box<str>>,
     search_tags: Vec<Box<str>>,
     free_photos: Vec<PhotoId>,
@@ -246,6 +246,29 @@ impl Index {
         self.tag_ids.get(tag).copied()
     }
 
+    /// The tag the library already has that `tag` matches, ignoring case
+    /// and Unicode form (TAG-2), if some photo has it.
+    pub fn matching_tag(&self, tag: &str) -> Option<&str> {
+        let key = seura_edit::tag_key(tag);
+        self.tags()
+            .find(|(id, _, _)| self.search_tags[id.0 as usize].as_ref() == key)
+            .map(|(_, tag, _)| tag)
+    }
+
+    /// How many photos have exactly this tag (TAG-5).
+    pub fn tag_len(&self, id: TagId) -> usize {
+        self.by_tag.get(id.0 as usize).map_or(0, Vec::len)
+    }
+
+    /// Every tag some photo has, with how many have it.
+    pub fn tags(&self) -> impl Iterator<Item = (TagId, &str, usize)> {
+        self.tags
+            .iter()
+            .enumerate()
+            .map(|(id, tag)| (TagId(id as u32), &**tag, self.by_tag[id].len()))
+            .filter(|(_, _, count)| *count > 0)
+    }
+
     /// The full path of a photo.
     pub fn path(&self, id: PhotoId) -> Option<PathBuf> {
         let photo = self.photo(id)?;
@@ -285,9 +308,10 @@ impl Index {
     }
 
     /// Photos anywhere in the library whose file name or any tag contains
-    /// `text`, ignoring case, that pass the filter (FND-2).
+    /// `text`, ignoring case and Unicode form (TAG-2), that pass the filter
+    /// (FND-2).
     pub fn search(&self, text: &str, filter: &Filter) -> Vec<PhotoId> {
-        let text = text.trim().to_lowercase();
+        let text = seura_edit::tag_key(text.trim());
         if text.is_empty() {
             return self.query(Scope::All, filter);
         }
@@ -434,7 +458,7 @@ impl Index {
         self.tags.push(tag.into());
         self.tag_ids.insert(tag.into(), id);
         self.by_tag.push(Vec::new());
-        self.search_tags.push(tag.to_lowercase().into());
+        self.search_tags.push(seura_edit::tag_key(tag).into());
         id
     }
 
@@ -474,7 +498,7 @@ impl Index {
         for tag in &photo.tags {
             self.by_tag[tag.0 as usize].push(id);
         }
-        self.search_names[id.0 as usize] = photo.name.to_lowercase().into();
+        self.search_names[id.0 as usize] = seura_edit::tag_key(&photo.name).into();
     }
 
     fn unlink(&mut self, id: PhotoId, photo: &Photo) {

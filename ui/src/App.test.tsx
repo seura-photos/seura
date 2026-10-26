@@ -84,6 +84,7 @@ vi.mock("./bindings", () => ({
     addFolder: mocks.addFolder,
     removeFolder: mocks.removeFolder,
     changePhotos: mocks.changePhotos,
+    tagChoices: vi.fn(() => Promise.resolve({ onAll: [], onSome: [], others: [], exists: false })),
   },
   events: mocks.events,
 }));
@@ -249,6 +250,25 @@ describe("App", () => {
     fireEvent.keyDown(window, { key: "2", ctrlKey: true });
     fireEvent.keyDown(screen.getByRole("combobox"), { key: "2" });
     expect(mocks.changePhotos).not.toHaveBeenCalled();
+  });
+
+  it("opens the tag picker for the selection with T (TAG-3)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+    mocks.photos = [1, 2, 3].map((id) => photo(id));
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("grid");
+    act(() => {
+      useStore.getState().selectPhoto(2, { toggle: false, range: false });
+      useStore.getState().selectPhoto(3, { toggle: true, range: false });
+    });
+    fireEvent.keyDown(window, { key: "t" });
+    expect(await screen.findByRole("dialog", { name: "Tag 2 photos" })).toBeTruthy();
+    expect(useStore.getState().picker?.ids).toEqual([2, 3]);
+    // Typing T in its field is text, not another picker.
+    const field = screen.getByRole("combobox", { name: "Tag" });
+    fireEvent.keyDown(field, { key: "t" });
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
   it("says so when the photos are in a read-only folder (TAG-7)", async () => {

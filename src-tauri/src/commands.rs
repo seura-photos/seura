@@ -450,8 +450,42 @@ pub struct SelectionSummary {
     pub rating: Option<u8>,
     /// Tags every one of them has.
     pub tags: Vec<String>,
+    /// Tags only some of them have, with how many (TAG-8).
+    pub partial_tags: Vec<TagCount>,
     /// How many are in read-only folders (TAG-7).
     pub read_only: u32,
+}
+
+/// A tag and a number of photos.
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct TagCount {
+    pub tag: String,
+    pub count: u32,
+}
+
+/// How many of `photos` have each of their tags, in natural order.
+fn tag_counts(index: &seura_library::Index, photos: &[&seura_library::Photo]) -> Vec<TagCount> {
+    let mut counts: Vec<(seura_library::TagId, u32)> = Vec::new();
+    for photo in photos {
+        for tag in &photo.tags {
+            match counts.iter_mut().find(|(id, _)| id == tag) {
+                Some((_, count)) => *count += 1,
+                None => counts.push((*tag, 1)),
+            }
+        }
+    }
+    let mut counts: Vec<TagCount> = counts
+        .into_iter()
+        .filter_map(|(id, count)| {
+            Some(TagCount {
+                tag: index.tag(id)?.to_string(),
+                count,
+            })
+        })
+        .collect();
+    counts.sort_by(|a, b| seura_library::natural(&a.tag, &b.tag));
+    counts
 }
 
 #[tauri::command(async)]
@@ -481,6 +515,10 @@ pub fn selection_summary(library: State<'_, Library>, ids: Vec<u32>) -> Selectio
             .iter()
             .filter(|tag| photos.iter().all(|photo| photo.tags.contains(tag)))
             .filter_map(|tag| index.tag(*tag).map(str::to_string))
+            .collect(),
+        partial_tags: tag_counts(&index, &photos)
+            .into_iter()
+            .filter(|tag| (tag.count as usize) < photos.len())
             .collect(),
         read_only: photos
             .iter()
@@ -555,6 +593,64 @@ pub async fn change_photos(
     })
     .await
     .map_err(|error| error.to_string())
+}
+
+/// What the tag picker offers for photos, filtered by what's typed (TAG-3,
+/// TAG-8). Matching ignores case and Unicode form (TAG-2).
+#[derive(Clone, Debug, Default, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct TagChoices {
+    /// Tags all of them have: shown as chips, each with ×.
+    pub on_all: Vec<String>,
+    /// Tags only some of them have, with how many: listed first, so Enter
+    /// adds one to the rest (TAG-8).
+    pub on_some: Vec<TagCount>,
+    /// The library's other tags that contain the text, with how many photos
+    /// have each (TAG-3, TAG-5).
+    pub others: Vec<TagCount>,
+    /// The text, cleaned up, is already a tag in the library, so there's
+    /// nothing to create.
+    pub exists: bool,
+}
+
+#[tauri::command(async)]
+#[specta::specta]
+pub fn tag_choices(library: State<'_, Library>, ids: Vec<u32>, text: String) -> TagChoices {
+    choose_tags(&library.index.read().expect("index lock"), &ids, text)
+}
+
+fn choose_tags(index: &seura_library::Index, ids: &[u32], text: String) -> TagChoices {
+    let photos: Vec<_> = ids
+        .iter()
+        .filter_map(|id| index.photo(PhotoId::new(*id)))
+        .collect();
+    let typed = seura_edit::clean_tags(&[text]).pop().unwrap_or_default();
+    let key = seura_edit::tag_key(&typed);
+    let wanted = |tag: &str| seura_edit::tag_key(tag).contains(&key);
+    let (on_all, on_some): (Vec<_>, Vec<_>) = tag_counts(index, &photos)
+        .into_iter()
+        .partition(|tag| tag.count as usize == photos.len());
+    let mut others: Vec<TagCount> = index
+        .tags()
+        .filter(|(_, tag, _)| {
+            wanted(tag)
+                && !on_all
+                    .iter()
+                    .chain(&on_some)
+                    .any(|chosen| chosen.tag == *tag)
+        })
+        .map(|(_, tag, count)| TagCount {
+            tag: tag.to_string(),
+            count: count as u32,
+        })
+        .collect();
+    others.sort_by(|a, b| seura_library::natural(&a.tag, &b.tag));
+    TagChoices {
+        exists: !typed.is_empty() && index.matching_tag(&typed).is_some(),
+        on_all: on_all.into_iter().map(|tag| tag.tag).collect(),
+        on_some: on_some.into_iter().filter(|tag| wanted(&tag.tag)).collect(),
+        others,
+    }
 }
 
 /// The files of photos in the index, never any other path.
@@ -1132,5 +1228,62 @@ mod tests {
     #[test]
     fn app_version_matches_the_package() {
         assert_eq!(super::app_version(), env!("CARGO_PKG_VERSION"));
+    }
+
+    #[test]
+    fn the_tag_picker_offers_shared_partial_and_matching_tags() {
+        use seura_library::{Change, Index};
+        let dir = tempfile::tempdir().unwrap();
+        for n in 1..=3 {
+            let mut bytes = vec![0xFF, 0xD8, 0xFF, 0xE1];
+            bytes.extend([n; 4096]);
+            std::fs::write(dir.path().join(format!("IMG_{n}.jpg")), bytes).unwrap();
+        }
+        let mut index = Index::new();
+        index.add_root(dir.path()).unwrap();
+        let root = index.roots()[0].clone();
+        index.scan(&root);
+        let mut ids: Vec<_> = index.photo_ids().collect();
+        ids.sort_by_key(|id| index.path(*id));
+        let index = std::sync::RwLock::new(index);
+        let tag = |which: &[seura_library::PhotoId], tag: &str| {
+            Index::change_shared(
+                &index,
+                which,
+                &Change::AddTag(tag.into()),
+                crate::editor::WRITER,
+                time::OffsetDateTime::now_utc(),
+                &|_| Ok(()),
+            );
+        };
+        tag(&ids, "vacation/2026");
+        tag(&ids[..1], "family");
+        tag(&ids[2..], "family/kids");
+        tag(&ids[2..], "beach");
+        let index = index.read().unwrap();
+        let chosen = [ids[0].value(), ids[1].value()];
+
+        let all = choose_tags(&index, &chosen, String::new());
+        assert_eq!(all.on_all, ["vacation/2026"]);
+        assert_eq!(all.on_some.len(), 1);
+        assert_eq!(
+            (all.on_some[0].tag.as_str(), all.on_some[0].count),
+            ("family", 1)
+        );
+        let others: Vec<_> = all
+            .others
+            .iter()
+            .map(|t| (t.tag.as_str(), t.count))
+            .collect();
+        assert_eq!(others, [("beach", 1), ("family/kids", 1)]);
+        assert!(!all.exists);
+
+        // Typing filters, ignoring case, and says when the tag exists.
+        let fam = choose_tags(&index, &chosen, "FAM".into());
+        assert_eq!(fam.on_some[0].tag, "family");
+        assert_eq!(fam.others.len(), 1);
+        assert_eq!(fam.others[0].tag, "family/kids");
+        assert!(!fam.exists);
+        assert!(choose_tags(&index, &chosen, " Family ".into()).exists);
     }
 }

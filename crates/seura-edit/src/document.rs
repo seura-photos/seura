@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
+use unicode_normalization::UnicodeNormalization;
 
 use crate::operations::{CORE_VERSION, CoreOpId, CoreOperation, order_key};
 use crate::validate::{self, is_undone};
@@ -759,8 +760,17 @@ fn timestamp(at: OffsetDateTime) -> String {
         .expect("RFC 3339 formats any UTC time")
 }
 
+/// What two tags are compared by (TAG-2): the text normalized (NFC) and case
+/// folded with Unicode's full folding, so matching works in every language,
+/// not just A to Z: `Ärzte` matches `ärzte`, and `STRASSE` matches `straße`.
+pub fn tag_key(tag: &str) -> String {
+    let normalized: String = tag.nfc().collect();
+    caseless::default_case_fold_str(&normalized).nfc().collect()
+}
+
 /// Cleans tags as writers must: no leading or trailing spaces or slashes, no
-/// empty levels, and no two tags differing only in letter case (the first wins).
+/// empty levels, and no two tags differing only in letter case, compared by
+/// [`tag_key`] (the first wins, in the form it was typed). Stored in NFC.
 pub fn clean_tags(tags: &[String]) -> Vec<String> {
     let mut cleaned: Vec<String> = Vec::new();
     for tag in tags {
@@ -769,12 +779,12 @@ pub fn clean_tags(tags: &[String]) -> Vec<String> {
             .split('/')
             .filter(|level| !level.trim().is_empty())
             .collect();
-        let tag = levels.join("/").trim().to_string();
+        let tag: String = levels.join("/").trim().nfc().collect();
         if tag.is_empty() {
             continue;
         }
-        let lowered = tag.to_lowercase();
-        if !cleaned.iter().any(|other| other.to_lowercase() == lowered) {
+        let key = tag_key(&tag);
+        if !cleaned.iter().any(|other| tag_key(other) == key) {
             cleaned.push(tag);
         }
     }

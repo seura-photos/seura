@@ -44,6 +44,7 @@ export const commands = {
 	 *  files beside them (FIL-1, FIL-2). Photos already as asked are left alone.
 	 */
 	changePhotos: (ids: number[], change: PhotoChange) => typedError<ChangeResult, string>(__TAURI_INVOKE("change_photos", { ids, change })),
+	tagChoices: (ids: number[], text: string) => __TAURI_INVOKE<TagChoices>("tag_choices", { ids, text }),
 	/**
 	 *  Shows photos in Explorer or Finder, selected there (BRW-8). Only their
 	 *  attributes are read, so a cloud-only photo isn't downloaded (LIB-9).
@@ -399,8 +400,40 @@ export type SelectionSummary = {
 	rating: number | null,
 	/**  Tags every one of them has. */
 	tags: string[],
+	/**  Tags only some of them have, with how many (TAG-8). */
+	partialTags: TagCount[],
 	/**  How many are in read-only folders (TAG-7). */
 	readOnly: number,
+};
+
+/**
+ *  What the tag picker offers for photos, filtered by what's typed (TAG-3,
+ *  TAG-8). Matching ignores case and Unicode form (TAG-2).
+ */
+export type TagChoices = {
+	/**  Tags all of them have: shown as chips, each with ×. */
+	onAll: string[],
+	/**
+	 *  Tags only some of them have, with how many: listed first, so Enter
+	 *  adds one to the rest (TAG-8).
+	 */
+	onSome: TagCount[],
+	/**
+	 *  The library's other tags that contain the text, with how many photos
+	 *  have each (TAG-3, TAG-5).
+	 */
+	others: TagCount[],
+	/**
+	 *  The text, cleaned up, is already a tag in the library, so there's
+	 *  nothing to create.
+	 */
+	exists: boolean,
+};
+
+/**  A tag and a number of photos. */
+export type TagCount = {
+	tag: string,
+	count: number,
 };
 
 /**  A thumbnail finished, or can't be made. */

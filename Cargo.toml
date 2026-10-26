@@ -63,6 +63,10 @@ fast_image_resize = "6.1.0"
 # the pure-Rust encoder is lossless only.
 webp = "0.3.1"
 rayon = "1.12.0"
+# Matching tags in every language (TAG-2): NFC, then full Unicode case
+# folding, so `STRASSE` matches `straße`. MIT; MIT OR Apache-2.0.
+caseless = "0.2.2"
+unicode-normalization = "0.1.25"
 # Moving files to the Recycle Bin or Trash, never deleting them (FIL-1,
 # BRW-9; CLAUDE.md rule 5). MIT. Its default macOS method scripts Finder,
 # which asks for permission to control it; Seura sets the file manager's.
