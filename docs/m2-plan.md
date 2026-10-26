@@ -1,6 +1,6 @@
 # M2 work plan: Browse
 
-Status: slices 1 to 9 done; slice 10 waiting on Nevada's daily use of build 0.1.1 (see "Status") · Last updated: 2026-10-22
+Status: complete, 2026-10-26 (see "Status") · Last updated: 2026-10-26
 
 The working plan for milestone M2 from the [milestone plan](milestone-plan.md): Seura replaces Nevada's photo viewer. It breaks the milestone into slices, one pull request each, in order. Drafted by Claude Code from the milestone plan, the [functional spec](functional-spec.md), the [user flows](ux/user-flows.md) and [wireframes](ux/wireframes.md), the [visual design](visual-design.md), and the [technical design](technical-design.md). The questions it raised were answered in a design session (PR #16; [journal](journal/2026-10-20-m2-plan-review.md)), and the plan follows those answers.
 
@@ -125,9 +125,9 @@ Reviewed 2026-10-22, in slice 10. Pull requests #28 to #68.
 | 7. Viewer (#42, #43, #48) | Arrow keys through a folder, and zooming, on both machines | Met: checked by Nevada; issue #24 closed. |
 | 8. Photo info (#45, #55, #56) | The panel matches Explorer and Finder for a sample | Met: checked by Nevada, who asked for the 35 mm focal length and the exposure row along the way; issue #25 closed. iPhone HDR brightness is a separate design question, #60. |
 | 9. Open elsewhere (#47, #49 to #52) | Both commands for a photo and a selection on both machines | Met: checked by Nevada; issue #26 closed. |
-| 10. Performance and wrap-up (#62 to #68) | Nevada uses build 0.1 as his photo viewer on both machines | Under way: the targets are measured and met on both machines; build 0.1.1 is published as a pre-release; the devlog post is drafted. |
+| 10. Performance and wrap-up (#62 to #68) | Nevada uses build 0.1 as his photo viewer on both machines | Met: the targets are measured and met on both machines; build 0.1.1 is published as a pre-release; devlog part 8 is published; Nevada used 0.1.1 as his photo viewer on both machines and declared it met on 2026-10-26. Issue #27 closed. |
 
-**The milestone's "done when"** (Nevada browses his real library daily on both machines) is met with slice 10's.
+**The milestone's "done when"** (Nevada browses his real library daily on both machines) is met with slice 10's: **M2 is complete** (2026-10-26). The M2 milestone on GitHub is closed, with all 20 of its issues.
 
 **Carried forward:**
 
