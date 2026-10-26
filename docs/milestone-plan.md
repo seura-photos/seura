@@ -64,6 +64,8 @@ Seura replaces the owner's photo viewer. Read-only: no edit files written yet be
 
 **Done when:** the owner can point Seura at his real photo library and browse it daily on both machines.
 
+**Status:** complete, 2026-10-26, with build 0.1.1 as the owner's photo viewer on both machines; see the [M2 work plan's status](m2-plan.md#status).
+
 ## M3. Organize
 
 The first milestone that writes user data in earnest.
