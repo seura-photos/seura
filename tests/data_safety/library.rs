@@ -133,6 +133,41 @@ impl Drop for WriteBlock {
     }
 }
 
+/// Makes a folder read-only as a user would meet one (TAG-7) until the guard
+/// is dropped: no new files can be made in it, and none of its files can be
+/// changed or replaced. Unix: the folder's permissions. Windows, where a
+/// folder's read-only attribute means nothing: a rule denying everyone the
+/// right to add files, set with the system's `icacls`.
+pub fn read_only_folder(folder: &Path) -> ReadOnlyFolder {
+    #[cfg(windows)]
+    icacls(folder, &["/deny", "*S-1-1-0:(OI)(CI)(WD,AD,WA,DC)"]);
+    #[cfg(not(windows))]
+    set_read_only(folder, true);
+    ReadOnlyFolder(folder.to_path_buf())
+}
+
+pub struct ReadOnlyFolder(PathBuf);
+
+impl Drop for ReadOnlyFolder {
+    fn drop(&mut self) {
+        #[cfg(windows)]
+        icacls(&self.0, &["/remove:d", "*S-1-1-0"]);
+        #[cfg(not(windows))]
+        set_read_only(&self.0, false);
+    }
+}
+
+#[cfg(windows)]
+fn icacls(folder: &Path, args: &[&str]) {
+    let status = std::process::Command::new("icacls")
+        .arg(folder)
+        .args(args)
+        .stdout(std::process::Stdio::null())
+        .status()
+        .expect("icacls runs");
+    assert!(status.success(), "icacls {args:?} failed");
+}
+
 /// An example file from the edit-format repository.
 pub fn format_example(name: &str) -> Vec<u8> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))

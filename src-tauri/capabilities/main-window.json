@@ -14,6 +14,7 @@
     "allow-set-sort",
     "allow-set-thumbnail-size",
     "allow-show-thumbnails",
+    "allow-change-photos",
     "allow-show-in-folder",
     "allow-open-in-default-app",
     "allow-opening",

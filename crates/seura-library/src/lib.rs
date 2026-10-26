@@ -2,8 +2,10 @@
 //! cache, fingerprints, and the settings file (technical design, section 4;
 //! decisions 0010 and 0015).
 //!
-//! Renamed photos (FIL-6) come later.
+//! Also the one path that writes edit files from the Library (M3), and the
+//! Trash. Renamed photos (FIL-6) come later.
 
+mod changes;
 mod fingerprint;
 mod formats;
 mod index;
@@ -15,9 +17,11 @@ mod sort;
 #[doc(hidden)]
 pub mod synthetic;
 mod thumbnails;
+mod trash;
 mod tree;
 mod watch;
 
+pub use changes::{Change, ChangeReport, Problem};
 pub use fingerprint::{fingerprint_file, to_hex};
 pub use formats::Format;
 pub use index::{
@@ -35,5 +39,6 @@ pub use sort::natural;
 pub use thumbnails::{
     ApplyEdits, Job, Made, Outcome, SWEEP_AFTER, THUMBS_FOLDER, ThumbnailCache, ThumbnailWorkers,
 };
+pub use trash::move_to_trash;
 pub use tree::FolderEntry;
 pub use watch::{Watcher, folders_to_scan};

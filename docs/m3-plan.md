@@ -61,6 +61,7 @@ New in M3:
 - Ctrl/Cmd+Z undoes the last action, whatever is selected now; Shift+Ctrl/Cmd+Z redoes it. The app keeps, in memory only, which photos each of the session's last 10 actions touched; the changes themselves are only in each edit file's history.
 - Undoing is the edit format's own undo on each of those photos (`EditDocument::undo`, since M1: the record is marked `"undone": true` and its previous values restored, never a new change appended); redo clears the mark. A photo is skipped when its latest record that isn't undone isn't the one from that action (changed since in the Editor or by another app), or when it fails the consistency check.
 - What was undone is said: a notice on both platforms ("Undid rating on 5 photos", with how many were skipped), and on macOS the Edit menu's label ("Undo Rating (5 photos)").
+- When a change sent an emptied edit file to the Trash (FIL-1), the Library keeps that file in memory, for the 10 actions it remembers, and undo or redo writes it back with the record marked (Nevada's decision, 2026-10-26; journal, `2026-10-26-library-writes.md`).
 - Nothing to undo after a restart. Moving to the Trash isn't undoable.
 - **Done when:** integration tests cover undo and redo across a selection, the skipped cases, and the 10-action limit, and Nevada has undone a rating and a tag on both machines.
 

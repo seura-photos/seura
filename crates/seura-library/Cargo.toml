@@ -18,6 +18,12 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 notify = { workspace = true }
 sha2 = { workspace = true }
+time = { workspace = true }
+# Edit files with nothing left go to the Recycle Bin or Trash (FIL-1).
+trash = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
