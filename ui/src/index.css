@@ -9,11 +9,24 @@ html {
 
 body {
   margin: 0;
+  /* An app's screens, not a document: their text isn't selected by dragging
+     or Select All, as in other desktop apps. Fields, and the Info panel's
+     details, which are worth copying, can be. */
+  -webkit-user-select: none;
+  user-select: none;
   font-family: var(--font-app);
   font-size: var(--type-body-size);
   font-weight: var(--type-body-weight);
   color: var(--color-text);
   background: var(--color-photo);
+}
+
+input,
+textarea,
+.info-name,
+.info-facts dd {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 /* ACC-3: no animation for people who ask the system for less motion. */
