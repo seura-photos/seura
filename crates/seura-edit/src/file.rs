@@ -54,8 +54,8 @@ pub struct Writer<'a> {
 ///
 /// There is deliberately no delete. When a photo has no edits, tags, or
 /// rating left and the file holds nothing else to preserve, the file goes to
-/// the system Trash or Recycle Bin, never `fs::remove_file` (FIL-1, CLAUDE.md
-/// rule 5). That arrives with M3.
+/// the system Trash or Recycle Bin with [`EditFile::remove`], never
+/// `fs::remove_file` (FIL-1, CLAUDE.md rule 5).
 #[derive(Debug)]
 pub struct EditFile {
     path: PathBuf,
@@ -92,6 +92,20 @@ impl EditFile {
         &self.path
     }
 
+    /// The bytes on disk, if they're still those loaded or last saved.
+    /// Otherwise the file can't be read, or it changed since (FIL-3, FIL-4),
+    /// and it mustn't be replaced.
+    fn check_unchanged(&self) -> Result<Option<Vec<u8>>, SaveError> {
+        let current = read_if_exists(&self.path)?;
+        if current != self.on_disk {
+            return Err(match current.map(|bytes| EditDocument::parse(&bytes)) {
+                Some(Err(error)) => SaveError::Unreadable(error),
+                _ => SaveError::ChangedOnDisk,
+            });
+        }
+        Ok(current)
+    }
+
     /// Writes the document atomically: a temporary file in the same folder,
     /// flushed to disk, then renamed over the old file (FIL-2). Refuses to
     /// replace a file it can't read or one that changed since it was loaded.
@@ -106,13 +120,7 @@ impl EditFile {
         at: OffsetDateTime,
         rename: Rename,
     ) -> Result<(), SaveError> {
-        let current = read_if_exists(&self.path)?;
-        if current != self.on_disk {
-            return Err(match current.map(|bytes| EditDocument::parse(&bytes)) {
-                Some(Err(error)) => SaveError::Unreadable(error),
-                _ => SaveError::ChangedOnDisk,
-            });
-        }
+        self.check_unchanged()?;
 
         let mut document = self.document.clone();
         document.stamp(writer.app, writer.version, at);
@@ -121,6 +129,17 @@ impl EditFile {
 
         self.document = document;
         self.on_disk = Some(bytes);
+        Ok(())
+    }
+
+    /// Moves the file to the Trash or Recycle Bin with `trash`, never
+    /// deleting it (FIL-1, CLAUDE.md rule 5), after checking it's still the
+    /// file that was loaded, as saving does. A file never saved has nothing
+    /// to move.
+    pub fn remove(self, trash: impl FnOnce(&Path) -> io::Result<()>) -> Result<(), SaveError> {
+        if self.check_unchanged()?.is_some() {
+            trash(&self.path)?;
+        }
         Ok(())
     }
 }
@@ -277,6 +296,54 @@ mod tests {
         file.save(writer, OffsetDateTime::now_utc()).unwrap();
         let reloaded = EditFile::load(&path).unwrap().unwrap();
         assert_eq!(reloaded.document.rating(), 5);
+    }
+
+    #[test]
+    fn removing_goes_through_the_trash_and_only_for_the_file_loaded() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("IMG_1.jpg.seura.json");
+        let photo = crate::PhotoIdentity {
+            file: "IMG_1.jpg".into(),
+            size: 1,
+            sha256: None,
+            width: None,
+            height: None,
+        };
+        let writer = Writer {
+            app: "Seura Photos",
+            version: "test",
+        };
+        let trashed = std::cell::RefCell::new(Vec::new());
+        let trash = |path: &Path| {
+            trashed.borrow_mut().push(path.to_path_buf());
+            Ok(())
+        };
+
+        // Never saved: nothing to move.
+        let unsaved = EditFile::create(&path, EditDocument::new_for_photo(&photo));
+        unsaved.remove(trash).unwrap();
+        assert!(trashed.borrow().is_empty());
+
+        let mut file = EditFile::create(&path, EditDocument::new_for_photo(&photo));
+        file.save(writer, OffsetDateTime::now_utc()).unwrap();
+        // Changed on disk since: kept, and not sent to the Trash (FIL-3).
+        let loaded = EditFile::load(&path).unwrap().unwrap();
+        file.save(
+            writer,
+            OffsetDateTime::now_utc() + time::Duration::seconds(5),
+        )
+        .unwrap();
+        assert!(matches!(
+            loaded.remove(trash),
+            Err(SaveError::ChangedOnDisk)
+        ));
+        assert!(trashed.borrow().is_empty());
+
+        file.remove(trash).unwrap();
+        assert_eq!(*trashed.borrow(), std::slice::from_ref(&path));
+        // The trash function moved nothing here, so the file is still there:
+        // `remove` itself never deletes.
+        assert!(path.exists());
     }
 
     #[test]

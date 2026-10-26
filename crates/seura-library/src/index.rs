@@ -102,6 +102,10 @@ pub struct Photo {
 pub struct Folder {
     pub path: PathBuf,
     pub parent: Option<FolderId>,
+    /// Seura can't add or change files here, so its photos can't be tagged
+    /// or rated (TAG-7). Found again by every scan, so not in the snapshot.
+    #[serde(skip)]
+    pub read_only: bool,
 }
 
 /// What adding a library folder did (LIB-1).
@@ -378,10 +382,39 @@ impl Index {
         self.folders.push(Some(Folder {
             path: path.to_path_buf(),
             parent,
+            read_only: false,
         }));
         self.by_folder.push(Vec::new());
         self.folder_ids.insert(path.to_path_buf(), id);
         id
+    }
+
+    /// Records whether a folder is read-only (TAG-7).
+    pub(crate) fn set_read_only(&mut self, id: FolderId, read_only: bool) {
+        if let Some(Some(folder)) = self.folders.get_mut(id.0 as usize) {
+            folder.read_only = read_only;
+        }
+    }
+
+    /// Records what a photo's edit file now holds, as read by a scan or
+    /// written by a change, with the size and time it was read or written at.
+    pub(crate) fn set_edit_file(
+        &mut self,
+        id: PhotoId,
+        state: EditFileState,
+        stamp: Option<(u64, FileTime)>,
+        rating: u8,
+        tags: &[String],
+    ) {
+        let tags: Box<[_]> = tags.iter().map(|tag| self.intern_tag(tag)).collect();
+        let Some(mut photo) = self.photo(id).cloned() else {
+            return;
+        };
+        photo.edit_file = state;
+        photo.edit_file_stamp = stamp;
+        photo.rating = rating;
+        photo.tags = tags;
+        self.replace_photo(id, photo);
     }
 
     pub(crate) fn remove_folder(&mut self, id: FolderId) {

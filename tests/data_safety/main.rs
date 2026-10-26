@@ -13,9 +13,13 @@
 //! - Scanning reads the library and writes only the cache: the index
 //!   snapshot and its README.
 //! - Export writes only the new file, never replacing one (EXP-3).
+//! - Tagging and rating from the Library (M3; `changes`): the same rules for
+//!   its one write path, plus rule 5, the Trash, for edit files left with
+//!   nothing in them (FIL-1), and read-only folders (TAG-7).
 //!
-//! Suites for later write paths (Trash) join this one as they're built.
+//! Suites for later write paths join this one as they're built.
 
+mod changes;
 mod library;
 
 use std::fs;
@@ -28,16 +32,16 @@ use seura_edit::{
 };
 use time::OffsetDateTime;
 
-const WRITER: Writer = Writer {
+pub(crate) const WRITER: Writer = Writer {
     app: "Seura Photos",
     version: "0.0.0-test",
 };
 
-fn now() -> OffsetDateTime {
+pub(crate) fn now() -> OffsetDateTime {
     OffsetDateTime::now_utc()
 }
 
-fn act(label: &str, edits: Vec<Edit>) -> Action {
+pub(crate) fn act(label: &str, edits: Vec<Edit>) -> Action {
     Action {
         label: label.into(),
         edits,

@@ -14,6 +14,7 @@ fn main() {
         "set_sort",
         "set_thumbnail_size",
         "show_thumbnails",
+        "change_photos",
         "show_in_folder",
         "open_in_default_app",
         "opening",

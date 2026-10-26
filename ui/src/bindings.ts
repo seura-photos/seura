@@ -40,6 +40,11 @@ export const commands = {
 	/**  The photos now on screen, in order: their thumbnails are made first (LIB-3). */
 	showThumbnails: (ids: number[]) => __TAURI_INVOKE<void>("show_thumbnails", { ids }),
 	/**
+	 *  Changes the tags or rating of photos in the library, writing their edit
+	 *  files beside them (FIL-1, FIL-2). Photos already as asked are left alone.
+	 */
+	changePhotos: (ids: number[], change: PhotoChange) => typedError<ChangeResult, string>(__TAURI_INVOKE("change_photos", { ids, change })),
+	/**
 	 *  Shows photos in Explorer or Finder, selected there (BRW-8). Only their
 	 *  attributes are read, so a cloud-only photo isn't downloaded (LIB-9).
 	 */
@@ -173,6 +178,18 @@ export type AddFolderResult =
 /**  Added, replacing these library folders inside it. */
 { kind: "absorbed"; folders: string[] };
 
+/**  What a change did, in numbers of photos. */
+export type ChangeResult = {
+	/**  Their edit files were written, created, or moved to the Trash. */
+	changed: number,
+	/**  In a read-only folder (TAG-7). */
+	readOnly: number,
+	/**  Their edit file can't be read, so it's left alone (FIL-4). */
+	unreadable: number,
+	/**  Couldn't be changed for another reason, such as a full drive. */
+	failed: number,
+};
+
 /**  A folder the user can choose, by id. */
 export type Choice = {
 	id: number,
@@ -274,6 +291,11 @@ export type Opening = {
 	 */
 	cloudOnly: number,
 };
+
+/**  A change to photos' tags or rating (TAG-3, TAG-4, TAG-6). */
+export type PhotoChange = 
+/**  0 to 5 stars; 0 clears the rating. */
+{ kind: "rating"; stars: number } | { kind: "addTag"; tag: string } | { kind: "removeTag"; tag: string };
 
 /**  One photo's details for the Info panel (BRW-6). Read-only in M2. */
 export type PhotoDetails = {

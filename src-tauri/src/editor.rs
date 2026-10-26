@@ -15,7 +15,8 @@ use seura_render::check::{CHECK_SETTINGS, CHECK_TOLERANCE, check_image, differen
 use seura_render::{Output, Settings, export_jpeg};
 use time::OffsetDateTime;
 
-const WRITER: Writer = Writer {
+/// Recorded in every edit file Seura writes.
+pub(crate) const WRITER: Writer = Writer {
     app: "Seura Photos",
     version: env!("CARGO_PKG_VERSION"),
 };

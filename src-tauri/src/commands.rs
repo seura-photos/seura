@@ -6,8 +6,8 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use seura_library::{
-    AddFolder, EditFileState, Filter, FolderId, PhotoId, Scope, Sort, SortBy, THUMBNAIL_SIZES,
-    is_placeholder,
+    AddFolder, Change, EditFileState, Filter, FolderId, PhotoId, Problem, Scope, Sort, SortBy,
+    THUMBNAIL_SIZES, is_placeholder,
 };
 use specta::Type;
 use tauri::{AppHandle, Manager, State};
@@ -476,6 +476,70 @@ pub fn selection_summary(library: State<'_, Library>, ids: Vec<u32>) -> Selectio
             .filter_map(|tag| index.tag(*tag).map(str::to_string))
             .collect(),
     }
+}
+
+/// A change to photos' tags or rating (TAG-3, TAG-4, TAG-6).
+#[derive(Clone, Debug, Deserialize, Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum PhotoChange {
+    /// 0 to 5 stars; 0 clears the rating.
+    Rating {
+        stars: u8,
+    },
+    AddTag {
+        tag: String,
+    },
+    RemoveTag {
+        tag: String,
+    },
+}
+
+/// What a change did, in numbers of photos.
+#[derive(Clone, Debug, Default, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangeResult {
+    /// Their edit files were written, created, or moved to the Trash.
+    pub changed: u32,
+    /// In a read-only folder (TAG-7).
+    pub read_only: u32,
+    /// Their edit file can't be read, so it's left alone (FIL-4).
+    pub unreadable: u32,
+    /// Couldn't be changed for another reason, such as a full drive.
+    pub failed: u32,
+}
+
+/// Changes the tags or rating of photos in the library, writing their edit
+/// files beside them (FIL-1, FIL-2). Photos already as asked are left alone.
+#[tauri::command]
+#[specta::specta]
+pub async fn change_photos(
+    app: AppHandle,
+    ids: Vec<u32>,
+    change: PhotoChange,
+) -> Result<ChangeResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let ids: Vec<PhotoId> = ids.into_iter().map(PhotoId::new).collect();
+        let change = match change {
+            PhotoChange::Rating { stars } => Change::Rating(stars.min(5)),
+            PhotoChange::AddTag { tag } => Change::AddTag(tag),
+            PhotoChange::RemoveTag { tag } => Change::RemoveTag(tag),
+        };
+        let report = app.state::<Library>().change(&app, &ids, &change);
+        let mut result = ChangeResult {
+            changed: report.changed.len() as u32,
+            ..ChangeResult::default()
+        };
+        for (_, problem) in &report.problems {
+            match problem {
+                Problem::ReadOnly => result.read_only += 1,
+                Problem::Unreadable => result.unreadable += 1,
+                _ => result.failed += 1,
+            }
+        }
+        result
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 /// The files of photos in the index, never any other path.

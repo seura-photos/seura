@@ -568,3 +568,42 @@ fn a_malformed_fingerprint_is_refused() {
     assert!(matches!(result, Err(EditError::Invalid(_))));
     assert_eq!(document.json(), &before);
 }
+
+#[test]
+fn a_file_is_empty_once_nothing_in_it_needs_keeping() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    assert!(document.is_empty());
+    document
+        .apply(&act("Rating", vec![Edit::Rating(3)]), now())
+        .unwrap();
+    assert!(!document.is_empty());
+    document
+        .apply(&act("Rating", vec![Edit::Rating(0)]), now())
+        .unwrap();
+    // Only history left: that's not worth keeping (FIL-1).
+    assert_eq!(document.history_len(), 2);
+    assert!(document.is_empty());
+    document
+        .apply(&act("Tags", vec![Edit::Tags(vec!["beach".into()])]), now())
+        .unwrap();
+    assert!(!document.is_empty());
+
+    // What another app or a newer version wrote is kept.
+    for kept in [
+        json!({ "operations": [{ "id": "com.example.grain", "version": 1, "group": "effects", "params": {} }] }),
+        json!({ "extensions": { "com.example.faces": {} } }),
+        // Fields only a newer minor version can have.
+        json!({ "formatVersion": "1.1", "note": "keep me" }),
+    ] {
+        let mut value = json!({ "format": "seura-edit", "formatVersion": "1.0", "photo": photo() });
+        value
+            .as_object_mut()
+            .unwrap()
+            .extend(kept.as_object().unwrap().clone());
+        assert!(!parse(value).is_empty(), "{kept}");
+    }
+    let mut unknown_identity =
+        json!({ "format": "seura-edit", "formatVersion": "1.1", "photo": photo() });
+    unknown_identity["photo"]["serial"] = json!(7);
+    assert!(!parse(unknown_identity).is_empty());
+}

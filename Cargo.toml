@@ -63,6 +63,11 @@ fast_image_resize = "6.1.0"
 # the pure-Rust encoder is lossless only.
 webp = "0.3.1"
 rayon = "1.12.0"
+# Moving files to the Recycle Bin or Trash, never deleting them (FIL-1,
+# BRW-9; CLAUDE.md rule 5). MIT. Its default macOS method scripts Finder,
+# which asks for permission to control it; Seura sets the file manager's.
+# Apartment-threaded COM on Windows, as Seura's own COM calls use.
+trash = { version = "5.2.9", default-features = false, features = ["coinit_apartmentthreaded"] }
 # JPEG export (EXP-2), pure Rust; its IJG license needs a credit (deny.toml).
 jpeg-encoder = "0.7.1"
 # Native folder dialog, from Rust (ACC-4). Not tauri-plugin-dialog: it
@@ -75,7 +80,8 @@ tauri-plugin-opener = { version = "=2.7.0", default-features = false }
 # Windows only: WIC, for HEIC with Microsoft's extensions (decision 0014),
 # and the system thumbnails of cloud-only photos.
 windows = "0.62.2"
-# macOS only: the process's peak memory, for measuring PRF-7.
+# macOS only: the process's peak memory, for measuring PRF-7, and whether a
+# folder is read-only (TAG-7).
 libc = "0.2.191"
 # macOS only: ImageIO decodes HEIC (decision 0014), and Quick Look makes
 # the thumbnails of cloud-only photos.

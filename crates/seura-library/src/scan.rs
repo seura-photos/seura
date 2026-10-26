@@ -13,7 +13,7 @@ use seura_edit::{EditFile, edit_file_path};
 
 use crate::formats::{Format, read_head};
 use crate::index::{EditFileState, FileTime, FolderId, Index, Photo, PhotoId};
-use crate::platform::{is_placeholder, is_skipped};
+use crate::platform::{can_add_files, is_placeholder, is_skipped};
 
 /// What a scan found.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -100,6 +100,7 @@ impl Index {
                 return report;
             };
             let folder = index.ensure_folder(&folder_path, parent);
+            index.set_read_only(folder, listing.read_only);
             seen_folders.insert(folder);
             for name in &listing.folders {
                 pending.push((folder_path.join(name), Some(folder)));
@@ -318,13 +319,7 @@ impl Index {
                 }
             },
         };
-        let tags: Box<[_]> = tags.iter().map(|tag| self.intern_tag(tag)).collect();
-        let mut photo = self.photo(id).cloned().expect("checked above");
-        photo.edit_file = state;
-        photo.edit_file_stamp = stamp;
-        photo.rating = rating;
-        photo.tags = tags;
-        self.replace_photo(id, photo);
+        self.set_edit_file(id, state, stamp, rating, &tags);
     }
 
     fn folders_under(&self, root: &Path) -> Vec<(FolderId, PathBuf)> {
@@ -371,6 +366,8 @@ fn edit_file_name(photo: &str) -> String {
 struct Listing {
     folders: Vec<String>,
     files: HashMap<String, Metadata>,
+    /// Seura can't add files here (TAG-7).
+    read_only: bool,
 }
 
 /// A folder's visible subfolders and files. Hidden and system items and
@@ -380,6 +377,7 @@ fn list(folder: &Path) -> io::Result<Listing> {
     let mut listing = Listing {
         folders: Vec::new(),
         files: HashMap::new(),
+        read_only: !can_add_files(folder),
     };
     for entry in fs::read_dir(folder)? {
         let Ok(entry) = entry else { continue };

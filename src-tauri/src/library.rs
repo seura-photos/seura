@@ -8,8 +8,8 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use seura_library::{
-    ApplyEdits, Filter, FolderId, Index, Outcome, PhotoId, SWEEP_AFTER, Scope, SettingsFile,
-    ThumbnailCache, ThumbnailWorkers, Watcher,
+    ApplyEdits, Change, ChangeReport, Filter, FolderId, Index, Outcome, PhotoId, SWEEP_AFTER,
+    Scope, SettingsFile, ThumbnailCache, ThumbnailWorkers, Watcher, move_to_trash,
 };
 use specta::Type;
 use tauri::{AppHandle, Manager, Runtime};
@@ -32,6 +32,9 @@ pub struct Library {
     /// [`Library::send_thumbnails`]: one event per thumbnail flooded the UI
     /// during a large first scan, so clicking a folder waited for them all.
     ready: Mutex<Vec<ThumbnailReady>>,
+    /// Held while tags and ratings are written, so two changes never
+    /// interleave on a photo.
+    changing: Mutex<()>,
 }
 
 struct Store {
@@ -126,7 +129,35 @@ impl Library {
             watcher: Mutex::new(None),
             store: RwLock::new(Store::open(app, cache)),
             ready: Mutex::new(Vec::new()),
+            changing: Mutex::new(()),
         }
+    }
+
+    /// Changes photos' tags or rating, writing their edit files through the
+    /// one path for the Library's writes (M3 slice 1), then saves the index
+    /// and tells the UI.
+    pub fn change<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        ids: &[PhotoId],
+        change: &Change,
+    ) -> ChangeReport {
+        let report = {
+            let _changing = self.changing.lock().expect("change lock");
+            Index::change_shared(
+                &self.index,
+                ids,
+                change,
+                crate::editor::WRITER,
+                time::OffsetDateTime::now_utc(),
+                &move_to_trash,
+            )
+        };
+        if !report.changed.is_empty() || !report.problems.is_empty() {
+            self.save();
+            let _ = LibraryChanged.emit(app);
+        }
+        report
     }
 
     /// Starts watching the library folders for changes (LIB-4), ignoring

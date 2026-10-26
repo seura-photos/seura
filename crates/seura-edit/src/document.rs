@@ -255,6 +255,33 @@ impl EditDocument {
             .map_or(0, |rating| rating.min(5) as u8)
     }
 
+    /// Whether the file holds nothing worth keeping: no operations (known or
+    /// not), tags, or rating, no extensions, and no field Seura doesn't know,
+    /// such as another app's or a newer version's. Such a file goes to the
+    /// Trash rather than stay empty (FIL-1; edit format: "Rules for readers
+    /// and writers"). The history alone isn't kept: it only records changes
+    /// to what's now gone.
+    pub fn is_empty(&self) -> bool {
+        const KNOWN_PHOTO_FIELDS: [&str; 5] = ["file", "size", "sha256", "width", "height"];
+        let known_fields = self.root.keys().all(|key| {
+            FIELD_ORDER.contains(&key.as_str())
+                && !matches!(
+                    key.as_str(),
+                    "operations" | "tags" | "rating" | "extensions"
+                )
+        });
+        let known_photo = self
+            .root
+            .get("photo")
+            .and_then(Value::as_object)
+            .is_none_or(|photo| {
+                photo
+                    .keys()
+                    .all(|key| KNOWN_PHOTO_FIELDS.contains(&key.as_str()))
+            });
+        self.kind() == Kind::Photo && known_fields && known_photo
+    }
+
     /// Fills in the photo's fingerprint and dimensions where they're missing,
     /// once the photo has been read (edit format: "Photo identity"). Values
     /// already there are kept: a different fingerprint means the photo
