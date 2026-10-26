@@ -1,11 +1,18 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PhotoDetails } from "./bindings";
 import { InfoPanel } from "./InfoPanel";
+import { useStore } from "./store";
 
 const mocks = vi.hoisted(() => ({
   photoDetails: vi.fn(),
   selectionSummary: vi.fn(),
+  changePhotos: vi.fn(() =>
+    Promise.resolve({
+      status: "ok",
+      data: { changed: 1, readOnly: 0, unreadable: 0, failed: 0 },
+    }),
+  ),
 }));
 
 vi.mock("./bindings", () => ({ commands: mocks }));
@@ -28,6 +35,7 @@ function details(overrides: Partial<PhotoDetails> = {}): PhotoDetails {
     tags: ["family/kids", "vacation/2026"],
     edited: true,
     unreadable: false,
+    readOnly: false,
     cloudOnly: false,
     camera: "Apple iPhone 15 Pro",
     lens: "iPhone 15 Pro back camera 6.86mm f/1.78",
@@ -48,6 +56,7 @@ describe("Info panel (BRW-6)", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    useStore.setState(useStore.getInitialState(), true);
   });
 
   it("shows one photo's details, as in the mockup", async () => {
@@ -68,7 +77,10 @@ describe("Info panel (BRW-6)", () => {
     expect(screen.queryByText(/^Modified/)).toBeNull();
     expect(screen.getByText("Pictures › 2026 › Summer")).toBeTruthy();
     expect(screen.getByText("Edited")).toBeTruthy();
-    expect(screen.getByRole("img", { name: "4 stars" })).toBeTruthy();
+    expect(screen.getByText("4 stars")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Clear rating" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
     expect(screen.getByText("vacation/2026")).toBeTruthy();
   });
 
@@ -93,7 +105,7 @@ describe("Info panel (BRW-6)", () => {
     expect(screen.queryByText("Camera")).toBeNull();
     expect(screen.queryByText("Location")).toBeNull();
     expect(screen.queryByText("Folder")).toBeNull();
-    expect(screen.getByRole("img", { name: "Not rated" })).toBeTruthy();
+    expect(screen.getByText("Not rated")).toBeTruthy();
   });
 
   it("says how many photos are selected and what they share", async () => {
@@ -104,13 +116,17 @@ describe("Info panel (BRW-6)", () => {
       lastTaken: 1_783_968_120,
       rating: null,
       tags: ["family/kids"],
+      readOnly: 0,
     });
     render(<InfoPanel ids={[1, 2, 3]} version={0} />);
     expect(await screen.findByText("3 photos selected")).toBeTruthy();
     expect(mocks.selectionSummary).toHaveBeenCalledWith([1, 2, 3]);
     expect(mocks.photoDetails).not.toHaveBeenCalled();
     expect(screen.getByText(/ to /)).toBeTruthy();
-    expect(screen.getByText("Not all the same")).toBeTruthy();
+    // Empty stars, with the word, so it doesn't rest on looks alone (TAG-8).
+    expect(screen.getByText("Mixed")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Rate 2 stars" }));
+    expect(mocks.changePhotos).toHaveBeenCalledWith([1, 2, 3], { kind: "rating", stars: 2 });
     expect(screen.getByText("Tags they share")).toBeTruthy();
     expect(screen.getByText("family/kids")).toBeTruthy();
   });
@@ -147,5 +163,39 @@ describe("Info panel (BRW-6)", () => {
     render(<InfoPanel ids={[7]} version={0} />);
     expect(await screen.findByText(/^Modified /)).toBeTruthy();
     expect(screen.queryByText("Exposure")).toBeNull();
+  });
+
+  it("rates by clicking a star, and clicking the current one clears it (TAG-6)", async () => {
+    mocks.photoDetails.mockResolvedValue({ status: "ok", data: details({ rating: 3 }) });
+    render(<InfoPanel ids={[7]} version={0} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Rate 5 stars" }));
+    expect(mocks.changePhotos).toHaveBeenLastCalledWith([7], { kind: "rating", stars: 5 });
+    fireEvent.click(screen.getByRole("button", { name: "Clear rating" }));
+    expect(mocks.changePhotos).toHaveBeenLastCalledWith([7], { kind: "rating", stars: 0 });
+  });
+
+  it("says why a photo in a read-only folder can't be rated, with the stars in place (TAG-7)", async () => {
+    mocks.photoDetails.mockResolvedValue({ status: "ok", data: details({ readOnly: true }) });
+    render(<InfoPanel ids={[7]} version={0} />);
+    expect(
+      await screen.findByText("This folder is read-only, so tags and ratings can't be saved here."),
+    ).toBeTruthy();
+    const stars = screen.getAllByRole("button", { name: /Rate|Clear/ });
+    expect(stars).toHaveLength(5);
+    expect(stars.every((star) => (star as HTMLButtonElement).disabled)).toBe(true);
+  });
+
+  it("says when some photos couldn't be rated", async () => {
+    mocks.photoDetails.mockResolvedValue({ status: "ok", data: details() });
+    mocks.changePhotos.mockResolvedValueOnce({
+      status: "ok",
+      data: { changed: 1, readOnly: 2, unreadable: 1, failed: 0 },
+    });
+    await useStore.getState().rate([1, 2, 3, 4], 4);
+    await waitFor(() =>
+      expect(useStore.getState().notice).toBe(
+        "2 photos are in read-only folders, so they weren't changed. 1 photo's edit file can't be read, so it wasn't changed.",
+      ),
+    );
   });
 });

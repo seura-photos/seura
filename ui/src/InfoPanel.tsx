@@ -1,9 +1,10 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { Cloud, Star } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Cloud, Lock, Star } from "lucide-react";
+import { useEffect, useId, useState } from "react";
 import { commands, type PhotoDetails, type SelectionSummary } from "./bindings";
 import { formatBytes, formatDateTime, formatNumber } from "./format";
 import { t } from "./messages";
+import { useStore } from "./store";
 
 /** Moving through photos quickly asks for details only once it rests. */
 const SETTLE = 80;
@@ -22,14 +23,14 @@ type Props = {
 type Shown =
   | { kind: "none" }
   | { kind: "photo"; details: PhotoDetails }
-  | { kind: "several"; summary: SelectionSummary };
+  | { kind: "several"; ids: number[]; summary: SelectionSummary };
 
 /**
  * The Info panel (BRW-6; styled mockups in docs/ux/mockups/), always beside
  * the grid and the Viewer: one photo's file name, date taken, size, camera
  * and lens, location, edits, rating, and tags, or what several selected
- * photos share. Read-only in M2. A cloud-only photo's metadata isn't read,
- * which would download it (LIB-9).
+ * photos share, with the rating to set (TAG-6). A cloud-only photo's
+ * metadata isn't read, which would download it (LIB-9).
  */
 export function InfoPanel({ ids, version, preview = false, folder = false }: Props) {
   const [shown, setShown] = useState<Shown>({ kind: "none" });
@@ -43,7 +44,11 @@ export function InfoPanel({ ids, version, preview = false, folder = false }: Pro
         const [first] = wanted;
         if (first === undefined) return { kind: "none" };
         if (wanted.length > 1) {
-          return { kind: "several", summary: await commands.selectionSummary(wanted) };
+          return {
+            kind: "several",
+            ids: wanted,
+            summary: await commands.selectionSummary(wanted),
+          };
         }
         const result = await commands.photoDetails(first);
         return result.status === "ok" ? { kind: "photo", details: result.data } : { kind: "none" };
@@ -63,7 +68,7 @@ export function InfoPanel({ ids, version, preview = false, folder = false }: Pro
       {shown.kind === "photo" ? (
         <Photo details={shown.details} preview={preview} folder={folder} />
       ) : shown.kind === "several" ? (
-        <Several summary={shown.summary} />
+        <Several ids={shown.ids} summary={shown.summary} />
       ) : (
         <p className="info-empty">{t("info-nothing")}</p>
       )}
@@ -202,13 +207,14 @@ function Photo({
           {t("info-cloud-only")}
         </p>
       )}
-      <Rating rating={details.rating} />
+      {details.readOnly && <ReadOnly />}
+      <Rating ids={[details.id]} rating={details.rating} disabled={details.readOnly} />
       <Tags tags={details.tags} heading={t("info-tags")} />
     </>
   );
 }
 
-function Several({ summary }: { summary: SelectionSummary }) {
+function Several({ ids, summary }: { ids: number[]; summary: SelectionSummary }) {
   const { firstTaken, lastTaken } = summary;
   const dates =
     firstTaken != null && lastTaken != null
@@ -227,27 +233,75 @@ function Several({ summary }: { summary: SelectionSummary }) {
         <dt>{t("info-size")}</dt>
         <dd>{formatBytes(summary.size ?? 0)}</dd>
       </dl>
-      {summary.rating != null ? (
-        <Rating rating={summary.rating} />
-      ) : (
-        <section className="info-section">
-          <h3 className="info-heading">{t("info-rating")}</h3>
-          <p className="meta">{t("info-rating-mixed")}</p>
-        </section>
-      )}
+      {/* Some photos can still be changed when not all are read-only. */}
+      {summary.readOnly === summary.count && <ReadOnly />}
+      <Rating
+        ids={ids}
+        rating={summary.rating ?? null}
+        disabled={summary.readOnly === summary.count}
+      />
       <Tags tags={summary.tags} heading={t("info-shared-tags")} />
     </>
   );
 }
 
-function Rating({ rating }: { rating: number }) {
+/** Why the rating and tags can't be changed (TAG-7): said in words where
+ * they are, since a disabled control often shows no tooltip. */
+function ReadOnly() {
+  return (
+    <p className="info-note">
+      <Lock className="icon" aria-hidden />
+      {t("read-only-folder")}
+    </p>
+  );
+}
+
+/**
+ * The rating as five star buttons (TAG-6): clicking one sets that rating,
+ * and clicking the current one clears it. `null` when the selected photos'
+ * ratings differ: empty stars and "Mixed" (TAG-8).
+ */
+function Rating({
+  ids,
+  rating,
+  disabled,
+}: {
+  ids: number[];
+  rating: number | null;
+  disabled: boolean;
+}) {
+  const rate = useStore((state) => state.rate);
+  const heading = useId();
+  const shown = rating ?? 0;
   return (
     <section className="info-section">
-      <h3 className="info-heading">{t("info-rating")}</h3>
-      <div className="info-stars" role="img" aria-label={t("info-stars", { rating })}>
-        {[1, 2, 3, 4, 5].map((star) => (
-          <Star key={star} className={star <= rating ? "star on" : "star"} aria-hidden />
-        ))}
+      <h3 className="info-heading" id={heading}>
+        {t("info-rating")}
+      </h3>
+      <div className="info-stars" role="group" aria-labelledby={heading}>
+        {[1, 2, 3, 4, 5].map((star) => {
+          const current = star === rating;
+          const label = current ? t("info-clear-rating") : t("info-rate", { rating: star });
+          return (
+            <button
+              key={star}
+              type="button"
+              className="star-button"
+              aria-label={label}
+              aria-pressed={current}
+              title={label}
+              disabled={disabled}
+              onClick={() => void rate(ids, current ? 0 : star)}
+            >
+              <Star className={star <= shown ? "star on" : "star"} aria-hidden />
+            </button>
+          );
+        })}
+        {rating === null ? (
+          <span className="meta">{t("info-rating-mixed")}</span>
+        ) : (
+          <span className="visually-hidden">{t("info-stars", { rating })}</span>
+        )}
       </div>
     </section>
   );

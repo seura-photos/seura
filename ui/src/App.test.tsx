@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => {
     photos: [] as PhotoInfo[],
     removeFolder: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
     addFolder: vi.fn(() => Promise.resolve({ status: "ok", data: { kind: "cancelled" } })),
+    changed: { changed: 0, readOnly: 0, unreadable: 0, failed: 0 },
+    changePhotos: vi.fn(() => Promise.resolve({ status: "ok", data: mocks.changed })),
   };
 });
 
@@ -81,6 +83,7 @@ vi.mock("./bindings", () => ({
     ),
     addFolder: mocks.addFolder,
     removeFolder: mocks.removeFolder,
+    changePhotos: mocks.changePhotos,
   },
   events: mocks.events,
 }));
@@ -121,6 +124,8 @@ describe("App", () => {
     mocks.photos = [];
     mocks.addFolder.mockClear();
     mocks.removeFolder.mockClear();
+    mocks.changePhotos.mockClear();
+    mocks.changed = { changed: 0, readOnly: 0, unreadable: 0, failed: 0 };
     useStore.setState(useStore.getInitialState(), true);
   });
 
@@ -220,6 +225,49 @@ describe("App", () => {
     expect(screen.getByText("2 selected")).toBeDefined();
     act(() => useStore.getState().selectAllPhotos());
     expect(screen.getByText("3 selected")).toBeDefined();
+  });
+
+  it("rates the selection with 0 to 5, but not while typing (TAG-6)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+    mocks.photos = [1, 2, 3].map((id) => photo(id));
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("grid");
+    // Nothing selected: nothing to rate.
+    fireEvent.keyDown(window, { key: "4" });
+    expect(mocks.changePhotos).not.toHaveBeenCalled();
+    act(() => {
+      useStore.getState().selectPhoto(1, { toggle: false, range: false });
+      useStore.getState().selectPhoto(3, { toggle: true, range: false });
+    });
+    fireEvent.keyDown(window, { key: "4" });
+    expect(mocks.changePhotos).toHaveBeenCalledWith([1, 3], { kind: "rating", stars: 4 });
+    fireEvent.keyDown(window, { key: "0" });
+    expect(mocks.changePhotos).toHaveBeenLastCalledWith([1, 3], { kind: "rating", stars: 0 });
+    // With Ctrl, or in the sort control, a number isn't a rating.
+    mocks.changePhotos.mockClear();
+    fireEvent.keyDown(window, { key: "2", ctrlKey: true });
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "2" });
+    expect(mocks.changePhotos).not.toHaveBeenCalled();
+  });
+
+  it("says so when the photos are in a read-only folder (TAG-7)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 1, total: 1 })];
+    mocks.photos = [photo(1)];
+    mocks.changed = { changed: 0, readOnly: 1, unreadable: 0, failed: 0 };
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("grid");
+    act(() => useStore.getState().selectPhoto(1, { toggle: false, range: false }));
+    fireEvent.keyDown(window, { key: "3" });
+    expect(
+      await screen.findByText(
+        "This folder is read-only, so tags and ratings can't be saved here.",
+        {
+          selector: ".notice",
+        },
+      ),
+    ).toBeTruthy();
   });
 
   it("shows a disconnected drive's folder as not connected (LIB-6)", async () => {

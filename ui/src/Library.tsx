@@ -1,10 +1,11 @@
 import { ArrowDownNarrowWide, ArrowUpNarrowWide, Plus } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useState } from "react";
 import mark from "../../design/brand/seura-mark-small.svg";
 import type { FolderInfo, ScanProgress } from "./bindings";
 import { FolderTree } from "./FolderTree";
 import { Grid } from "./Grid";
 import { InfoPanel } from "./InfoPanel";
+import { ratingKey } from "./keys";
 import { PhotoMenu } from "./PhotoMenu";
 import { t } from "./messages";
 import { ConfirmRemove, FolderMenu } from "./RemoveFolder";
@@ -42,6 +43,8 @@ export function Library({ inert = false }: { inert?: boolean }) {
   const photos = useStore((state) => state.photos);
   const thumbs = useStore((state) => state.thumbs);
   const notice = useStore((state) => state.notice);
+  const noticeId = useStore((state) => state.noticeId);
+  const rate = useStore((state) => state.rate);
   const selection = useStore((state) => state.selection);
   const selectPhoto = useStore((state) => state.selectPhoto);
   const selectAllPhotos = useStore((state) => state.selectAllPhotos);
@@ -68,6 +71,20 @@ export function Library({ inert = false }: { inert?: boolean }) {
   );
   const closeMenu = useCallback(() => setMenu(null), []);
 
+  // 0 to 5 rate the selection (TAG-6), wherever the focus is but a field.
+  // Not while the Viewer is open over the Library: it rates its own photo.
+  const onKey = useEffectEvent((event: KeyboardEvent) => {
+    const stars = ratingKey(event);
+    if (inert || stars === null || selection.ids.size === 0) return;
+    event.preventDefault();
+    void rate([...selection.ids], stars);
+  });
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => onKey(event);
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, []);
+
   return (
     <div className="shell" inert={inert}>
       <header className="header">
@@ -92,7 +109,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
             </button>
           </div>
           {notice && (
-            <p className="notice" role="status">
+            <p key={noticeId} className="notice" role="status">
               {notice}
             </p>
           )}

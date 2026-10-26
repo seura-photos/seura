@@ -5,6 +5,7 @@ import { commands } from "./bindings";
 import { formatBytes, formatNumber } from "./format";
 import { t } from "./messages";
 import { InfoPanel } from "./InfoPanel";
+import { ratingKey } from "./keys";
 import { SHOWN_EVENT } from "./measure";
 import { PhotoMenu } from "./PhotoMenu";
 import { type Backend, createPreview, fetchLinear } from "./preview";
@@ -64,6 +65,11 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
   const view = useStore((state) => state.view);
   const closeViewer = useStore((state) => state.closeViewer);
   const openEditor = useStore((state) => state.openEditor);
+  const rate = useStore((state) => state.rate);
+  const notice = useStore((state) => state.notice);
+  const noticeId = useStore((state) => state.noticeId);
+  // Only notices from while it's open: earlier ones were about the Library.
+  const [openedAt] = useState(noticeId);
 
   const root = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -295,6 +301,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
   // Listeners are added once; these see the latest state when they run.
   const onKey = useEffectEvent((event: KeyboardEvent) => {
     if (event.altKey || event.ctrlKey || event.metaKey) return;
+    const stars = ratingKey(event);
     if (event.key === "ArrowLeft") move(previous?.id);
     else if (event.key === "ArrowRight") move(next?.id);
     else if (event.key === "Escape") closeViewer();
@@ -304,6 +311,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     } else if (event.key === "+" || event.key === "=") zoomStep(1);
     else if (event.key === "-") zoomStep(-1);
     else if (editorAvailable && photo && event.key.toLowerCase() === "e") openEditor(photo);
+    else if (photo && stars !== null) void rate([photo.id], stars);
     else return;
     event.preventDefault();
   });
@@ -536,6 +544,12 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
           {percent !== null &&
             (isZoomed ? t("viewer-zoomed", { percent }) : t("viewer-fit", { percent }))}
         </span>
+        {/* The Viewer covers the sidebar, where the Library shows notices. */}
+        {notice && noticeId > openedAt && (
+          <span key={noticeId} className="notice" role="status">
+            {notice}
+          </span>
+        )}
         <span className="viewer-keys">
           {editorAvailable ? t("viewer-keys-edit", { folder }) : t("viewer-keys", { folder })}
         </span>

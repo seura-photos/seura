@@ -2,6 +2,7 @@
 
 :root {
   --color-on-photo: rgba(20,20,20,0.62);
+  --color-rating-on-photo: #E3B341;
   --color-toolbar-on-photo: rgba(20,20,20,0.78);
   --font-app: -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
   --font-brand: Figtree, system-ui, sans-serif;

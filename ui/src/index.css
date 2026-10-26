@@ -646,7 +646,8 @@ button {
 .badge-rating {
   right: 0.375rem;
   bottom: 0.375rem;
-  color: var(--color-rating);
+  /* On the dark overlay in both modes, so the dark mode's gold. */
+  color: var(--color-rating-on-photo);
 }
 
 .badge-rating .star {
@@ -893,6 +894,11 @@ button {
   justify-content: space-between;
 }
 
+.viewer-status .notice {
+  margin: 0;
+  color: var(--color-text);
+}
+
 .viewer-keys {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -981,7 +987,31 @@ button {
 
 .info-stars {
   display: flex;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+/* Each star is a button (TAG-6), with room around it to aim at. */
+.star-button {
+  display: inline-flex;
+  padding: 0.125rem;
+  border: none;
+  border-radius: var(--radius-control);
+  background: none;
+  cursor: pointer;
+}
+
+.star-button:hover:not(:disabled) .star:not(.on) {
+  color: var(--color-text-secondary);
+}
+
+.star-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.info-stars .meta {
+  margin-left: 0.5rem;
 }
 
 .info-stars .star {

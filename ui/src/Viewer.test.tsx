@@ -9,6 +9,12 @@ const mocks = vi.hoisted(() => ({
   viewPhoto: vi.fn(),
   viewRegion: vi.fn(),
   closeViewer: vi.fn(() => Promise.resolve(null)),
+  changePhotos: vi.fn(() =>
+    Promise.resolve({
+      status: "ok",
+      data: { changed: 0, readOnly: 1, unreadable: 0, failed: 0 },
+    }),
+  ),
   fetchLinear: vi.fn(() =>
     Promise.resolve({ width: 800, height: 600, data: new Uint16Array(800 * 600 * 4) }),
   ),
@@ -20,6 +26,7 @@ vi.mock("./bindings", () => ({
     viewPhoto: mocks.viewPhoto,
     viewRegion: mocks.viewRegion,
     closeViewer: mocks.closeViewer,
+    changePhotos: mocks.changePhotos,
     photoDetails: vi.fn(() => Promise.resolve({ status: "error", error: "not in the test" })),
   },
 }));
@@ -206,6 +213,23 @@ describe("Viewer (BRW-5)", () => {
     await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalled());
     expect(screen.getByText("2 of 3")).toBeTruthy();
     expect(screen.queryByText(/Downloading/)).toBeNull();
+  });
+
+  it("rates the photo shown with 0 to 5, and says why it can't (TAG-6, TAG-7)", async () => {
+    useStore.getState().say("An older notice, about the Library");
+    show(2);
+    // Notices from before the Viewer opened aren't its own.
+    expect(screen.queryByText("An older notice, about the Library")).toBeNull();
+    fireEvent.keyDown(window, { key: "5" });
+    expect(mocks.changePhotos).toHaveBeenCalledWith([2], { kind: "rating", stars: 5 });
+    expect(
+      await screen.findByText(
+        "This folder is read-only, so tags and ratings can't be saved here.",
+        {
+          selector: ".notice",
+        },
+      ),
+    ).toBeTruthy();
   });
 
   it("opens the Editor with E only where it's available", async () => {

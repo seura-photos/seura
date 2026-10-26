@@ -297,7 +297,7 @@ export type PhotoChange =
 /**  0 to 5 stars; 0 clears the rating. */
 { kind: "rating"; stars: number } | { kind: "addTag"; tag: string } | { kind: "removeTag"; tag: string };
 
-/**  One photo's details for the Info panel (BRW-6). Read-only in M2. */
+/**  One photo's details for the Info panel (BRW-6). */
 export type PhotoDetails = {
 	id: number,
 	name: string,
@@ -313,6 +313,8 @@ export type PhotoDetails = {
 	tags: string[],
 	edited: boolean,
 	unreadable: boolean,
+	/**  In a read-only folder: it can't be tagged or rated (TAG-7). */
+	readOnly: boolean,
 	/**
 	 *  Only in the cloud: its metadata isn't read, which would download it
 	 *  (LIB-9), so the camera, lens, and location are unknown.
@@ -397,6 +399,8 @@ export type SelectionSummary = {
 	rating: number | null,
 	/**  Tags every one of them has. */
 	tags: string[],
+	/**  How many are in read-only folders (TAG-7). */
+	readOnly: number,
 };
 
 /**  A thumbnail finished, or can't be made. */
