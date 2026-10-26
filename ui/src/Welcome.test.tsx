@@ -26,6 +26,7 @@ vi.mock("./bindings", () => ({
     welcomeAddFolder: mocks.welcomeAddFolder,
     welcomeChooseCache: mocks.welcomeChooseCache,
     folders: vi.fn(() => Promise.resolve([])),
+    tags: vi.fn(() => Promise.resolve([])),
   },
 }));
 

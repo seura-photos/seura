@@ -7,6 +7,7 @@ import { Grid } from "./Grid";
 import { InfoPanel } from "./InfoPanel";
 import { isTagKey, ratingKey } from "./keys";
 import { PhotoMenu } from "./PhotoMenu";
+import { TagTree } from "./TagTree";
 import { t } from "./messages";
 import { ConfirmRemove, FolderMenu } from "./RemoveFolder";
 import { anchorOf, useStore } from "./store";
@@ -73,9 +74,26 @@ export function Library({ inert = false }: { inert?: boolean }) {
   const addFolder = useStore((state) => state.addFolder);
   const view = useStore((state) => state.view);
   const reveal = useStore((state) => state.reveal);
+  const tags = useStore((state) => state.tags);
+  const tag = useStore((state) => state.tag);
   // An empty library folder has no id, so nothing selected must not match it.
   const folder =
     folderId === null ? null : (folders.find((candidate) => candidate.id === folderId) ?? null);
+  // Or a tag, whose photos come from every folder (TAG-5).
+  const tagNode = tag === null ? null : (tags.find((node) => node.tag === tag) ?? null);
+  const shown = folder
+    ? {
+        title: folder.name,
+        meta: t("library-folder-meta", { path: folder.path, count: folder.photos }),
+        count: folder.photos,
+      }
+    : tagNode
+      ? {
+          title: tagNode.tag,
+          meta: t("library-tag-meta", { count: tagNode.photos ?? 0 }),
+          count: tagNode.photos ?? 0,
+        }
+      : null;
   const [menu, setMenu] = useState<{ folder: FolderInfo; x: number; y: number } | null>(null);
   const [removing, setRemoving] = useState<FolderInfo | null>(null);
   const [photoMenu, setPhotoMenu] = useState<{ ids: number[]; x: number; y: number } | null>(null);
@@ -111,7 +129,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
         <span className="wordmark">{t("app-short-name")}</span>
       </header>
 
-      <nav className="sidebar" aria-label={t("library-folders")}>
+      <nav className="sidebar" aria-label={t("library-sidebar")}>
         {/* The heading stays in view while the tree scrolls, with Add folder
             beside it and the last action's notice under it. */}
         <div className="sidebar-heading">
@@ -134,21 +152,23 @@ export function Library({ inert = false }: { inert?: boolean }) {
           )}
         </div>
         <FolderTree onMenu={openMenu} />
+        {/* TAGS, below FOLDERS, with its own heading kept in view (wireframes). */}
+        <div className="sidebar-heading">
+          <div className="section-heading">
+            <h2 className="section-label">{t("library-tags")}</h2>
+          </div>
+        </div>
+        <TagTree />
       </nav>
 
       <main className="main">
         {folders.length === 0 ? (
           <p className="empty">{t("library-empty")}</p>
-        ) : folder ? (
+        ) : shown ? (
           <>
             <div className="folder-heading">
-              <h1 className="view-title">{folder.name}</h1>
-              <span className="meta">
-                {t("library-folder-meta", {
-                  path: folder.path,
-                  count: folder.photos,
-                })}
-              </span>
+              <h1 className="view-title">{shown.title}</h1>
+              <span className="meta">{shown.meta}</span>
               <div className="view-controls">
                 <label className="view-control">
                   <span className="visually-hidden">{t("grid-sort")}</span>
@@ -187,18 +207,22 @@ export function Library({ inert = false }: { inert?: boolean }) {
                 </label>
               </div>
             </div>
-            <Grid
-              folder={folder.name}
-              photos={photos}
-              thumbs={thumbs}
-              size={thumbnailSize}
-              selection={selection}
-              onSelect={selectPhoto}
-              onSelectAll={selectAllPhotos}
-              onOpen={(photo) => view(photo.id)}
-              onMenu={(ids, x, y) => setPhotoMenu({ ids, x, y })}
-              reveal={reveal}
-            />
+            {tagNode && tagNode.photos === null ? (
+              <p className="empty">{t("library-tag-empty", { tag: tagNode.tag })}</p>
+            ) : (
+              <Grid
+                folder={shown.title}
+                photos={photos}
+                thumbs={thumbs}
+                size={thumbnailSize}
+                selection={selection}
+                onSelect={selectPhoto}
+                onSelectAll={selectAllPhotos}
+                onOpen={(photo) => view(photo.id)}
+                onMenu={(ids, x, y) => setPhotoMenu({ ids, x, y })}
+                reveal={reveal}
+              />
+            )}
           </>
         ) : (
           <p className="empty">{t("library-pick-folder")}</p>
@@ -235,7 +259,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
       )}
 
       <footer className="status-bar">
-        {folder && <span>{t("library-photo-count", { count: folder.photos })}</span>}
+        {shown && <span>{t("library-photo-count", { count: shown.count })}</span>}
         {selection.ids.size > 0 && (
           <span>{t("library-selected", { count: selection.ids.size })}</span>
         )}

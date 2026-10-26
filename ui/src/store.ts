@@ -6,6 +6,7 @@ import {
   type PhotoChange,
   type PhotoInfo,
   type ScanProgress,
+  type TagInfo,
   type ThumbnailReady,
   type WelcomeInfo,
 } from "./bindings";
@@ -27,6 +28,13 @@ type State = {
   folders: FolderInfo[];
   /** The folder whose photos the grid shows. */
   folderId: number | null;
+  /** The TAGS tree (TAG-5). */
+  tags: TagInfo[];
+  /** The tag whose photos the grid shows instead of a folder's: those with
+   * exactly that tag, from every folder (TAG-5). */
+  tag: string | null;
+  /** Tag tree nodes that are closed, by tag; the rest are open. */
+  closedTags: Set<string>;
   /** Folder tree rows that are open, by key (`folderKey`). Library folders
    * start open; the rest is remembered for the session. */
   expanded: Set<string>;
@@ -63,6 +71,8 @@ type State = {
   loadFolders: () => Promise<void>;
   selectFolder: (id: number) => Promise<void>;
   toggleFolder: (key: string) => void;
+  selectTag: (tag: string) => Promise<void>;
+  toggleTag: (tag: string) => void;
   selectPhoto: (id: number, modifiers: { toggle: boolean; range: boolean }) => void;
   selectAllPhotos: () => void;
   setSort: (by: string, ascending: boolean) => Promise<void>;
@@ -125,6 +135,9 @@ export const useStore = create<State>()((set, get) => ({
   version: null,
   folders: [],
   folderId: null,
+  tags: [],
+  tag: null,
+  closedTags: new Set(),
   expanded: new Set(),
   seenRoots: new Set(),
   photos: [],
@@ -165,7 +178,24 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   async loadFolders() {
-    const folders = await commands.folders();
+    const [folders, tags] = await Promise.all([commands.folders(), commands.tags()]);
+    set({ tags });
+    // A tag no photo has any more leaves the tree (TAG-4), and the grid.
+    const { tag } = get();
+    if (tag !== null) {
+      if (tags.some((node) => node.tag === tag && node.photos !== null)) {
+        const photos = await commands.tagPhotos(tag);
+        set(({ selection }) => ({
+          photos,
+          selection: keepExisting(
+            selection,
+            photos.map((photo) => photo.id),
+          ),
+        }));
+      } else {
+        set({ tag: null, photos: [], selection: emptySelection });
+      }
+    }
     const { expanded, seenRoots } = get();
     const nextExpanded = new Set(expanded);
     const nextSeen = new Set(seenRoots);
@@ -207,9 +237,24 @@ export const useStore = create<State>()((set, get) => ({
   async selectFolder(id) {
     // A notice is about the last action where the user was, such as a
     // read-only folder they left: it goes with the folder.
-    if (get().folderId !== id) set({ folderId: id, selection: emptySelection, notice: null });
+    if (get().folderId !== id)
+      set({ folderId: id, tag: null, selection: emptySelection, notice: null });
     const photos = await commands.photos(id);
     if (get().folderId === id) set({ photos });
+  },
+
+  async selectTag(tag) {
+    if (get().tag !== tag) set({ tag, folderId: null, selection: emptySelection, notice: null });
+    const photos = await commands.tagPhotos(tag);
+    if (get().tag === tag) set({ photos });
+  },
+
+  toggleTag(tag) {
+    set(({ closedTags }) => {
+      const next = new Set(closedTags);
+      if (!next.delete(tag)) next.add(tag);
+      return { closedTags: next };
+    });
   },
 
   async addFolder() {
@@ -248,8 +293,9 @@ export const useStore = create<State>()((set, get) => ({
   async setSort(by, ascending) {
     set({ sortBy: by, ascending });
     await commands.setSort(by, ascending);
-    const { folderId } = get();
+    const { folderId, tag } = get();
     if (folderId !== null) set({ photos: await commands.photos(folderId) });
+    else if (tag !== null) set({ photos: await commands.tagPhotos(tag) });
   },
 
   setThumbnailSize(size) {

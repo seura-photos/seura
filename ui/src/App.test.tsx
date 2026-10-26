@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import type { FolderInfo, PhotoInfo } from "./bindings";
+import type { FolderInfo, PhotoInfo, TagInfo } from "./bindings";
 import { useStore } from "./store";
 
 // vi.mock is hoisted above imports, so what it uses must be hoisted too.
@@ -24,6 +24,8 @@ const mocks = vi.hoisted(() => {
     dev: { active: [] as string[], editorAvailable: false },
     folders: [] as FolderInfo[],
     photos: [] as PhotoInfo[],
+    tags: [] as TagInfo[],
+    tagPhotos: vi.fn(() => Promise.resolve(mocks.photos)),
     removeFolder: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
     addFolder: vi.fn(() => Promise.resolve({ status: "ok", data: { kind: "cancelled" } })),
     changed: { changed: 0, readOnly: 0, unreadable: 0, failed: 0 },
@@ -63,6 +65,8 @@ vi.mock("./bindings", () => ({
     ),
     folders: vi.fn(() => Promise.resolve(mocks.folders)),
     photos: vi.fn(() => Promise.resolve(mocks.photos)),
+    tags: vi.fn(() => Promise.resolve(mocks.tags)),
+    tagPhotos: mocks.tagPhotos,
     viewSettings: vi.fn(() =>
       Promise.resolve({ sortBy: "dateTaken", ascending: true, thumbnailSize: 160 }),
     ),
@@ -123,6 +127,8 @@ describe("App", () => {
     mocks.dev.active = [];
     mocks.folders = [];
     mocks.photos = [];
+    mocks.tags = [];
+    mocks.tagPhotos.mockClear();
     mocks.addFolder.mockClear();
     mocks.removeFolder.mockClear();
     mocks.changePhotos.mockClear();
@@ -286,6 +292,59 @@ describe("App", () => {
         {
           selector: ".notice",
         },
+      ),
+    ).toBeTruthy();
+  });
+
+  it("shows the tags as a tree, and a tag's photos from every folder (TAG-5)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+    mocks.tags = [
+      { tag: "family", name: "family", parent: null, photos: null },
+      { tag: "family/kids", name: "kids", parent: "family", photos: 2 },
+      { tag: "beach", name: "beach", parent: null, photos: 1 },
+    ];
+    mocks.photos = [1, 2].map((id) => photo(id));
+    render(<App />);
+    const tags = await screen.findByRole("tree", { name: "Tags" });
+    const rows = within(tags).getAllByRole("treeitem");
+    // By name at each level; a node no photo has exactly shows no count.
+    expect(rows.map((row) => row.textContent)).toEqual(["beach1", "family", "kids2"]);
+
+    fireEvent.click(within(tags).getByRole("treeitem", { name: /kids/ }));
+    expect(mocks.tagPhotos).toHaveBeenCalledWith("family/kids");
+    expect(await screen.findByRole("heading", { name: "family/kids" })).toBeTruthy();
+    expect(screen.getByText("2 photos, from every folder")).toBeTruthy();
+    expect(useStore.getState().folderId).toBeNull();
+
+    // Closing a node hides the tags beneath it.
+    fireEvent.keyDown(within(tags).getByRole("treeitem", { name: /kids/ }), { key: "ArrowLeft" });
+    fireEvent.keyDown(within(tags).getByRole("treeitem", { name: /^family/ }), {
+      key: "ArrowLeft",
+    });
+    await waitFor(() => expect(within(tags).getAllByRole("treeitem")).toHaveLength(2));
+
+    // Selecting a folder leaves the tag.
+    fireEvent.click(screen.getByRole("treeitem", { name: /Pictures/ }));
+    await waitFor(() => expect(useStore.getState().tag).toBeNull());
+  });
+
+  it("says so for a node no photo has exactly, and when there are no tags yet", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 1, total: 1 })];
+    render(<App />);
+    expect(
+      await screen.findByText("No tags yet. Select photos and press T to tag them."),
+    ).toBeTruthy();
+    cleanup();
+    useStore.setState(useStore.getInitialState(), true);
+    mocks.tags = [
+      { tag: "family", name: "family", parent: null, photos: null },
+      { tag: "family/kids", name: "kids", parent: "family", photos: 2 },
+    ];
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /^family/ }));
+    expect(
+      await screen.findByText(
+        "No photo has exactly “family”. Its photos are under the tags beneath it.",
       ),
     ).toBeTruthy();
   });

@@ -271,31 +271,91 @@ pub fn photos(
 ) -> Vec<PhotoInfo> {
     let sort = settings.0.lock().expect("settings lock").settings.sort;
     let folder = FolderId::new(folder);
-    let photos: Vec<PhotoInfo> = {
+    let photos = {
         let index = library.index.read().expect("index lock");
         let ids = index.query(Scope::Folder(folder), &Filter::default());
-        index
-            .sorted(ids, sort)
-            .into_iter()
-            .filter_map(|id| {
-                let photo = index.photo(id)?;
-                Some(PhotoInfo {
-                    id: id.value(),
-                    name: photo.name.to_string(),
-                    width: photo.dimensions.map(|(width, _)| width),
-                    height: photo.dimensions.map(|(_, height)| height),
-                    cloud_only: photo.placeholder,
-                    taken: photo.taken.map(|seconds| seconds as f64),
-                    modified: photo.modified.secs as f64,
-                    rating: photo.rating,
-                    edited: photo.edit_file == EditFileState::Read { edited: true },
-                    unreadable: photo.edit_file == EditFileState::Unreadable,
-                })
-            })
-            .collect()
+        photo_infos(&index, index.sorted(ids, sort))
     };
     library.queue_folder(folder);
     photos
+}
+
+/// The photos with exactly this tag, from every folder (TAG-5), in the
+/// app's order (BRW-2). Their thumbnails are queued behind the visible ones.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn tag_photos(
+    library: State<'_, Library>,
+    settings: State<'_, AppSettings>,
+    tag: String,
+) -> Vec<PhotoInfo> {
+    let sort = settings.0.lock().expect("settings lock").settings.sort;
+    let index = library.index.read().expect("index lock");
+    let Some(id) = index.tag_id(&tag) else {
+        return Vec::new();
+    };
+    let ids = index.sorted(index.query(Scope::Tag(id), &Filter::default()), sort);
+    let jobs = ids
+        .iter()
+        .filter_map(|id| index.thumbnail_job(*id))
+        .collect();
+    let photos = photo_infos(&index, ids);
+    drop(index);
+    library.queue_photos(jobs);
+    photos
+}
+
+/// Photos as the grid needs them.
+fn photo_infos(index: &seura_library::Index, ids: Vec<PhotoId>) -> Vec<PhotoInfo> {
+    ids.into_iter()
+        .filter_map(|id| {
+            let photo = index.photo(id)?;
+            Some(PhotoInfo {
+                id: id.value(),
+                name: photo.name.to_string(),
+                width: photo.dimensions.map(|(width, _)| width),
+                height: photo.dimensions.map(|(_, height)| height),
+                cloud_only: photo.placeholder,
+                taken: photo.taken.map(|seconds| seconds as f64),
+                modified: photo.modified.secs as f64,
+                rating: photo.rating,
+                edited: photo.edit_file == EditFileState::Read { edited: true },
+                unreadable: photo.edit_file == EditFileState::Unreadable,
+            })
+        })
+        .collect()
+}
+
+/// One node of the TAGS tree (TAG-5).
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct TagInfo {
+    /// The full tag, `family/kids`, which selects it.
+    pub tag: String,
+    /// The last level, `kids`, as the tree shows it.
+    pub name: String,
+    /// The node above, for nested tags.
+    pub parent: Option<String>,
+    /// Photos with exactly this tag; none for a node no photo has exactly,
+    /// which shows no count (TAG-5).
+    pub photos: Option<u32>,
+}
+
+/// The TAGS tree: every tag some photo has, and the nodes above each.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn tags(library: State<'_, Library>) -> Vec<TagInfo> {
+    let index = library.index.read().expect("index lock");
+    index
+        .tag_tree()
+        .into_iter()
+        .map(|entry| TagInfo {
+            tag: entry.tag,
+            name: entry.name,
+            parent: entry.parent,
+            photos: entry.photos.map(|count| count as u32),
+        })
+        .collect()
 }
 
 /// One photo's details for the Info panel (BRW-6).

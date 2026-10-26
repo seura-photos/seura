@@ -46,6 +46,19 @@ library-folder-meta =
        *[other] { $path } · { $count } photos
     }
 library-pick-folder = Choose a folder on the left.
+library-tags = Tags
+# The sidebar, for screen readers: its folders and tags.
+library-sidebar = Folders and tags
+# The TAGS section before anything is tagged.
+tags-none = No tags yet. Select photos and press T to tag them.
+# Under a tag's name above the grid: how many photos have it, from every folder.
+library-tag-meta =
+    { $count ->
+        [one] { $count } photo, from every folder
+       *[other] { $count } photos, from every folder
+    }
+# A tag tree node no photo has exactly, such as "family" when only "family/kids" is used (TAG-5).
+library-tag-empty = No photo has exactly “{ $tag }”. Its photos are under the tags beneath it.
 library-selected = { $count } selected
 library-unavailable = Not connected
 library-unavailable-title = { $path } (drive not connected)

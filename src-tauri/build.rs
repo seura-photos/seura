@@ -16,6 +16,8 @@ fn main() {
         "show_thumbnails",
         "change_photos",
         "tag_choices",
+        "tags",
+        "tag_photos",
         "show_in_folder",
         "open_in_default_app",
         "opening",
