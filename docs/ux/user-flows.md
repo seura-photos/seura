@@ -1,6 +1,6 @@
 # Seura Photos — User Flows and Screen Map (v1)
 
-Status: approved · Last updated: 2026-10-17
+Status: approved · Last updated: 2026-10-26
 
 This document describes the screens of Seura Photos v1 and how a user moves between them. It turns the [functional spec](../functional-spec.md) into screens and steps; requirement IDs refer to it. Wireframes are on the design canvas and will be summarized here as they settle.
 
@@ -146,14 +146,16 @@ The basis of the design test: fix a crooked, dark photo in under five minutes.
 
 1. Select photos in the Library, or open one in any view.
 2. `T` opens the tag picker with all existing tags listed. Typing filters; Enter adds the highlighted tag or creates the typed one. The picker stays open for more; Esc closes it.
-3. Tags show as chips in the Info panel; × removes one.
-4. `0`–`5` or the stars set the rating.
-5. Selecting a tag in the sidebar shows the photos with exactly that tag, from every folder (TAG-5).
+3. Tags show as chips in the Info panel; × removes one. With several photos selected, a tag only some of them have shows its count ("beach · 3 of 7"); the picker lists it first, and Enter adds it to the rest (TAG-8).
+4. `0`–`5` or the stars set the rating. Mixed ratings in a selection show empty stars and "Mixed" until one is chosen (TAG-8).
+5. Selecting a tag in the sidebar shows the photos with exactly that tag, from every folder (TAG-5). A parent node no photo has exactly shows no count.
+6. Ctrl+Z undoes the last action, whichever photos are selected now, and a brief notice says what was undone ("Undid rating on 5 photos"); Shift+Ctrl+Z redoes it (BRW-11).
+7. In a read-only folder, the stars and Add tag are disabled, and a line where they are says why; T and `0`–`5` show the same message (TAG-7).
 
 ### 6. Find photos (FND-*)
 
-1. The search box searches file names and tags across the library; Esc clears it.
-2. Filter opens controls above the grid: minimum rating, tags, edited or unedited, date range. Active filters show as chips with Clear all.
+1. The search box searches file names and tags across the library. The grid shows the results from every folder ("Results for 'beach' · 42 photos") and the sidebar has no selection. Esc clears the search and returns to the folder or tag selected before; selecting a folder or tag also ends it (FND-2).
+2. Filter opens controls above the grid: minimum rating, tags, edited or unedited, date range. Active filters show as chips with Clear all. They narrow whatever the grid shows, stay set from folder to folder, and reset when the app restarts. When nothing matches: "No photos here match the filters" and Clear filters (FND-1).
 
 ### 7. Reuse edits (PRE-*)
 
@@ -171,7 +173,8 @@ The basis of the design test: fix a crooked, dark photo in under five minutes.
 ### 9. Delete (BRW-9)
 
 1. Select photos, press Delete (Cmd+Delete on macOS).
-2. Confirm; the photos and their edit files go to the Recycle Bin or Trash.
+2. Confirm; the photos and their edit files go to the Recycle Bin or Trash. If any are in a cloud-synced folder, the confirmation says they'll also be removed from that service on all the user's devices.
+3. Not undoable with Ctrl+Z; they can be restored from the Recycle Bin or Trash.
 
 ### 10. Cleanup (CLN-*)
 
@@ -184,7 +187,7 @@ The basis of the design test: fix a crooked, dark photo in under five minutes.
 Shown as a notice bar at the top of the main area, never a blocking dialog:
 
 - **Changed on disk while editing:** "This photo's edits were changed outside Seura Photos. Keep yours or load theirs?"
-- **Unreadable edit file:** the photo shows unedited with a warning badge; the notice offers Start over, keeping a backup.
+- **Unreadable edit file:** the photo shows unedited with a warning badge; the notice offers Start over. The old file goes to `Unreadable edit files` in Seura's folder, and the notice then says so, with Show in folder (FIL-4).
 - **Original changed:** "This photo was changed by another program; edits may not line up."
 - **Unavailable folder:** dimmed in the sidebar, with "Drive not connected."
 
@@ -205,7 +208,7 @@ Ctrl on Windows, Cmd on macOS. Single-letter keys work in every view except whil
 | Crop (in Editor) | C |
 | Mark for deletion (in Review) | X |
 | Compare with original | Hold `\` |
-| Undo, redo | Ctrl+Z, Shift+Ctrl+Z |
+| Undo, redo | Ctrl+Z, Shift+Ctrl+Z (in the Library, the last action, BRW-11; in the Editor, the photo's history, EDT-9) |
 | Copy edits, paste edits | Shift+Ctrl+C, Shift+Ctrl+V |
 | Export | Ctrl+E |
 | Search | Ctrl+F |
@@ -220,4 +223,6 @@ Ctrl on Windows, Cmd on macOS. Single-letter keys work in every view except whil
 | Editor tool panel: one column or tabs | One column, in process order. |
 | Where tags live | The Info panel in Library and Viewer, and under the photo in Review. |
 | Thumbnail badges | Always visible, small and quiet. |
+| Undo in the Library | The last action, not the selection's last changes; one history per photo, in its edit file (BRW-11). |
+| Search results | Replace the grid until Esc or a sidebar selection (FND-2). |
 | Modes and customization | None: one fixed layout per view, no beginner or advanced modes (INT-2, decision 0007). |

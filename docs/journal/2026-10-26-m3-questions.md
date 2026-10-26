@@ -1,0 +1,7 @@
+# M3 planning questions, answered (design session)
+
+- **Claude Code raised eight questions** while planning M3 (#78) that the specs didn't settle: undo in the Library, deleting cloud photos, where FIL-4's backup goes, search and filter scope, parent tag counts, mixed selections, and read-only folders.
+- **Undo, the one that took discussion.** Nevada wanted the edit files to be the only record of changes, and asked what Ctrl+Z should do with ten photos selected when the last two actions each touched five of them. Claude recommended undoing the last action, whatever is selected now, as almost every app does; undoing "the last change of each selected photo" would mix actions and could undo week-old edits. Nevada then asked whether undo should add a new change or use the file's own undo. Claude: the file's own, marking the record undone, so each photo keeps one history that the Library and the Editor share. The app remembers only which photos each of the last 10 actions touched, in memory. Nevada agreed (BRW-11).
+- **Cloud deletion:** the confirmation says the photos also leave the cloud and the user's other devices. Claude suspects an online-only OneDrive file skips the local Recycle Bin and goes only to OneDrive's own; Claude Code will measure that before BRW-9's wording is final.
+- **The backup** goes in Seura's own folder, not beside the photo, because rule 2 doesn't allow a new kind of file in the user's folders.
+- The rest were Claude's recommendations, accepted by Nevada as proposed (FND-1, FND-2, TAG-5, TAG-7, TAG-8).
