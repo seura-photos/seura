@@ -11,13 +11,16 @@ import { t } from "./messages";
 import { ConfirmRemove, FolderMenu } from "./RemoveFolder";
 import { anchorOf, useStore } from "./store";
 
-/** Where the tag picker sits: beside the photo last clicked, or another
- * selected one on screen, or else the Info panel's Add tag button. */
-function selectionAnchor(last: number | null, ids: number[]) {
-  for (const id of [last, ...ids]) {
-    const cell = id === null ? null : document.querySelector(`.grid [data-photo="${id}"]`);
-    if (cell) return anchorOf(cell);
-  }
+/** Where the tag picker sits: beside the last selected photo on screen,
+ * in the grid's order, so it covers unselected ones rather than the
+ * selection; or else the Info panel's Add tag button. */
+function selectionAnchor(ids: number[]) {
+  const selected = new Set(ids.map(String));
+  const cells = [...document.querySelectorAll<HTMLElement>(".grid [data-photo]")].filter((cell) =>
+    selected.has(cell.dataset.photo ?? ""),
+  );
+  const last = cells.at(-1);
+  if (last) return anchorOf(last);
   const button = document.querySelector(".shell .info-panel [data-add-tag]");
   return button ? anchorOf(button) : { left: 0, top: 0, width: 0, height: 0 };
 }
@@ -91,7 +94,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
     const ids = [...selection.ids];
     const stars = ratingKey(event);
     if (stars !== null) void rate(ids, stars);
-    else if (isTagKey(event)) void openPicker(ids, selectionAnchor(selection.anchor, ids));
+    else if (isTagKey(event)) void openPicker(ids, selectionAnchor(ids));
     else return;
     event.preventDefault();
   });
