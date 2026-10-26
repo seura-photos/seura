@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => {
     tags: [] as TagInfo[],
     tagPhotos: vi.fn(() => Promise.resolve(mocks.photos)),
     found: [] as PhotoInfo[],
-    searchPhotos: vi.fn((_text: string) => Promise.resolve(mocks.found)),
+    searchPhotos: vi.fn(() => Promise.resolve(mocks.found)),
     removeFolder: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
     addFolder: vi.fn(() => Promise.resolve({ status: "ok", data: { kind: "cancelled" } })),
     changed: { changed: 0, readOnly: 0, unreadable: 0, failed: 0 },
