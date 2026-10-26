@@ -116,6 +116,7 @@ describe("Info panel (BRW-6)", () => {
       lastTaken: 1_783_968_120,
       rating: null,
       tags: ["family/kids"],
+      partialTags: [{ tag: "beach", count: 2 }],
       readOnly: 0,
     });
     render(<InfoPanel ids={[1, 2, 3]} version={0} />);
@@ -127,8 +128,14 @@ describe("Info panel (BRW-6)", () => {
     expect(screen.getByText("Mixed")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Rate 2 stars" }));
     expect(mocks.changePhotos).toHaveBeenCalledWith([1, 2, 3], { kind: "rating", stars: 2 });
-    expect(screen.getByText("Tags they share")).toBeTruthy();
     expect(screen.getByText("family/kids")).toBeTruthy();
+    // A tag only some have says how many; its × removes it from those (TAG-8).
+    expect(screen.getByText("beach · 2 of 3")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Remove beach" }));
+    expect(mocks.changePhotos).toHaveBeenLastCalledWith([1, 2, 3], {
+      kind: "removeTag",
+      tag: "beach",
+    });
   });
 
   it("invites a selection when there's none", async () => {
@@ -197,5 +204,26 @@ describe("Info panel (BRW-6)", () => {
         "2 photos are in read-only folders, so they weren't changed. 1 photo's edit file can't be read, so it wasn't changed.",
       ),
     );
+  });
+
+  it("removes a tag with its × and opens the tag picker from Add tag (TAG-3, TAG-4)", async () => {
+    mocks.photoDetails.mockResolvedValue({ status: "ok", data: details() });
+    mocks.selectionSummary.mockResolvedValue({ count: 1, readOnly: 0 });
+    render(<InfoPanel ids={[7]} version={0} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Remove vacation/2026" }));
+    expect(mocks.changePhotos).toHaveBeenLastCalledWith([7], {
+      kind: "removeTag",
+      tag: "vacation/2026",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add tag" }));
+    await waitFor(() => expect(useStore.getState().picker?.ids).toEqual([7]));
+  });
+
+  it("keeps Add tag in place, disabled, and no ×, in a read-only folder (TAG-7)", async () => {
+    mocks.photoDetails.mockResolvedValue({ status: "ok", data: details({ readOnly: true }) });
+    render(<InfoPanel ids={[7]} version={0} />);
+    const add = await screen.findByRole("button", { name: "Add tag" });
+    expect((add as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: /^Remove/ })).toBeNull();
   });
 });

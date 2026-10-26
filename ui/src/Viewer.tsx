@@ -5,11 +5,11 @@ import { commands } from "./bindings";
 import { formatBytes, formatNumber } from "./format";
 import { t } from "./messages";
 import { InfoPanel } from "./InfoPanel";
-import { ratingKey } from "./keys";
+import { isTagKey, isTyping, ratingKey } from "./keys";
 import { SHOWN_EVENT } from "./measure";
 import { PhotoMenu } from "./PhotoMenu";
 import { type Backend, createPreview, fetchLinear } from "./preview";
-import { useStore } from "./store";
+import { anchorOf, useStore } from "./store";
 import {
   clampView,
   fitView,
@@ -66,6 +66,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
   const closeViewer = useStore((state) => state.closeViewer);
   const openEditor = useStore((state) => state.openEditor);
   const rate = useStore((state) => state.rate);
+  const openPicker = useStore((state) => state.openPicker);
   const notice = useStore((state) => state.notice);
   const noticeId = useStore((state) => state.noticeId);
   // Only notices from while it's open: earlier ones were about the Library.
@@ -300,7 +301,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
 
   // Listeners are added once; these see the latest state when they run.
   const onKey = useEffectEvent((event: KeyboardEvent) => {
-    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return;
     const stars = ratingKey(event);
     if (event.key === "ArrowLeft") move(previous?.id);
     else if (event.key === "ArrowRight") move(next?.id);
@@ -312,7 +313,11 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     else if (event.key === "-") zoomStep(-1);
     else if (editorAvailable && photo && event.key.toLowerCase() === "e") openEditor(photo);
     else if (photo && stars !== null) void rate([photo.id], stars);
-    else return;
+    else if (photo && isTagKey(event)) {
+      // Beside the Info panel's Add tag button: the photo fills the stage.
+      const button = root.current?.querySelector(".info-panel [data-add-tag]");
+      void openPicker([photo.id], button ? anchorOf(button) : anchorOf(document.body));
+    } else return;
     event.preventDefault();
   });
   // Wheel and trackpad pinch zoom about the pointer. Chromium reports a

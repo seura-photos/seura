@@ -6,6 +6,7 @@ import { Library } from "./Library";
 import { measure } from "./measure";
 import { t } from "./messages";
 import { RenderCheck } from "./RenderCheck";
+import { TagPicker } from "./TagPicker";
 import { useStore } from "./store";
 import { Viewer } from "./Viewer";
 import { Welcome } from "./Welcome";
@@ -86,6 +87,7 @@ export function App() {
         </div>
       )}
       <ConfirmOpen />
+      <TagPicker />
     </div>
   );
 }

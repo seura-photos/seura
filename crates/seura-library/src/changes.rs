@@ -105,6 +105,24 @@ impl Index {
         trash: &dyn Fn(&Path) -> io::Result<()>,
     ) -> ChangeReport {
         let mut report = ChangeReport::default();
+        // A typed tag takes the form the library already has, whatever its
+        // case (TAG-2), so `Family` adds `family`.
+        let resolved;
+        let change = match change {
+            Change::AddTag(tag) => {
+                let Some(tag) = seura_edit::clean_tags(std::slice::from_ref(tag)).pop() else {
+                    return report;
+                };
+                let existing = index
+                    .read()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .matching_tag(&tag)
+                    .map(String::from);
+                resolved = Change::AddTag(existing.unwrap_or(tag));
+                &resolved
+            }
+            other => other,
+        };
         for &id in ids {
             let target = index
                 .read()
@@ -210,7 +228,13 @@ fn write(
             Edit::Tags(tags)
         }
         Change::RemoveTag(tag) => {
-            Edit::Tags(current_tags.into_iter().filter(|t| t != tag).collect())
+            let key = seura_edit::tag_key(tag);
+            Edit::Tags(
+                current_tags
+                    .into_iter()
+                    .filter(|t| seura_edit::tag_key(t) != key)
+                    .collect(),
+            )
         }
     };
     let action = Action {
@@ -462,6 +486,42 @@ mod tests {
         assert_eq!(
             change(&index, gone, Change::Rating(2)).problems,
             [(gone, Problem::Gone)]
+        );
+    }
+
+    #[test]
+    fn a_typed_tag_takes_the_library_s_existing_form_tag_2() {
+        let (dir, index, id) = library();
+        let mut bytes = vec![0xFF, 0xD8, 0xFF, 0xE1];
+        bytes.extend([8; 4096]);
+        fs::write(dir.path().join("IMG_2.jpg"), bytes).unwrap();
+        let root = index.read().unwrap().roots()[0].clone();
+        index.write().unwrap().scan(&root);
+        let other = index
+            .read()
+            .unwrap()
+            .photo_ids()
+            .find(|other| *other != id)
+            .unwrap();
+
+        change(&index, id, Change::AddTag(" Straße/ ".into()));
+        change(&index, other, Change::AddTag("STRASSE".into()));
+        let tags = |photo: &str| {
+            EditDocument::parse(&fs::read(dir.path().join(format!("{photo}.seura.json"))).unwrap())
+                .unwrap()
+                .tags()
+        };
+        assert_eq!(tags("IMG_1.jpg"), ["Straße"]);
+        assert_eq!(tags("IMG_2.jpg"), ["Straße"]);
+
+        // Removing matches the same way.
+        change(&index, other, Change::AddTag("beach".into()));
+        change(&index, other, Change::RemoveTag("strasse".into()));
+        assert_eq!(tags("IMG_2.jpg"), ["beach"]);
+        // Nothing to add from only spaces and slashes.
+        assert_eq!(
+            change(&index, id, Change::AddTag(" / ".into())),
+            ChangeReport::default()
         );
     }
 }

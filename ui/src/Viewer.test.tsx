@@ -27,6 +27,7 @@ vi.mock("./bindings", () => ({
     viewRegion: mocks.viewRegion,
     closeViewer: mocks.closeViewer,
     changePhotos: mocks.changePhotos,
+    selectionSummary: vi.fn(() => Promise.resolve({ count: 1, readOnly: 0 })),
     photoDetails: vi.fn(() => Promise.resolve({ status: "error", error: "not in the test" })),
   },
 }));
@@ -230,6 +231,12 @@ describe("Viewer (BRW-5)", () => {
         },
       ),
     ).toBeTruthy();
+  });
+
+  it("opens the tag picker for the photo shown with T (TAG-3)", async () => {
+    show(2);
+    fireEvent.keyDown(window, { key: "t" });
+    await waitFor(() => expect(useStore.getState().picker?.ids).toEqual([2]));
   });
 
   it("opens the Editor with E only where it's available", async () => {

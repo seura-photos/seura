@@ -3,6 +3,7 @@ import {
   commands,
   type DevOptions,
   type FolderInfo,
+  type PhotoChange,
   type PhotoInfo,
   type ScanProgress,
   type ThumbnailReady,
@@ -87,12 +88,30 @@ type State = {
   openInDefaultApp: (ids: number[]) => Promise<void>;
   /** The answer to that question. */
   confirmOpen: (open: boolean) => Promise<void>;
-  /** Rates photos 0 to 5 stars, 0 clearing it (TAG-6), and says what
-   * couldn't be changed. The grid and Info panel follow the library. */
+  /** Changes photos' tags or rating, and says what couldn't be changed.
+   * The grid and Info panel follow the library. */
+  change: (ids: number[], change: PhotoChange) => Promise<void>;
+  /** Rates photos 0 to 5 stars, 0 clearing it (TAG-6). */
   rate: (ids: number[], stars: number) => Promise<void>;
+  /** The tag picker, while it's open (TAG-3): its photos, and the box on
+   * screen it's anchored beside (wireframes, section 7). */
+  picker: { ids: number[]; anchor: Anchor } | null;
+  /** Opens the tag picker, unless the photos are all in read-only folders,
+   * which a notice then says (TAG-7). */
+  openPicker: (ids: number[], anchor: Anchor) => Promise<void>;
+  closePicker: () => void;
   /** Shows a one-line notice. */
   say: (notice: string) => void;
 };
+
+/** A box on screen, in CSS pixels from the window's top left. */
+export type Anchor = { left: number; top: number; width: number; height: number };
+
+/** Where an element is on screen, for the tag picker to sit beside. */
+export function anchorOf(element: Element): Anchor {
+  const { left, top, width, height } = element.getBoundingClientRect();
+  return { left, top, width, height };
+}
 
 let sizeSave = 0;
 
@@ -120,6 +139,7 @@ export const useStore = create<State>()((set, get) => ({
   editing: null,
   notice: null,
   noticeId: 0,
+  picker: null,
   progress: { scanning: null, done: 0, total: 0 },
 
   async start() {
@@ -321,8 +341,26 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   async rate(ids, stars) {
+    await get().change(ids, { kind: "rating", stars });
+  },
+
+  async openPicker(ids, anchor) {
     if (ids.length === 0) return;
-    const result = await commands.changePhotos(ids, { kind: "rating", stars });
+    const summary = await commands.selectionSummary(ids);
+    if (summary.count > 0 && summary.readOnly === summary.count) {
+      get().say(t("read-only-folder"));
+      return;
+    }
+    set({ picker: { ids, anchor } });
+  },
+
+  closePicker() {
+    set({ picker: null });
+  },
+
+  async change(ids, change) {
+    if (ids.length === 0) return;
+    const result = await commands.changePhotos(ids, change);
     if (result.status === "error") {
       get().say(t("change-failed", { count: ids.length }));
       return;

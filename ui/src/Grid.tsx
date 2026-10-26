@@ -269,6 +269,7 @@ function Thumbnail({
       aria-selected={selected}
       aria-label={cellLabel(photo)}
       data-index={index}
+      data-photo={photo.id}
       className="cell"
       style={{ width: size, height: size }}
       tabIndex={focusable ? 0 : -1}

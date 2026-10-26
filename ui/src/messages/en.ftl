@@ -127,7 +127,6 @@ info-rate =
 # The current rating's star: clicking it again clears the rating.
 info-clear-rating = Clear rating
 info-tags = Tags
-info-shared-tags = Tags they share
 info-no-tags = None
 info-selected =
     { $count ->
@@ -135,10 +134,29 @@ info-selected =
        *[other] { $count } photos selected
     }
 info-date-range = { $first } to { $last }
-## Tags and ratings (TAG-6, TAG-7)
+## Tags and ratings (TAG-1 to TAG-8)
 
 # Where the rating and tags are in the Info panel, and as a notice when 0 to 5 or T is pressed there.
 read-only-folder = This folder is read-only, so tags and ratings can't be saved here.
+# The tag picker (TAG-3; wireframes, section 7).
+picker-title =
+    { $count ->
+        [one] Tag 1 photo
+       *[other] Tag { $count } photos
+    }
+picker-keys = Enter adds · Esc closes
+picker-added = Tags added
+picker-field = Tag
+picker-list = Tags
+# The first row when what's typed isn't a tag yet.
+picker-create = Create tag “{ $tag }”
+# Beside a tag only some of the photos have (TAG-8).
+picker-some = { $count } of { $total }
+info-add-tag = Add tag
+# A chip's × button.
+tag-remove = Remove { $tag }
+# A chip for a tag only some of the selected photos have (TAG-8).
+info-tag-partial = { $tag } · { $count } of { $total }
 change-read-only-some =
     { $count ->
         [one] 1 photo is in a read-only folder, so it wasn't changed.
@@ -190,8 +208,8 @@ viewer-zoom-out = Zoom out
 viewer-zoom-in = Zoom in
 viewer-zoom-fit = Fit
 viewer-zoom-full = { $percent }
-viewer-keys = ← → next and previous · + − zoom · 0–5 rate · Esc back to { $folder }
-viewer-keys-edit = ← → next and previous · + − zoom · 0–5 rate · E edit · Esc back to { $folder }
+viewer-keys = ← → next and previous · + − zoom · T tag · 0–5 rate · Esc back to { $folder }
+viewer-keys-edit = ← → next and previous · + − zoom · T tag · 0–5 rate · E edit · Esc back to { $folder }
 viewer-downloading = Downloading { $size } from the cloud…
 viewer-download-failed = This photo is in the cloud, and it couldn't be downloaded. Check your connection.
 viewer-try-again = Try again
