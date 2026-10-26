@@ -149,6 +149,8 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* As tall as the add button, whether a section has one or not. */
+  min-height: var(--size-tier1-target);
   padding: 0 0 0.25rem 0.5rem;
 }
 

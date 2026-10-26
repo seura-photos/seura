@@ -33,13 +33,13 @@ type State = {
   /** The tag whose photos the grid shows instead of a folder's: those with
    * exactly that tag, from every folder (TAG-5). */
   tag: string | null;
-  /** Tag tree nodes that are closed, by tag; the rest are open. */
-  closedTags: Set<string>;
-  /** Folder tree rows that are open, by key (`folderKey`). Library folders
-   * start open; the rest is remembered for the session. */
+  /** Tag tree nodes that are open, by tag. All start closed, so a long
+   * list doesn't scroll at launch (Nevada, 2026-10-26); what the user opens
+   * is remembered for the session. */
+  openTags: Set<string>;
+  /** Folder tree rows that are open, by key (`folderKey`). All start
+   * closed, library folders included, as tags do. */
   expanded: Set<string>;
-  /** Library folders already seen, so one the user closed stays closed. */
-  seenRoots: Set<string>;
   photos: PhotoInfo[];
   thumbs: Map<number, ThumbState>;
   /** The selected photos in the grid (BRW-4). */
@@ -137,9 +137,8 @@ export const useStore = create<State>()((set, get) => ({
   folderId: null,
   tags: [],
   tag: null,
-  closedTags: new Set(),
+  openTags: new Set(),
   expanded: new Set(),
-  seenRoots: new Set(),
   photos: [],
   thumbs: new Map(),
   selection: emptySelection,
@@ -196,16 +195,7 @@ export const useStore = create<State>()((set, get) => ({
         set({ tag: null, photos: [], selection: emptySelection });
       }
     }
-    const { expanded, seenRoots } = get();
-    const nextExpanded = new Set(expanded);
-    const nextSeen = new Set(seenRoots);
-    for (const folder of folders) {
-      if (folder.root === null) continue;
-      const key = folder.id !== null ? `f${folder.id}` : `r${folder.root}`;
-      if (!nextSeen.has(key)) nextExpanded.add(key);
-      nextSeen.add(key);
-    }
-    set({ folders, expanded: nextExpanded, seenRoots: nextSeen });
+    set({ folders });
     const { folderId } = get();
     if (folderId === null) return;
     // A rescan can change the selected folder's photos, or remove it.
@@ -250,10 +240,10 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   toggleTag(tag) {
-    set(({ closedTags }) => {
-      const next = new Set(closedTags);
+    set(({ openTags }) => {
+      const next = new Set(openTags);
       if (!next.delete(tag)) next.add(tag);
-      return { closedTags: next };
+      return { openTags: next };
     });
   },
 

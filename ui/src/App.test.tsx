@@ -153,7 +153,12 @@ describe("App", () => {
       folder({ id: 2, parent: 1, name: "Summer", photos: 1214, total: 1214 }),
     ];
     render(<App />);
-    // Library folders start open, so their subfolders show.
+    // Everything starts closed, so a long list doesn't scroll at launch;
+    // a library folder's toggle opens it.
+    const pictures = await screen.findByRole("treeitem", { name: /Pictures/ });
+    expect(pictures.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("treeitem", { name: /Summer/ })).toBeNull();
+    fireEvent.keyDown(pictures, { key: "ArrowRight" });
     fireEvent.click(await screen.findByRole("treeitem", { name: /Summer/ }));
     expect(await screen.findByRole("heading", { name: "Summer" })).toBeDefined();
     expect(screen.getByText("C:\\Pictures\\Summer · 1,214 photos")).toBeDefined();
@@ -175,6 +180,9 @@ describe("App", () => {
     render(<App />);
     const pictures = await screen.findByRole("treeitem", { name: /Pictures/ });
     pictures.focus();
+    // Right opens a closed folder; Down then moves into it.
+    fireEvent.keyDown(pictures, { key: "ArrowRight" });
+    expect(pictures.getAttribute("aria-expanded")).toBe("true");
     fireEvent.keyDown(pictures, { key: "ArrowDown" });
     expect(await screen.findByRole("heading", { name: "Summer" })).toBeDefined();
     const summer = screen.getByRole("treeitem", { name: /Summer/ });
@@ -306,9 +314,17 @@ describe("App", () => {
     mocks.photos = [1, 2].map((id) => photo(id));
     render(<App />);
     const tags = await screen.findByRole("tree", { name: "Tags" });
-    const rows = within(tags).getAllByRole("treeitem");
-    // By name at each level; a node no photo has exactly shows no count.
-    expect(rows.map((row) => row.textContent)).toEqual(["beach1", "family", "kids2"]);
+    // Top-level tags only, to begin with, by name.
+    const rows = () =>
+      within(tags)
+        .getAllByRole("treeitem")
+        .map((row) => row.textContent);
+    expect(rows()).toEqual(["beach1", "family"]);
+    // Opened, a node no photo has exactly shows no count.
+    fireEvent.keyDown(within(tags).getByRole("treeitem", { name: /^family/ }), {
+      key: "ArrowRight",
+    });
+    expect(rows()).toEqual(["beach1", "family", "kids2"]);
 
     fireEvent.click(within(tags).getByRole("treeitem", { name: /kids/ }));
     expect(mocks.tagPhotos).toHaveBeenCalledWith("family/kids");

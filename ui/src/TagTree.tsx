@@ -9,15 +9,16 @@ import { type TagRow, visibleTagRows } from "./tagRows";
  * The TAGS tree (TAG-5): `family/kids` as `kids` under `family`, each node
  * with the number of photos that have exactly that tag, and no count for a
  * node no photo has exactly. Selecting a node shows those photos, from every
- * folder. The keyboard works as in the FOLDERS tree (ACC-1, ACC-2).
+ * folder. Nodes start closed. The keyboard works as in the FOLDERS tree
+ * (ACC-1, ACC-2).
  */
 export function TagTree() {
   const tags = useStore((state) => state.tags);
   const selectedTag = useStore((state) => state.tag);
-  const closed = useStore((state) => state.closedTags);
+  const open = useStore((state) => state.openTags);
   const toggle = useStore((state) => state.toggleTag);
   const selectTag = useStore((state) => state.selectTag);
-  const rows = useMemo(() => visibleTagRows(tags, closed), [tags, closed]);
+  const rows = useMemo(() => visibleTagRows(tags, open), [tags, open]);
   const [focusTag, setFocusTag] = useState<string | null>(null);
   const items = useRef(new Map<string, HTMLLIElement>());
 

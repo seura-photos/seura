@@ -130,35 +130,39 @@ export function Library({ inert = false }: { inert?: boolean }) {
       </header>
 
       <nav className="sidebar" aria-label={t("library-sidebar")}>
-        {/* The heading stays in view while the tree scrolls, with Add folder
-            beside it and the last action's notice under it. */}
-        <div className="sidebar-heading">
-          <div className="section-heading">
-            <h2 className="section-label">{t("library-folders")}</h2>
-            <button
-              type="button"
-              className="section-add"
-              aria-label={t("library-add-folder")}
-              title={t("library-add-folder")}
-              onClick={() => void addFolder()}
-            >
-              <Plus className="icon" aria-hidden />
-            </button>
+        {/* Each section's heading stays in view while its tree scrolls, then
+            goes with it, so the next section's heading takes its place. */}
+        <section className="sidebar-section" aria-label={t("library-folders")}>
+          <div className="sidebar-heading">
+            <div className="section-heading">
+              <h2 className="section-label">{t("library-folders")}</h2>
+              <button
+                type="button"
+                className="section-add"
+                aria-label={t("library-add-folder")}
+                title={t("library-add-folder")}
+                onClick={() => void addFolder()}
+              >
+                <Plus className="icon" aria-hidden />
+              </button>
+            </div>
+            {notice && (
+              <p key={noticeId} className="notice" role="status">
+                {notice}
+              </p>
+            )}
           </div>
-          {notice && (
-            <p key={noticeId} className="notice" role="status">
-              {notice}
-            </p>
-          )}
-        </div>
-        <FolderTree onMenu={openMenu} />
-        {/* TAGS, below FOLDERS, with its own heading kept in view (wireframes). */}
-        <div className="sidebar-heading">
-          <div className="section-heading">
-            <h2 className="section-label">{t("library-tags")}</h2>
+          <FolderTree onMenu={openMenu} />
+        </section>
+        {/* TAGS, below FOLDERS (wireframes, "Shared structure"). */}
+        <section className="sidebar-section" aria-label={t("library-tags")}>
+          <div className="sidebar-heading">
+            <div className="section-heading">
+              <h2 className="section-label">{t("library-tags")}</h2>
+            </div>
           </div>
-        </div>
-        <TagTree />
+          <TagTree />
+        </section>
       </nav>
 
       <main className="main">
