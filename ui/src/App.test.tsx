@@ -26,6 +26,8 @@ const mocks = vi.hoisted(() => {
     photos: [] as PhotoInfo[],
     tags: [] as TagInfo[],
     tagPhotos: vi.fn(() => Promise.resolve(mocks.photos)),
+    found: [] as PhotoInfo[],
+    searchPhotos: vi.fn((_text: string) => Promise.resolve(mocks.found)),
     removeFolder: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
     addFolder: vi.fn(() => Promise.resolve({ status: "ok", data: { kind: "cancelled" } })),
     changed: { changed: 0, readOnly: 0, unreadable: 0, failed: 0 },
@@ -70,6 +72,7 @@ vi.mock("./bindings", () => ({
     photos: vi.fn(() => Promise.resolve(mocks.photos)),
     tags: vi.fn(() => Promise.resolve(mocks.tags)),
     tagPhotos: mocks.tagPhotos,
+    searchPhotos: mocks.searchPhotos,
     viewSettings: vi.fn(() =>
       Promise.resolve({ sortBy: "dateTaken", ascending: true, thumbnailSize: 160 }),
     ),
@@ -134,6 +137,8 @@ describe("App", () => {
     mocks.photos = [];
     mocks.tags = [];
     mocks.tagPhotos.mockClear();
+    mocks.searchPhotos.mockClear();
+    mocks.found = [];
     mocks.addFolder.mockClear();
     mocks.removeFolder.mockClear();
     mocks.changePhotos.mockClear();
@@ -459,6 +464,45 @@ describe("App", () => {
     ).toBeTruthy();
     // No count above the grid or in the status bar either (TAG-5).
     expect(screen.queryByText(/0 photos/)).toBeNull();
+  });
+
+  it("searches the whole library as the user types, and Esc goes back (FND-2)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+    mocks.photos = [1, 2, 3].map((id) => photo(id));
+    mocks.found = [photo(7), photo(9)];
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("heading", { name: "Pictures" });
+
+    // Ctrl+F goes to the search box from anywhere.
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true });
+    const box = screen.getByRole("searchbox", { name: "Search" });
+    expect(document.activeElement).toBe(box);
+    fireEvent.change(box, { target: { value: "beach" } });
+    expect(mocks.searchPhotos).toHaveBeenLastCalledWith("beach");
+    expect(await screen.findByRole("heading", { name: "Results for “beach”" })).toBeTruthy();
+    expect(screen.getByText("2 photos", { selector: ".folder-heading .meta" })).toBeTruthy();
+    // The sidebar has no selection while searching.
+    expect(screen.getByRole("treeitem", { name: /Pictures/ }).getAttribute("aria-selected")).toBe(
+      "false",
+    );
+    // Typing a number or T in the box is text, not a rating or a tag.
+    fireEvent.keyDown(box, { key: "3" });
+    fireEvent.keyDown(box, { key: "t" });
+    expect(useStore.getState().picker).toBeNull();
+
+    // Esc clears it and goes back to the folder.
+    fireEvent.keyDown(box, { key: "Escape" });
+    expect(await screen.findByRole("heading", { name: "Pictures" })).toBeTruthy();
+    expect((box as HTMLInputElement).value).toBe("");
+
+    // Choosing a folder also ends a search; nothing found says so.
+    mocks.found = [];
+    fireEvent.change(box, { target: { value: "zebra" } });
+    expect(await screen.findByText("No photos match “zebra”.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("treeitem", { name: /Pictures/ }));
+    expect(await screen.findByRole("heading", { name: "Pictures" })).toBeTruthy();
+    expect(useStore.getState().search).toBeNull();
   });
 
   it("shows a disconnected drive's folder as not connected (LIB-6)", async () => {

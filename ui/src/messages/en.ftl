@@ -47,6 +47,14 @@ library-folder-meta =
     }
 library-pick-folder = Choose a folder on the left.
 library-tags = Tags
+# The search box in the header (FND-2).
+search-label = Search
+search-placeholder = Search file names and tags
+# Above the grid while searching, with the number found beside it.
+search-title = Results for “{ $text }”
+search-none = No photos match “{ $text }”.
+# What the Viewer goes back to from search results.
+search-back = Results
 # The sidebar, for screen readers: its folders and tags.
 library-sidebar = Folders and tags
 # The TAGS section before anything is tagged.

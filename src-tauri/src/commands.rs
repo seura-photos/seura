@@ -305,6 +305,29 @@ pub fn tag_photos(
     photos
 }
 
+/// Photos anywhere in the library whose file name or a tag contains the
+/// text, ignoring case and Unicode form (FND-2, TAG-2), in the app's order.
+/// Their thumbnails are queued behind the visible ones.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn search_photos(
+    library: State<'_, Library>,
+    settings: State<'_, AppSettings>,
+    text: String,
+) -> Vec<PhotoInfo> {
+    let sort = settings.0.lock().expect("settings lock").settings.sort;
+    let index = library.index.read().expect("index lock");
+    let ids = index.sorted(index.search(&text, &Filter::default()), sort);
+    let jobs = ids
+        .iter()
+        .filter_map(|id| index.thumbnail_job(*id))
+        .collect();
+    let photos = photo_infos(&index, ids);
+    drop(index);
+    library.queue_photos(jobs);
+    photos
+}
+
 /// Photos as the grid needs them.
 fn photo_infos(index: &seura_library::Index, ids: Vec<PhotoId>) -> Vec<PhotoInfo> {
     ids.into_iter()

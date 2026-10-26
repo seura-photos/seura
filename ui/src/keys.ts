@@ -35,6 +35,12 @@ export function historyKey(event: KeyboardEvent): "undo" | "redo" | null {
   return null;
 }
 
+/** Whether a key press is Find: Ctrl+F, or Cmd+F on a Mac (FND-2). */
+export function isFind(event: KeyboardEvent): boolean {
+  const command = isMac ? event.metaKey : event.ctrlKey;
+  return command && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "f";
+}
+
 /** Whether a key press is `T`, for the tag picker (TAG-3). */
 export function isTagKey(event: KeyboardEvent): boolean {
   if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return false;
