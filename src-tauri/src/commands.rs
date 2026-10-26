@@ -298,7 +298,7 @@ pub fn photos(
     photos
 }
 
-/// One photo's details for the Info panel (BRW-6). Read-only in M2.
+/// One photo's details for the Info panel (BRW-6).
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PhotoDetails {
@@ -316,6 +316,8 @@ pub struct PhotoDetails {
     pub tags: Vec<String>,
     pub edited: bool,
     pub unreadable: bool,
+    /// In a read-only folder: it can't be tagged or rated (TAG-7).
+    pub read_only: bool,
     /// Only in the cloud: its metadata isn't read, which would download it
     /// (LIB-9), so the camera, lens, and location are unknown.
     pub cloud_only: bool,
@@ -373,6 +375,9 @@ pub async fn photo_details(app: AppHandle, id: u32) -> Result<PhotoDetails, Stri
                     .collect(),
                 edited: photo.edit_file == EditFileState::Read { edited: true },
                 unreadable: photo.edit_file == EditFileState::Unreadable,
+                read_only: index
+                    .folder(photo.folder)
+                    .is_some_and(|folder| folder.read_only),
                 cloud_only: std::fs::metadata(&path)
                     .map_or(photo.placeholder, |metadata| is_placeholder(&metadata)),
                 camera: None,
@@ -445,6 +450,8 @@ pub struct SelectionSummary {
     pub rating: Option<u8>,
     /// Tags every one of them has.
     pub tags: Vec<String>,
+    /// How many are in read-only folders (TAG-7).
+    pub read_only: u32,
 }
 
 #[tauri::command(async)]
@@ -475,6 +482,14 @@ pub fn selection_summary(library: State<'_, Library>, ids: Vec<u32>) -> Selectio
             .filter(|tag| photos.iter().all(|photo| photo.tags.contains(tag)))
             .filter_map(|tag| index.tag(*tag).map(str::to_string))
             .collect(),
+        read_only: photos
+            .iter()
+            .filter(|photo| {
+                index
+                    .folder(photo.folder)
+                    .is_some_and(|folder| folder.read_only)
+            })
+            .count() as u32,
     }
 }
 

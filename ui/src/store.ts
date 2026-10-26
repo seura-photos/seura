@@ -47,6 +47,8 @@ type State = {
   editing: PhotoInfo | null;
   /** A one-line message about the last action, such as adding a folder. */
   notice: string | null;
+  /** Counts notices, so the same message twice is announced twice. */
+  noticeId: number;
   /** How far scanning has got, for the status bar (LIB-3). */
   progress: ScanProgress;
 
@@ -85,6 +87,11 @@ type State = {
   openInDefaultApp: (ids: number[]) => Promise<void>;
   /** The answer to that question. */
   confirmOpen: (open: boolean) => Promise<void>;
+  /** Rates photos 0 to 5 stars, 0 clearing it (TAG-6), and says what
+   * couldn't be changed. The grid and Info panel follow the library. */
+  rate: (ids: number[], stars: number) => Promise<void>;
+  /** Shows a one-line notice. */
+  say: (notice: string) => void;
 };
 
 let sizeSave = 0;
@@ -112,6 +119,7 @@ export const useStore = create<State>()((set, get) => ({
   confirmingOpen: null,
   editing: null,
   notice: null,
+  noticeId: 0,
   progress: { scanning: null, done: 0, total: 0 },
 
   async start() {
@@ -185,7 +193,7 @@ export const useStore = create<State>()((set, get) => ({
   async addFolder() {
     const result = await commands.addFolder();
     if (result.status === "error") {
-      set({ notice: t("library-add-failed", { reason: result.error }) });
+      get().say(t("library-add-failed", { reason: result.error }));
       return;
     }
     const outcome = result.data;
@@ -196,7 +204,7 @@ export const useStore = create<State>()((set, get) => ({
         : outcome.kind === "absorbed"
           ? t("library-absorbed", { count: outcome.folders.length })
           : t("library-added");
-    set({ notice });
+    get().say(notice);
     await get().loadFolders();
   },
 
@@ -239,12 +247,11 @@ export const useStore = create<State>()((set, get) => ({
 
   async removeFolder(root) {
     const result = await commands.removeFolder(root);
-    set({
-      notice:
-        result.status === "error"
-          ? t("library-remove-failed", { reason: result.error })
-          : t("library-removed"),
-    });
+    get().say(
+      result.status === "error"
+        ? t("library-remove-failed", { reason: result.error })
+        : t("library-removed"),
+    );
     await get().loadFolders();
   },
 
@@ -283,8 +290,7 @@ export const useStore = create<State>()((set, get) => ({
 
   async showInFolder(ids) {
     const result = await commands.showInFolder(ids);
-    if (result.status === "error")
-      set({ notice: t("photo-show-failed", { reason: result.error }) });
+    if (result.status === "error") get().say(t("photo-show-failed", { reason: result.error }));
   },
 
   chosenPhotos() {
@@ -305,8 +311,31 @@ export const useStore = create<State>()((set, get) => ({
       }
     }
     const result = await commands.openInDefaultApp(ids);
-    if (result.status === "error")
-      set({ notice: t("photo-open-failed", { reason: result.error }) });
+    if (result.status === "error") get().say(t("photo-open-failed", { reason: result.error }));
+  },
+
+  say(notice) {
+    set(({ noticeId }) => ({ notice, noticeId: noticeId + 1 }));
+  },
+
+  async rate(ids, stars) {
+    if (ids.length === 0) return;
+    const result = await commands.changePhotos(ids, { kind: "rating", stars });
+    if (result.status === "error") {
+      get().say(t("change-failed", { count: ids.length }));
+      return;
+    }
+    const { readOnly, unreadable, failed } = result.data;
+    const problems = [
+      readOnly === ids.length
+        ? t("read-only-folder")
+        : readOnly > 0
+          ? t("change-read-only-some", { count: readOnly })
+          : null,
+      unreadable > 0 ? t("change-unreadable", { count: unreadable }) : null,
+      failed > 0 ? t("change-failed", { count: failed }) : null,
+    ].filter((problem) => problem !== null);
+    if (problems.length > 0) get().say(problems.join(" "));
   },
 
   async confirmOpen(open) {
@@ -314,7 +343,6 @@ export const useStore = create<State>()((set, get) => ({
     set({ confirmingOpen: null });
     if (!open || !confirming) return;
     const result = await commands.openInDefaultApp(confirming.ids);
-    if (result.status === "error")
-      set({ notice: t("photo-open-failed", { reason: result.error }) });
+    if (result.status === "error") get().say(t("photo-open-failed", { reason: result.error }));
   },
 }));

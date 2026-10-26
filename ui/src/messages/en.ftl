@@ -116,7 +116,16 @@ info-stars =
         [one] 1 star
        *[other] { $rating } stars
     }
-info-rating-mixed = Not all the same
+# Beside empty stars when the selected photos' ratings differ (TAG-8).
+info-rating-mixed = Mixed
+# A star button: clicking it sets that rating.
+info-rate =
+    { $rating ->
+        [one] Rate 1 star
+       *[other] Rate { $rating } stars
+    }
+# The current rating's star: clicking it again clears the rating.
+info-clear-rating = Clear rating
 info-tags = Tags
 info-shared-tags = Tags they share
 info-no-tags = None
@@ -126,6 +135,26 @@ info-selected =
        *[other] { $count } photos selected
     }
 info-date-range = { $first } to { $last }
+## Tags and ratings (TAG-6, TAG-7)
+
+# Where the rating and tags are in the Info panel, and as a notice when 0 to 5 or T is pressed there.
+read-only-folder = This folder is read-only, so tags and ratings can't be saved here.
+change-read-only-some =
+    { $count ->
+        [one] 1 photo is in a read-only folder, so it wasn't changed.
+       *[other] { $count } photos are in read-only folders, so they weren't changed.
+    }
+change-unreadable =
+    { $count ->
+        [one] 1 photo's edit file can't be read, so it wasn't changed.
+       *[other] { $count } photos' edit files can't be read, so they weren't changed.
+    }
+change-failed =
+    { $count ->
+        [one] Couldn't save the change to 1 photo.
+       *[other] Couldn't save the change to { $count } photos.
+    }
+
 ## Opening photos elsewhere (BRW-8)
 
 photo-show-in-explorer = Show in Explorer
@@ -161,8 +190,8 @@ viewer-zoom-out = Zoom out
 viewer-zoom-in = Zoom in
 viewer-zoom-fit = Fit
 viewer-zoom-full = { $percent }
-viewer-keys = ← → next and previous · + − zoom · Esc back to { $folder }
-viewer-keys-edit = ← → next and previous · + − zoom · E edit · Esc back to { $folder }
+viewer-keys = ← → next and previous · + − zoom · 0–5 rate · Esc back to { $folder }
+viewer-keys-edit = ← → next and previous · + − zoom · 0–5 rate · E edit · Esc back to { $folder }
 viewer-downloading = Downloading { $size } from the cloud…
 viewer-download-failed = This photo is in the cloud, and it couldn't be downloaded. Check your connection.
 viewer-try-again = Try again
