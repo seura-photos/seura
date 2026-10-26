@@ -185,7 +185,9 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   async selectFolder(id) {
-    if (get().folderId !== id) set({ folderId: id, selection: emptySelection });
+    // A notice is about the last action where the user was, such as a
+    // read-only folder they left: it goes with the folder.
+    if (get().folderId !== id) set({ folderId: id, selection: emptySelection, notice: null });
     const photos = await commands.photos(id);
     if (get().folderId === id) set({ photos });
   },

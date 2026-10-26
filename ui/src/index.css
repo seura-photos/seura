@@ -646,7 +646,8 @@ button {
 .badge-rating {
   right: 0.375rem;
   bottom: 0.375rem;
-  color: var(--color-rating);
+  /* On the dark overlay in both modes, so the dark mode's gold. */
+  color: var(--color-rating-on-photo);
 }
 
 .badge-rating .star {

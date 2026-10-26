@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useStore } from "./store";
 
-vi.mock("./bindings", () => ({ commands: {} }));
+vi.mock("./bindings", () => ({ commands: { photos: vi.fn(() => Promise.resolve([])) } }));
 
 describe("store", () => {
   afterEach(() => useStore.setState(useStore.getInitialState(), true));
@@ -18,5 +18,14 @@ describe("store", () => {
     expect(thumbs.get(2)?.version).toBe(1);
     // Made twice in one batch: its image is fetched again.
     expect(thumbs.get(1)?.version).toBe(2);
+  });
+
+  it("leaves a folder's notice behind when another folder is chosen", async () => {
+    await useStore.getState().selectFolder(1);
+    useStore.getState().say("This folder is read-only, so tags and ratings can't be saved here.");
+    await useStore.getState().selectFolder(1);
+    expect(useStore.getState().notice).not.toBeNull();
+    await useStore.getState().selectFolder(2);
+    expect(useStore.getState().notice).toBeNull();
   });
 });
