@@ -53,6 +53,37 @@ export const commands = {
 	 */
 	tagPhotos: (tag: string) => __TAURI_INVOKE<PhotoInfo[]>("tag_photos", { tag }),
 	/**
+	 *  Undoes the Library's last action, whatever is selected now (BRW-11).
+	 *  `None` when there's nothing to undo.
+	 */
+	undo: () => typedError<{
+	/**  `rating`, `addTag`, or `removeTag`. */
+	kind: string,
+	/**  The tag added or removed. */
+	tag: string | null,
+	/**  Photos undone or redone. */
+	done: number,
+	/**
+	 *  Photos left alone: changed since, or failing the edit format's
+	 *  consistency check.
+	 */
+	skipped: number,
+} | null, string>(__TAURI_INVOKE("undo")),
+	/**  Redoes the last action undone (BRW-11). */
+	redo: () => typedError<{
+	/**  `rating`, `addTag`, or `removeTag`. */
+	kind: string,
+	/**  The tag added or removed. */
+	tag: string | null,
+	/**  Photos undone or redone. */
+	done: number,
+	/**
+	 *  Photos left alone: changed since, or failing the edit format's
+	 *  consistency check.
+	 */
+	skipped: number,
+} | null, string>(__TAURI_INVOKE("redo")),
+	/**
 	 *  Shows photos in Explorer or Finder, selected there (BRW-8). Only their
 	 *  attributes are read, so a cloud-only photo isn't downloaded (LIB-9).
 	 */
@@ -263,6 +294,21 @@ export type FolderInfo = {
 	available: boolean,
 };
 
+/**  What undo or redo did (BRW-11), for the notice that says so. */
+export type HistoryStep = {
+	/**  `rating`, `addTag`, or `removeTag`. */
+	kind: string,
+	/**  The tag added or removed. */
+	tag: string | null,
+	/**  Photos undone or redone. */
+	done: number,
+	/**
+	 *  Photos left alone: changed since, or failing the edit format's
+	 *  consistency check.
+	 */
+	skipped: number,
+};
+
 /**  The library's folders or photos changed, after a scan. */
 export type LibraryChanged = null;
 
@@ -272,7 +318,12 @@ export type LibraryChanged = null;
  */
 export type MenuCommand = "addFolder" | 
 /**  For the chosen photos (BRW-8). */
-"showInFolder" | "openInDefaultApp";
+"showInFolder" | "openInDefaultApp" | 
+/**
+ *  The Edit menu's Undo and Redo: the Library's last action (BRW-11),
+ *  or, in a text field, the field's own.
+ */
+"undo" | "redo";
 
 /**  A photo opened in the Editor. */
 export type OpenedPhoto = {

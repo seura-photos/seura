@@ -8,8 +8,9 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use seura_library::{
-    ApplyEdits, Change, ChangeReport, Filter, FolderId, Index, Outcome, PhotoId, SWEEP_AFTER,
-    Scope, SettingsFile, ThumbnailCache, ThumbnailWorkers, Watcher, move_to_trash,
+    ApplyEdits, Change, ChangeReport, Filter, FolderId, History, Index, Outcome, PhotoId,
+    SWEEP_AFTER, Scope, SettingsFile, ThumbnailCache, ThumbnailWorkers, UndoReport, Watcher,
+    move_to_trash,
 };
 use specta::Type;
 use tauri::{AppHandle, Manager, Runtime};
@@ -32,9 +33,10 @@ pub struct Library {
     /// [`Library::send_thumbnails`]: one event per thumbnail flooded the UI
     /// during a large first scan, so clicking a folder waited for them all.
     ready: Mutex<Vec<ThumbnailReady>>,
-    /// Held while tags and ratings are written, so two changes never
-    /// interleave on a photo.
-    changing: Mutex<()>,
+    /// The session's last actions, for undo and redo (BRW-11). Held while
+    /// tags and ratings are written, so two changes never interleave on a
+    /// photo.
+    history: Mutex<History>,
 }
 
 struct Store {
@@ -129,7 +131,7 @@ impl Library {
             watcher: Mutex::new(None),
             store: RwLock::new(Store::open(app, cache)),
             ready: Mutex::new(Vec::new()),
-            changing: Mutex::new(()),
+            history: Mutex::new(History::default()),
         }
     }
 
@@ -143,17 +145,50 @@ impl Library {
         change: &Change,
     ) -> ChangeReport {
         let report = {
-            let _changing = self.changing.lock().expect("change lock");
-            Index::change_shared(
+            let mut history = self.history.lock().expect("history lock");
+            let (report, action) = Index::change_recorded(
                 &self.index,
                 ids,
                 change,
                 crate::editor::WRITER,
                 time::OffsetDateTime::now_utc(),
                 &move_to_trash,
-            )
+            );
+            history.record(action);
+            crate::menu::history_changed(app, history.next_undo(), history.next_redo());
+            report
         };
         if !report.changed.is_empty() || !report.problems.is_empty() {
+            self.save();
+            let _ = LibraryChanged.emit(app);
+        }
+        report
+    }
+
+    /// Undoes the last action, whatever is selected now (BRW-11). `None`
+    /// when there's nothing to undo.
+    pub fn undo<R: Runtime>(&self, app: &AppHandle<R>) -> Option<UndoReport> {
+        self.step(app, true)
+    }
+
+    /// Redoes the last action undone.
+    pub fn redo<R: Runtime>(&self, app: &AppHandle<R>) -> Option<UndoReport> {
+        self.step(app, false)
+    }
+
+    fn step<R: Runtime>(&self, app: &AppHandle<R>, undo: bool) -> Option<UndoReport> {
+        let report = {
+            let mut history = self.history.lock().expect("history lock");
+            let now = time::OffsetDateTime::now_utc();
+            let report = if undo {
+                history.undo(&self.index, crate::editor::WRITER, now, &move_to_trash)
+            } else {
+                history.redo(&self.index, crate::editor::WRITER, now, &move_to_trash)
+            };
+            crate::menu::history_changed(app, history.next_undo(), history.next_redo());
+            report
+        };
+        if report.as_ref().is_some_and(|report| report.done > 0) {
             self.save();
             let _ = LibraryChanged.emit(app);
         }

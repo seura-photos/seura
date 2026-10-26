@@ -5,7 +5,7 @@ import type { FolderInfo, ScanProgress } from "./bindings";
 import { FolderTree } from "./FolderTree";
 import { Grid } from "./Grid";
 import { InfoPanel } from "./InfoPanel";
-import { isSelectAll, isTagKey, ratingKey } from "./keys";
+import { historyKey, isSelectAll, isTagKey, ratingKey } from "./keys";
 import { PhotoMenu } from "./PhotoMenu";
 import { TagTree } from "./TagTree";
 import { t } from "./messages";
@@ -117,6 +117,13 @@ export function Library({ inert = false }: { inert?: boolean }) {
     if (isSelectAll(event)) {
       if (!event.defaultPrevented) selectAllPhotos();
       event.preventDefault();
+      return;
+    }
+    // The last action, whatever is selected now (BRW-11).
+    const history = historyKey(event);
+    if (history !== null) {
+      event.preventDefault();
+      void useStore.getState()[history]();
       return;
     }
     if (selection.ids.size === 0) return;

@@ -82,13 +82,18 @@ struct Target {
 }
 
 /// What was written for one photo.
-struct Written {
+pub(crate) struct Written {
     state: EditFileState,
     stamp: Option<(u64, FileTime)>,
     rating: u8,
     tags: Vec<String>,
     /// The fingerprint computed for a new edit file, to cache.
     fingerprint: Option<Fingerprint>,
+    /// The record the change wrote, for undo to find again (BRW-11).
+    pub(crate) record: Option<serde_json::Value>,
+    /// The document, when the file went to the Trash with nothing left in
+    /// it, for undo to bring back (BRW-11; Nevada, 2026-10-26).
+    pub(crate) removed: Option<EditDocument>,
 }
 
 impl Index {
@@ -104,14 +109,28 @@ impl Index {
         at: OffsetDateTime,
         trash: &dyn Fn(&Path) -> io::Result<()>,
     ) -> ChangeReport {
+        Index::change_recorded(index, ids, change, writer, at, trash).0
+    }
+
+    /// [`Index::change_shared`], also returning the action as undo needs
+    /// it: what each photo's history recorded (BRW-11).
+    pub fn change_recorded(
+        index: &RwLock<Index>,
+        ids: &[PhotoId],
+        change: &Change,
+        writer: Writer,
+        at: OffsetDateTime,
+        trash: &dyn Fn(&Path) -> io::Result<()>,
+    ) -> (ChangeReport, crate::undo::Action) {
         let mut report = ChangeReport::default();
+        let mut action = crate::undo::Action::new(change.clone());
         // A typed tag takes the form the library already has, whatever its
         // case (TAG-2), so `Family` adds `family`.
         let resolved;
         let change = match change {
             Change::AddTag(tag) => {
                 let Some(tag) = seura_edit::clean_tags(std::slice::from_ref(tag)).pop() else {
-                    return report;
+                    return (report, action);
                 };
                 let existing = index
                     .read()
@@ -138,7 +157,8 @@ impl Index {
             }
             match write(&target, change, writer, at, trash) {
                 Ok(None) => {}
-                Ok(Some(written)) => {
+                Ok(Some(mut written)) => {
+                    action.touched(id, &target.path, &mut written);
                     index
                         .write()
                         .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -156,7 +176,7 @@ impl Index {
                 }
             }
         }
-        report
+        (report, action)
     }
 
     fn target(&self, id: PhotoId) -> Option<Target> {
@@ -176,7 +196,7 @@ impl Index {
     /// Records what was written for a photo, unless the photo changed or
     /// moved meanwhile, in which case a scan catches up. Its new stamp means
     /// the watcher's report of this write finds nothing to read again.
-    fn record_written(&mut self, id: PhotoId, path: &Path, written: Written) {
+    pub(crate) fn record_written(&mut self, id: PhotoId, path: &Path, written: Written) {
         if self.path(id).as_deref() != Some(path) {
             return;
         }
@@ -277,34 +297,56 @@ fn write(
         return Ok(None);
     }
 
+    let record = file.document.last_change();
+    let mut written = finish(file, folder, writer, at, trash)?;
+    written.fingerprint = fingerprint;
+    written.record = record;
+    Ok(Some(written))
+}
+
+/// Saves an edit file, or moves it to the Trash when nothing in it is worth
+/// keeping (FIL-1), and says what's on disk now. A file that went to the
+/// Trash keeps its document in `removed`, for undo to bring back.
+pub(crate) fn finish(
+    mut file: EditFile,
+    folder: &Path,
+    writer: Writer,
+    at: OffsetDateTime,
+    trash: &dyn Fn(&Path) -> io::Result<()>,
+) -> Result<Written, Problem> {
     let rating = file.document.rating();
     let tags = file.document.tags();
     if file.document.is_empty() {
+        let document = file.document.clone();
         file.remove(trash)
             .map_err(|error| save_problem(error, folder))?;
-        return Ok(Some(Written {
+        return Ok(Written {
             state: EditFileState::None,
             stamp: None,
             rating,
             tags,
-            fingerprint,
-        }));
+            fingerprint: None,
+            record: None,
+            removed: Some(document),
+        });
     }
     let edited = !file.document.operations().is_empty();
     file.save(writer, at)
         .map_err(|error| save_problem(error, folder))?;
-    let metadata = std::fs::metadata(&edit_path).map_err(|error| io_problem(&error, folder))?;
+    let metadata = std::fs::metadata(file.path()).map_err(|error| io_problem(&error, folder))?;
     let stamp = metadata
         .modified()
         .ok()
         .map(|modified| (metadata.len(), FileTime::from(modified)));
-    Ok(Some(Written {
+    Ok(Written {
         state: EditFileState::Read { edited },
         stamp,
         rating,
         tags,
-        fingerprint,
-    }))
+        fingerprint: None,
+        record: None,
+        removed: None,
+    })
 }
 
 /// The identity for a new edit file (edit format: "Photo identity"). A
@@ -349,7 +391,7 @@ fn photo_fingerprint(target: &Target) -> io::Result<Fingerprint> {
 /// A write the system refused counts as a read-only folder only if the
 /// folder itself refuses new files: a single read-only edit file doesn't
 /// make its folder read-only.
-fn io_problem(error: &io::Error, folder: &Path) -> Problem {
+pub(crate) fn io_problem(error: &io::Error, folder: &Path) -> Problem {
     if is_read_only_error(error) && !can_add_files(folder) {
         Problem::ReadOnly
     } else {
@@ -357,7 +399,7 @@ fn io_problem(error: &io::Error, folder: &Path) -> Problem {
     }
 }
 
-fn save_problem(error: SaveError, folder: &Path) -> Problem {
+pub(crate) fn save_problem(error: SaveError, folder: &Path) -> Problem {
     match error {
         SaveError::Unreadable(_) => Problem::Unreadable,
         SaveError::ChangedOnDisk => Problem::ChangedOnDisk,

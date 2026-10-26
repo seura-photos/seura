@@ -305,3 +305,58 @@ fn rule_5_the_system_trash_takes_the_file() {
     assert!(!file.exists());
     assert_eq!(fs::read(&keep).unwrap(), b"photo");
 }
+
+#[test]
+fn brw_11_undo_and_redo_write_only_edit_files_and_bring_back_what_went_to_the_trash() {
+    let library = Library::new();
+    let (index, ids) = scanned(&library);
+    let trash = Trash::new();
+    let before = Snapshot::of(library.root());
+    let mut history = seura_library::History::default();
+    let mut act = |change: Change, ids: &[PhotoId]| {
+        let (_, action) = Index::change_recorded(&index, ids, &change, WRITER, now(), &|path| {
+            trash.take(path)
+        });
+        history.record(action);
+    };
+    act(Change::Rating(3), &ids);
+    act(Change::Rating(0), &ids[..2]);
+    // The first two photos' files went to the Trash, emptied.
+    assert_eq!(trash.moved.borrow().len(), 2);
+
+    let undo = |history: &mut seura_library::History| {
+        history.undo(&index, WRITER, now(), &|path| trash.take(path))
+    };
+    let redo = |history: &mut seura_library::History| {
+        history.redo(&index, WRITER, now(), &|path| trash.take(path))
+    };
+    assert_eq!(undo(&mut history).unwrap().done, 2);
+    for photo in &library.photos()[..2] {
+        assert_eq!(
+            EditDocument::parse(&fs::read(edit_file_path(photo)).unwrap())
+                .unwrap()
+                .rating(),
+            3,
+            "written back from memory, with its history"
+        );
+    }
+    redo(&mut history).unwrap();
+    undo(&mut history).unwrap();
+    undo(&mut history).unwrap();
+
+    // Every original as it was, nothing but edit files and nothing left behind.
+    let after = Snapshot::of(library.root());
+    assert!(after.changed_since(&before).is_empty(), "changed");
+    assert!(after.removed_since(&before).is_empty(), "removed");
+    assert!(
+        after
+            .added_since(&before)
+            .iter()
+            .all(|path| path.ends_with(".seura.json")),
+        "{:?}",
+        after.added_since(&before)
+    );
+    assert!(leftovers(&library).is_empty(), "{:?}", leftovers(&library));
+    // Rule 5: everything removed went to the Trash, never deleted.
+    assert!(trash.moved.borrow().len() >= 2);
+}

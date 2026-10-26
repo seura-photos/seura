@@ -713,6 +713,60 @@ fn choose_tags(index: &seura_library::Index, ids: &[u32], text: String) -> TagCh
     }
 }
 
+/// What undo or redo did (BRW-11), for the notice that says so.
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryStep {
+    /// `rating`, `addTag`, or `removeTag`.
+    pub kind: String,
+    /// The tag added or removed.
+    pub tag: Option<String>,
+    /// Photos undone or redone.
+    pub done: u32,
+    /// Photos left alone: changed since, or failing the edit format's
+    /// consistency check.
+    pub skipped: u32,
+}
+
+impl From<seura_library::UndoReport> for HistoryStep {
+    fn from(report: seura_library::UndoReport) -> HistoryStep {
+        let (kind, tag) = match report.change {
+            Change::Rating(_) => ("rating", None),
+            Change::AddTag(tag) => ("addTag", Some(tag)),
+            Change::RemoveTag(tag) => ("removeTag", Some(tag)),
+        };
+        HistoryStep {
+            kind: kind.into(),
+            tag,
+            done: report.done as u32,
+            skipped: report.skipped as u32,
+        }
+    }
+}
+
+/// Undoes the Library's last action, whatever is selected now (BRW-11).
+/// `None` when there's nothing to undo.
+#[tauri::command]
+#[specta::specta]
+pub async fn undo(app: AppHandle) -> Result<Option<HistoryStep>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<Library>().undo(&app).map(HistoryStep::from)
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+/// Redoes the last action undone (BRW-11).
+#[tauri::command]
+#[specta::specta]
+pub async fn redo(app: AppHandle) -> Result<Option<HistoryStep>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<Library>().redo(&app).map(HistoryStep::from)
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
 /// The files of photos in the index, never any other path.
 fn photo_paths(library: &Library, ids: &[u32]) -> Vec<PathBuf> {
     let index = library.index.read().expect("index lock");

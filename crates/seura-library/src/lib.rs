@@ -20,6 +20,7 @@ mod tag_tree;
 mod thumbnails;
 mod trash;
 mod tree;
+mod undo;
 mod watch;
 
 pub use changes::{Change, ChangeReport, Problem};
@@ -43,4 +44,5 @@ pub use thumbnails::{
 };
 pub use trash::move_to_trash;
 pub use tree::FolderEntry;
+pub use undo::{Action, History, UNDO_LIMIT, UndoReport};
 pub use watch::{Watcher, folders_to_scan};

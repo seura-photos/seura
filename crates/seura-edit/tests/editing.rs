@@ -622,3 +622,25 @@ fn tags_match_in_every_language_tag_2() {
     let tags = ["Straße", "STRASSE", "cafe\u{301}", "Café"].map(String::from);
     assert_eq!(clean_tags(&tags), ["Straße", "caf\u{e9}"]);
 }
+
+#[test]
+fn the_change_undo_and_redo_would_act_on_can_be_read() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    assert_eq!(document.last_change(), None);
+    document
+        .apply(&act("Rating", vec![Edit::Rating(3)]), now())
+        .unwrap();
+    document
+        .apply(&act("Rating", vec![Edit::Rating(5)]), now())
+        .unwrap();
+    let last = document.last_change().unwrap();
+    assert_eq!(last["changes"][0]["to"], json!(5));
+
+    document.undo().unwrap();
+    // Redo would redo that same record; it's read without its undone mark.
+    assert_eq!(document.next_redo(), Some(last));
+    assert_eq!(
+        document.last_change().unwrap()["changes"][0]["to"],
+        json!(3)
+    );
+}

@@ -29,6 +29,9 @@ const mocks = vi.hoisted(() => {
     removeFolder: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
     addFolder: vi.fn(() => Promise.resolve({ status: "ok", data: { kind: "cancelled" } })),
     changed: { changed: 0, readOnly: 0, unreadable: 0, failed: 0 },
+    step: null as unknown,
+    undo: vi.fn(() => Promise.resolve({ status: "ok", data: mocks.step })),
+    redo: vi.fn(() => Promise.resolve({ status: "ok", data: mocks.step })),
     changePhotos: vi.fn(() => Promise.resolve({ status: "ok", data: mocks.changed })),
   };
 });
@@ -88,6 +91,8 @@ vi.mock("./bindings", () => ({
     addFolder: mocks.addFolder,
     removeFolder: mocks.removeFolder,
     changePhotos: mocks.changePhotos,
+    undo: mocks.undo,
+    redo: mocks.redo,
     tagChoices: vi.fn(() => Promise.resolve({ onAll: [], onSome: [], others: [], exists: false })),
   },
   events: mocks.events,
@@ -133,6 +138,9 @@ describe("App", () => {
     mocks.removeFolder.mockClear();
     mocks.changePhotos.mockClear();
     mocks.changed = { changed: 0, readOnly: 0, unreadable: 0, failed: 0 };
+    mocks.undo.mockClear();
+    mocks.redo.mockClear();
+    mocks.step = null;
     useStore.setState(useStore.getInitialState(), true);
   });
 
@@ -300,6 +308,56 @@ describe("App", () => {
     });
     expect(inField.defaultPrevented).toBe(false);
     expect(useStore.getState().selection.ids.size).toBe(0);
+  });
+
+  it("undoes and redoes the last action with Ctrl+Z, and says what (BRW-11)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+    mocks.photos = [1, 2, 3].map((id) => photo(id));
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("grid");
+
+    // Nothing selected: undo is the last action, not the selection's.
+    mocks.step = { kind: "rating", tag: null, done: 5, skipped: 0 };
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+    expect(mocks.undo).toHaveBeenCalled();
+    expect(await screen.findByText("Undid rating on 5 photos.")).toBeTruthy();
+
+    mocks.step = { kind: "addTag", tag: "beach", done: 2, skipped: 1 };
+    fireEvent.keyDown(window, { key: "Z", ctrlKey: true, shiftKey: true });
+    expect(mocks.redo).toHaveBeenCalled();
+    expect(
+      await screen.findByText(
+        "Redid adding “beach” on 2 photos. 1 photo was changed since, so it was left alone.",
+      ),
+    ).toBeTruthy();
+
+    mocks.step = null;
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+    expect(await screen.findByText("Nothing to undo.")).toBeTruthy();
+  });
+
+  it("passes the menu's Undo to a text field when one has the focus (macOS)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 1, total: 1 })];
+    mocks.photos = [photo(1)];
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("grid");
+    const menu = mocks.handlers.get("menuCommand");
+    if (!menu) throw new Error("no menu listener");
+
+    act(() => menu({ payload: "undo" }));
+    await waitFor(() => expect(mocks.undo).toHaveBeenCalledTimes(1));
+
+    act(() => useStore.getState().selectPhoto(1, { toggle: false, range: false }));
+    fireEvent.keyDown(window, { key: "t" });
+    const field = await screen.findByRole("combobox", { name: "Tag" });
+    field.focus();
+    const execCommand = vi.fn(() => true);
+    document.execCommand = execCommand;
+    act(() => menu({ payload: "undo" }));
+    expect(execCommand).toHaveBeenCalledWith("undo");
+    expect(mocks.undo).toHaveBeenCalledTimes(1);
   });
 
   it("opens the tag picker for the selection with T (TAG-3)", async () => {

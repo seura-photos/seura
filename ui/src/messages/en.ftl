@@ -170,6 +170,33 @@ info-add-tag = Add tag
 tag-remove = Remove { $tag }
 # A chip for a tag only some of the selected photos have (TAG-8).
 info-tag-partial = { $tag } · { $count } of { $total }
+# After undo or redo in the Library (BRW-11).
+history-undid =
+    { $kind ->
+        [rating] Undid rating
+        [addTag] Undid adding “{ $tag }”
+       *[removeTag] Undid removing “{ $tag }”
+    } on { $count ->
+        [one] 1 photo.
+       *[other] { $count } photos.
+    }
+history-redid =
+    { $kind ->
+        [rating] Redid rating
+        [addTag] Redid adding “{ $tag }”
+       *[removeTag] Redid removing “{ $tag }”
+    } on { $count ->
+        [one] 1 photo.
+       *[other] { $count } photos.
+    }
+history-skipped =
+    { $count ->
+        [one] 1 photo was changed since, so it was left alone.
+       *[other] { $count } photos were changed since, so they were left alone.
+    }
+history-nothing-to-undo = Nothing to undo.
+history-nothing-to-redo = Nothing to redo.
+history-failed = Couldn't undo or redo that: { $reason }
 change-read-only-some =
     { $count ->
         [one] 1 photo is in a read-only folder, so it wasn't changed.

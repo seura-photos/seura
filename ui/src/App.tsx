@@ -41,7 +41,13 @@ export function App() {
       events.menuCommand.listen(({ payload }) => {
         const store = useStore.getState();
         if (payload === "addFolder") void store.addFolder();
-        else if (payload === "showInFolder") void store.showInFolder(store.chosenPhotos());
+        else if (payload === "undo" || payload === "redo") {
+          // In a text field, the menu's Undo is the field's own.
+          const focused = document.activeElement;
+          if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement)
+            document.execCommand(payload);
+          else void store[payload]();
+        } else if (payload === "showInFolder") void store.showInFolder(store.chosenPhotos());
         else void store.openInDefaultApp(store.chosenPhotos());
       }),
     ];
