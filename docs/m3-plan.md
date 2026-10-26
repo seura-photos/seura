@@ -90,7 +90,7 @@ New in M3:
 
 ### 9. Delete to Trash (BRW-9)
 
-- **Already seen:** OneDrive on the Mac shows its own informative dialog (deleting here deletes everywhere; Got it, or Open OneDrive Recycle Bin; no way to refuse) when Seura sends an edit file in a OneDrive folder to the Trash (Nevada, 2026-10-26; journal, `2026-10-26-onedrive-trash-notice.md`). Seura doesn't try to avoid it; it's documented instead.
+- **Already seen:** OneDrive on the Mac shows its own informative dialog (deleting here deletes everywhere; Got it, or Open OneDrive Recycle Bin; no way to refuse), and OneDrive on Windows shows none, when Seura sends an edit file in a OneDrive folder to the Trash (Nevada, 2026-10-26; journal, `2026-10-26-onedrive-trash-notice.md`). Seura doesn't try to avoid it; it's documented instead.
 - **First, measure** (as for LIB-9, with Nevada's permission, on a few photos of his own choosing): when Seura moves an online-only OneDrive file to the Trash with the system call, on both platforms, does it reach the local Recycle Bin or Trash, or only OneDrive's own deleted items? Does OneDrive show a dialog of its own? The result goes to the design session for BRW-9's final wording and the decisions log.
 - Delete (Windows) or Cmd+Delete (macOS), or the photo menu: after a confirmation that says how many and that they go to the Recycle Bin or Trash, the selected photos and their edit files move there. Never permanent. Not in read-only folders. Not undoable (BRW-11).
 - **Cloud-synced photos:** the confirmation names the service: "3 of these photos are in OneDrive. They'll be removed from OneDrive on all your devices too. OneDrive keeps deleted files in its own recycle bin for a while." A cloud-only photo is never downloaded just to delete it.
