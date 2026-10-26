@@ -5,7 +5,7 @@ import type { FolderInfo, ScanProgress } from "./bindings";
 import { FolderTree } from "./FolderTree";
 import { Grid } from "./Grid";
 import { InfoPanel } from "./InfoPanel";
-import { isTagKey, ratingKey } from "./keys";
+import { isSelectAll, isTagKey, ratingKey } from "./keys";
 import { PhotoMenu } from "./PhotoMenu";
 import { TagTree } from "./TagTree";
 import { t } from "./messages";
@@ -110,7 +110,16 @@ export function Library({ inert = false }: { inert?: boolean }) {
   // focus is but a field. Not while the Viewer is open over the Library:
   // it has its own photo.
   const onKey = useEffectEvent((event: KeyboardEvent) => {
-    if (inert || selection.ids.size === 0) return;
+    if (inert) return;
+    // Select All selects the grid's photos wherever the focus is, not the
+    // window's text, as a web page would (the grid handles it itself when
+    // it has the focus).
+    if (isSelectAll(event)) {
+      if (!event.defaultPrevented) selectAllPhotos();
+      event.preventDefault();
+      return;
+    }
+    if (selection.ids.size === 0) return;
     const ids = [...selection.ids];
     const stars = ratingKey(event);
     if (stars !== null) void rate(ids, stars);

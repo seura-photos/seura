@@ -5,7 +5,7 @@ import { commands } from "./bindings";
 import { formatBytes, formatNumber } from "./format";
 import { t } from "./messages";
 import { InfoPanel } from "./InfoPanel";
-import { isTagKey, isTyping, ratingKey } from "./keys";
+import { isSelectAll, isTagKey, isTyping, ratingKey } from "./keys";
 import { SHOWN_EVENT } from "./measure";
 import { PhotoMenu } from "./PhotoMenu";
 import { type Backend, createPreview, fetchLinear } from "./preview";
@@ -301,6 +301,11 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
 
   // Listeners are added once; these see the latest state when they run.
   const onKey = useEffectEvent((event: KeyboardEvent) => {
+    // One photo: nothing to select, and the window's text isn't for selecting.
+    if (isSelectAll(event)) {
+      event.preventDefault();
+      return;
+    }
     if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return;
     const stars = ratingKey(event);
     if (event.key === "ArrowLeft") move(previous?.id);

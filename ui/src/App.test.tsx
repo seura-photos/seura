@@ -266,6 +266,42 @@ describe("App", () => {
     expect(mocks.changePhotos).not.toHaveBeenCalled();
   });
 
+  it("selects all the photos with Ctrl+A wherever the focus is, not the window's text", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+    mocks.photos = [1, 2, 3].map((id) => photo(id));
+    render(<App />);
+    const pictures = await screen.findByRole("treeitem", { name: /Pictures/ });
+    fireEvent.click(pictures);
+    await screen.findByRole("grid");
+    // The focus is in the folder tree, not the grid.
+    const event = new KeyboardEvent("keydown", {
+      key: "a",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      pictures.dispatchEvent(event);
+    });
+    expect(event.defaultPrevented).toBe(true);
+    expect([...useStore.getState().selection.ids]).toEqual([1, 2, 3]);
+    // In a text field it's the field's own Select All.
+    fireEvent.keyDown(window, { key: "t" });
+    const field = await screen.findByRole("combobox", { name: "Tag" });
+    act(() => useStore.setState({ selection: { ids: new Set(), anchor: null } }));
+    const inField = new KeyboardEvent("keydown", {
+      key: "a",
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      field.dispatchEvent(inField);
+    });
+    expect(inField.defaultPrevented).toBe(false);
+    expect(useStore.getState().selection.ids.size).toBe(0);
+  });
+
   it("opens the tag picker for the selection with T (TAG-3)", async () => {
     mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
     mocks.photos = [1, 2, 3].map((id) => photo(id));

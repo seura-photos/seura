@@ -14,6 +14,15 @@ export function isTyping(event: KeyboardEvent): boolean {
   );
 }
 
+const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
+
+/** Whether a key press is Select All: Ctrl+A, or Cmd+A on a Mac, outside a
+ * text field, where it selects the text as usual. */
+export function isSelectAll(event: KeyboardEvent): boolean {
+  const command = isMac ? event.metaKey : event.ctrlKey;
+  return command && !event.altKey && event.key.toLowerCase() === "a" && !isTyping(event);
+}
+
 /** Whether a key press is `T`, for the tag picker (TAG-3). */
 export function isTagKey(event: KeyboardEvent): boolean {
   if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return false;
