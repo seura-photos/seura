@@ -71,6 +71,7 @@ The first milestone that writes user data in earnest.
 - Edit files: FIL-1 to FIL-7, including unknown-content preservation and renamed-photo matching.
 - Tags and ratings: TAG-1 to TAG-7, including the anchored tag picker.
 - Rating as a quick action (part of BRW-10).
+- Undo and redo in the Library for tags and ratings: BRW-11.
 - Finding: FND-1 to FND-3.
 - Delete to Trash: BRW-9.
 
