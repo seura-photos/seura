@@ -112,7 +112,34 @@ type State = {
   closePicker: () => void;
   /** Shows a one-line notice. */
   say: (notice: string) => void;
+  /** Undoes the Library's last action, whatever is selected now, or redoes
+   * the last undone, and says what was done (BRW-11). */
+  undo: () => Promise<void>;
+  redo: () => Promise<void>;
 };
+
+/** Undoes or redoes, and says what happened (BRW-11). */
+async function history(say: (notice: string) => void, which: "undo" | "redo") {
+  const result = await (which === "undo" ? commands.undo() : commands.redo());
+  if (result.status === "error") {
+    say(t("history-failed", { reason: result.error }));
+    return;
+  }
+  const step = result.data;
+  if (step === null) {
+    say(t(which === "undo" ? "history-nothing-to-undo" : "history-nothing-to-redo"));
+    return;
+  }
+  const values = { kind: step.kind, tag: step.tag ?? "", count: step.done };
+  say(
+    [
+      step.done > 0 ? t(which === "undo" ? "history-undid" : "history-redid", values) : null,
+      step.skipped > 0 ? t("history-skipped", { count: step.skipped }) : null,
+    ]
+      .filter((part) => part !== null)
+      .join(" "),
+  );
+}
 
 /** A box on screen, in CSS pixels from the window's top left. */
 export type Anchor = { left: number; top: number; width: number; height: number };
@@ -374,6 +401,14 @@ export const useStore = create<State>()((set, get) => ({
 
   say(notice) {
     set(({ noticeId }) => ({ notice, noticeId: noticeId + 1 }));
+  },
+
+  async undo() {
+    await history(get().say, "undo");
+  },
+
+  async redo() {
+    await history(get().say, "redo");
   },
 
   async rate(ids, stars) {

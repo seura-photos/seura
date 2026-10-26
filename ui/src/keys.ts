@@ -23,6 +23,18 @@ export function isSelectAll(event: KeyboardEvent): boolean {
   return command && !event.altKey && event.key.toLowerCase() === "a" && !isTyping(event);
 }
 
+/** Whether a key press is the Library's Undo or Redo (BRW-11): Ctrl+Z, and
+ * Shift+Ctrl+Z or Ctrl+Y, outside a text field. Windows only: on a Mac,
+ * Cmd+Z goes to the Edit menu's Undo, which names the action, and the menu
+ * passes it on, so it happens once. */
+export function historyKey(event: KeyboardEvent): "undo" | "redo" | null {
+  if (isMac || !event.ctrlKey || event.altKey || event.metaKey || isTyping(event)) return null;
+  const key = event.key.toLowerCase();
+  if (key === "z") return event.shiftKey ? "redo" : "undo";
+  if (key === "y" && !event.shiftKey) return "redo";
+  return null;
+}
+
 /** Whether a key press is `T`, for the tag picker (TAG-3). */
 export function isTagKey(event: KeyboardEvent): boolean {
   if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return false;

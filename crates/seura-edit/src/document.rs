@@ -335,6 +335,27 @@ impl EditDocument {
             .map_or(0, |history| history.iter().filter(|r| is_undone(r)).count())
     }
 
+    /// The change [`EditDocument::undo`] would undo next: the last history
+    /// record that isn't undone. For checking that it's still the one an
+    /// action wrote (BRW-11).
+    pub fn last_change(&self) -> Option<Value> {
+        let history = self.history()?;
+        history
+            .iter()
+            .rev()
+            .find(|r| !is_undone(r))
+            .map(without_undone)
+    }
+
+    /// The change [`EditDocument::redo`] would redo next: the first undone
+    /// history record, without its `undone` mark.
+    pub fn next_redo(&self) -> Option<Value> {
+        self.history()?
+            .iter()
+            .find(|r| is_undone(r))
+            .map(without_undone)
+    }
+
     /// Applies one user action and records it in the history. Returns whether
     /// anything changed. On error, nothing changes.
     pub fn apply(&mut self, action: &Action, at: OffsetDateTime) -> Result<bool, EditError> {
@@ -727,6 +748,15 @@ fn mark_undone(record: &mut Value, undone: bool) {
         .find_map(|key| record.keys().position(|k| k == key))
         .map_or(0, |index| index + 1);
     record.shift_insert(after, "undone".into(), Value::Bool(true));
+}
+
+/// A history record as written, without its `undone` mark.
+fn without_undone(record: &Value) -> Value {
+    let mut record = record.clone();
+    if let Some(record) = record.as_object_mut() {
+        record.shift_remove("undone");
+    }
+    record
 }
 
 fn label(record: &Value) -> String {

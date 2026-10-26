@@ -16,6 +16,26 @@ menu-close-window = Close Window
 menu-edit = Edit
 menu-undo = Undo
 menu-redo = Redo
+# The Edit menu's Undo and Redo name the Library's last action and how many
+# photos it touched (BRW-11).
+menu-undo-action =
+    { $kind ->
+        [rating] Undo Rating
+        [addTag] Undo Add Tag “{ $tag }”
+       *[removeTag] Undo Remove Tag “{ $tag }”
+    } ({ $count ->
+        [one] 1 photo
+       *[other] { $count } photos
+    })
+menu-redo-action =
+    { $kind ->
+        [rating] Redo Rating
+        [addTag] Redo Add Tag “{ $tag }”
+       *[removeTag] Redo Remove Tag “{ $tag }”
+    } ({ $count ->
+        [one] 1 photo
+       *[other] { $count } photos
+    })
 menu-cut = Cut
 menu-copy = Copy
 menu-paste = Paste

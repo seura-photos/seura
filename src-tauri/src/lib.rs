@@ -43,6 +43,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::tag_choices,
             commands::tags,
             commands::tag_photos,
+            commands::undo,
+            commands::redo,
             commands::show_in_folder,
             commands::open_in_default_app,
             commands::opening,

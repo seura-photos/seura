@@ -18,6 +18,8 @@
     "allow-tag-choices",
     "allow-tags",
     "allow-tag-photos",
+    "allow-undo",
+    "allow-redo",
     "allow-show-in-folder",
     "allow-open-in-default-app",
     "allow-opening",

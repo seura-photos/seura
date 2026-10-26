@@ -18,6 +18,8 @@ fn main() {
         "tag_choices",
         "tags",
         "tag_photos",
+        "undo",
+        "redo",
         "show_in_folder",
         "open_in_default_app",
         "opening",
