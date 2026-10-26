@@ -149,6 +149,8 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* As tall as the add button, whether a section has one or not. */
+  min-height: var(--size-tier1-target);
   padding: 0 0 0.25rem 0.5rem;
 }
 
@@ -201,6 +203,10 @@ button {
 
 .folder-row[aria-selected="true"] {
   background: var(--color-accent-subtle);
+  /* The fill alone is about 1.1:1 against the sidebar; the accent bar and
+     text show the selection at well over 3:1 (WCAG 1.4.11). */
+  box-shadow: inset 3px 0 0 var(--color-accent);
+  color: var(--color-accent-text);
   font-weight: var(--type-panel-heading-weight);
 }
 

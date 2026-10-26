@@ -45,6 +45,13 @@ export const commands = {
 	 */
 	changePhotos: (ids: number[], change: PhotoChange) => typedError<ChangeResult, string>(__TAURI_INVOKE("change_photos", { ids, change })),
 	tagChoices: (ids: number[], text: string) => __TAURI_INVOKE<TagChoices>("tag_choices", { ids, text }),
+	/**  The TAGS tree: every tag some photo has, and the nodes above each. */
+	tags: () => __TAURI_INVOKE<TagInfo[]>("tags"),
+	/**
+	 *  The photos with exactly this tag, from every folder (TAG-5), in the
+	 *  app's order (BRW-2). Their thumbnails are queued behind the visible ones.
+	 */
+	tagPhotos: (tag: string) => __TAURI_INVOKE<PhotoInfo[]>("tag_photos", { tag }),
 	/**
 	 *  Shows photos in Explorer or Finder, selected there (BRW-8). Only their
 	 *  attributes are read, so a cloud-only photo isn't downloaded (LIB-9).
@@ -434,6 +441,21 @@ export type TagChoices = {
 export type TagCount = {
 	tag: string,
 	count: number,
+};
+
+/**  One node of the TAGS tree (TAG-5). */
+export type TagInfo = {
+	/**  The full tag, `family/kids`, which selects it. */
+	tag: string,
+	/**  The last level, `kids`, as the tree shows it. */
+	name: string,
+	/**  The node above, for nested tags. */
+	parent: string | null,
+	/**
+	 *  Photos with exactly this tag; none for a node no photo has exactly,
+	 *  which shows no count (TAG-5).
+	 */
+	photos: number | null,
 };
 
 /**  A thumbnail finished, or can't be made. */

@@ -16,6 +16,7 @@ mod snapshot;
 mod sort;
 #[doc(hidden)]
 pub mod synthetic;
+mod tag_tree;
 mod thumbnails;
 mod trash;
 mod tree;
@@ -36,6 +37,7 @@ pub use settings::{
 };
 pub use snapshot::SNAPSHOT_FILE;
 pub use sort::natural;
+pub use tag_tree::TagEntry;
 pub use thumbnails::{
     ApplyEdits, Job, Made, Outcome, SWEEP_AFTER, THUMBS_FOLDER, ThumbnailCache, ThumbnailWorkers,
 };

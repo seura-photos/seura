@@ -18,8 +18,10 @@ export function App() {
   const welcome = useStore((state) => state.welcome);
   const openEditor = useStore((state) => state.openEditor);
   const viewing = useStore((state) => state.viewing);
+  // What the Viewer goes back to: the folder, or the tag (TAG-5).
   const folderName = useStore(
-    (state) => state.folders.find((folder) => folder.id === state.folderId)?.name ?? "",
+    (state) =>
+      state.tag ?? state.folders.find((folder) => folder.id === state.folderId)?.name ?? "",
   );
 
   useEffect(() => {

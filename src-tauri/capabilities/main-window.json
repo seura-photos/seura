@@ -16,6 +16,8 @@
     "allow-show-thumbnails",
     "allow-change-photos",
     "allow-tag-choices",
+    "allow-tags",
+    "allow-tag-photos",
     "allow-show-in-folder",
     "allow-open-in-default-app",
     "allow-opening",

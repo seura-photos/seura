@@ -359,6 +359,17 @@ impl Library {
         let _ = index.save_snapshot(&self.store.read().expect("store lock").cache);
     }
 
+    /// Queues thumbnails for these photos behind whatever is on screen.
+    pub fn queue_photos(&self, jobs: Vec<seura_library::Job>) {
+        let added = self
+            .store
+            .read()
+            .expect("store lock")
+            .workers
+            .queue_background(jobs);
+        self.progress.lock().expect("progress lock").total += added;
+    }
+
     /// Queues thumbnails for a folder's photos behind whatever is on screen.
     pub fn queue_folder(&self, folder: FolderId) {
         let index = self.index.read().expect("index lock");
@@ -368,13 +379,7 @@ impl Library {
             .filter_map(|id| index.thumbnail_job(id))
             .collect();
         drop(index);
-        let added = self
-            .store
-            .read()
-            .expect("store lock")
-            .workers
-            .queue_background(jobs);
-        self.progress.lock().expect("progress lock").total += added;
+        self.queue_photos(jobs);
     }
 }
 
