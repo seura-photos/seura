@@ -142,7 +142,14 @@ fn rule_5_an_edit_file_left_with_nothing_goes_to_the_trash() {
 
     // FIL-1: sent to the Trash, not deleted, and nothing else touched.
     assert_eq!(report.changed, ids[..1]);
-    assert_eq!(*trash.moved.borrow(), [edit_file_path(photo)]);
+    // Compared by real path: the index holds the folder's (on macOS,
+    // /private/var for /var).
+    let real = |path: &Path| {
+        let folder = fs::canonicalize(path.parent().unwrap()).unwrap();
+        folder.join(path.file_name().unwrap())
+    };
+    let moved: Vec<PathBuf> = trash.moved.borrow().iter().map(|path| real(path)).collect();
+    assert_eq!(moved, [real(&edit_file_path(photo))]);
     let after = Snapshot::of(library.root());
     assert!(after.added_since(&before).is_empty());
     assert!(after.changed_since(&before).is_empty());
