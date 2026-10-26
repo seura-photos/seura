@@ -1,0 +1,5 @@
+# OneDrive's own notice when an edit file goes to the Trash
+
+- **Nevada's check on the Mac (slice 2, after merging):** rating a photo and then clearing the rating sent its edit file to the Trash, as FIL-1 asks. The photo was in his OneDrive folder, so OneDrive showed its own notice: deleting a file on this computer deletes it everywhere.
+- **Nevada's view, which Claude Code shares:** that's still what should happen, and Seura shouldn't try to get around it. The only ways round it would be deleting permanently, which CLAUDE.md's rule 5 forbids, or leaving empty edit files beside photos, against FIL-1 and the edit format's advice. OneDrive is right to warn: the file is leaving every device. To be documented, so users aren't surprised.
+- **Also evidence for slice 9 (BRW-9):** the design session asked whether OneDrive shows a dialog of its own when Seura moves a file to the Trash. On the Mac it does, at least for an edit file. Still to find out: whether it offers "Don't show this again", whether it blocks, and what Windows does.
