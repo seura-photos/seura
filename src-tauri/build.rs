@@ -15,6 +15,8 @@ fn main() {
         "set_thumbnail_size",
         "show_thumbnails",
         "change_photos",
+        "start_over",
+        "show_kept_files",
         "tag_choices",
         "tags",
         "tag_photos",

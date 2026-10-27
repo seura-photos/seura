@@ -725,6 +725,95 @@ pub async fn change_photos(
     .map_err(|error| error.to_string())
 }
 
+/// What Start over did (FIL-4).
+#[derive(Clone, Debug, Default, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct StartOverResult {
+    /// The names the old edit files are kept under, in `Unreadable edit
+    /// files` in Seura's folder.
+    pub kept: Vec<String>,
+    /// Their edit file can be read now, so it was left as it is.
+    pub readable: u32,
+    /// In a read-only folder (TAG-7).
+    pub read_only: u32,
+    /// Couldn't be started over for another reason.
+    pub failed: u32,
+}
+
+/// Starts photos over from edit files that can't be read, once the user
+/// has confirmed with Start over (FIL-4): each old file is kept, unchanged,
+/// in `Unreadable edit files` in Seura's folder, named with the time in the
+/// user's time zone, `utc_offset_minutes` ahead of UTC.
+#[tauri::command]
+#[specta::specta]
+pub async fn start_over(
+    app: AppHandle,
+    ids: Vec<u32>,
+    utc_offset_minutes: i32,
+) -> Result<StartOverResult, String> {
+    let kept_in = crate::locations::seura_folder(&app)
+        .map_err(|error| error.to_string())?
+        .join(seura_library::UNREADABLE_FOLDER);
+    tauri::async_runtime::spawn_blocking(move || {
+        let offset = time::UtcOffset::from_whole_seconds(utc_offset_minutes.saturating_mul(60))
+            .unwrap_or(time::UtcOffset::UTC);
+        let at = time::OffsetDateTime::now_utc().to_offset(offset);
+        let library = app.state::<Library>();
+        let mut result = StartOverResult::default();
+        for id in ids {
+            match seura_library::Index::start_over(
+                &library.index,
+                PhotoId::new(id),
+                &kept_in,
+                at,
+                &seura_library::move_to_trash,
+            ) {
+                Ok(seura_library::StartedOver::Kept(path)) => result.kept.push(
+                    path.file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .into_owned(),
+                ),
+                Ok(seura_library::StartedOver::Readable | seura_library::StartedOver::Missing) => {
+                    result.readable += 1
+                }
+                Err(Problem::ReadOnly) => result.read_only += 1,
+                Err(_) => result.failed += 1,
+            }
+        }
+        library.save();
+        let _ = LibraryChanged.emit(&app);
+        result
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+/// Shows kept edit files in Explorer or Finder (FIL-4): only files, by
+/// name, in `Unreadable edit files` in Seura's folder, never another path.
+#[tauri::command]
+#[specta::specta]
+pub async fn show_kept_files(app: AppHandle, names: Vec<String>) -> Result<(), String> {
+    let kept_in = crate::locations::seura_folder(&app)
+        .map_err(|error| error.to_string())?
+        .join(seura_library::UNREADABLE_FOLDER);
+    tauri::async_runtime::spawn_blocking(move || {
+        let paths: Vec<PathBuf> = names
+            .iter()
+            .filter(|name| Path::new(name).file_name() == Some(std::ffi::OsStr::new(name)))
+            .map(|name| kept_in.join(name))
+            .filter(|path| path.is_file())
+            .collect();
+        if paths.is_empty() {
+            return tauri_plugin_opener::open_path(&kept_in, None::<&str>)
+                .map_err(|error| error.to_string());
+        }
+        tauri_plugin_opener::reveal_items_in_dir(&paths).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 /// What the tag picker offers for photos, filtered by what's typed (TAG-3,
 /// TAG-8). Matching ignores case and Unicode form (TAG-2).
 #[derive(Clone, Debug, Default, Serialize, Type)]

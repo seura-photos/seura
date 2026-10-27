@@ -2,8 +2,9 @@
 //! cache, fingerprints, and the settings file (technical design, section 4;
 //! decisions 0010 and 0015).
 //!
-//! Also the one path that writes edit files from the Library (M3), and the
-//! Trash. Renamed photos (FIL-6) come later.
+//! Also the one path that writes edit files from the Library (M3), starting
+//! over from unreadable ones (FIL-4), and the Trash. Renamed photos (FIL-6)
+//! come later.
 
 mod changes;
 mod fingerprint;
@@ -14,6 +15,7 @@ mod scan;
 mod settings;
 mod snapshot;
 mod sort;
+mod start_over;
 #[doc(hidden)]
 pub mod synthetic;
 mod tag_tree;
@@ -38,6 +40,7 @@ pub use settings::{
 };
 pub use snapshot::SNAPSHOT_FILE;
 pub use sort::natural;
+pub use start_over::{StartedOver, UNREADABLE_FOLDER};
 pub use tag_tree::TagEntry;
 pub use thumbnails::{
     ApplyEdits, Job, Made, Outcome, SWEEP_AFTER, THUMBS_FOLDER, ThumbnailCache, ThumbnailWorkers,

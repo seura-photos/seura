@@ -10,7 +10,9 @@ use std::sync::RwLock;
 
 use serde_json::Value;
 use seura_edit::{EditDocument, EditFile, edit_file_path};
-use seura_library::{Change, ChangeReport, Index, PhotoId, Problem};
+use seura_library::{
+    Change, ChangeReport, Index, PhotoId, Problem, StartedOver, UNREADABLE_FOLDER,
+};
 
 use crate::library::{self, Library, Snapshot};
 use crate::{WRITER, act, now};
@@ -359,4 +361,59 @@ fn brw_11_undo_and_redo_write_only_edit_files_and_bring_back_what_went_to_the_tr
     assert!(leftovers(&library).is_empty(), "{:?}", leftovers(&library));
     // Rule 5: everything removed went to the Trash, never deleted.
     assert!(trash.moved.borrow().len() >= 2);
+}
+
+#[test]
+fn fil_4_start_over_keeps_the_unreadable_file_unchanged_in_seuras_folder() {
+    let library = Library::new();
+    let photo = &library.photos()[0];
+    fs::write(edit_file_path(photo), b"{ not json").unwrap();
+    let (index, ids) = scanned(&library);
+    let trash = Trash::new();
+    change(&index, &ids[1..2], Change::Rating(2), &trash);
+    let seura = tempfile::tempdir().unwrap();
+    let kept_in = seura.path().join(UNREADABLE_FOLDER);
+    let before = Snapshot::of(library.root());
+
+    let result = Index::start_over(&index, ids[0], &kept_in, now(), &|path| trash.take(path));
+
+    // Moved, unchanged, to Seura's folder (rules 2 and 4), not deleted or
+    // sent to the Trash (rule 5); nothing else in the library changed.
+    let Ok(StartedOver::Kept(kept)) = result else {
+        panic!("{result:?}");
+    };
+    assert_eq!(kept.parent(), Some(kept_in.as_path()));
+    assert_eq!(fs::read(&kept).unwrap(), b"{ not json");
+    assert!(trash.moved.borrow().is_empty());
+    let after = Snapshot::of(library.root());
+    assert_eq!(
+        after.removed_since(&before),
+        [library.relative(&edit_file_path(photo))]
+    );
+    assert!(after.added_since(&before).is_empty());
+    assert!(after.changed_since(&before).is_empty());
+
+    // The photo starts again with a new edit file.
+    let report = change(&index, &ids[..1], Change::Rating(4), &trash);
+    assert_eq!(report.changed, ids[..1]);
+    assert_eq!(saved(photo).rating(), 4);
+    assert_eq!(fs::read(&kept).unwrap(), b"{ not json");
+}
+
+#[test]
+fn fil_4_start_over_leaves_a_read_only_folder_alone() {
+    let library = Library::new();
+    let snow = &library.photos()[4];
+    fs::write(edit_file_path(snow), b"{ not json").unwrap();
+    let _read_only = library::read_only_folder(&library.root().join("Winter"));
+    let (index, ids) = scanned(&library);
+    let seura = tempfile::tempdir().unwrap();
+    let kept_in = seura.path().join(UNREADABLE_FOLDER);
+    let trash = Trash::new();
+
+    let result = Index::start_over(&index, ids[4], &kept_in, now(), &|path| trash.take(path));
+
+    assert_eq!(result, Err(Problem::ReadOnly));
+    assert_eq!(fs::read(edit_file_path(snow)).unwrap(), b"{ not json");
+    assert!(!kept_in.exists());
 }

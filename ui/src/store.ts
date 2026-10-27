@@ -68,6 +68,9 @@ type State = {
   notice: string | null;
   /** Counts notices, so the same message twice is announced twice. */
   noticeId: number;
+  /** The old edit files Start over just kept, by name, for the notice bar
+   * to say where they went (FIL-4). */
+  kept: string[] | null;
   /** How far scanning has got, for the status bar (LIB-3). */
   progress: ScanProgress;
 
@@ -136,6 +139,9 @@ type State = {
    * the last undone, and says what was done (BRW-11). */
   undo: () => Promise<void>;
   redo: () => Promise<void>;
+  /** Starts photos over from edit files that can't be read, keeping the
+   * old files in Seura's folder (FIL-4). */
+  startOver: (ids: number[]) => Promise<void>;
 };
 
 /** Undoes or redoes, and says what happened (BRW-11). */
@@ -220,6 +226,7 @@ export const useStore = create<State>()((set, get) => ({
   editing: null,
   notice: null,
   noticeId: 0,
+  kept: null,
   picker: null,
   progress: { scanning: null, done: 0, total: 0 },
 
@@ -322,6 +329,7 @@ export const useStore = create<State>()((set, get) => ({
         beforeSearch: null,
         selection: emptySelection,
         notice: null,
+        kept: null,
       });
     await get().refresh();
   },
@@ -335,6 +343,7 @@ export const useStore = create<State>()((set, get) => ({
         beforeSearch: null,
         selection: emptySelection,
         notice: null,
+        kept: null,
       });
     await get().refresh();
   },
@@ -353,6 +362,7 @@ export const useStore = create<State>()((set, get) => ({
         tag: null,
         selection: emptySelection,
         notice: null,
+        kept: null,
       });
     } else {
       set({ search: text });
@@ -395,7 +405,9 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   selectPhoto(id, modifiers) {
+    // What Start over did is about the photos it was done to.
     set(({ selection, photos }) => ({
+      kept: null,
       selection: select(
         selection,
         photos.map((photo) => photo.id),
@@ -545,6 +557,24 @@ export const useStore = create<State>()((set, get) => ({
           : null,
       unreadable > 0 ? t("change-unreadable", { count: unreadable }) : null,
       failed > 0 ? t("change-failed", { count: failed }) : null,
+    ].filter((problem) => problem !== null);
+    if (problems.length > 0) get().say(problems.join(" "));
+  },
+
+  async startOver(ids) {
+    if (ids.length === 0) return;
+    // The time zone names the kept files with the user's own clock.
+    const result = await commands.startOver(ids, -new Date().getTimezoneOffset());
+    if (result.status === "error") {
+      get().say(t("start-over-failed", { count: ids.length }));
+      return;
+    }
+    const { kept, readable, readOnly, failed } = result.data;
+    set({ kept: kept.length > 0 ? kept : null });
+    const problems = [
+      readable > 0 ? t("start-over-readable", { count: readable }) : null,
+      readOnly > 0 ? t("read-only-folder") : null,
+      failed > 0 ? t("start-over-failed", { count: failed }) : null,
     ].filter((problem) => problem !== null);
     if (problems.length > 0) get().say(problems.join(" "));
   },

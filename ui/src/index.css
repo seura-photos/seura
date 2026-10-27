@@ -302,6 +302,35 @@ button {
   background: var(--color-photo);
 }
 
+/* Problems with the selected photos' files, above the grid (flow 11). */
+.notice-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1rem 1.5rem 0;
+  padding: 0.625rem 1rem;
+  border-radius: var(--radius-panel);
+  background: var(--color-accent-subtle);
+}
+
+.notice-bar.warning {
+  background: var(--color-danger-subtle);
+}
+
+.notice-bar .icon {
+  flex: none;
+  color: var(--color-danger);
+}
+
+.notice-bar p {
+  flex: 1;
+  margin: 0;
+}
+
+.notice-bar .button {
+  flex: none;
+}
+
 .folder-heading {
   display: flex;
   align-items: baseline;

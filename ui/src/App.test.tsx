@@ -97,6 +97,18 @@ vi.mock("./bindings", () => ({
     undo: mocks.undo,
     redo: mocks.redo,
     tagChoices: vi.fn(() => Promise.resolve({ onAll: [], onSome: [], others: [], exists: false })),
+    startOver: vi.fn(() =>
+      Promise.resolve({
+        status: "ok",
+        data: {
+          kept: ["2026-10-26 143012 IMG_2.jpg.seura.json"],
+          readable: 0,
+          readOnly: 0,
+          failed: 0,
+        },
+      }),
+    ),
+    showKeptFiles: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
   },
   events: mocks.events,
 }));
@@ -545,6 +557,40 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     expect(vi.mocked(commands.photos)).toHaveBeenLastCalledWith(1, noFilter);
     await waitFor(() => expect(screen.queryByRole("list", { name: "Active filters" })).toBeNull());
+  });
+
+  it("offers Start over for an unreadable edit file, then says where it went (FIL-4)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 2, total: 2 })];
+    mocks.photos = [photo(1), { ...photo(2), unreadable: true }];
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("heading", { name: "Pictures" });
+    // Nothing while no such photo is selected.
+    act(() => useStore.getState().selectPhoto(1, { toggle: false, range: false }));
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    act(() => useStore.getState().selectPhoto(2, { toggle: true, range: false }));
+    const bar = await screen.findByRole("alert");
+    expect(bar.textContent).toContain("The edit file for IMG_2.jpg can't be read");
+    // Start over is the confirmation; only the unreadable photo is sent.
+    mocks.photos = [photo(1), photo(2)];
+    fireEvent.click(within(bar).getByRole("button", { name: "Start over" }));
+    expect(vi.mocked(commands.startOver)).toHaveBeenCalledWith(
+      [2],
+      -new Date().getTimezoneOffset(),
+    );
+    expect(
+      await screen.findByText(
+        "The old edit file is kept in “Unreadable edit files” in Seura's folder.",
+      ),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Show in folder" }));
+    expect(vi.mocked(commands.showKeptFiles)).toHaveBeenCalledWith([
+      "2026-10-26 143012 IMG_2.jpg.seura.json",
+    ]);
+    // It goes with the next selection.
+    act(() => useStore.getState().selectPhoto(1, { toggle: false, range: false }));
+    expect(screen.queryByText(/old edit file is kept/)).toBeNull();
   });
 
   it("shows a disconnected drive's folder as not connected (LIB-6)", async () => {

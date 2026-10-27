@@ -277,7 +277,7 @@ impl Index {
     }
 
     /// Re-reads the photo's edit file if it appeared, changed, or vanished.
-    fn refresh_edit_file(
+    pub(crate) fn refresh_edit_file(
         &mut self,
         id: PhotoId,
         photo_path: &Path,
