@@ -506,6 +506,19 @@ button {
   line-height: 1.5;
 }
 
+/* Paragraphs about different things don't run together (Nevada, 2026-10-26). */
+.dialog p + p {
+  margin-top: 0.75rem;
+}
+
+/* What a dialog's action leaves alone, set apart from what it does. */
+.dialog-aside {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
 .dialog-actions {
   display: flex;
   justify-content: flex-end;

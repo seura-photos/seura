@@ -49,8 +49,14 @@ export function ConfirmDelete() {
                 : t("delete-synced-some", { count: synced, service })}
             </p>
           )}
-          {cloudOnly > 0 && <p>{t("delete-cloud-only", { count: cloudOnly, system })}</p>}
-          {readOnly > 0 && <p>{t("delete-read-only", { count: readOnly })}</p>}
+          {/* The photos left as they are, set apart from those that go,
+              unless they're all there is to say. */}
+          {(cloudOnly > 0 || readOnly > 0) && (
+            <div className={nothing ? undefined : "dialog-aside"}>
+              {cloudOnly > 0 && <p>{t("delete-cloud-only", { count: cloudOnly, system })}</p>}
+              {readOnly > 0 && <p>{t("delete-read-only", { count: readOnly })}</p>}
+            </div>
+          )}
         </div>
         <div className="dialog-actions">
           {!nothing && (
