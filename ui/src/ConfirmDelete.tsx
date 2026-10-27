@@ -39,9 +39,11 @@ export function ConfirmDelete() {
             : t("delete-title", { count, system })}
         </h2>
         <div id="delete-body">
-          {!nothing && <p>{t("delete-body", { count, system })}</p>}
-          {/* Each edit file is restored separately (Nevada, 2026-10-26). */}
-          {editFiles > 0 && <p>{t("delete-restore-both", { count, system })}</p>}
+          {/* Each edit file is restored separately, so the text says so
+              when there are any (Nevada, 2026-10-26; design answers). */}
+          {!nothing && (
+            <p>{t("delete-body", { count, system, edited: editFiles > 0 ? "yes" : "no" })}</p>
+          )}
           {synced > 0 && service !== null && (
             <p>
               {synced === count

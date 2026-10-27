@@ -14,6 +14,7 @@ import { FolderTree } from "./FolderTree";
 import { Grid } from "./Grid";
 import { InfoPanel } from "./InfoPanel";
 import { historyKey, isDeleteKey, isFind, isSelectAll, isTagKey, ratingKey } from "./keys";
+import { Message } from "./Message";
 import { NoticeBar } from "./NoticeBar";
 import { PhotoMenu } from "./PhotoMenu";
 import { TagTree } from "./TagTree";
@@ -67,8 +68,6 @@ export function Library({ inert = false }: { inert?: boolean }) {
   const folderId = useStore((state) => state.folderId);
   const photos = useStore((state) => state.photos);
   const thumbs = useStore((state) => state.thumbs);
-  const notice = useStore((state) => state.notice);
-  const noticeId = useStore((state) => state.noticeId);
   const rate = useStore((state) => state.rate);
   const openPicker = useStore((state) => state.openPicker);
   const selection = useStore((state) => state.selection);
@@ -232,11 +231,6 @@ export function Library({ inert = false }: { inert?: boolean }) {
                 <Plus className="icon" aria-hidden />
               </button>
             </div>
-            {notice && (
-              <p key={noticeId} className="notice" role="status">
-                {notice}
-              </p>
-            )}
           </div>
           <FolderTree onMenu={openMenu} />
         </section>
@@ -257,7 +251,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
           <p className="empty">{t("library-empty")}</p>
         ) : shown ? (
           <>
-            <NoticeBar photos={photos} />
+            <NoticeBar ids={[...selection.ids]} photos={photos} />
             <div className="folder-heading">
               {/* In full on hover, wherever they're cut short (#72). */}
               <h1 className="view-title" title={shown.title}>
@@ -374,6 +368,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
         ) : (
           <p className="empty">{t("library-pick-folder")}</p>
         )}
+        <Message />
       </main>
 
       <InfoPanel ids={[...selection.ids]} version={photos} preview />

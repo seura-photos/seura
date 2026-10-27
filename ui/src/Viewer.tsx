@@ -5,6 +5,8 @@ import { commands } from "./bindings";
 import { formatBytes, formatNumber } from "./format";
 import { t } from "./messages";
 import { InfoPanel } from "./InfoPanel";
+import { Message } from "./Message";
+import { NoticeBar } from "./NoticeBar";
 import { historyKey, isDeleteKey, isSelectAll, isTagKey, isTyping, ratingKey } from "./keys";
 import { SHOWN_EVENT } from "./measure";
 import { PhotoMenu } from "./PhotoMenu";
@@ -67,10 +69,8 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
   const openEditor = useStore((state) => state.openEditor);
   const rate = useStore((state) => state.rate);
   const openPicker = useStore((state) => state.openPicker);
-  const notice = useStore((state) => state.notice);
-  const noticeId = useStore((state) => state.noticeId);
-  // Only notices from while it's open: earlier ones were about the Library.
-  const [openedAt] = useState(noticeId);
+  // Only messages from while it's open: earlier ones were about the Library.
+  const [openedAt] = useState(() => useStore.getState().noticeId);
 
   const root = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -481,81 +481,87 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
         </div>
       </header>
 
-      <div
-        ref={stage}
-        className={isZoomed ? "viewer-stage zoomed" : "viewer-stage"}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          setMenu({ x: event.clientX, y: event.clientY });
-        }}
-      >
-        <canvas
-          ref={canvas}
-          className="viewer-photo"
-          aria-label={t("viewer-photo", { name: photo.name })}
-          hidden={whole === null || message !== null}
-          style={whole ?? undefined}
-        />
-        <canvas
-          ref={detailCanvas}
-          className="viewer-photo"
-          aria-hidden
-          hidden={sharp === null || message !== null}
-          style={sharp ?? undefined}
-        />
-        {inCloud && (
-          // The cached thumbnail, enlarged and blurred, while the photo
-          // downloads (LIB-9).
-          <img
-            className="viewer-thumbnail"
-            src={convertFileSrc(`thumb-${photo.id}`, "seura")}
-            alt=""
-            draggable={false}
+      {/* The notice bar pushes the photo down rather than covering it
+          (INT-6); the message is over the photo, near its bottom. */}
+      <div className="viewer-main">
+        <NoticeBar ids={[photo.id]} photos={photos} />
+        <div
+          ref={stage}
+          className={isZoomed ? "viewer-stage zoomed" : "viewer-stage"}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            setMenu({ x: event.clientX, y: event.clientY });
+          }}
+        >
+          <canvas
+            ref={canvas}
+            className="viewer-photo"
+            aria-label={t("viewer-photo", { name: photo.name })}
+            hidden={whole === null || message !== null}
+            style={whole ?? undefined}
           />
-        )}
-        {message !== null && (
-          <div className="viewer-message" role="status">
-            {status.kind === "downloading" && (
-              <LoaderCircle className="icon viewer-spinner" aria-hidden />
-            )}
-            <p>{message}</p>
-            {status.kind === "downloadFailed" && (
-              <button
-                type="button"
-                className="button"
-                onClick={() => {
-                  setAttempt((count) => count + 1);
-                }}
-              >
-                {t("viewer-try-again")}
-              </button>
-            )}
-          </div>
-        )}
-        <button
-          type="button"
-          className="viewer-nav viewer-previous"
-          aria-label={t("viewer-previous")}
-          title={t("viewer-previous")}
-          disabled={!previous}
-          onClick={() => move(previous?.id)}
-        >
-          <ChevronLeft className="icon" aria-hidden />
-        </button>
-        <button
-          type="button"
-          className="viewer-nav viewer-next"
-          aria-label={t("viewer-next")}
-          title={t("viewer-next")}
-          disabled={!next}
-          onClick={() => move(next?.id)}
-        >
-          <ChevronRight className="icon" aria-hidden />
-        </button>
+          <canvas
+            ref={detailCanvas}
+            className="viewer-photo"
+            aria-hidden
+            hidden={sharp === null || message !== null}
+            style={sharp ?? undefined}
+          />
+          {inCloud && (
+            // The cached thumbnail, enlarged and blurred, while the photo
+            // downloads (LIB-9).
+            <img
+              className="viewer-thumbnail"
+              src={convertFileSrc(`thumb-${photo.id}`, "seura")}
+              alt=""
+              draggable={false}
+            />
+          )}
+          {message !== null && (
+            <div className="viewer-message" role="status">
+              {status.kind === "downloading" && (
+                <LoaderCircle className="icon viewer-spinner" aria-hidden />
+              )}
+              <p>{message}</p>
+              {status.kind === "downloadFailed" && (
+                <button
+                  type="button"
+                  className="button"
+                  onClick={() => {
+                    setAttempt((count) => count + 1);
+                  }}
+                >
+                  {t("viewer-try-again")}
+                </button>
+              )}
+            </div>
+          )}
+          <button
+            type="button"
+            className="viewer-nav viewer-previous"
+            aria-label={t("viewer-previous")}
+            title={t("viewer-previous")}
+            disabled={!previous}
+            onClick={() => move(previous?.id)}
+          >
+            <ChevronLeft className="icon" aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="viewer-nav viewer-next"
+            aria-label={t("viewer-next")}
+            title={t("viewer-next")}
+            disabled={!next}
+            onClick={() => move(next?.id)}
+          >
+            <ChevronRight className="icon" aria-hidden />
+          </button>
+        </div>
+        <Message since={openedAt} />
       </div>
 
       <InfoPanel ids={[photo.id]} version={photos} folder />
@@ -566,12 +572,6 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
           {percent !== null &&
             (isZoomed ? t("viewer-zoomed", { percent }) : t("viewer-fit", { percent }))}
         </span>
-        {/* The Viewer covers the sidebar, where the Library shows notices. */}
-        {notice && noticeId > openedAt && (
-          <span key={noticeId} className="notice" role="status">
-            {notice}
-          </span>
-        )}
         <span className="viewer-keys">
           {editorAvailable ? t("viewer-keys-edit", { folder }) : t("viewer-keys", { folder })}
         </span>

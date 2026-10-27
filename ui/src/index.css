@@ -318,18 +318,38 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-.notice {
-  margin: 0.5rem;
-  color: var(--color-text-secondary);
-  font-size: var(--type-meta-size);
-}
-
 .main {
   grid-area: main;
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
   background: var(--color-photo);
+}
+
+/* The last action's result (INT-6): near the bottom of the photo area,
+   centred, over it but never in the way of the pointer. */
+.message-region {
+  position: absolute;
+  right: 0;
+  bottom: 1.5rem;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem;
+  pointer-events: none;
+}
+
+.message {
+  max-width: 30rem;
+  margin: 0;
+  padding: 0.625rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.18);
+  color: var(--color-text);
 }
 
 /* Problems with the selected photos' files, above the grid (flow 11). */
@@ -965,8 +985,20 @@ button {
   font-weight: var(--type-panel-heading-weight);
 }
 
-.viewer-stage {
+/* The notice bar, then the stage below it, so the photo fits under the
+   bar rather than behind it (INT-6). */
+.viewer-main {
   grid-area: stage;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.viewer-stage {
+  flex: 1;
+  min-height: 0;
   position: relative;
   display: flex;
   align-items: center;
@@ -1095,11 +1127,6 @@ button {
 .viewer-status {
   grid-area: status;
   justify-content: space-between;
-}
-
-.viewer-status .notice {
-  margin: 0;
-  color: var(--color-text);
 }
 
 .viewer-keys {

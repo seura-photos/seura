@@ -5,24 +5,27 @@ import { t } from "./messages";
 import { useStore } from "./store";
 
 /**
- * Problems with the selected photos' files, at the top of the main area,
- * never a blocking dialog (user flows, flow 11). An edit file that can't be
- * read offers Start over; afterwards the bar says where the old file went,
- * with Show in folder (FIL-4). For one selected photo, it also says when
- * its edit file has edits Seura can't show (FIL-5), and when another program
- * has changed the photo since its edits were made (FIL-7).
+ * Problems with the files of the photos `ids` (the Library's selection, or
+ * the Viewer's photo), at the top of the photo area, never a blocking
+ * dialog (user flows, flow 11; INT-6). An edit file that can't be read
+ * offers Start over; afterwards the bar says where the old file went, with
+ * Show in folder (FIL-4). For one photo, it also says when its edit file
+ * has edits Seura can't show (FIL-5), and when another program has changed
+ * the photo since its edits were made (FIL-7). Only a problem the user must
+ * act on takes the danger colour; a caution has the warning icon on the
+ * plain bar (visual design, "Notice bar").
  */
-export function NoticeBar({ photos }: { photos: PhotoInfo[] }) {
-  const selection = useStore((state) => state.selection);
+export function NoticeBar({ ids, photos }: { ids: number[]; photos: PhotoInfo[] }) {
   const kept = useStore((state) => state.kept);
   const startOver = useStore((state) => state.startOver);
   const say = useStore((state) => state.say);
-  const only = selection.ids.size === 1 ? [...selection.ids][0] : undefined;
+  const only = ids.length === 1 ? ids[0] : undefined;
   const notices = usePhotoNotices(only, photos);
 
   if (kept !== null) {
     return (
       <div className="notice-bar" role="status">
+        <Info className="icon" aria-hidden />
         <p>{t("start-over-kept", { count: kept.length })}</p>
         <button
           type="button"
@@ -39,13 +42,13 @@ export function NoticeBar({ photos }: { photos: PhotoInfo[] }) {
     );
   }
 
-  const unreadable = photos.filter((photo) => photo.unreadable && selection.ids.has(photo.id));
+  const unreadable = photos.filter((photo) => photo.unreadable && ids.includes(photo.id));
   if (unreadable.length === 0) {
     if (notices === null) return null;
     return (
       <>
         {notices.originalChanged && (
-          <div className="notice-bar warning" role="status">
+          <div className="notice-bar" role="status">
             <TriangleAlert className="icon" aria-hidden />
             <p>{t("notice-original-changed")}</p>
           </div>
