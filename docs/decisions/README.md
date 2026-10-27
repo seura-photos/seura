@@ -24,3 +24,4 @@ Short records of significant decisions: what was chosen, why, and what was rejec
 | [0014](0014-heic-system-decoders-only.md) | HEIC decoding: the operating system's decoders only | Accepted |
 | [0015](0015-app-data-in-home-folder.md) | App data in a Seura Photos folder in the home folder | Accepted |
 | [0016](0016-public-early-builds.md) | Early builds are public from 0.2 | Accepted |
+| [0017](0017-drives-without-trash.md) | Drives with no Recycle Bin or Trash: photos left alone, Seura's empty files deleted directly | Accepted |

@@ -89,7 +89,7 @@ AI is optional and off by default. At launch it uses the user's own API key with
 
 ## Not in v1, and non-goals
 
-**Never:** cloud sync; an account required to use the app; importing or copying photos into a managed library; competing with Lightroom or Photoshop (layers, masks, advanced retouching).
+**Never:** cloud sync; an account required to use the app; importing or copying photos, whether into a managed library or into a folder (principle 1; the operating system's own import does that, and the user then adds the folder); competing with Lightroom or Photoshop (layers, masks, advanced retouching).
 
 **Not in v1, candidates for later:**
 
