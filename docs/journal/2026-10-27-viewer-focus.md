@@ -1,0 +1,6 @@
+# The grid's focus after the Viewer (ACC-1, BRW-5)
+
+- **Nevada found it, and checked with the design session that it was a bug:** after Enter opens a photo in the Viewer and Esc goes back, nothing has the keyboard focus. The grid needs a click before the arrow keys or Enter work again. The design session's guess was that the cell was still inert when it was focused, or that the reveal never ran.
+- **The cause (Claude Code):** the reveal ran, but it only asked for the focus at the next render. Going back on the photo that already had the grid's focus changes nothing in the grid, so nothing rendered again. The focus had been in the Viewer, which was gone, so it fell to the page. Moving to another photo in the Viewer first worked, because then the grid's focus moved and the grid rendered.
+- **The fix:** the grid now focuses the cell at once when it's there, and waits for the next render only when the cell has to be scrolled into existence first.
+- **The test the design session asked for:** Enter, Esc, then → selects the next photo; and the same after moving on in the Viewer and leaving with its Back button. It's the first App test that draws grid cells: jsdom lays nothing out, so the test gives elements a size. Without the fix, it fails with the focus on the page.

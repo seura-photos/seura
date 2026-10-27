@@ -48,8 +48,20 @@ vi.stubGlobal(
   },
 );
 
+// The grid's thumbnails and the Viewer's preview, which need the web view.
+vi.mock("@tauri-apps/api/core", () => ({
+  convertFileSrc: (path: string) => `seura://localhost/${path}`,
+}));
+vi.mock("./preview", () => ({
+  createPreview: vi.fn(() => Promise.resolve(null)),
+  fetchLinear: vi.fn(() => new Promise(() => {})),
+}));
+
 vi.mock("./bindings", () => ({
   commands: {
+    viewPhoto: vi.fn(),
+    viewRegion: vi.fn(),
+    closeViewer: vi.fn(() => Promise.resolve(null)),
     appVersion: vi.fn(() => Promise.resolve("1.2.3")),
     region: vi.fn(() => Promise.resolve("en-US")),
     welcome: vi.fn(() =>
@@ -708,6 +720,75 @@ describe("App", () => {
     fireEvent.click(within(none).getByRole("button", { name: "OK" }));
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(vi.mocked(commands.deletePhotos)).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives the grid the focus back on leaving the Viewer (ACC-1, BRW-5)", async () => {
+    // The grid draws cells only with a size, which jsdom doesn't lay out.
+    const sizes = ["clientWidth", "clientHeight", "offsetWidth", "offsetHeight"] as const;
+    const own = sizes.map((size) => Object.getOwnPropertyDescriptor(HTMLElement.prototype, size));
+    for (const size of sizes) {
+      Object.defineProperty(HTMLElement.prototype, size, { configurable: true, get: () => 800 });
+    }
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        callback: (entries: unknown[]) => void;
+        constructor(callback: (entries: unknown[]) => void) {
+          this.callback = callback;
+        }
+        observe(target: Element) {
+          const box = { inlineSize: 800, blockSize: 800 };
+          this.callback([
+            { target, borderBoxSize: [box], contentRect: { width: 800, height: 800 } },
+          ]);
+        }
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    try {
+      mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+      mocks.photos = [1, 2, 3].map((id) => photo(id));
+      render(<App />);
+      fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+      const first = await screen.findByRole("gridcell", { name: /IMG_1/ });
+      fireEvent.click(first);
+      first.focus();
+
+      // Esc, on the photo that had the focus.
+      fireEvent.keyDown(first, { key: "Enter" });
+      fireEvent.keyDown(await screen.findByRole("dialog"), { key: "Escape" });
+      await waitFor(() => expect(document.activeElement).toBe(cell(1)));
+      fireEvent.keyDown(cell(1), { key: "ArrowRight" });
+      expect([...useStore.getState().selection.ids]).toEqual([2]);
+      expect(document.activeElement).toBe(cell(2));
+
+      // The Back button, after moving on in the Viewer.
+      fireEvent.keyDown(cell(2), { key: "Enter" });
+      fireEvent.keyDown(await screen.findByRole("dialog"), { key: "ArrowRight" });
+      fireEvent.click(screen.getByRole("button", { name: /Back/ }));
+      await waitFor(() => expect(document.activeElement).toBe(cell(3)));
+      fireEvent.keyDown(cell(3), { key: "ArrowLeft" });
+      expect([...useStore.getState().selection.ids]).toEqual([2]);
+    } finally {
+      sizes.forEach((size, at) => {
+        const descriptor = own[at];
+        if (descriptor) Object.defineProperty(HTMLElement.prototype, size, descriptor);
+        else Reflect.deleteProperty(HTMLElement.prototype, size);
+      });
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        },
+      );
+    }
+
+    function cell(id: number) {
+      return screen.getByRole("gridcell", { name: new RegExp(`IMG_${id}`) });
+    }
   });
 
   it("shows a disconnected drive's folder as not connected (LIB-6)", async () => {

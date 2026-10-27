@@ -97,13 +97,16 @@ export function Grid({
   // Keyboard focus lands on the cell once it's rendered (it may have been
   // scrolled into existence).
   useLayoutEffect(() => {
-    if (!pendingFocus.current) return;
-    const cell = scroller.current?.querySelector<HTMLElement>(`[data-index="${focusIndex}"]`);
+    if (pendingFocus.current) focusCell(focusIndex);
+  });
+
+  function focusCell(index: number) {
+    const cell = scroller.current?.querySelector<HTMLElement>(`[data-index="${index}"]`);
     if (cell) {
       cell.focus();
       pendingFocus.current = false;
     }
-  });
+  }
 
   const current = Math.min(focusIndex, Math.max(0, photos.length - 1));
 
@@ -121,6 +124,10 @@ export function Grid({
     setFocusIndex(index);
     pendingFocus.current = true;
     virtualizer.scrollToIndex(Math.floor(index / columns));
+    // Focused now if the cell is there: back from the Viewer on the photo
+    // that had the focus, nothing changes, so nothing renders again to
+    // focus it, and the focus was on the Viewer, which is gone.
+    focusCell(index);
   }
 
   function onKeyDown(event: KeyboardEvent) {
