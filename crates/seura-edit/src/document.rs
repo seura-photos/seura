@@ -319,6 +319,26 @@ impl EditDocument {
         Ok(added)
     }
 
+    /// Names the photo the file belongs to, after the photo was renamed and
+    /// matched back up by its fingerprint (edit format: "Reattaching";
+    /// FIL-6). Not a user action, so not recorded in the history. Returns
+    /// whether the name changed.
+    pub fn rename_photo(&mut self, file: &str) -> Result<bool, EditError> {
+        let before = self.root.clone();
+        let Some(photo) = self.root.get_mut("photo").and_then(Value::as_object_mut) else {
+            return Ok(false);
+        };
+        if photo.get("file").and_then(Value::as_str) == Some(file) {
+            return Ok(false);
+        }
+        photo.insert("file".into(), json!(file));
+        if let Err(error) = self.check() {
+            self.root = before;
+            return Err(error);
+        }
+        Ok(true)
+    }
+
     /// The number of history records in the file, undone or not.
     pub fn history_len(&self) -> usize {
         self.history().map_or(0, Vec::len)

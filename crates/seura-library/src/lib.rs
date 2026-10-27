@@ -3,8 +3,8 @@
 //! decisions 0010 and 0015).
 //!
 //! Also the one path that writes edit files from the Library (M3), starting
-//! over from unreadable ones (FIL-4), and the Trash. Renamed photos (FIL-6)
-//! come later.
+//! over from unreadable ones (FIL-4), matching renamed photos back to their
+//! edit files (FIL-6), and the Trash.
 
 mod changes;
 mod fingerprint;
@@ -12,6 +12,7 @@ mod formats;
 mod index;
 mod notices;
 mod platform;
+mod renames;
 mod scan;
 mod settings;
 mod snapshot;

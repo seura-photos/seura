@@ -417,3 +417,82 @@ fn fil_4_start_over_leaves_a_read_only_folder_alone() {
     assert_eq!(fs::read(edit_file_path(snow)).unwrap(), b"{ not json");
     assert!(!kept_in.exists());
 }
+
+/// A photo renamed outside Seura (FIL-6): its edit file is renamed to match,
+/// and nothing else is touched, photos least of all (rules 1 and 2).
+#[test]
+fn fil_6_a_renamed_photo_gets_its_edit_file_back() {
+    let library = Library::new();
+    let (index, ids) = scanned(&library);
+    let trash = Trash::new();
+    change(&index, &ids[..1], Change::Rating(4), &trash);
+    change(&index, &ids[..1], Change::AddTag("beach".into()), &trash);
+    let photo = &library.photos()[0];
+    let renamed = photo.with_file_name("Beach day.jpg");
+    let bytes = fs::read(photo).unwrap();
+    // The user renames it in Explorer or Finder.
+    fs::rename(photo, &renamed).unwrap();
+    let before = Snapshot::of(library.root());
+
+    let root = index.read().unwrap().roots()[0].clone();
+    let report = Index::scan_shared(&index, &root, &root);
+    assert_eq!(report.orphan_edit_files.len(), 1, "{report:?}");
+    let reattached = Index::reattach_renamed(&index, &report.orphan_edit_files, WRITER, now());
+
+    assert_eq!(reattached.len(), 1);
+    assert!(!edit_file_path(photo).exists());
+    let document = saved(&renamed);
+    assert_eq!(document.rating(), 4);
+    assert_eq!(document.tags(), ["beach"]);
+    assert_eq!(document.photo().unwrap().file, "Beach day.jpg");
+    assert_eq!(fs::read(&renamed).unwrap(), bytes);
+    let after = Snapshot::of(library.root());
+    let moved = library.relative(&edit_file_path(&renamed));
+    assert_eq!(after.added_since(&before), [moved]);
+    assert_eq!(
+        after.removed_since(&before),
+        [library.relative(&edit_file_path(photo))]
+    );
+    assert!(after.changed_since(&before).is_empty());
+    let index = index.read().unwrap();
+    let photo = index.photo(reattached[0]).unwrap();
+    assert_eq!((&*photo.name, photo.rating), ("Beach day.jpg", 4));
+}
+
+/// Two photos with the edit file's fingerprint: neither is chosen, and an
+/// edit file is never put over another.
+#[test]
+fn fil_6_an_unsure_match_is_left_alone() {
+    let library = Library::new();
+    let (index, ids) = scanned(&library);
+    let trash = Trash::new();
+    change(&index, &ids[..1], Change::Rating(4), &trash);
+    let photo = &library.photos()[0];
+    let renamed = photo.with_file_name("Beach day.jpg");
+    fs::rename(photo, &renamed).unwrap();
+    fs::copy(&renamed, photo.with_file_name("Beach day copy.jpg")).unwrap();
+    let before = Snapshot::of(library.root());
+
+    let root = index.read().unwrap().roots()[0].clone();
+    let report = Index::scan_shared(&index, &root, &root);
+    let reattached = Index::reattach_renamed(&index, &report.orphan_edit_files, WRITER, now());
+
+    assert!(reattached.is_empty());
+    let after = Snapshot::of(library.root());
+    assert!(after.added_since(&before).is_empty());
+    assert!(after.removed_since(&before).is_empty());
+    assert!(after.changed_since(&before).is_empty());
+
+    // With the copy gone but an edit file already beside the photo, the
+    // old one still isn't moved over it.
+    fs::remove_file(photo.with_file_name("Beach day copy.jpg")).unwrap();
+    fs::write(edit_file_path(&renamed), b"{ someone else's").unwrap();
+    let report = Index::scan_shared(&index, &root, &root);
+    let reattached = Index::reattach_renamed(&index, &report.orphan_edit_files, WRITER, now());
+    assert!(reattached.is_empty());
+    assert_eq!(
+        fs::read(edit_file_path(&renamed)).unwrap(),
+        b"{ someone else's"
+    );
+    assert!(edit_file_path(photo).exists());
+}
