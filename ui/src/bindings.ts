@@ -78,7 +78,10 @@ export const commands = {
 	/**
 	 *  Photos anywhere in the library whose file name or a tag contains the
 	 *  text, ignoring case and Unicode form (FND-2, TAG-2), in the app's order.
-	 *  Their thumbnails are queued behind the visible ones.
+	 *  Unlike a folder or tag, it doesn't queue their thumbnails: each letter
+	 *  typed would queue every result again, flooding the UI with thumbnails
+	 *  already made (M3 slice 11). Every scan queues the whole library, and the
+	 *  grid asks for the ones on screen.
 	 */
 	searchPhotos: (text: string, filter: PhotoFilter) => __TAURI_INVOKE<PhotoInfo[]>("search_photos", { text, filter }),
 	/**

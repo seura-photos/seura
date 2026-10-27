@@ -10,7 +10,8 @@ measure itself and quit:
    first scan and its thumbnails (PRF-3);
 2. the same again, with the cache built: launch to a usable grid (PRF-1),
    opening the folder (PRF-2), scrolling (PRF-4), next photo (PRF-5);
-3. 50,000 small photos in 50 folders: memory (PRF-7), after the first scan.
+3. 50,000 small photos in 50 folders: memory (PRF-7), after the first scan,
+   and searching as you type (FND-3).
 
 Build first, from ui/:
     Windows: npm run tauri -- build --no-bundle
@@ -20,7 +21,7 @@ Then, from the repository root:
 
 The libraries take about 5 GB in the work folder (by default
 `target/measure`), are made once, and are reused by later runs; delete the
-folder to free the space. --small uses 1,000 photos of 3 megapixels and 5,000
+folder to free the space. --small uses 1,000 photos of 3 megapixels and 10,000
 small ones instead, for a quick check. Prints the results as a Markdown
 table and saves them, with every number, as results.json in the work folder.
 """
@@ -119,6 +120,8 @@ def table(results: dict) -> str:
          "under 1 GB (aim 500 MB)",
          f"{mb(large['memory']['coreBytes'])} (peak {mb(large['memory']['corePeakBytes'])}), "
          "core process only"),
+        ("FND-3", f"Search as you type, {large['search']['photos']:,} photos",
+         "within 200 ms at 10,000 photos", f"slowest letter {large['search']['slowestMs']:.0f} ms"),
     ]
     lines = ["| Target | Measure | Goal | Result |", "| --- | --- | --- | --- |"]
     lines += [f"| {a} | {b} | {c} | {d} |" for a, b, c, d in rows]
@@ -132,12 +135,18 @@ def main():
     args = parser.parse_args()
     if not APP.exists():
         sys.exit(f"No release build at {APP}; see the instructions at the top of this script.")
+    if platform.system() == "Darwin":
+        # Keeps the display awake until this script ends: WebKit stops
+        # drawing frames while it sleeps, which stalled a long run (M3).
+        subprocess.Popen(["caffeinate", "-d", "-w", str(os.getpid())])
 
     folder_photos, folder_size = (1_000, (2016, 1512)) if args.small else (1_000, (4032, 3024))
-    large_photos = 5_000 if args.small else 50_000
+    # At least FND-3's 10,000, for the search.
+    large_photos = 10_000 if args.small else 50_000
     tag = "small" if args.small else "full"
     folder_library = args.work / f"folder-{tag}"
-    large_library = args.work / f"large-{tag}"
+    # Named by size, so a change of size makes a new one.
+    large_library = args.work / f"large-{large_photos}"
     make_library(folder_library, folder_photos, *folder_size, None)
     make_library(large_library, large_photos, 320, 240, 1_000)
 

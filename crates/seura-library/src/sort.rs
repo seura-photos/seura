@@ -15,7 +15,6 @@ impl Index {
             let (Some(a), Some(b)) = (self.photo(*a), self.photo(*b)) else {
                 return Ordering::Equal;
             };
-            let by_name = natural(&a.name, &b.name);
             let order = match sort.by {
                 SortBy::DateTaken => a
                     .taken
@@ -26,7 +25,8 @@ impl Index {
                 }
                 SortBy::FileName => Ordering::Equal,
             }
-            .then(by_name);
+            // Only for ties: comparing names is the slow part (M3 slice 11).
+            .then_with(|| natural(&a.name, &b.name));
             if sort.ascending {
                 order
             } else {
@@ -40,13 +40,11 @@ impl Index {
 /// Names as people read them: letters without regard to case, and runs of
 /// digits as numbers, so `IMG_9` comes before `IMG_10`, as in Explorer and
 /// Finder.
-pub fn natural(a: &str, b: &str) -> Ordering {
-    let mut a = a.chars().peekable();
-    let mut b = b.chars().peekable();
+pub fn natural(mut a: &str, mut b: &str) -> Ordering {
     // Letter case only decides between names that are otherwise the same.
     let mut by_case = Ordering::Equal;
     loop {
-        match (a.peek().copied(), b.peek().copied()) {
+        match (a.chars().next(), b.chars().next()) {
             (None, None) => return by_case,
             (None, Some(_)) => return Ordering::Less,
             (Some(_), None) => return Ordering::Greater,
@@ -70,20 +68,20 @@ pub fn natural(a: &str, b: &str) -> Ordering {
                 if by_case == Ordering::Equal {
                     by_case = x.cmp(&y);
                 }
-                a.next();
-                b.next();
+                a = &a[x.len_utf8()..];
+                b = &b[y.len_utf8()..];
             }
         }
     }
 }
 
-/// The run of digits at the start of `chars`, taken from it.
-fn digits(chars: &mut std::iter::Peekable<std::str::Chars>) -> String {
-    let mut run = String::new();
-    while let Some(c) = chars.peek().copied().filter(char::is_ascii_digit) {
-        run.push(c);
-        chars.next();
-    }
+/// The run of digits at the start of `text`, taken from it.
+fn digits<'a>(text: &mut &'a str) -> &'a str {
+    let end = text
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(text.len());
+    let (run, rest) = text.split_at(end);
+    *text = rest;
     run
 }
 

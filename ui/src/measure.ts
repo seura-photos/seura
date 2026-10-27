@@ -1,5 +1,5 @@
 import { commands } from "./bindings";
-import { useStore } from "./store";
+import { noFilter, useStore } from "./store";
 
 /**
  * The measurement script (M2 slice 10), run on itself by a release build
@@ -13,6 +13,7 @@ import { useStore } from "./store";
  * - PRF-2: opening the largest folder until its visible thumbnails are in;
  * - PRF-4: scrolling the grid for a few seconds, frame by frame;
  * - PRF-5: moving to the next photo in the Viewer, until it's drawn;
+ * - FND-3: typing a search a letter at a time, until each result is drawn;
  * - PRF-7: memory (added by the core).
  */
 export async function measure(): Promise<void> {
@@ -30,6 +31,7 @@ export async function measure(): Promise<void> {
     report.openFolder = await openLargestFolder();
     report.scroll = await scroll(5_000);
     report.nextPhoto = await nextPhotos(20);
+    report.search = await searchAsTyped("img_01234");
   } catch (error) {
     report.error = String(error);
   }
@@ -156,6 +158,47 @@ async function nextPhotos(count: number) {
     medianMs: round(percentile(sorted, 0.5)),
     p95Ms: round(percentile(sorted, 0.95)),
     slowestMs: round(sorted[sorted.length - 1] ?? 0),
+  };
+}
+
+/** Types `text` into the search box a letter at a time, a little slower
+ * than a quick typist, timing each letter until its results are drawn
+ * (FND-3: within 200 ms for 10,000 photos). The test library's photos are
+ * named `IMG_00000.JPG` on, so the first letter matches them all. */
+async function searchAsTyped(text: string) {
+  const box = document.querySelector<HTMLInputElement>('input[type="search"]');
+  if (!box) throw new Error("no search box");
+  // As typing does, through the box's own input event, so React sees it.
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+  const letters: { text: string; photos: number; ms: number; commandMs: number }[] = [];
+  for (let end = 1; end <= text.length; end++) {
+    await sleep(150);
+    const typed = text.slice(0, end);
+    const before = useStore.getState().photos;
+    const started = performance.now();
+    setValue?.call(box, typed);
+    box.dispatchEvent(new Event("input", { bubbles: true }));
+    await waitFor(() => {
+      const { search, photos } = useStore.getState();
+      return search === typed && photos !== before;
+    }, 30_000);
+    await nextFrame();
+    const ms = round(performance.now() - started);
+    // The core's part alone: the search and its results reaching the UI.
+    const asked = performance.now();
+    await commands.searchPhotos(typed, noFilter);
+    letters.push({
+      text: typed,
+      photos: useStore.getState().photos.length,
+      ms,
+      commandMs: round(performance.now() - asked),
+    });
+  }
+  await useStore.getState().endSearch();
+  return {
+    photos: letters[0]?.photos ?? 0,
+    letters,
+    slowestMs: Math.max(...letters.map((letter) => letter.ms)),
   };
 }
 

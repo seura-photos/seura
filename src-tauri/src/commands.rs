@@ -350,7 +350,10 @@ pub fn tag_photos(
 
 /// Photos anywhere in the library whose file name or a tag contains the
 /// text, ignoring case and Unicode form (FND-2, TAG-2), in the app's order.
-/// Their thumbnails are queued behind the visible ones.
+/// Unlike a folder or tag, it doesn't queue their thumbnails: each letter
+/// typed would queue every result again, flooding the UI with thumbnails
+/// already made (M3 slice 11). Every scan queues the whole library, and the
+/// grid asks for the ones on screen.
 #[tauri::command(async)]
 #[specta::specta]
 pub fn search_photos(
@@ -365,14 +368,7 @@ pub fn search_photos(
         return Vec::new();
     };
     let ids = index.sorted(index.search(&text, &filter), sort);
-    let jobs = ids
-        .iter()
-        .filter_map(|id| index.thumbnail_job(*id))
-        .collect();
-    let photos = photo_infos(&index, ids);
-    drop(index);
-    library.queue_photos(jobs);
-    photos
+    photo_infos(&index, ids)
 }
 
 /// Photos as the grid needs them.
