@@ -6,6 +6,9 @@ import { Viewer } from "./Viewer";
 
 const mocks = vi.hoisted(() => ({
   viewed: { kind: "shown" } as Record<string, unknown>,
+  photoNotices: vi.fn(() =>
+    Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
+  ),
   viewPhoto: vi.fn(),
   viewRegion: vi.fn(),
   closeViewer: vi.fn(() => Promise.resolve(null)),
@@ -29,6 +32,7 @@ vi.mock("./bindings", () => ({
     changePhotos: mocks.changePhotos,
     selectionSummary: vi.fn(() => Promise.resolve({ count: 1, readOnly: 0 })),
     photoDetails: vi.fn(() => Promise.resolve({ status: "error", error: "not in the test" })),
+    photoNotices: mocks.photoNotices,
   },
 }));
 
@@ -227,10 +231,31 @@ describe("Viewer (BRW-5)", () => {
       await screen.findByText(
         "This folder is read-only, so tags and ratings can't be saved here.",
         {
-          selector: ".notice",
+          selector: ".message",
         },
       ),
     ).toBeTruthy();
+  });
+
+  it("shows problems with the photo's files in the notice bar, above the photo (INT-6)", async () => {
+    mocks.photoNotices.mockImplementation((id: number) =>
+      Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: id === 2 } }),
+    );
+    show(2);
+    const bar = await screen.findByText(
+      "This photo was changed by another program; edits may not line up.",
+    );
+    // At the top of the photo area, before the stage, which fits below it.
+    const main = bar.closest(".viewer-main");
+    expect(main?.firstElementChild?.classList.contains("notice-bar")).toBe(true);
+    // Only a problem to act on takes the danger colour.
+    expect(bar.closest(".notice-bar")?.classList.contains("warning")).toBe(false);
+    // It's about the photo shown: the next one has none.
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    await waitFor(() => expect(screen.queryByText(/changed by another program/)).toBeNull());
+    mocks.photoNotices.mockImplementation(() =>
+      Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
+    );
   });
 
   it("opens the tag picker for the photo shown with T (TAG-3)", async () => {

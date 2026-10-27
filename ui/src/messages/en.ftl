@@ -331,31 +331,35 @@ delete-title =
                *[other] Move { $count } photos to the Recycle Bin?
             }
     }
+# $edited is "yes" when any of the photos has an edit file, which goes too,
+# as a separate file to restore (design answers, 2026-10-27).
 delete-body =
-    { $count ->
-        [one]
-            { $system ->
-                [mac] Its edits, tags, and rating go with it. You can put it back from the Trash.
-               *[other] Its edits, tags, and rating go with it. You can restore it from the Recycle Bin.
+    { $edited ->
+        [yes]
+            { $count ->
+                [one]
+                    { $system ->
+                        [mac] Its edits, tags, and rating are in a small file beside it, which goes too. To get everything back, put both back from the Trash.
+                       *[other] Its edits, tags, and rating are in a small file beside it, which goes too. To get everything back, restore both from the Recycle Bin.
+                    }
+               *[other]
+                    { $system ->
+                        [mac] Their edits, tags, and ratings are in small files beside them, which go too. To get everything back, put the photos and their files back from the Trash.
+                       *[other] Their edits, tags, and ratings are in small files beside them, which go too. To get everything back, restore the photos and their files from the Recycle Bin.
+                    }
             }
-       *[other]
-            { $system ->
-                [mac] Their edits, tags, and ratings go with them. You can put them back from the Trash.
-               *[other] Their edits, tags, and ratings go with them. You can restore them from the Recycle Bin.
-            }
-    }
-# Shown when any of the photos has an edit file, which goes too, as a separate file; $count is the photos.
-delete-restore-both =
-    { $count ->
-        [one]
-            { $system ->
-                [mac] Its edits are in a file of their own beside it. To get them back, put back both the photo and that file.
-               *[other] Its edits are in a file of their own beside it. To get them back, restore both the photo and that file.
-            }
-       *[other]
-            { $system ->
-                [mac] Edits are kept in files of their own beside the photos. To get them back, put back both each photo and its file.
-               *[other] Edits are kept in files of their own beside the photos. To get them back, restore both each photo and its file.
+       *[no]
+            { $count ->
+                [one]
+                    { $system ->
+                        [mac] You can put it back from the Trash.
+                       *[other] You can restore it from the Recycle Bin.
+                    }
+               *[other]
+                    { $system ->
+                        [mac] You can put them back from the Trash.
+                       *[other] You can restore them from the Recycle Bin.
+                    }
             }
     }
 # Every photo being deleted is in a folder $service syncs, such as OneDrive.

@@ -486,7 +486,8 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   view(id) {
-    set({ viewing: id });
+    // What Start over kept was about the photo before.
+    set({ viewing: id, kept: null });
   },
 
   closeViewer() {

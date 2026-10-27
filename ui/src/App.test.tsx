@@ -431,7 +431,7 @@ describe("App", () => {
       await screen.findByText(
         "This folder is read-only, so tags and ratings can't be saved here.",
         {
-          selector: ".notice",
+          selector: ".message",
         },
       ),
     ).toBeTruthy();
@@ -667,7 +667,7 @@ describe("App", () => {
       name: "Move 2 photos to the Recycle Bin?",
     });
     expect(dialog.textContent).toContain("These photos are in OneDrive.");
-    expect(dialog.textContent).toContain("restore both each photo and its file");
+    expect(dialog.textContent).toContain("restore the photos and their files from the Recycle Bin");
     expect(dialog.textContent).toContain("1 photo is only in the cloud");
     // Cancel has the focus, and does nothing.
     expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Cancel" }));
@@ -734,18 +734,20 @@ describe("App", () => {
         payload: { scanning: "Pictures", done: 0, total: 0 },
       }),
     );
-    expect(screen.getByRole("status").textContent).toBe("Looking for photos in Pictures…");
+    // The status bar's own status, not the photo area's message.
+    const scan = () => document.querySelector(".status-bar [role=status]");
+    expect(scan()?.textContent).toBe("Looking for photos in Pictures…");
     act(() =>
       mocks.handlers.get("scanProgress")?.({
         payload: { scanning: null, done: 1240, total: 3862 },
       }),
     );
-    expect(screen.getByRole("status").textContent).toBe("Making thumbnails · 1,240 of 3,862");
+    expect(scan()?.textContent).toBe("Making thumbnails · 1,240 of 3,862");
     expect(screen.getByRole("progressbar").getAttribute("value")).toBe("1240");
     act(() =>
       mocks.handlers.get("scanProgress")?.({ payload: { scanning: null, done: 0, total: 0 } }),
     );
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(scan()).toBeNull();
   });
 
   it("says when a developer switch is on", async () => {
