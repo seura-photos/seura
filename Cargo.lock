@@ -4077,6 +4077,7 @@ dependencies = [
  "thiserror 2.0.21",
  "time",
  "trash",
+ "windows",
 ]
 
 [[package]]

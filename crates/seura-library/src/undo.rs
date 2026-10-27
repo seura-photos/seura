@@ -247,11 +247,14 @@ mod tests {
     }
 
     /// A stand-in Trash that only remembers what it was given, and deletes
-    /// it, as moving it away would.
-    struct Trash(RefCell<Vec<PathBuf>>);
+    /// it, as moving it away would. Or none, as on a USB stick, refusing.
+    struct Trash(RefCell<Vec<PathBuf>>, std::cell::Cell<bool>);
 
     impl Trash {
         fn take(&self, path: &Path) -> io::Result<()> {
+            if self.1.get() {
+                return Err(seura_edit::NoTrash::error(path));
+            }
             self.0.borrow_mut().push(path.to_path_buf());
             fs::remove_file(path)
         }
@@ -273,7 +276,7 @@ mod tests {
                 index,
                 ids,
                 history: History::default(),
-                trash: Trash(RefCell::new(Vec::new())),
+                trash: Trash(RefCell::new(Vec::new()), std::cell::Cell::new(false)),
             }
         }
 
@@ -403,6 +406,24 @@ mod tests {
         assert_eq!(session.rating(0), 0);
         session.redo().unwrap();
         assert_eq!(session.file_rating(0), Some(3));
+    }
+
+    #[test]
+    fn with_no_trash_an_emptied_file_is_deleted_and_undo_still_brings_it_back() {
+        let mut session = Session::new(1);
+        session.trash.1.set(true);
+        session.change(&[0], Change::Rating(3));
+        session.change(&[0], Change::Rating(0));
+        assert!(!session.edit_file(0).exists(), "emptied, so deleted");
+        assert!(session.trash.0.borrow().is_empty());
+
+        // Undo writes a new file with the rating that was cleared (BRW-11).
+        session.undo().unwrap();
+        assert_eq!(session.file_rating(0), Some(3));
+        assert_eq!(session.rating(0), 3);
+        session.redo().unwrap();
+        assert!(!session.edit_file(0).exists());
+        assert_eq!(session.rating(0), 0);
     }
 
     #[test]

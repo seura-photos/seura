@@ -17,9 +17,13 @@
 //!   its one write path, plus rule 5, the Trash, for edit files left with
 //!   nothing in them (FIL-1), and read-only folders (TAG-7).
 //!
+//! - Rule 5: only the files decision 0017 allows are ever deleted directly
+//!   (`direct_deletion`).
+//!
 //! Suites for later write paths join this one as they're built.
 
 mod changes;
+mod direct_deletion;
 mod library;
 
 use std::fs;

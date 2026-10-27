@@ -1237,23 +1237,33 @@ button {
 
 .star-button:disabled {
   cursor: default;
-  opacity: 0.5;
 }
 
 .info-stars .meta {
   margin-left: 0.5rem;
 }
 
+/* Empty stars are outlines and filled ones solid, so they differ by shape
+   as well as colour; in a read-only folder both are in ratingDisabled
+   (TAG-7). */
 .info-stars .star {
   width: 1.25rem;
   height: 1.25rem;
   color: var(--color-rating-off);
-  fill: var(--color-rating-off);
+  fill: none;
 }
 
 .info-stars .star.on {
   color: var(--color-rating);
   fill: var(--color-rating);
+}
+
+.star-button:disabled .star {
+  color: var(--color-rating-disabled);
+}
+
+.star-button:disabled .star.on {
+  fill: var(--color-rating-disabled);
 }
 
 .info-tags {

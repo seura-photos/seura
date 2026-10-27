@@ -12,7 +12,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
-use seura_edit::{EditDocument, edit_file_path};
+use seura_edit::{EditDocument, NoTrash, edit_file_path};
 use time::OffsetDateTime;
 
 use crate::changes::{Problem, io_problem};
@@ -141,8 +141,11 @@ fn free_name(folder: &Path, name: &str, at: OffsetDateTime) -> PathBuf {
 }
 
 /// Where a move isn't possible: the bytes as read go to a new file, and
-/// once it's on disk the original goes to the Trash. If that fails, the
-/// copy Seura just made is deleted, and the original stays where it was.
+/// once it's on disk the original goes to the Trash. Where there is no
+/// Trash, the original is deleted directly, but only once the copy has been
+/// read back and matches it byte for byte (decision 0017). If any of that
+/// fails, the copy Seura just made is deleted, and the original stays where
+/// it was.
 fn copy_then_trash(
     from: &Path,
     bytes: &[u8],
@@ -164,7 +167,19 @@ fn copy_then_trash(
     // Only the file that was read: one changed since stays where it is.
     let unchanged = fs::read(from).is_ok_and(|current| current == bytes);
     let trashed = if unchanged {
-        trash(from)
+        match trash(from) {
+            Err(refused) if NoTrash::is(&refused) => {
+                if fs::read(to).is_ok_and(|copy| copy == bytes) {
+                    // One of the three files Seura deletes directly
+                    // (CLAUDE.md rule 5; decision 0017): an unreadable edit
+                    // file, once an identical copy is in Seura's folder.
+                    fs::remove_file(from)
+                } else {
+                    Err(refused)
+                }
+            }
+            result => result,
+        }
     } else {
         Err(io::Error::other(
             "the edit file changed while it was being kept",
@@ -349,6 +364,52 @@ mod tests {
             &library.kept_in(),
             at(),
             &refuse,
+            across,
+        );
+        assert!(matches!(result, Err(Problem::Failed(_))), "{result:?}");
+        assert_eq!(fs::read(library.edit_file()).unwrap(), b"{ not json");
+        assert_eq!(fs::read_dir(library.kept_in()).unwrap().count(), 0);
+        assert_eq!(library.state(), EditFileState::Unreadable);
+    }
+
+    #[test]
+    fn with_no_trash_the_original_goes_only_once_its_copy_matches() {
+        let library = library();
+        let across: Rename = |_, _| Err(io::ErrorKind::CrossesDevices.into());
+        let no_trash = |path: &Path| Err(NoTrash::error(path));
+        let result = Index::start_over_with(
+            &library.index,
+            library.id,
+            &library.kept_in(),
+            at(),
+            &no_trash,
+            across,
+        );
+        let kept = library
+            .kept_in()
+            .join("2026-10-26 143012 IMG_1234.jpg.seura.json");
+        assert_eq!(result, Ok(StartedOver::Kept(kept.clone())));
+        assert_eq!(fs::read(&kept).unwrap(), b"{ not json");
+        assert!(!library.edit_file().exists());
+    }
+
+    #[test]
+    fn with_no_trash_a_copy_that_differs_stops_start_over() {
+        let library = library();
+        let across: Rename = |_, _| Err(io::ErrorKind::CrossesDevices.into());
+        // The copy turns out different when read back.
+        let spoiled = |path: &Path| {
+            for entry in fs::read_dir(library.kept_in()).unwrap() {
+                fs::write(entry.unwrap().path(), b"{ not jsoN").unwrap();
+            }
+            Err(NoTrash::error(path))
+        };
+        let result = Index::start_over_with(
+            &library.index,
+            library.id,
+            &library.kept_in(),
+            at(),
+            &spoiled,
             across,
         );
         assert!(matches!(result, Err(Problem::Failed(_))), "{result:?}");

@@ -82,7 +82,7 @@ rfd = "0.17.2"
 # (decision 0009).
 tauri-plugin-opener = { version = "=2.7.0", default-features = false }
 # Windows only: WIC, for HEIC with Microsoft's extensions (decision 0014),
-# and the system thumbnails of cloud-only photos.
+# the system thumbnails of cloud-only photos, and drive types (BRW-9).
 windows = "0.62.2"
 # macOS only: the process's peak memory, for measuring PRF-7, and whether a
 # folder is read-only (TAG-7).

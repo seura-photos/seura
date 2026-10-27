@@ -281,6 +281,7 @@ export type DeleteResult = {
 	deleted: number,
 	readOnly: number,
 	cloudOnly: number,
+	noTrash: number,
 	/**  The system didn't move them, such as files in use. */
 	failed: number,
 };
@@ -308,6 +309,11 @@ export type Deleting = {
 	 *  Bin or Trash (journal, `2026-10-26-trash-measurements.md`).
 	 */
 	cloudOnly: number,
+	/**
+	 *  Left as they are: on a drive with no Recycle Bin, such as a USB stick
+	 *  or a network share.
+	 */
+	noTrash: number,
 };
 
 /**  Developer switches, from environment variables. */

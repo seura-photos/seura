@@ -13,7 +13,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use seura_library::{is_placeholder, move_to_trash};
+use seura_library::{has_trash, is_placeholder, move_to_trash};
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -28,9 +28,10 @@ fn main() {
         "on disk"
     };
     println!(
-        "{}: {} bytes, {where_it_is}",
+        "{}: {} bytes, {where_it_is}, on a drive {} a Recycle Bin or Trash",
         file.display(),
-        metadata.len()
+        metadata.len(),
+        if has_trash(&file) { "with" } else { "without" }
     );
     if !confirmed {
         println!("Nothing was changed. Add --yes to move it to the Recycle Bin or Trash.");

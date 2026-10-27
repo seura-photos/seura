@@ -3,18 +3,19 @@
 //! Trash, never deleted for good. Not in read-only folders (TAG-7), and not
 //! cloud-only photos, which the system can't put there: on Windows they go
 //! only to the service's own deleted items, and on the Mac it refuses
-//! (journal, `2026-10-26-trash-measurements.md`). Whether to delete those
-//! anyway is for a design session.
+//! (journal, `2026-10-26-trash-measurements.md`). Nor on drives with no
+//! Recycle Bin, where Windows would delete them for good (#115).
 
+use std::collections::HashMap;
 use std::fs;
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
 use seura_edit::edit_file_path;
 
 use crate::index::{Index, PhotoId};
-use crate::platform::is_placeholder;
+use crate::platform::{has_trash, is_placeholder};
 
 /// Why a photo wasn't deleted. It's where it was.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -23,6 +24,8 @@ pub enum DeleteProblem {
     ReadOnly,
     /// It's only in the cloud, so it can't go to the Recycle Bin or Trash.
     CloudOnly,
+    /// Its drive has no Recycle Bin, such as a USB stick or a network share.
+    NoTrash,
     /// It's no longer in the library.
     Gone,
     /// The system didn't move it, such as a file in use.
@@ -48,8 +51,21 @@ impl Index {
         ids: &[PhotoId],
         trash_all: &dyn Fn(&[PathBuf]) -> io::Result<()>,
     ) -> DeleteReport {
+        Self::delete_photos_with(index, ids, &has_trash, trash_all)
+    }
+
+    /// As `delete_photos`, with `has_trash` saying whether a photo's drive
+    /// has a Recycle Bin or Trash, for tests.
+    pub(crate) fn delete_photos_with(
+        index: &RwLock<Index>,
+        ids: &[PhotoId],
+        has_trash: &dyn Fn(&Path) -> bool,
+        trash_all: &dyn Fn(&[PathBuf]) -> io::Result<()>,
+    ) -> DeleteReport {
         let mut report = DeleteReport::default();
         let mut chosen = Vec::new();
+        // Asked once per folder: a selection is often one folder's photos.
+        let mut trash_for: HashMap<PathBuf, bool> = HashMap::new();
         {
             let index = index.read().expect("index lock");
             for &id in ids {
@@ -62,6 +78,14 @@ impl Index {
                     .is_some_and(|folder| folder.read_only)
                 {
                     report.problems.push((id, DeleteProblem::ReadOnly));
+                    continue;
+                }
+                let folder = path.parent().unwrap_or(&path).to_path_buf();
+                if !*trash_for
+                    .entry(folder)
+                    .or_insert_with_key(|folder| has_trash(folder))
+                {
+                    report.problems.push((id, DeleteProblem::NoTrash));
                     continue;
                 }
                 // As it is now, not as last scanned.
@@ -205,6 +229,31 @@ mod tests {
                 .photo(library.ids[2])
                 .is_some()
         );
+    }
+
+    #[test]
+    fn photos_on_a_drive_with_no_recycle_bin_are_left_as_they_are() {
+        let library = library();
+        let never = |_: &[PathBuf]| -> io::Result<()> { panic!("nothing to move") };
+        let asked = RefCell::new(0);
+        let no_trash = |_: &Path| {
+            *asked.borrow_mut() += 1;
+            false
+        };
+        let report = Index::delete_photos_with(&library.index, &library.ids, &no_trash, &never);
+
+        assert!(report.deleted.is_empty());
+        assert_eq!(
+            report.problems,
+            library
+                .ids
+                .iter()
+                .map(|&id| (id, DeleteProblem::NoTrash))
+                .collect::<Vec<_>>()
+        );
+        // Asked once for their folder, not once a photo.
+        assert_eq!(*asked.borrow(), 1);
+        assert_eq!(library.names_left().len(), 4);
     }
 
     #[test]

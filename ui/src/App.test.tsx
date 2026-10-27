@@ -131,12 +131,13 @@ vi.mock("./bindings", () => ({
         service: "OneDrive",
         readOnly: 0,
         cloudOnly: 1,
+        noTrash: 0,
       }),
     ),
     deletePhotos: vi.fn(() =>
       Promise.resolve({
         status: "ok",
-        data: { deleted: 2, readOnly: 0, cloudOnly: 1, failed: 0 },
+        data: { deleted: 2, readOnly: 0, cloudOnly: 1, noTrash: 0, failed: 0 },
       }),
     ),
     photoNotices: vi.fn(() =>
@@ -706,12 +707,16 @@ describe("App", () => {
       service: null,
       readOnly: 0,
       cloudOnly: 1,
+      noTrash: 2,
     });
     fireEvent.keyDown(window, { key: "Delete" });
     const none = await screen.findByRole("alertdialog", {
-      name: "This photo can't be moved to the Recycle Bin",
+      name: "These photos can't be moved to the Recycle Bin",
     });
     expect(none.textContent).toContain("1 photo is only in the cloud");
+    expect(none.textContent).toContain(
+      "2 photos are on a drive with no Recycle Bin, such as a USB stick or a network share. Deleting them there would be permanent, so they're left as they are. You can delete them in File Explorer.",
+    );
     expect(
       within(none)
         .getAllByRole("button")
