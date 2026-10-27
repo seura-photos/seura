@@ -23,3 +23,4 @@ Short records of significant decisions: what was chosen, why, and what was rejec
 | [0013](0013-web-view-and-os-data.md) | Data the web view and operating system keep on their own | Accepted |
 | [0014](0014-heic-system-decoders-only.md) | HEIC decoding: the operating system's decoders only | Accepted |
 | [0015](0015-app-data-in-home-folder.md) | App data in a Seura Photos folder in the home folder | Accepted |
+| [0016](0016-public-early-builds.md) | Early builds are public from 0.2 | Accepted |

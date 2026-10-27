@@ -1,6 +1,6 @@
 # Seura Photos — Wireframes (v1)
 
-Status: approved · Last updated: 2026-10-17
+Status: approved · Last updated: 2026-10-27
 
 The wireframes live on a design canvas in the project owner's Claude account. This document records what they establish, screen by screen, so the decisions are available in the repository. They define layout and flow only; visual styling (color, type, iconography) comes later. Requirement IDs refer to the [functional spec](../functional-spec.md); flows are in [user-flows.md](user-flows.md).
 
@@ -9,7 +9,9 @@ All screens were drawn at 1280×800 logical pixels, close to the 1280×720 minim
 ## Shared structure
 
 - **Toolbar** (52 px) across the top of every view; **status bar** (28 px) at the bottom of the Library and Viewer.
-- **Sidebar** (232 px; 260 px at 1920 wide): FOLDERS tree, then TAGS tree, each row with a count. The FOLDERS heading has an Add folder button (+, 32 px, accent color) at its right and stays in view while the tree scrolls; the last action's one-line notice (for example "Added. Scanning for photos…") shows under it. A link at the end of the tree scrolled out of sight with many folders, and a button pinned to the bottom of the sidebar would end up below TAGS in M3. TAGS can follow the same pattern if tags get an add action (Nevada, 2026-10-22).
+- **Sidebar** (232 px by default; 260 px at 1920 wide): FOLDERS tree, then TAGS tree, each row with a count. The FOLDERS heading has an Add folder button (+, 32 px, accent color) at its right and stays in view while the tree scrolls. A link at the end of the tree scrolled out of sight with many folders, and a button pinned to the bottom of the sidebar would end up below TAGS. TAGS can follow the same pattern if tags get an add action (Nevada, 2026-10-22). A name that doesn't fit ends with "…" and shows in full in a tooltip.
+- **Resizable sidebar** (Nevada, 2026-10-23; #74): drag the divider between the sidebar and the grid, from 180 to 400 px. 180 fits the FOLDERS heading with its + and a couple of levels, even with text 40% longer (ACC-7); 400 still leaves the grid 600 px, three columns at the default thumbnail size, in a 1280-wide window (DSP-2). The width is remembered; until the user drags it, the default follows the window as above. At rest the divider is the existing 1 px border; its grab area is 8 px wide, centered on it. On hover and while dragging, the resize cursor shows and the line becomes 2 px in the accent text color, with the tooltip "Drag to resize. Double-click to reset." Double-click resets the default. From the keyboard it's a focusable separator ("Sidebar width", with its value), in the Tab order between the sidebar and the grid, showing the same 2 px line and the focus ring: ← → move it 16 px, Home and End go to the minimum and maximum, and Enter resets it. The Info panel stays a fixed width.
+- **Selected row** in either tree: the accent-subtle fill, a 3 px bar on its left edge and the text and icon in the accent text color, so the selection shows at well over 3:1 in both modes (the fill alone is about 1.1:1).
 - **Info panel** (280 px; 320 px at 1920 wide), always shown in Library and Viewer: preview, file name, date (date modified when there's no date taken), size, camera, lens, exposure, location, edit state with Revert, rating stars, tag chips with Add tag.
 - Dark surround (#2b2d30 in the wireframes) behind photos in the Viewer, Editor, and Review, so photos aren't judged against a bright frame.
 - Control sizes are fixed across window sizes; only photo areas and panel widths grow.
@@ -23,6 +25,8 @@ A single centered card: title; two sentences (what the app does; originals are n
 - **Toolbar:** app name; search; Review; then, on the right, the selection's quick fixes (rotate left, rotate right, Enhance), Edit (primary), Export.
 - **Review banner** above the grid when new photos are found: "12 new photos in Summer. Sort through them one at a time?" with Review and Not now.
 - **Folder header row:** name, path, count; then Filter, sort, and thumbnail size on the right.
+- **Notice bar** at the top of the photo area, above the heading, for problems with the selected photos' files (flow 11; INT-6).
+- **Message** near the bottom of the photo area, centered, for the last action's result: "Added. Scanning for photos…", "Moved 3 photos to the Recycle Bin.", "Undid rating on 5 photos" (INT-6).
 - **Grid:** square cells, photos letterboxed inside; selected cell outlined in the accent color. Badges: edited (bottom left), rating (bottom right), unreadable edit file (top left, red). Hovering a cell shows rotate left, rotate right, and Enhance (32 px) on the photo (BRW-10, INT-5).
 - At 1920×1080: 7 columns of ~175 px thumbnails instead of 5 of ~140 px; same controls.
 
@@ -39,7 +43,8 @@ A single centered card: title; two sentences (what the app does; originals are n
 - **Toolbar:** back to the folder; file name; "37 of 214"; zoom group (−, Fit, 100%, +); rotate left and right; Enhance; Edit (primary); Export.
 - **Photo** centered on the dark surround, with 48 px previous and next buttons at the edges.
 - **Info panel** as in the Library, plus the folder as a link.
-- **Status bar:** zoom level and the main keys.
+- **Notice bar and message** as in the Library, over the photo area: the notice bar pushes the photo down rather than covering it.
+- **Status bar:** zoom level and the main keys only.
 
 ## 5. Editor (EDT-*, PRE-*)
 
@@ -66,7 +71,7 @@ A single centered card: title; two sentences (what the app does; originals are n
 ## 7. Tag picker (TAG-3)
 
 - A popover anchored beside the selection (or the Add tag control), with a pointer to it (INT-5).
-- Title "Tag 3 photos" and the key hints; chips for tags already added, each with ×; a text field; the list of existing tags with counts, filtered as the user types, first match highlighted; "Create tag "…"" at the top when the text matches nothing.
+- Title "Tag 3 photos" and the key hints; chips for tags already added, each with ×; a text field; the list of existing tags with counts, filtered as the user types, first match highlighted; "Create tag "…"" above them whenever the text isn't already a tag, highlighted only when nothing matches (TAG-3).
 
 ## 8. Export (EXP-*)
 

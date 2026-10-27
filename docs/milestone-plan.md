@@ -11,7 +11,7 @@ There are no dates. This is a one-person project built alongside other commitmen
 - **Risk first, then usefulness.** The first milestone proves the hard technical pieces on both platforms. After that, every milestone leaves the owner with an app he can actually use for more of his own photos than before.
 - **Read before write.** The app only reads until the data-safety tests are in place. Writing edit files comes after browsing works, and deletion comes after writing works.
 - **Process order.** Features arrive roughly in the order of the user's process: find, sort, fix, organize, share. The Review flow comes once the actions it combines exist.
-- **Every milestone ends the same way:** its exit criteria met, CI green on Windows and macOS, a numbered pre-release build for the owner's own use, and a short write-up for the project record.
+- **Every milestone ends the same way:** its exit criteria met, CI green on Windows and macOS, a numbered pre-release build, and a short write-up for the project record. From 0.2, these builds are offered on the website as early builds anyone can try, with no promise of support; the beta, with testers and a checklist, is still M7 (decision 0016).
 
 ## Tracks
 
@@ -138,5 +138,5 @@ The first update adds AI assistance (bring your own key), as the [product brief]
 
 - Each milestone is broken into GitHub issues, one per requirement or small slice, labeled with the requirement IDs.
 - Changes are small and reviewable, each with tests, referencing requirement IDs in commit messages.
-- Pre-release builds are numbered 0.1 (M2) through 0.6 (M7's beta), so the owner can run and compare them.
+- Pre-release builds are numbered 0.1 (M2) through 0.6 (M7's beta), so the owner can run and compare them. From 0.2 they're public early builds (decision 0016).
 - A change that conflicts with the spec, the technical design, or a decision record stops and gets raised rather than worked around.

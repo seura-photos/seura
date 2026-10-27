@@ -1,6 +1,6 @@
 # Seura Photos — Visual Design
 
-Status: approved · Last updated: 2026-10-18
+Status: approved · Last updated: 2026-10-27
 
 The look of the app, its icon, and its brand. The layouts themselves are in the [wireframes](ux/wireframes.md); this document covers color, type, icons, and the mark. The values live in [`design/tokens.json`](../design/tokens.json), which the app and the website both read, so they can't drift apart.
 
@@ -27,11 +27,23 @@ Two sets of tokens, light and dark; the app follows the operating system's setti
 | accentText | `#3352CC` | `#8EA6FF` | Links and quiet buttons |
 | accentSubtle | `#E3E8FA` | `#26304F` | Selected rows, banners, effects that are on |
 | danger | `#B3261E` | `#FF8A80` | Unreadable edit files, Trash confirmations |
-| rating | `#9A6700` | `#E3B341` | Stars |
+| rating | `#9A6700` | `#E3B341` | Filled stars |
+| ratingOff | `#7A7A7A` | `#808080` | Empty stars, drawn as outlines (3:1 or more on the panel and surface) |
+| ratingDisabled | `#C9C9C9` | `#4D4D4D` | Stars in a read-only folder; disabled controls are exempt from contrast, and a line of text says why (TAG-7) |
 
 Markers drawn over photos (edited, rating, hover tools) use a dark translucent pill with white content, which reads on any photo in either mode.
 
 **Brand dots**, for the mark, website, and installer only: blue `#3352CC`, sky `#7FA3E8`, green `#3E9A6A`, gold `#E9B949`, orange `#E8823A`, rose `#D9606A`.
+
+## Components
+
+Details the tokens alone don't settle, decided while building M3.
+
+- **Selected row** (folder and tag trees): the accentSubtle fill, plus a 3 px bar on the left edge and the text and icon in accentText. The fill alone is about 1.1:1 against the panel, below the 3:1 a state needs (WCAG 1.4.11). The bar uses accentText, not accent: in dark mode accent is only 2.3:1 against the fill, accentText 5.6:1.
+- **Stars:** filled in rating, empty as outlines in ratingOff, so empty and filled differ by shape as well as color; disabled in ratingDisabled.
+- **Notice bar** (problems with files, INT-6): accentSubtle with an info icon for information; with a warning icon for a caution that needs nothing done, such as a photo changed by another program (FIL-7); dangerSubtle with a warning icon only when the user needs to act, such as an unreadable edit file with Start over (FIL-4). 8 px corners, at the top of the photo area.
+- **Message** (the last action's result, INT-6): text on surface with a border and a soft shadow (`0 6px 20px rgba(0,0,0,0.18)`), 8 px corners, near the bottom of the photo area, centered, up to 480 px wide.
+- **Sidebar divider:** the 1 px border at rest; 2 px in accentText on hover, while dragging, and when focused, with the focus ring (wireframes, "Resizable sidebar"). Widths are the sidebar, sidebarMin, and sidebarMax tokens.
 
 ## Type
 
