@@ -345,6 +345,20 @@ delete-body =
                *[other] Their edits, tags, and ratings go with them. You can restore them from the Recycle Bin.
             }
     }
+# Shown when any of the photos has an edit file, which goes too, as a separate file; $count is the photos.
+delete-restore-both =
+    { $count ->
+        [one]
+            { $system ->
+                [mac] Its edits are in a file of their own beside it. To get them back, put back both the photo and that file.
+               *[other] Its edits are in a file of their own beside it. To get them back, restore both the photo and that file.
+            }
+       *[other]
+            { $system ->
+                [mac] Edits are kept in files of their own beside the photos. To get them back, put back both each photo and its file.
+               *[other] Edits are kept in files of their own beside the photos. To get them back, restore both each photo and its file.
+            }
+    }
 # Every photo being deleted is in a folder $service syncs, such as OneDrive.
 delete-synced-all =
     { $count ->

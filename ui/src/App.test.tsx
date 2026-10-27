@@ -110,7 +110,14 @@ vi.mock("./bindings", () => ({
     ),
     showKeptFiles: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
     deleting: vi.fn(() =>
-      Promise.resolve({ count: 2, synced: 2, service: "OneDrive", readOnly: 0, cloudOnly: 1 }),
+      Promise.resolve({
+        count: 2,
+        editFiles: 1,
+        synced: 2,
+        service: "OneDrive",
+        readOnly: 0,
+        cloudOnly: 1,
+      }),
     ),
     deletePhotos: vi.fn(() =>
       Promise.resolve({
@@ -657,6 +664,7 @@ describe("App", () => {
       name: "Move 2 photos to the Recycle Bin?",
     });
     expect(dialog.textContent).toContain("These photos are in OneDrive.");
+    expect(dialog.textContent).toContain("restore both each photo and its file");
     expect(dialog.textContent).toContain("1 photo is only in the cloud");
     // Cancel has the focus, and does nothing.
     expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Cancel" }));

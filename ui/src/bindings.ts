@@ -282,6 +282,11 @@ export type Deleting = {
 	/**  Photos that would go to the Recycle Bin or Trash. */
 	count: number,
 	/**
+	 *  Of those, how many have an edit file, which goes too: restoring a
+	 *  photo's edits means restoring that file as well.
+	 */
+	editFiles: number,
+	/**
 	 *  Of those, how many are in a folder a sync service keeps, and the
 	 *  service: deleting them removes them from the cloud and the user's
 	 *  other devices too.

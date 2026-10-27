@@ -1018,6 +1018,9 @@ pub fn opening(library: State<'_, Library>, ids: Vec<u32>) -> Opening {
 pub struct Deleting {
     /// Photos that would go to the Recycle Bin or Trash.
     pub count: u32,
+    /// Of those, how many have an edit file, which goes too: restoring a
+    /// photo's edits means restoring that file as well.
+    pub edit_files: u32,
     /// Of those, how many are in a folder a sync service keeps, and the
     /// service: deleting them removes them from the cloud and the user's
     /// other devices too.
@@ -1056,6 +1059,9 @@ pub fn deleting(library: State<'_, Library>, ids: Vec<u32>) -> Deleting {
             deleting.cloud_only += 1;
         } else {
             deleting.count += 1;
+            if std::fs::symlink_metadata(seura_edit::edit_file_path(&path)).is_ok() {
+                deleting.edit_files += 1;
+            }
             let folder = path.parent().unwrap_or(&path).to_path_buf();
             let service = services
                 .entry(folder.clone())

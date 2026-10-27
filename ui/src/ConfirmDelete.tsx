@@ -15,7 +15,7 @@ export function ConfirmDelete() {
   const cancel = useRef<HTMLButtonElement>(null);
   useEffect(() => cancel.current?.focus(), [confirming]);
   if (!confirming) return null;
-  const { count, synced, service, readOnly, cloudOnly } = confirming.summary;
+  const { count, editFiles, synced, service, readOnly, cloudOnly } = confirming.summary;
 
   return (
     <div className="dialog-backdrop">
@@ -37,6 +37,8 @@ export function ConfirmDelete() {
         </h2>
         <div id="delete-body">
           <p>{t("delete-body", { count, system })}</p>
+          {/* Each edit file is restored separately (Nevada, 2026-10-26). */}
+          {editFiles > 0 && <p>{t("delete-restore-both", { count, system })}</p>}
           {synced > 0 && service !== null && (
             <p>
               {synced === count
