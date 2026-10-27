@@ -89,6 +89,8 @@ vi.mock("./bindings", () => ({
         lastTaken: null,
         rating: null,
         tags: [],
+        partialTags: [],
+        readOnly: 0,
       }),
     ),
     addFolder: mocks.addFolder,
