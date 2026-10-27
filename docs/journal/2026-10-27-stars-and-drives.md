@@ -12,3 +12,7 @@
   - **A new data-safety test lists every direct deletion** in the app's code with why it's allowed, so a new one fails until it's reviewed. Besides decision 0017's three, it lists Start over removing its own copy when it fails, and the thumbnail cache, which is Seura's own data and rebuilt from the photos.
 - **On the Mac, nothing changes yet:** the system refuses where there's no Trash, which isn't the `NoTrash` refusal. So on a Mac network share, clearing a rating fails, and Delete reports a failure, until network volumes are measured.
 - **Checked on Nevada's stick without changing it:** `trash_check` now says whether a file's drive has a Recycle Bin. `E:` (FAT32, removable) has none, and the fixed drives do.
+- **Nevada checked it on a USB stick, on main after #113 merged** (2026-10-27):
+  - Delete leaves the photo where it is, with the new message.
+  - When a rating is cleared, or the rating itself is undone with Ctrl+Z, the edit file is deleted.
+  - Ctrl+Z after clearing the rating writes the file again.
