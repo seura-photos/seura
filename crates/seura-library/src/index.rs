@@ -135,7 +135,9 @@ pub struct Filter {
     /// A photo must have all of these.
     pub tags: Vec<TagId>,
     pub edited: Option<bool>,
-    /// Inclusive, seconds since 1970. Photos without a date taken don't match.
+    /// Inclusive, seconds since 1970. A photo whose date taken isn't known
+    /// (cloud-only, not decoded yet, or none recorded) is placed by its
+    /// file date instead, as it sorts (BRW-2, LIB-9).
     pub taken: Option<(i64, i64)>,
 }
 
@@ -340,9 +342,7 @@ impl Index {
                 (photo.edit_file == EditFileState::Read { edited: true }) == edited
             })
             && filter.taken.is_none_or(|(from, to)| {
-                photo
-                    .taken
-                    .is_some_and(|taken| (from..=to).contains(&taken))
+                (from..=to).contains(&photo.taken.unwrap_or(photo.modified.secs))
             })
     }
 
