@@ -260,6 +260,45 @@ pub async fn remove_folder(app: AppHandle, root: u32) -> Result<(), String> {
     .map_err(|error| error.to_string())?
 }
 
+/// What the grid is narrowed to (FND-1), applied to whatever it shows.
+#[derive(Clone, Debug, Default, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PhotoFilter {
+    /// 0 for any rating.
+    pub min_rating: u8,
+    /// A photo must have all of these, exactly.
+    pub tags: Vec<String>,
+    pub edited: Option<bool>,
+    /// Inclusive bounds on the date taken, in seconds since 1970 on the
+    /// camera's own clock. Either one alone leaves that side open.
+    pub taken_from: Option<f64>,
+    pub taken_to: Option<f64>,
+}
+
+impl PhotoFilter {
+    /// The index's filter, or None when nothing can match: a tag no photo
+    /// has any more.
+    fn resolve(&self, index: &seura_library::Index) -> Option<Filter> {
+        let tags = self
+            .tags
+            .iter()
+            .map(|tag| index.tag_id(tag))
+            .collect::<Option<Vec<_>>>()?;
+        let taken = (self.taken_from.is_some() || self.taken_to.is_some()).then(|| {
+            (
+                self.taken_from.map_or(i64::MIN, |seconds| seconds as i64),
+                self.taken_to.map_or(i64::MAX, |seconds| seconds as i64),
+            )
+        });
+        Some(Filter {
+            min_rating: self.min_rating,
+            tags,
+            edited: self.edited,
+            taken,
+        })
+    }
+}
+
 /// A folder's own photos (BRW-1), in the app's order (BRW-2). Their
 /// thumbnails are queued behind the visible ones.
 #[tauri::command(async)]
@@ -268,12 +307,15 @@ pub fn photos(
     library: State<'_, Library>,
     settings: State<'_, AppSettings>,
     folder: u32,
+    filter: PhotoFilter,
 ) -> Vec<PhotoInfo> {
     let sort = settings.0.lock().expect("settings lock").settings.sort;
     let folder = FolderId::new(folder);
     let photos = {
         let index = library.index.read().expect("index lock");
-        let ids = index.query(Scope::Folder(folder), &Filter::default());
+        let ids = filter.resolve(&index).map_or_else(Vec::new, |filter| {
+            index.query(Scope::Folder(folder), &filter)
+        });
         photo_infos(&index, index.sorted(ids, sort))
     };
     library.queue_folder(folder);
@@ -288,13 +330,14 @@ pub fn tag_photos(
     library: State<'_, Library>,
     settings: State<'_, AppSettings>,
     tag: String,
+    filter: PhotoFilter,
 ) -> Vec<PhotoInfo> {
     let sort = settings.0.lock().expect("settings lock").settings.sort;
     let index = library.index.read().expect("index lock");
-    let Some(id) = index.tag_id(&tag) else {
+    let (Some(id), Some(filter)) = (index.tag_id(&tag), filter.resolve(&index)) else {
         return Vec::new();
     };
-    let ids = index.sorted(index.query(Scope::Tag(id), &Filter::default()), sort);
+    let ids = index.sorted(index.query(Scope::Tag(id), &filter), sort);
     let jobs = ids
         .iter()
         .filter_map(|id| index.thumbnail_job(*id))
@@ -314,10 +357,14 @@ pub fn search_photos(
     library: State<'_, Library>,
     settings: State<'_, AppSettings>,
     text: String,
+    filter: PhotoFilter,
 ) -> Vec<PhotoInfo> {
     let sort = settings.0.lock().expect("settings lock").settings.sort;
     let index = library.index.read().expect("index lock");
-    let ids = index.sorted(index.search(&text, &Filter::default()), sort);
+    let Some(filter) = filter.resolve(&index) else {
+        return Vec::new();
+    };
+    let ids = index.sorted(index.search(&text, &filter), sort);
     let jobs = ids
         .iter()
         .filter_map(|id| index.thumbnail_job(*id))
@@ -1365,6 +1412,37 @@ mod tests {
     #[test]
     fn app_version_matches_the_package() {
         assert_eq!(super::app_version(), env!("CARGO_PKG_VERSION"));
+    }
+
+    #[test]
+    fn a_filter_resolves_against_the_index() {
+        let index = seura_library::Index::new();
+        assert_eq!(
+            PhotoFilter::default().resolve(&index),
+            Some(Filter::default())
+        );
+        // A tag no photo has matches nothing, rather than being ignored (FND-1).
+        let gone = PhotoFilter {
+            tags: vec!["beach".into()],
+            ..PhotoFilter::default()
+        };
+        assert_eq!(gone.resolve(&index), None);
+        // One date alone leaves the other side open.
+        let since = PhotoFilter {
+            min_rating: 3,
+            edited: Some(false),
+            taken_from: Some(1_000.0),
+            ..PhotoFilter::default()
+        };
+        assert_eq!(
+            since.resolve(&index),
+            Some(Filter {
+                min_rating: 3,
+                tags: Vec::new(),
+                edited: Some(false),
+                taken: Some((1_000, i64::MAX)),
+            })
+        );
     }
 
     #[test]

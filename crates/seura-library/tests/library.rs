@@ -258,6 +258,22 @@ fn filters_and_search() {
         ..Filter::default()
     };
     assert_eq!(query(Scope::Tag(beach), unedited), ["IMG_1002.jpg"]);
+    // Without a date taken, a photo is placed by its file date, as it sorts
+    // (BRW-2, LIB-9): these were all written just now.
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let recent = Filter {
+        taken: Some((now - 3_600, now + 3_600)),
+        ..Filter::default()
+    };
+    assert_eq!(query(Scope::All, recent).len(), 4);
+    let long_ago = Filter {
+        taken: Some((0, now - 3_600)),
+        ..Filter::default()
+    };
+    assert!(query(Scope::All, long_ago).is_empty());
 
     // Search matches file names and tags, ignoring case (FND-2).
     let search = |text| names(&index, &index.search(text, &Filter::default()));

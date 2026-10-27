@@ -4,6 +4,7 @@ import {
   type DevOptions,
   type FolderInfo,
   type PhotoChange,
+  type PhotoFilter,
   type PhotoInfo,
   type ScanProgress,
   type TagInfo,
@@ -45,6 +46,10 @@ type State = {
   /** Folder tree rows that are open, by key (`folderKey`). All start
    * closed, library folders included, as tags do. */
   expanded: Set<string>;
+  /** What the grid is narrowed to, whatever it shows (FND-1). Kept from
+   * view to view, but not saved: the app never opens on a folder that
+   * looks empty. */
+  filter: PhotoFilter;
   photos: PhotoInfo[];
   thumbs: Map<number, ThumbState>;
   /** The selected photos in the grid (BRW-4). */
@@ -82,6 +87,12 @@ type State = {
   /** Clears the search and goes back to the folder or tag before it. */
   endSearch: () => Promise<void>;
   toggleTag: (tag: string) => void;
+  /** Changes part of the filter, and the grid with it (FND-1). */
+  setFilter: (change: Partial<PhotoFilter>) => Promise<void>;
+  clearFilters: () => Promise<void>;
+  /** Fetches the photos for what the grid shows, through the filter,
+   * keeping what's selected of them. */
+  refresh: () => Promise<void>;
   selectPhoto: (id: number, modifiers: { toggle: boolean; range: boolean }) => void;
   selectAllPhotos: () => void;
   setSort: (by: string, ascending: boolean) => Promise<void>;
@@ -150,6 +161,25 @@ async function history(say: (notice: string) => void, which: "undo" | "redo") {
   );
 }
 
+/** No filter: every photo passes. */
+export const noFilter: PhotoFilter = {
+  minRating: 0,
+  tags: [],
+  edited: null,
+  takenFrom: null,
+  takenTo: null,
+};
+
+export function isFiltered(filter: PhotoFilter): boolean {
+  return (
+    filter.minRating > 0 ||
+    filter.tags.length > 0 ||
+    filter.edited !== null ||
+    filter.takenFrom !== null ||
+    filter.takenTo !== null
+  );
+}
+
 /** A box on screen, in CSS pixels from the window's top left. */
 export type Anchor = { left: number; top: number; width: number; height: number };
 
@@ -177,6 +207,7 @@ export const useStore = create<State>()((set, get) => ({
   beforeSearch: null,
   openTags: new Set(),
   expanded: new Set(),
+  filter: noFilter,
   photos: [],
   thumbs: new Map(),
   selection: emptySelection,
@@ -216,53 +247,56 @@ export const useStore = create<State>()((set, get) => ({
 
   async loadFolders() {
     const [folders, tags] = await Promise.all([commands.folders(), commands.tags()]);
-    set({ tags });
-    // Search results follow the library too.
-    const { search } = get();
-    if (search !== null) {
-      const photos = await commands.searchPhotos(search);
-      if (get().search === search) {
-        set(({ selection }) => ({
-          photos,
-          selection: keepExisting(
-            selection,
-            photos.map((photo) => photo.id),
-          ),
-        }));
-      }
-    }
-    // A tag no photo has any more leaves the tree (TAG-4), and the grid.
-    const { tag } = get();
-    if (tag !== null) {
-      if (tags.some((node) => node.tag === tag && node.photos !== null)) {
-        const photos = await commands.tagPhotos(tag);
-        set(({ selection }) => ({
-          photos,
-          selection: keepExisting(
-            selection,
-            photos.map((photo) => photo.id),
-          ),
-        }));
-      } else {
-        set({ tag: null, photos: [], selection: emptySelection });
-      }
-    }
-    set({ folders });
-    const { folderId } = get();
-    if (folderId === null) return;
-    // A rescan can change the selected folder's photos, or remove it.
-    if (folders.some((folder) => folder.id === folderId)) {
-      const photos = await commands.photos(folderId);
-      set(({ selection }) => ({
-        photos,
-        selection: keepExisting(
-          selection,
-          photos.map((photo) => photo.id),
-        ),
-      }));
-    } else {
+    set({ tags, folders });
+    const { tag, folderId } = get();
+    // A tag no photo has any more leaves the tree (TAG-4), and the grid;
+    // a rescan can remove the selected folder.
+    if (tag !== null && !tags.some((node) => node.tag === tag && node.photos !== null)) {
+      set({ tag: null, photos: [], selection: emptySelection });
+    } else if (folderId !== null && !folders.some((folder) => folder.id === folderId)) {
       set({ folderId: null, photos: [], selection: emptySelection });
     }
+    // What's shown follows the library: a rescan, a rating, a tag.
+    await get().refresh();
+  },
+
+  async refresh() {
+    const { folderId, tag, search, filter } = get();
+    const photos =
+      folderId !== null
+        ? await commands.photos(folderId, filter)
+        : tag !== null
+          ? await commands.tagPhotos(tag, filter)
+          : search !== null
+            ? await commands.searchPhotos(search, filter)
+            : null;
+    const now = get();
+    // Only the latest view's photos, whatever order they arrive in.
+    if (
+      photos === null ||
+      now.folderId !== folderId ||
+      now.tag !== tag ||
+      now.search !== search ||
+      now.filter !== filter
+    )
+      return;
+    set(({ selection }) => ({
+      photos,
+      selection: keepExisting(
+        selection,
+        photos.map((photo) => photo.id),
+      ),
+    }));
+  },
+
+  async setFilter(change) {
+    set(({ filter }) => ({ filter: { ...filter, ...change } }));
+    await get().refresh();
+  },
+
+  async clearFilters() {
+    set({ filter: noFilter });
+    await get().refresh();
   },
 
   async finishWelcome(folders, checkForUpdates, cache) {
@@ -289,8 +323,7 @@ export const useStore = create<State>()((set, get) => ({
         selection: emptySelection,
         notice: null,
       });
-    const photos = await commands.photos(id);
-    if (get().folderId === id) set({ photos });
+    await get().refresh();
   },
 
   async selectTag(tag) {
@@ -303,8 +336,7 @@ export const useStore = create<State>()((set, get) => ({
         selection: emptySelection,
         notice: null,
       });
-    const photos = await commands.tagPhotos(tag);
-    if (get().tag === tag) set({ photos });
+    await get().refresh();
   },
 
   async setSearch(text) {
@@ -325,9 +357,7 @@ export const useStore = create<State>()((set, get) => ({
     } else {
       set({ search: text });
     }
-    const photos = await commands.searchPhotos(text);
-    // Only the latest text's results, whatever order they arrive in.
-    if (get().search === text) set({ photos });
+    await get().refresh();
   },
 
   async endSearch() {
@@ -382,10 +412,7 @@ export const useStore = create<State>()((set, get) => ({
   async setSort(by, ascending) {
     set({ sortBy: by, ascending });
     await commands.setSort(by, ascending);
-    const { folderId, tag, search } = get();
-    if (folderId !== null) set({ photos: await commands.photos(folderId) });
-    else if (tag !== null) set({ photos: await commands.tagPhotos(tag) });
-    else if (search !== null) set({ photos: await commands.searchPhotos(search) });
+    await get().refresh();
   },
 
   setThumbnailSize(size) {
