@@ -1,5 +1,12 @@
 import { ArrowDownNarrowWide, ArrowUpNarrowWide, Funnel, Plus, Search } from "lucide-react";
-import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import mark from "../../design/brand/seura-mark-small.svg";
 import type { FolderInfo, ScanProgress } from "./bindings";
 import { FilterChips, FilterControls } from "./Filters";
@@ -12,7 +19,8 @@ import { PhotoMenu } from "./PhotoMenu";
 import { TagTree } from "./TagTree";
 import { t } from "./messages";
 import { ConfirmRemove, FolderMenu } from "./RemoveFolder";
-import { anchorOf, DEFAULT_THUMBNAIL_SIZE, isFiltered, useStore } from "./store";
+import { SidebarDivider } from "./SidebarDivider";
+import { anchorOf, DEFAULT_THUMBNAIL_SIZE, filterCount, useStore } from "./store";
 
 /** Where the tag picker sits: beside the last selected photo on screen,
  * in the grid's order, so it covers unselected ones rather than the
@@ -81,7 +89,10 @@ export function Library({ inert = false }: { inert?: boolean }) {
   const search = useStore((state) => state.search);
   const setSearch = useStore((state) => state.setSearch);
   const endSearch = useStore((state) => state.endSearch);
-  const filtered = useStore((state) => isFiltered(state.filter));
+  const filters = useStore((state) => filterCount(state.filter));
+  const filtered = filters > 0;
+  const sidebarWidth = useStore((state) => state.sidebarWidth);
+  const sidebar = useRef<HTMLElement>(null);
   const clearFilters = useStore((state) => state.clearFilters);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const searchBox = useRef<HTMLInputElement>(null);
@@ -169,7 +180,16 @@ export function Library({ inert = false }: { inert?: boolean }) {
   }, []);
 
   return (
-    <div className="shell" inert={inert}>
+    <div
+      className="shell"
+      inert={inert}
+      // The width the user chose; until then, the default follows the window (#74).
+      style={
+        sidebarWidth === null
+          ? undefined
+          : ({ "--sidebar-chosen": `${String(sidebarWidth)}px` } as CSSProperties)
+      }
+    >
       <header className="header">
         <img className="mark" src={mark} alt="" />
         <span className="wordmark">{t("app-short-name")}</span>
@@ -195,7 +215,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
         </label>
       </header>
 
-      <nav className="sidebar" aria-label={t("library-sidebar")}>
+      <nav className="sidebar" ref={sidebar} aria-label={t("library-sidebar")}>
         {/* Each section's heading stays in view while its tree scrolls, then
             goes with it, so the next section's heading takes its place. */}
         <section className="sidebar-section" aria-label={t("library-folders")}>
@@ -230,6 +250,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
           <TagTree />
         </section>
       </nav>
+      <SidebarDivider sidebar={sidebar} />
 
       <main className="main">
         {folders.length === 0 ? (
@@ -266,7 +287,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
                   onClick={() => setFiltersOpen(!filtersOpen)}
                 >
                   <Funnel className="icon" aria-hidden />
-                  {t("filter")}
+                  {filtered ? t("filter-with-count", { count: filters }) : t("filter")}
                 </button>
                 <label className="view-control">
                   <span className="visually-hidden">{t("grid-sort")}</span>

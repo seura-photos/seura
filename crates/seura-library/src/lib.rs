@@ -40,8 +40,8 @@ pub use notices::FileNotices;
 pub use platform::is_placeholder;
 pub use scan::ScanReport;
 pub use settings::{
-    DEFAULT_THUMBNAIL_SIZE, SETTINGS_FILE, Settings, SettingsError, SettingsFile, Sort, SortBy,
-    THUMBNAIL_SIZES,
+    DEFAULT_THUMBNAIL_SIZE, SETTINGS_FILE, SIDEBAR_WIDTHS, Settings, SettingsError, SettingsFile,
+    Sort, SortBy, THUMBNAIL_SIZES,
 };
 pub use snapshot::SNAPSHOT_FILE;
 pub use sort::natural;

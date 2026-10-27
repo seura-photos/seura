@@ -13,6 +13,7 @@
     "allow-view-settings",
     "allow-set-sort",
     "allow-set-thumbnail-size",
+    "allow-set-sidebar-width",
     "allow-show-thumbnails",
     "allow-change-photos",
     "allow-start-over",

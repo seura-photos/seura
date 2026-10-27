@@ -13,6 +13,7 @@ fn main() {
         "view_settings",
         "set_sort",
         "set_thumbnail_size",
+        "set_sidebar_width",
         "show_thumbnails",
         "change_photos",
         "start_over",

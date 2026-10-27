@@ -90,6 +90,8 @@ start-over-failed =
 ## Filters (FND-1): they narrow whatever the grid shows.
 
 filter = Filter
+# The Filter button while filters are set, with how many (FND-1).
+filter-with-count = Filter · { $count }
 filter-controls = Filters
 filter-rating = Rating
 filter-any = Any
@@ -125,6 +127,11 @@ filter-count =
     }
 # The sidebar, for screen readers: its folders and tags.
 library-sidebar = Folders and tags
+# The divider between the sidebar and the grid (#74): its name, its value
+# for screen readers, and its tooltip.
+sidebar-width = Sidebar width
+sidebar-width-value = { $width } pixels
+sidebar-resize = Drag to resize. Double-click to reset.
 # The TAGS section before anything is tagged.
 tags-none = No tags yet. Select photos and press T to tag them.
 # Under a tag's name above the grid: how many photos have it, from every folder.

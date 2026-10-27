@@ -564,8 +564,9 @@ describe("App", () => {
     const withBeach = { ...atLeast3, tags: ["beach"] };
     expect(vi.mocked(commands.photos)).toHaveBeenLastCalledWith(1, withBeach);
 
+    // The button says how many are set, not by colour alone.
     // The filter stays set in another view, even with Filter closed.
-    fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Filter · 2" }));
     fireEvent.click(screen.getByRole("treeitem", { name: /beach/ }));
     expect(mocks.tagPhotos).toHaveBeenLastCalledWith("beach", withBeach);
     expect(screen.getByRole("list", { name: "Active filters" })).toBeTruthy();
