@@ -399,6 +399,21 @@ delete-read-only =
         [one] 1 photo is in a read-only folder, so it's left as it is.
        *[other] { $count } photos are in read-only folders, so they're left as they are.
     }
+# Photos on a drive with no Recycle Bin, where Windows would offer to delete
+# them permanently. Not on the Mac, where the system refuses instead.
+delete-no-trash =
+    { $count ->
+        [one]
+            { $system ->
+                [mac] 1 photo is on a drive with no Trash, so it's left as it is.
+               *[other] 1 photo is on a drive with no Recycle Bin, such as a USB stick or a network share, so it's left as it is.
+            }
+       *[other]
+            { $system ->
+                [mac] { $count } photos are on a drive with no Trash, so they're left as they are.
+               *[other] { $count } photos are on a drive with no Recycle Bin, such as a USB stick or a network share, so they're left as they are.
+            }
+    }
 delete-confirm =
     { $system ->
         [mac] Move to Trash

@@ -15,7 +15,7 @@ export function ConfirmDelete() {
   const cancel = useRef<HTMLButtonElement>(null);
   useEffect(() => cancel.current?.focus(), [confirming]);
   if (!confirming) return null;
-  const { count, editFiles, synced, service, readOnly, cloudOnly } = confirming.summary;
+  const { count, editFiles, synced, service, readOnly, cloudOnly, noTrash } = confirming.summary;
   const nothing = count === 0;
 
   return (
@@ -35,7 +35,7 @@ export function ConfirmDelete() {
       >
         <h2 id="delete-title" className="dialog-title">
           {nothing
-            ? t("delete-nothing-title", { count: readOnly + cloudOnly, system })
+            ? t("delete-nothing-title", { count: readOnly + cloudOnly + noTrash, system })
             : t("delete-title", { count, system })}
         </h2>
         <div id="delete-body">
@@ -53,10 +53,11 @@ export function ConfirmDelete() {
           )}
           {/* The photos left as they are, set apart from those that go,
               unless they're all there is to say. */}
-          {(cloudOnly > 0 || readOnly > 0) && (
+          {(cloudOnly > 0 || readOnly > 0 || noTrash > 0) && (
             <div className={nothing ? undefined : "dialog-aside"}>
               {cloudOnly > 0 && <p>{t("delete-cloud-only", { count: cloudOnly, system })}</p>}
               {readOnly > 0 && <p>{t("delete-read-only", { count: readOnly })}</p>}
+              {noTrash > 0 && <p>{t("delete-no-trash", { count: noTrash, system })}</p>}
             </div>
           )}
         </div>

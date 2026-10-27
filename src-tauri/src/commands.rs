@@ -1045,6 +1045,9 @@ pub struct Deleting {
     /// Left as they are: only in the cloud, so they can't go to the Recycle
     /// Bin or Trash (journal, `2026-10-26-trash-measurements.md`).
     pub cloud_only: u32,
+    /// Left as they are: on a drive with no Recycle Bin, such as a USB stick
+    /// or a network share.
+    pub no_trash: u32,
 }
 
 #[tauri::command(async)]
@@ -1066,9 +1069,16 @@ pub fn deleting(library: State<'_, Library>, ids: Vec<u32>) -> Deleting {
     // Asked once per folder: a selection is often one folder's photos.
     let mut services: std::collections::HashMap<PathBuf, Option<String>> =
         std::collections::HashMap::new();
+    let mut trash_for: std::collections::HashMap<PathBuf, bool> = std::collections::HashMap::new();
     for (path, read_only) in photos {
+        let folder = path.parent().unwrap_or(&path).to_path_buf();
         if read_only {
             deleting.read_only += 1;
+        } else if !*trash_for
+            .entry(folder.clone())
+            .or_insert_with_key(|folder| seura_library::has_trash(folder))
+        {
+            deleting.no_trash += 1;
         } else if std::fs::metadata(&path).is_ok_and(|metadata| is_placeholder(&metadata)) {
             deleting.cloud_only += 1;
         } else {
@@ -1076,7 +1086,6 @@ pub fn deleting(library: State<'_, Library>, ids: Vec<u32>) -> Deleting {
             if std::fs::symlink_metadata(seura_edit::edit_file_path(&path)).is_ok() {
                 deleting.edit_files += 1;
             }
-            let folder = path.parent().unwrap_or(&path).to_path_buf();
             let service = services
                 .entry(folder.clone())
                 .or_insert_with(|| crate::synced::sync_service(&folder));
@@ -1097,6 +1106,7 @@ pub struct DeleteResult {
     pub deleted: u32,
     pub read_only: u32,
     pub cloud_only: u32,
+    pub no_trash: u32,
     /// The system didn't move them, such as files in use.
     pub failed: u32,
 }
@@ -1122,6 +1132,7 @@ pub async fn delete_photos(app: AppHandle, ids: Vec<u32>) -> Result<DeleteResult
             match problem {
                 seura_library::DeleteProblem::ReadOnly => result.read_only += 1,
                 seura_library::DeleteProblem::CloudOnly => result.cloud_only += 1,
+                seura_library::DeleteProblem::NoTrash => result.no_trash += 1,
                 seura_library::DeleteProblem::Gone => {}
                 seura_library::DeleteProblem::Failed(_) => result.failed += 1,
             }

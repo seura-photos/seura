@@ -161,3 +161,67 @@ mod access {
         true
     }
 }
+
+/// Whether files on this path's drive can go to the Recycle Bin or Trash
+/// (BRW-9). On Windows, only fixed drives have a Recycle Bin: on a USB stick
+/// or a network share, the system would offer to delete permanently instead,
+/// so their photos are left out of Delete, as in read-only folders. A drive
+/// whose type the system doesn't know counts as having none.
+pub fn has_trash(path: &Path) -> bool {
+    drive::has_trash(path)
+}
+
+#[cfg(target_os = "windows")]
+mod drive {
+    #![allow(unsafe_code, reason = "these are Win32 calls")]
+
+    use std::path::Path;
+
+    use windows::Win32::Storage::FileSystem::{GetDriveTypeW, GetVolumePathNameW};
+    use windows::core::HSTRING;
+
+    /// `DRIVE_FIXED`: a hard disk or SSD, inside or attached.
+    const FIXED: u32 = 3;
+
+    pub fn has_trash(path: &Path) -> bool {
+        // The folder a drive is mounted on, such as `D:\`, `\\server\share\`,
+        // or a folder another drive is mounted in.
+        let mut root = [0u16; 1024];
+        // SAFETY: the path is a NUL-terminated wide string, and `root` is
+        // writable for its whole length, which the call is given.
+        if unsafe { GetVolumePathNameW(&HSTRING::from(path), &mut root) }.is_err() {
+            return false;
+        }
+        let end = root.iter().position(|&c| c == 0).unwrap_or(root.len());
+        let root = HSTRING::from_wide(&root[..end]);
+        // SAFETY: `root` is a NUL-terminated wide string.
+        unsafe { GetDriveTypeW(&root) == FIXED }
+    }
+}
+
+/// On the Mac, the system call never deletes permanently: where there's no
+/// Trash, it fails and the photo stays where it was.
+#[cfg(not(target_os = "windows"))]
+mod drive {
+    use std::path::Path;
+
+    pub fn has_trash(_path: &Path) -> bool {
+        true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_fixed_drive_has_a_recycle_bin_or_trash() {
+        assert!(has_trash(&std::env::temp_dir()));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn a_network_share_has_no_recycle_bin() {
+        assert!(!has_trash(Path::new(r"\\localhost\no-such-share\photos")));
+    }
+}

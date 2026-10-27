@@ -25,6 +25,10 @@ trash = { workspace = true }
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = { workspace = true }
 
+# Whether a drive has a Recycle Bin (BRW-9).
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = ["Win32_Storage_FileSystem"] }
+
 [dev-dependencies]
 tempfile = { workspace = true }
 jpeg-encoder = { workspace = true }

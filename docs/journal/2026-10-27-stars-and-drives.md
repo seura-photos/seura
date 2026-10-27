@@ -1,0 +1,7 @@
+# Outline stars, and drives with no Recycle Bin (M3 slice 11d)
+
+- **Empty stars are outlines** in `ratingOff`, and filled ones are solid in `rating`, so they differ by shape as well as colour (visual design, "Stars"; design answers, 2026-10-27). In a read-only folder both are in `ratingDisabled`, which replaces the half-transparent stars. A line of text already says why (TAG-7).
+- **Drives with no Recycle Bin are left out of Delete** (BRW-9, as the design session decided). On Windows, only fixed drives have one. On a USB stick or a network share, Windows would ask "delete permanently?" instead, and a Yes would break CLAUDE.md's rule 5. Seura now asks the system for the drive's type before calling the Recycle Bin, once per folder. The confirmation says which photos are left and why, as it does for read-only folders. A drive whose type the system doesn't report counts as having no Recycle Bin.
+- **The Mac needs no such check:** there, the system call refuses where there's no Trash, and never deletes permanently. Measuring a network volume on the Mac is still to do.
+- **Not covered, raised with Nevada:** an edit file with nothing left goes to the Recycle Bin too (FIL-1), and Start over sends files there (FIL-4). On a USB stick, Windows would still ask about deleting permanently. The trash library's request for that question stays as the safety net.
+- **Claude Code has no USB stick or network share here** (this PC has two fixed drives), so the tests check a fixed drive and a share path. Nevada's check with a real stick is still to do.
