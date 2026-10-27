@@ -121,7 +121,7 @@ def table(results: dict) -> str:
          f"{mb(large['memory']['coreBytes'])} (peak {mb(large['memory']['corePeakBytes'])}), "
          "core process only"),
         ("FND-3", f"Search as you type, {large['search']['photos']:,} photos",
-         "within 200 ms", f"slowest letter {large['search']['slowestMs']:.0f} ms"),
+         "within 200 ms at 10,000 photos", f"slowest letter {large['search']['slowestMs']:.0f} ms"),
     ]
     lines = ["| Target | Measure | Goal | Result |", "| --- | --- | --- | --- |"]
     lines += [f"| {a} | {b} | {c} | {d} |" for a, b, c, d in rows]

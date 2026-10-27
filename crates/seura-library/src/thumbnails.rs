@@ -7,6 +7,7 @@
 //! rebuilt from the photos and is safe to delete.
 
 use std::collections::{HashSet, VecDeque};
+use std::fmt::Write as _;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -109,10 +110,12 @@ impl ThumbnailCache {
             hasher.update(modified.secs.to_le_bytes());
             hasher.update(modified.nanos.to_le_bytes());
         }
-        hasher.finalize()[..16]
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect()
+        // Into one string: a search can make 50,000 keys (M3 slice 11).
+        let mut key = String::with_capacity(32);
+        for byte in &hasher.finalize()[..16] {
+            write!(key, "{byte:02x}").expect("writing to a String can't fail");
+        }
+        key
     }
 
     /// Where the thumbnail for `key` is, or would be.

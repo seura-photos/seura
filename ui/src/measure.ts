@@ -1,5 +1,5 @@
 import { commands } from "./bindings";
-import { useStore } from "./store";
+import { noFilter, useStore } from "./store";
 
 /**
  * The measurement script (M2 slice 10), run on itself by a release build
@@ -170,7 +170,7 @@ async function searchAsTyped(text: string) {
   if (!box) throw new Error("no search box");
   // As typing does, through the box's own input event, so React sees it.
   const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-  const letters: { text: string; photos: number; ms: number }[] = [];
+  const letters: { text: string; photos: number; ms: number; commandMs: number }[] = [];
   for (let end = 1; end <= text.length; end++) {
     await sleep(150);
     const typed = text.slice(0, end);
@@ -183,10 +183,15 @@ async function searchAsTyped(text: string) {
       return search === typed && photos !== before;
     }, 30_000);
     await nextFrame();
+    const ms = round(performance.now() - started);
+    // The core's part alone: the search and its results reaching the UI.
+    const asked = performance.now();
+    await commands.searchPhotos(typed, noFilter);
     letters.push({
       text: typed,
       photos: useStore.getState().photos.length,
-      ms: round(performance.now() - started),
+      ms,
+      commandMs: round(performance.now() - asked),
     });
   }
   await useStore.getState().endSearch();
