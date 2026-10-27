@@ -1,6 +1,6 @@
 # Seura Photos — User Flows and Screen Map (v1)
 
-Status: approved · Last updated: 2026-10-26
+Status: approved · Last updated: 2026-10-27
 
 This document describes the screens of Seura Photos v1 and how a user moves between them. It turns the [functional spec](../functional-spec.md) into screens and steps; requirement IDs refer to it. Wireframes are on the design canvas and will be summarized here as they settle.
 
@@ -62,7 +62,8 @@ Cost is counted from the view where the user most likely is when they want the a
 | Delete confirmation | Dialog | Delete | BRW-9 |
 | Cleanup | Dialog with preview | File menu, folder context menu | CLN-* |
 | Settings | Window (macOS) or dialog (Windows) | App or Edit menu | SET-2 |
-| Notices | Bar at the top of the main area | Problems with files or folders | FIL-3, FIL-4, FIL-7, LIB-6 |
+| Notices | Bar at the top of the photo area, in the Library and Viewer | Problems with the selected photos' files | FIL-3, FIL-4, FIL-5, FIL-7, INT-6 |
+| Messages | Brief box near the bottom of the photo area, in the Library and Viewer | The result of the last action | INT-6 |
 
 ## Layout of the main window
 
@@ -145,11 +146,11 @@ The basis of the design test: fix a crooked, dark photo in under five minutes.
 ### 5. Tag and rate (TAG-*)
 
 1. Select photos in the Library, or open one in any view.
-2. `T` opens the tag picker with all existing tags listed. Typing filters; Enter adds the highlighted tag or creates the typed one. The picker stays open for more; Esc closes it.
+2. `T` opens the tag picker with all existing tags listed. Typing filters and highlights the first match; Enter adds it. "Create tag" is listed above the matches when the text isn't a tag yet, and Enter chooses it only when nothing matches (TAG-3). The picker stays open for more; Esc closes it.
 3. Tags show as chips in the Info panel; × removes one. With several photos selected, a tag only some of them have shows its count ("beach · 3 of 7"); the picker lists it first, and Enter adds it to the rest (TAG-8).
-4. `0`–`5` or the stars set the rating. Mixed ratings in a selection show empty stars and "Mixed" until one is chosen (TAG-8).
+4. `0`–`5` or the stars set the rating; clicking the current rating's star clears it. Mixed ratings in a selection show empty stars and "Mixed" until one is chosen (TAG-8).
 5. Selecting a tag in the sidebar shows the photos with exactly that tag, from every folder (TAG-5). A parent node no photo has exactly shows no count.
-6. Ctrl+Z undoes the last action, whichever photos are selected now, and a brief notice says what was undone ("Undid rating on 5 photos"); Shift+Ctrl+Z redoes it (BRW-11).
+6. Ctrl+Z undoes the last action, whichever photos are selected now, and a brief message says what was undone ("Undid rating on 5 photos"); Shift+Ctrl+Z redoes it (BRW-11).
 7. In a read-only folder, the stars and Add tag are disabled, and a line where they are says why; T and `0`–`5` show the same message (TAG-7).
 
 ### 6. Find photos (FND-*)
@@ -173,8 +174,10 @@ The basis of the design test: fix a crooked, dark photo in under five minutes.
 ### 9. Delete (BRW-9)
 
 1. Select photos, press Delete (Cmd+Delete on macOS).
-2. Confirm; the photos and their edit files go to the Recycle Bin or Trash. If any are in a cloud-synced folder, the confirmation says they'll also be removed from that service on all the user's devices.
-3. Not undoable with Ctrl+Z; they can be restored from the Recycle Bin or Trash.
+2. Confirm; the photos and their edit files go to the Recycle Bin or Trash. The confirmation says each photo's edits are in a small file beside it that goes too, and that restoring both gets everything back. If any are in a cloud-synced folder, it says they'll also be removed from that service on all the user's devices.
+3. Cloud-only photos, and photos on a drive with no Recycle Bin, are left as they are, and the confirmation says which and why (BRW-9). If none can go, it's a dialog with OK.
+4. A message confirms what moved ("Moved 3 photos to the Recycle Bin.").
+5. Not undoable with Ctrl+Z; they can be restored from the Recycle Bin or Trash.
 
 ### 10. Cleanup (CLN-*)
 
@@ -184,7 +187,7 @@ The basis of the design test: fix a crooked, dark photo in under five minutes.
 
 ### 11. Problems with files (FIL-*, LIB-6)
 
-Shown as a notice bar at the top of the main area, never a blocking dialog:
+Shown as a notice bar at the top of the photo area, in the Library and the Viewer, never a blocking dialog (INT-6). A problem that needs the user to act (an unreadable file, with Start over) uses the warning style; the others are informational, with a warning icon where it's a caution:
 
 - **Changed on disk while editing:** "This photo's edits were changed outside Seura Photos. Keep yours or load theirs?"
 - **Unreadable edit file:** the photo shows unedited with a warning badge; the notice offers Start over. The old file goes to `Unreadable edit files` in Seura's folder, and the notice then says so, with Show in folder (FIL-4).
@@ -208,6 +211,7 @@ Ctrl on Windows, Cmd on macOS. Single-letter keys work in every view except whil
 | Crop (in Editor) | C |
 | Mark for deletion (in Review) | X |
 | Compare with original | Hold `\` |
+| Sidebar width (divider focused) | ← →, Home, End; Enter resets |
 | Undo, redo | Ctrl+Z, Shift+Ctrl+Z (in the Library, the last action, BRW-11; in the Editor, the photo's history, EDT-9) |
 | Copy edits, paste edits | Shift+Ctrl+C, Shift+Ctrl+V |
 | Export | Ctrl+E |
@@ -225,4 +229,5 @@ Ctrl on Windows, Cmd on macOS. Single-letter keys work in every view except whil
 | Thumbnail badges | Always visible, small and quiet. |
 | Undo in the Library | The last action, not the selection's last changes; one history per photo, in its edit file (BRW-11). |
 | Search results | Replace the grid until Esc or a sidebar selection (FND-2). |
+| Where messages go | Problems with files: the notice bar at the top of the photo area. The last action's result: a brief message near its bottom. Same in the Library and Viewer (INT-6). |
 | Modes and customization | None: one fixed layout per view, no beginner or advanced modes (INT-2, decision 0007). |
