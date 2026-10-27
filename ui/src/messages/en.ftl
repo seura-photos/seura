@@ -399,19 +399,19 @@ delete-read-only =
         [one] 1 photo is in a read-only folder, so it's left as it is.
        *[other] { $count } photos are in read-only folders, so they're left as they are.
     }
-# Photos on a drive with no Recycle Bin, where Windows would delete them
-# permanently. Not on the Mac, where the system refuses instead.
+# Photos on a drive with no Recycle Bin or Trash, where deleting would be
+# permanent: Seura never deletes them (decision 0017).
 delete-no-trash =
     { $count ->
         [one]
             { $system ->
-                [mac] 1 photo is on a drive with no Trash, so it's left as it is.
-               *[other] 1 photo is on a drive with no Recycle Bin, such as a USB stick or a network share, so it's left as it is.
+                [mac] 1 photo is on a drive with no Trash, such as a network share. Deleting it there would be permanent, so it's left as it is. You can delete it in Finder.
+               *[other] 1 photo is on a drive with no Recycle Bin, such as a USB stick or a network share. Deleting it there would be permanent, so it's left as it is. You can delete it in File Explorer.
             }
        *[other]
             { $system ->
-                [mac] { $count } photos are on a drive with no Trash, so they're left as they are.
-               *[other] { $count } photos are on a drive with no Recycle Bin, such as a USB stick or a network share, so they're left as they are.
+                [mac] { $count } photos are on a drive with no Trash, such as a network share. Deleting them there would be permanent, so they're left as they are. You can delete them in Finder.
+               *[other] { $count } photos are on a drive with no Recycle Bin, such as a USB stick or a network share. Deleting them there would be permanent, so they're left as they are. You can delete them in File Explorer.
             }
     }
 delete-confirm =

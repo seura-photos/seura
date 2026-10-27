@@ -318,7 +318,7 @@ pub(crate) fn finish(
     let tags = file.document.tags();
     if file.document.is_empty() {
         let document = file.document.clone();
-        file.remove(trash)
+        file.remove(trash, writer, at)
             .map_err(|error| save_problem(error, folder))?;
         return Ok(Written {
             state: EditFileState::None,

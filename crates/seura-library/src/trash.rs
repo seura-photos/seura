@@ -5,6 +5,8 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
+use seura_edit::NoTrash;
+
 use crate::platform::has_trash;
 
 /// Moves a file to the Recycle Bin or Trash, from where the user can put it
@@ -24,12 +26,11 @@ pub fn move_all_to_trash(paths: &[PathBuf]) -> io::Result<()> {
     context().delete_all(paths).map_err(io::Error::other)
 }
 
+/// Refuses with [`NoTrash`], which lets an emptied edit file be deleted
+/// directly instead (decision 0017).
 fn refuse_without_trash(paths: &[PathBuf], has_trash: &dyn Fn(&Path) -> bool) -> io::Result<()> {
     match paths.iter().find(|path| !has_trash(path)) {
-        Some(path) => Err(io::Error::other(format!(
-            "{} is on a drive with no Recycle Bin, so it's left where it is",
-            path.display()
-        ))),
+        Some(path) => Err(NoTrash::error(path)),
         None => Ok(()),
     }
 }
@@ -56,7 +57,7 @@ mod tests {
         let usb = Path::new(r"E:\IMG_2.jpg");
         let paths = [PathBuf::from(r"C:\IMG_1.jpg"), usb.to_path_buf()];
         let error = refuse_without_trash(&paths, &|path| path != usb).unwrap_err();
-        assert!(error.to_string().contains("no Recycle Bin"));
+        assert!(NoTrash::is(&error));
         assert!(refuse_without_trash(&paths, &|_| true).is_ok());
     }
 }

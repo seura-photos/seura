@@ -703,7 +703,7 @@ describe("App", () => {
     });
     expect(none.textContent).toContain("1 photo is only in the cloud");
     expect(none.textContent).toContain(
-      "2 photos are on a drive with no Recycle Bin, such as a USB stick or a network share",
+      "2 photos are on a drive with no Recycle Bin, such as a USB stick or a network share. Deleting them there would be permanent, so they're left as they are. You can delete them in File Explorer.",
     );
     expect(
       within(none)
