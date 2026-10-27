@@ -1,6 +1,6 @@
 name: Release
 
-# A numbered pre-release build for the owner's own use (milestone plan,
+# A numbered early build, public from 0.2 (decision 0016; milestone plan,
 # "Working within a milestone"): pushing a tag like v0.1.0 builds the
 # Windows installer and the macOS disk image, unsigned, and attaches them to
 # a draft pre-release for Nevada to look over and publish. M1's Editor isn't
@@ -87,4 +87,4 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --draft --prerelease \
             --title "Seura Photos ${GITHUB_REF_NAME#v} (pre-release)" \
-            --notes "A pre-release for the owner's own use, unsigned. Windows: run the installer; SmartScreen may warn (More info → Run anyway). macOS: open the disk image, drag Seura Photos to Applications, and open it. The first time, macOS blocks it because it isn't from an identified developer; then open System Settings → Privacy & Security and choose Open Anyway."
+            --notes "An early build of Seura Photos, before the beta: some features are still missing, and there are no automatic updates yet. It never changes your photos. It isn't signed for distribution. Windows: run the installer; SmartScreen may warn (More info → Run anyway). macOS: open the disk image, drag Seura Photos to Applications, and open it. The first time, macOS blocks it because it isn't from an identified developer; then open System Settings → Privacy & Security and choose Open Anyway."
