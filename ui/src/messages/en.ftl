@@ -399,8 +399,8 @@ delete-read-only =
         [one] 1 photo is in a read-only folder, so it's left as it is.
        *[other] { $count } photos are in read-only folders, so they're left as they are.
     }
-# Photos on a drive with no Recycle Bin, where Windows would offer to delete
-# them permanently. Not on the Mac, where the system refuses instead.
+# Photos on a drive with no Recycle Bin, where Windows would delete them
+# permanently. Not on the Mac, where the system refuses instead.
 delete-no-trash =
     { $count ->
         [one]

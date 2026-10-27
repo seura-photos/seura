@@ -4,7 +4,7 @@
 //! cloud-only photos, which the system can't put there: on Windows they go
 //! only to the service's own deleted items, and on the Mac it refuses
 //! (journal, `2026-10-26-trash-measurements.md`). Nor on drives with no
-//! Recycle Bin, where Windows would offer to delete permanently.
+//! Recycle Bin, where Windows would delete them for good (#115).
 
 use std::collections::HashMap;
 use std::fs;

@@ -164,9 +164,10 @@ mod access {
 
 /// Whether files on this path's drive can go to the Recycle Bin or Trash
 /// (BRW-9). On Windows, only fixed drives have a Recycle Bin: on a USB stick
-/// or a network share, the system would offer to delete permanently instead,
-/// so their photos are left out of Delete, as in read-only folders. A drive
-/// whose type the system doesn't know counts as having none.
+/// or a network share, the system deletes for good instead, and with the
+/// prompts off, without asking (#115). So their photos are left out of
+/// Delete, as in read-only folders, and the Trash refuses their files. A
+/// drive whose type the system doesn't know counts as having none.
 pub fn has_trash(path: &Path) -> bool {
     drive::has_trash(path)
 }
