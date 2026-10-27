@@ -5,6 +5,7 @@
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
+use std::sync::RwLock;
 
 use sha2::{Digest, Sha256};
 
@@ -54,6 +55,44 @@ impl Index {
         let after = std::fs::metadata(&path)?;
         if (after.len(), FileTime::from(after.modified()?)) == stamp
             && let Some(photo) = self.photo_mut(id)
+        {
+            photo.size = stamp.0;
+            photo.modified = stamp.1;
+            photo.fingerprint = Some(fingerprint);
+        }
+        Ok(fingerprint)
+    }
+}
+
+impl Index {
+    /// [`Index::fingerprint`] for an index others are using: the file is
+    /// read without holding the lock, so browsing goes on meanwhile.
+    pub fn fingerprint_shared(index: &RwLock<Index>, id: PhotoId) -> io::Result<[u8; 32]> {
+        let (path, cached) = {
+            let index = index.read().expect("index lock");
+            let path = index
+                .path(id)
+                .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no such photo"))?;
+            let photo = index.photo(id).expect("the path came from the photo");
+            (
+                path,
+                photo
+                    .fingerprint
+                    .map(|fingerprint| (fingerprint, photo.size, photo.modified)),
+            )
+        };
+        let before = std::fs::metadata(&path)?;
+        let stamp = (before.len(), FileTime::from(before.modified()?));
+        if let Some((fingerprint, size, modified)) = cached
+            && (size, modified) == stamp
+        {
+            return Ok(fingerprint);
+        }
+
+        let fingerprint = fingerprint_file(&path)?;
+        let after = std::fs::metadata(&path)?;
+        if (after.len(), FileTime::from(after.modified()?)) == stamp
+            && let Some(photo) = index.write().expect("index lock").photo_mut(id)
         {
             photo.size = stamp.0;
             photo.modified = stamp.1;

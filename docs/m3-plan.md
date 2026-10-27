@@ -75,7 +75,7 @@ New in M3:
 ### 7. Problems with files (FIL-3, FIL-4, FIL-5, FIL-7)
 
 - A notice bar at the top of the main area, never a blocking dialog (user flows, flow 11):
-  - **Changed on disk** (FIL-3): reloaded, and the index follows; if the change conflicts with a change Seura is making, "Keep yours or load theirs?".
+  - **Changed on disk** (FIL-3): reloaded, and the index follows; a Library write that meets a file changed since it was read leaves it alone. "Keep yours or load theirs?" applies only while a photo is open in the Editor, so it moves to M4, when the Editor ships (Nevada, 2026-10-26).
   - **Unreadable** (FIL-4): the photo shows unedited with its warning badge (since M1); the notice offers Start over. The old file goes, unchanged, to `Unreadable edit files` in Seura's folder, named `2026-10-26 143012 IMG_1234.jpg.seura.json` (moved there, or copied and the original moved to the Trash where a move isn't possible); the notice then says where, with Show in folder.
   - **Unknown content** (FIL-5): kept on save, as since M1, and the user is told it isn't shown.
   - **Original changed** (FIL-7): the fingerprint no longer matches; the edits still apply, with a warning.

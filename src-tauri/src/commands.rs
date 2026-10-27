@@ -725,6 +725,35 @@ pub async fn change_photos(
     .map_err(|error| error.to_string())
 }
 
+/// What the notice bar says about one photo's files (FIL-5, FIL-7).
+#[derive(Clone, Debug, Default, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PhotoNotices {
+    /// Edits in its edit file Seura can't show, from a newer version or
+    /// another app; they're kept when it's changed (FIL-5).
+    pub not_shown: u32,
+    /// Another program changed the photo since its edits were made, so they
+    /// may not line up (FIL-7).
+    pub original_changed: bool,
+}
+
+/// Checks one photo's files for the notice bar. Fingerprinting a photo the
+/// first time reads all of it, so it runs off the UI's thread.
+#[tauri::command]
+#[specta::specta]
+pub async fn photo_notices(app: AppHandle, id: u32) -> Result<PhotoNotices, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let notices =
+            seura_library::Index::file_notices(&app.state::<Library>().index, PhotoId::new(id));
+        PhotoNotices {
+            not_shown: notices.not_shown as u32,
+            original_changed: notices.original_changed,
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
 /// What Start over did (FIL-4).
 #[derive(Clone, Debug, Default, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
