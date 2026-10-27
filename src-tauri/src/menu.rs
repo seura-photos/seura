@@ -27,6 +27,8 @@ pub enum MenuCommand {
     /// For the chosen photos (BRW-8).
     ShowInFolder,
     OpenInDefaultApp,
+    /// Moves the chosen photos to the Trash, once confirmed (BRW-9).
+    Delete,
     /// The Edit menu's Undo and Redo: the Library's last action (BRW-11),
     /// or, in a text field, the field's own.
     Undo,
@@ -36,13 +38,14 @@ pub enum MenuCommand {
 const ADD_FOLDER: &str = "add-folder";
 const SHOW_IN_FOLDER: &str = "show-in-folder";
 const OPEN_IN_DEFAULT_APP: &str = "open-in-default-app";
+const DELETE: &str = "delete";
 const UNDO: &str = "undo";
 const REDO: &str = "redo";
 /// The menu bar's commands for the chosen photos, kept so they can be
 /// turned on and off. (A menu's lookup by id searches only its top level,
 /// not the File menu inside it, so they're held rather than looked up.)
 #[cfg(target_os = "macos")]
-struct PhotoCommands<R: Runtime>([MenuItem<R>; 2]);
+struct PhotoCommands<R: Runtime>([MenuItem<R>; 3]);
 
 /// The Edit menu's Undo and Redo, kept so their labels can follow the
 /// Library's history.
@@ -83,9 +86,18 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         false,
         Some("Alt+CmdOrCtrl+O"),
     )?;
+    // Cmd+Delete, as in Finder and Photos.
+    let delete = MenuItem::with_id(
+        app,
+        DELETE,
+        t("menu-move-to-trash"),
+        false,
+        Some("CmdOrCtrl+Backspace"),
+    )?;
     app.manage(PhotoCommands([
         show_in_folder.clone(),
         open_in_default_app.clone(),
+        delete.clone(),
     ]));
     let file = Submenu::with_items(
         app,
@@ -96,6 +108,8 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &separator()?,
             &show_in_folder,
             &open_in_default_app,
+            &separator()?,
+            &delete,
             &separator()?,
             &PredefinedMenuItem::close_window(app, Some(t("menu-close-window").as_str()))?,
         ],
@@ -139,6 +153,7 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
         ADD_FOLDER => MenuCommand::AddFolder,
         SHOW_IN_FOLDER => MenuCommand::ShowInFolder,
         OPEN_IN_DEFAULT_APP => MenuCommand::OpenInDefaultApp,
+        DELETE => MenuCommand::Delete,
         UNDO => MenuCommand::Undo,
         REDO => MenuCommand::Redo,
         _ => return,

@@ -51,6 +51,12 @@ export const commands = {
 	 *  user's time zone, `utc_offset_minutes` ahead of UTC.
 	 */
 	startOver: (ids: number[], utcOffsetMinutes: number) => typedError<StartOverResult, string>(__TAURI_INVOKE("start_over", { ids, utcOffsetMinutes })),
+	deleting: (ids: number[]) => __TAURI_INVOKE<Deleting>("deleting", { ids }),
+	/**
+	 *  Moves photos and their edit files to the Recycle Bin or Trash, once the
+	 *  user has confirmed (BRW-9; CLAUDE.md rule 5). Never deleted for good.
+	 */
+	deletePhotos: (ids: number[]) => typedError<DeleteResult, string>(__TAURI_INVOKE("delete_photos", { ids })),
 	/**
 	 *  Checks one photo's files for the notice bar. Fingerprinting a photo the
 	 *  first time reads all of it, so it runs off the UI's thread.
@@ -261,6 +267,36 @@ export type Choice = {
 	syncedTo: string | null,
 };
 
+/**  What deleting did (BRW-9), in numbers of photos. */
+export type DeleteResult = {
+	/**  Moved to the Recycle Bin or Trash, with their edit files. */
+	deleted: number,
+	readOnly: number,
+	cloudOnly: number,
+	/**  The system didn't move them, such as files in use. */
+	failed: number,
+};
+
+/**  What deleting photos would involve, for the confirmation to say (BRW-9). */
+export type Deleting = {
+	/**  Photos that would go to the Recycle Bin or Trash. */
+	count: number,
+	/**
+	 *  Of those, how many are in a folder a sync service keeps, and the
+	 *  service: deleting them removes them from the cloud and the user's
+	 *  other devices too.
+	 */
+	synced: number,
+	service: string | null,
+	/**  Left as they are: in a read-only folder (TAG-7). */
+	readOnly: number,
+	/**
+	 *  Left as they are: only in the cloud, so they can't go to the Recycle
+	 *  Bin or Trash (journal, `2026-10-26-trash-measurements.md`).
+	 */
+	cloudOnly: number,
+};
+
 /**  Developer switches, from environment variables. */
 export type DevOptions = {
 	/**
@@ -342,6 +378,8 @@ export type LibraryChanged = null;
 export type MenuCommand = "addFolder" | 
 /**  For the chosen photos (BRW-8). */
 "showInFolder" | "openInDefaultApp" | 
+/**  Moves the chosen photos to the Trash, once confirmed (BRW-9). */
+"delete" | 
 /**
  *  The Edit menu's Undo and Redo: the Library's last action (BRW-11),
  *  or, in a text field, the field's own.

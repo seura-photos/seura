@@ -5,7 +5,7 @@ import { commands } from "./bindings";
 import { formatBytes, formatNumber } from "./format";
 import { t } from "./messages";
 import { InfoPanel } from "./InfoPanel";
-import { historyKey, isSelectAll, isTagKey, isTyping, ratingKey } from "./keys";
+import { historyKey, isDeleteKey, isSelectAll, isTagKey, isTyping, ratingKey } from "./keys";
 import { SHOWN_EVENT } from "./measure";
 import { PhotoMenu } from "./PhotoMenu";
 import { type Backend, createPreview, fetchLinear } from "./preview";
@@ -310,6 +310,12 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     if (history !== null) {
       event.preventDefault();
       void useStore.getState()[history]();
+      return;
+    }
+    // Delete moves this photo to the Recycle Bin, once confirmed (BRW-9).
+    if (photo && isDeleteKey(event)) {
+      event.preventDefault();
+      void useStore.getState().askDelete([photo.id]);
       return;
     }
     if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return;

@@ -1012,6 +1012,110 @@ pub fn opening(library: State<'_, Library>, ids: Vec<u32>) -> Opening {
     }
 }
 
+/// What deleting photos would involve, for the confirmation to say (BRW-9).
+#[derive(Clone, Debug, Default, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Deleting {
+    /// Photos that would go to the Recycle Bin or Trash.
+    pub count: u32,
+    /// Of those, how many are in a folder a sync service keeps, and the
+    /// service: deleting them removes them from the cloud and the user's
+    /// other devices too.
+    pub synced: u32,
+    pub service: Option<String>,
+    /// Left as they are: in a read-only folder (TAG-7).
+    pub read_only: u32,
+    /// Left as they are: only in the cloud, so they can't go to the Recycle
+    /// Bin or Trash (journal, `2026-10-26-trash-measurements.md`).
+    pub cloud_only: u32,
+}
+
+#[tauri::command(async)]
+#[specta::specta]
+pub fn deleting(library: State<'_, Library>, ids: Vec<u32>) -> Deleting {
+    let photos: Vec<(PathBuf, bool)> = {
+        let index = library.index.read().expect("index lock");
+        ids.iter()
+            .filter_map(|id| {
+                let id = PhotoId::new(*id);
+                let read_only = index
+                    .folder(index.photo(id)?.folder)
+                    .is_some_and(|folder| folder.read_only);
+                Some((index.path(id)?, read_only))
+            })
+            .collect()
+    };
+    let mut deleting = Deleting::default();
+    // Asked once per folder: a selection is often one folder's photos.
+    let mut services: std::collections::HashMap<PathBuf, Option<String>> =
+        std::collections::HashMap::new();
+    for (path, read_only) in photos {
+        if read_only {
+            deleting.read_only += 1;
+        } else if std::fs::metadata(&path).is_ok_and(|metadata| is_placeholder(&metadata)) {
+            deleting.cloud_only += 1;
+        } else {
+            deleting.count += 1;
+            let folder = path.parent().unwrap_or(&path).to_path_buf();
+            let service = services
+                .entry(folder.clone())
+                .or_insert_with(|| crate::synced::sync_service(&folder));
+            if let Some(service) = service {
+                deleting.synced += 1;
+                deleting.service.get_or_insert_with(|| service.clone());
+            }
+        }
+    }
+    deleting
+}
+
+/// What deleting did (BRW-9), in numbers of photos.
+#[derive(Clone, Debug, Default, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteResult {
+    /// Moved to the Recycle Bin or Trash, with their edit files.
+    pub deleted: u32,
+    pub read_only: u32,
+    pub cloud_only: u32,
+    /// The system didn't move them, such as files in use.
+    pub failed: u32,
+}
+
+/// Moves photos and their edit files to the Recycle Bin or Trash, once the
+/// user has confirmed (BRW-9; CLAUDE.md rule 5). Never deleted for good.
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_photos(app: AppHandle, ids: Vec<u32>) -> Result<DeleteResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let library = app.state::<Library>();
+        let ids: Vec<PhotoId> = ids.into_iter().map(PhotoId::new).collect();
+        let report = seura_library::Index::delete_photos(
+            &library.index,
+            &ids,
+            &seura_library::move_all_to_trash,
+        );
+        let mut result = DeleteResult {
+            deleted: report.deleted.len() as u32,
+            ..DeleteResult::default()
+        };
+        for (_, problem) in &report.problems {
+            match problem {
+                seura_library::DeleteProblem::ReadOnly => result.read_only += 1,
+                seura_library::DeleteProblem::CloudOnly => result.cloud_only += 1,
+                seura_library::DeleteProblem::Gone => {}
+                seura_library::DeleteProblem::Failed(_) => result.failed += 1,
+            }
+        }
+        if !report.deleted.is_empty() {
+            library.save();
+            let _ = LibraryChanged.emit(&app);
+        }
+        result
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
 /// Opens photos in the system's default app for them (BRW-8). That app
 /// reads them, so it downloads a cloud-only one: the user asked for it, and
 /// the UI confirms first when it's several (LIB-9).

@@ -16,6 +16,8 @@
     "allow-show-thumbnails",
     "allow-change-photos",
     "allow-start-over",
+    "allow-deleting",
+    "allow-delete-photos",
     "allow-photo-notices",
     "allow-show-kept-files",
     "allow-tag-choices",

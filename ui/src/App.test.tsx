@@ -109,6 +109,15 @@ vi.mock("./bindings", () => ({
       }),
     ),
     showKeptFiles: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
+    deleting: vi.fn(() =>
+      Promise.resolve({ count: 2, synced: 2, service: "OneDrive", readOnly: 0, cloudOnly: 1 }),
+    ),
+    deletePhotos: vi.fn(() =>
+      Promise.resolve({
+        status: "ok",
+        data: { deleted: 2, readOnly: 0, cloudOnly: 1, failed: 0 },
+      }),
+    ),
     photoNotices: vi.fn(() =>
       Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
     ),
@@ -628,6 +637,39 @@ describe("App", () => {
     vi.mocked(commands.photoNotices).mockImplementation(() =>
       Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
     );
+  });
+
+  it("deletes photos to the Recycle Bin only once confirmed (BRW-9)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+    mocks.photos = [1, 2, 3].map((id) => photo(id));
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("heading", { name: "Pictures" });
+    act(() => {
+      useStore.getState().selectPhoto(1, { toggle: false, range: false });
+      useStore.getState().selectPhoto(2, { toggle: true, range: false });
+      useStore.getState().selectPhoto(3, { toggle: true, range: false });
+    });
+
+    // Delete asks first, saying where they go and what the cloud does.
+    fireEvent.keyDown(window, { key: "Delete" });
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Move 2 photos to the Recycle Bin?",
+    });
+    expect(dialog.textContent).toContain("These photos are in OneDrive.");
+    expect(dialog.textContent).toContain("1 photo is only in the cloud");
+    // Cancel has the focus, and does nothing.
+    expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(vi.mocked(commands.deletePhotos)).not.toHaveBeenCalled();
+
+    // Confirmed, they go, and a notice says so.
+    fireEvent.keyDown(window, { key: "Delete" });
+    const again = await screen.findByRole("alertdialog");
+    fireEvent.click(within(again).getByRole("button", { name: "Move to Recycle Bin" }));
+    expect(vi.mocked(commands.deletePhotos)).toHaveBeenCalledWith([1, 2, 3]);
+    expect(await screen.findByText(/Moved 2 photos to the Recycle Bin\./)).toBeTruthy();
   });
 
   it("shows a disconnected drive's folder as not connected (LIB-6)", async () => {
