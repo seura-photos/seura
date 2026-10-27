@@ -209,6 +209,10 @@ let sizeSave = 0;
  * first, as Windows' Explorer guards more than 15 (BRW-8). */
 export const CONFIRM_OPEN_ABOVE = 15;
 
+/** The grid's cell size until the user changes it (BRW-3), as the core's
+ * `DEFAULT_THUMBNAIL_SIZE`. */
+export const DEFAULT_THUMBNAIL_SIZE = 160;
+
 /** Windows says Recycle Bin, macOS Trash. */
 export const system =
   typeof navigator !== "undefined" && /Mac/.test(navigator.platform) ? "mac" : "windows";

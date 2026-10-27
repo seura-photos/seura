@@ -205,8 +205,9 @@ describe("App", () => {
     fireEvent.keyDown(pictures, { key: "ArrowRight" });
     fireEvent.click(await screen.findByRole("treeitem", { name: /Summer/ }));
     expect(await screen.findByRole("heading", { name: "Summer" })).toBeDefined();
-    expect(screen.getByText("C:\\Pictures\\Summer · 1,214 photos")).toBeDefined();
-    expect(screen.getByText("1,214 photos")).toBeDefined();
+    // The path gives way on its own; the count beside it stays (#72).
+    expect(screen.getByText("C:\\Pictures\\Summer", { selector: ".meta-path" })).toBeDefined();
+    expect(screen.getByText("1,214 photos", { selector: ".meta-count" })).toBeDefined();
     expect(screen.getByRole("treeitem", { name: /Summer/ }).getAttribute("aria-selected")).toBe(
       "true",
     );
@@ -512,7 +513,7 @@ describe("App", () => {
     fireEvent.change(box, { target: { value: "beach" } });
     expect(mocks.searchPhotos).toHaveBeenLastCalledWith("beach", noFilter);
     expect(await screen.findByRole("heading", { name: "Results for “beach”" })).toBeTruthy();
-    expect(screen.getByText("2 photos", { selector: ".folder-heading .meta" })).toBeTruthy();
+    expect(screen.getByText("2 photos", { selector: ".folder-heading .meta-count" })).toBeTruthy();
     // The sidebar has no selection while searching.
     expect(screen.getByRole("treeitem", { name: /Pictures/ }).getAttribute("aria-selected")).toBe(
       "false",
