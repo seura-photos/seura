@@ -570,6 +570,21 @@ fn a_malformed_fingerprint_is_refused() {
 }
 
 #[test]
+fn a_renamed_photo_is_named_without_touching_the_rest() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    document
+        .apply(&act("Rating", vec![Edit::Rating(4)]), now())
+        .unwrap();
+    let history = document.history_len();
+    assert!(document.rename_photo("Beach day.jpg").unwrap());
+    assert_eq!(document.photo().unwrap().file, "Beach day.jpg");
+    assert_eq!(document.photo().unwrap().sha256, photo().sha256);
+    assert_eq!(document.rating(), 4);
+    assert_eq!(document.history_len(), history);
+    assert!(!document.rename_photo("Beach day.jpg").unwrap());
+}
+
+#[test]
 fn a_file_is_empty_once_nothing_in_it_needs_keeping() {
     let mut document = EditDocument::new_for_photo(&photo());
     assert!(document.is_empty());

@@ -25,6 +25,8 @@ pub struct ScanReport {
     pub removed: usize,
     /// Edit files that couldn't be read; their photos show a warning (FIL-4).
     pub unreadable_edit_files: Vec<PathBuf>,
+    /// Edit files whose photo isn't there: perhaps renamed (FIL-6).
+    pub orphan_edit_files: Vec<PathBuf>,
     /// The library folder couldn't be read, for example on a disconnected
     /// drive. Its photos were kept, not removed (LIB-6).
     pub unavailable: bool,
@@ -106,6 +108,11 @@ impl Index {
                 pending.push((folder_path.join(name), Some(folder)));
             }
             for (name, metadata) in &listing.files {
+                if let Some(photo) = name.strip_suffix(".seura.json")
+                    && !listing.files.contains_key(photo)
+                {
+                    report.orphan_edit_files.push(folder_path.join(name));
+                }
                 let Some(format) = Format::from_name(name) else {
                     continue;
                 };

@@ -226,11 +226,13 @@ impl Library {
         {
             let _scanning = self.scanning.lock().expect("scan lock");
             let roots = self.index.read().expect("index lock").roots().to_vec();
+            let mut orphans = Vec::new();
             for folder in folders {
                 if let Some(root) = roots.iter().find(|root| folder.starts_with(root)) {
-                    Index::scan_shared(&self.index, root, folder);
+                    orphans.extend(Index::scan_shared(&self.index, root, folder).orphan_edit_files);
                 }
             }
+            self.reattach_renamed(&orphans);
         }
         self.save();
         self.queue_all(app);
@@ -380,12 +382,25 @@ impl Library {
             );
             self.progress.lock().expect("progress lock").scanning = Some(name);
             self.send_progress(app, true);
-            Index::scan_shared(&self.index, &root, &root);
+            let orphans = Index::scan_shared(&self.index, &root, &root).orphan_edit_files;
+            self.reattach_renamed(&orphans);
         }
         drop(scanning);
         self.progress.lock().expect("progress lock").scanning = None;
         self.save();
         self.queue_all(app);
+    }
+
+    /// Gives renamed photos their edit files back (FIL-6).
+    fn reattach_renamed(&self, orphans: &[PathBuf]) {
+        if !orphans.is_empty() {
+            Index::reattach_renamed(
+                &self.index,
+                orphans,
+                crate::editor::WRITER,
+                time::OffsetDateTime::now_utc(),
+            );
+        }
     }
 
     pub fn save(&self) {
