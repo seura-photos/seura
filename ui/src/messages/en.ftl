@@ -395,6 +395,21 @@ delete-confirm =
        *[other] Move to Recycle Bin
     }
 delete-cancel = Cancel
+# None of the photos can be deleted; the dialog says why, with OK.
+delete-nothing-title =
+    { $count ->
+        [one]
+            { $system ->
+                [mac] This photo can't be moved to the Trash
+               *[other] This photo can't be moved to the Recycle Bin
+            }
+       *[other]
+            { $system ->
+                [mac] These photos can't be moved to the Trash
+               *[other] These photos can't be moved to the Recycle Bin
+            }
+    }
+delete-ok = OK
 delete-done =
     { $count ->
         [one]

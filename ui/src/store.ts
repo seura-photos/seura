@@ -146,7 +146,7 @@ type State = {
   /** Deleting photos, waiting to be confirmed (BRW-9). */
   confirmingDelete: { ids: number[]; summary: Deleting } | null;
   /** Asks to move photos to the Recycle Bin or Trash, or says why none
-   * can go (BRW-9, TAG-7). */
+   * can go (BRW-9, TAG-7), in a dialog either way. */
   askDelete: (ids: number[]) => Promise<void>;
   /** The answer: moves them, and the Viewer on to the next photo. */
   confirmDelete: (yes: boolean) => Promise<void>;
@@ -418,9 +418,11 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   selectPhoto(id, modifiers) {
-    // What Start over did is about the photos it was done to.
+    // A notice, or what Start over did, is about the last action: choosing
+    // other photos moves on from it (Nevada, 2026-10-26).
     set(({ selection, photos }) => ({
       kept: null,
+      notice: null,
       selection: select(
         selection,
         photos.map((photo) => photo.id),
@@ -431,7 +433,11 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   selectAllPhotos() {
-    set(({ photos }) => ({ selection: selectAll(photos.map((photo) => photo.id)) }));
+    set(({ photos }) => ({
+      kept: null,
+      notice: null,
+      selection: selectAll(photos.map((photo) => photo.id)),
+    }));
   },
 
   async setSort(by, ascending) {
@@ -594,16 +600,9 @@ export const useStore = create<State>()((set, get) => ({
 
   async askDelete(ids) {
     if (ids.length === 0) return;
-    const summary = await commands.deleting(ids);
-    if (summary.count > 0) {
-      set({ confirmingDelete: { ids, summary } });
-      return;
-    }
-    get().say(
-      summary.cloudOnly > 0
-        ? t("delete-cloud-only", { count: summary.cloudOnly, system })
-        : t("read-only-folder"),
-    );
+    // A dialog either way, as Delete promises: to confirm, or to say why
+    // none of them can go (Nevada, 2026-10-26).
+    set({ confirmingDelete: { ids, summary: await commands.deleting(ids) } });
   },
 
   async confirmDelete(yes) {

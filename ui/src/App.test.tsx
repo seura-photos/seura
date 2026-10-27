@@ -678,6 +678,32 @@ describe("App", () => {
     fireEvent.click(within(again).getByRole("button", { name: "Move to Recycle Bin" }));
     expect(vi.mocked(commands.deletePhotos)).toHaveBeenCalledWith([1, 2, 3]);
     expect(await screen.findByText(/Moved 2 photos to the Recycle Bin\./)).toBeTruthy();
+    // Choosing another photo moves on from the notice.
+    act(() => useStore.getState().selectPhoto(1, { toggle: false, range: false }));
+    expect(screen.queryByText(/Moved 2 photos/)).toBeNull();
+
+    // When none can go, a dialog says why, with OK alone.
+    vi.mocked(commands.deleting).mockResolvedValueOnce({
+      count: 0,
+      editFiles: 0,
+      synced: 0,
+      service: null,
+      readOnly: 0,
+      cloudOnly: 1,
+    });
+    fireEvent.keyDown(window, { key: "Delete" });
+    const none = await screen.findByRole("alertdialog", {
+      name: "This photo can't be moved to the Recycle Bin",
+    });
+    expect(none.textContent).toContain("1 photo is only in the cloud");
+    expect(
+      within(none)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["OK"]);
+    fireEvent.click(within(none).getByRole("button", { name: "OK" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(vi.mocked(commands.deletePhotos)).toHaveBeenCalledTimes(1);
   });
 
   it("shows a disconnected drive's folder as not connected (LIB-6)", async () => {
