@@ -365,6 +365,63 @@ fn fingerprints_are_cached_until_the_file_changes() {
     assert_eq!(second, fingerprint_file(&path).unwrap());
 }
 
+/// Edits Seura can't show (FIL-5), and an original changed since its edits
+/// were made (FIL-7).
+#[test]
+fn file_notices_count_what_isnt_shown_and_spot_a_changed_original() {
+    let folder = Folder::new();
+    let path = folder.photo("a.jpg", JPEG);
+    let fingerprint = to_hex(&fingerprint_file(&path).unwrap());
+    let edit_file = |operations: serde_json::Value| {
+        let json = serde_json::json!({
+            "format": "seura-edit",
+            "formatVersion": "1.0",
+            "photo": { "file": "a.jpg", "size": 504, "sha256": fingerprint },
+            "operations": operations,
+        });
+        folder.write("a.jpg.seura.json", &serde_json::to_vec(&json).unwrap());
+    };
+    edit_file(serde_json::json!([
+        { "id": "seura.exposure", "version": 1, "params": { "ev": 0.5 } },
+        { "id": "com.example.toneCurve", "version": 4, "group": "tone",
+          "params": { "points": [[0, 0], [1, 1]] } },
+        { "id": "com.example.filmGrain", "version": 2, "group": "effects", "enabled": false,
+          "params": { "amount": 12 } }
+    ]));
+    let mut index = Index::new();
+    index.scan(&folder.root());
+    let id = index.query(Scope::All, &Filter::default())[0];
+    let index = std::sync::RwLock::new(index);
+
+    // One enabled operation Seura doesn't render; the disabled one isn't
+    // shown by anyone. The original is as the edits were made on.
+    let notices = Index::file_notices(&index, id);
+    assert_eq!(notices.not_shown, 1);
+    assert!(!notices.original_changed);
+    assert!(
+        index
+            .read()
+            .unwrap()
+            .photo(id)
+            .unwrap()
+            .fingerprint
+            .is_some()
+    );
+
+    // Another program changes the photo.
+    folder.write(
+        "a.jpg",
+        &[JPEG, b"edited by another program, longer now"].concat(),
+    );
+    index.write().unwrap().scan(&folder.root());
+    assert!(Index::file_notices(&index, id).original_changed);
+
+    // With only tags or a rating, there's nothing to line up.
+    edit_file(serde_json::json!([]));
+    index.write().unwrap().scan(&folder.root());
+    assert_eq!(Index::file_notices(&index, id), Default::default());
+}
+
 /// A long scan doesn't hold the index (M2 slice 6): it can be read between
 /// folders, and a library folder removed meanwhile stays removed.
 #[test]

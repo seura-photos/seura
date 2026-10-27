@@ -10,6 +10,7 @@ mod changes;
 mod fingerprint;
 mod formats;
 mod index;
+mod notices;
 mod platform;
 mod scan;
 mod settings;
@@ -32,6 +33,7 @@ pub use index::{
     AddFolder, EditFileState, FileTime, Filter, Folder, FolderId, Index, Photo, PhotoId, Scope,
     TagId,
 };
+pub use notices::FileNotices;
 pub use platform::is_placeholder;
 pub use scan::ScanReport;
 pub use settings::{

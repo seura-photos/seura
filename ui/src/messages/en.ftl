@@ -65,6 +65,14 @@ start-over-unreadable =
        *[other] { $count } of the selected photos have edit files that can't be read, so they're shown unedited. Start over keeps those files aside, in Seura's folder, and begins again with no edits, tags, or rating.
     }
 start-over = Start over
+# Another program changed the photo since its edits were made (FIL-7).
+notice-original-changed = This photo was changed by another program; edits may not line up.
+# Its edit file has operations Seura can't render, from a newer version or another app (FIL-5).
+notice-not-shown =
+    { $count ->
+        [one] This photo has an edit Seura Photos can't show, made by a newer version or another app. It's kept when you change the photo.
+       *[other] This photo has { $count } edits Seura Photos can't show, made by a newer version or another app. They're kept when you change the photo.
+    }
 start-over-kept =
     { $count ->
         [one] The old edit file is kept in “Unreadable edit files” in Seura's folder.

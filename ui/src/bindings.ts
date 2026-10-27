@@ -52,6 +52,11 @@ export const commands = {
 	 */
 	startOver: (ids: number[], utcOffsetMinutes: number) => typedError<StartOverResult, string>(__TAURI_INVOKE("start_over", { ids, utcOffsetMinutes })),
 	/**
+	 *  Checks one photo's files for the notice bar. Fingerprinting a photo the
+	 *  first time reads all of it, so it runs off the UI's thread.
+	 */
+	photoNotices: (id: number) => typedError<PhotoNotices, string>(__TAURI_INVOKE("photo_notices", { id })),
+	/**
 	 *  Shows kept edit files in Explorer or Finder (FIL-4): only files, by
 	 *  name, in `Unreadable edit files` in Seura's folder, never another path.
 	 */
@@ -454,6 +459,20 @@ export type PhotoInfo = {
 	edited: boolean,
 	/**  Its edit file exists but can't be read (FIL-4). */
 	unreadable: boolean,
+};
+
+/**  What the notice bar says about one photo's files (FIL-5, FIL-7). */
+export type PhotoNotices = {
+	/**
+	 *  Edits in its edit file Seura can't show, from a newer version or
+	 *  another app; they're kept when it's changed (FIL-5).
+	 */
+	notShown: number,
+	/**
+	 *  Another program changed the photo since its edits were made, so they
+	 *  may not line up (FIL-7).
+	 */
+	originalChanged: boolean,
 };
 
 /**  A part of a photo, cut for the Viewer. */

@@ -109,6 +109,9 @@ vi.mock("./bindings", () => ({
       }),
     ),
     showKeptFiles: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
+    photoNotices: vi.fn(() =>
+      Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
+    ),
   },
   events: mocks.events,
 }));
@@ -591,6 +594,40 @@ describe("App", () => {
     // It goes with the next selection.
     act(() => useStore.getState().selectPhoto(1, { toggle: false, range: false }));
     expect(screen.queryByText(/old edit file is kept/)).toBeNull();
+  });
+
+  it("says when edits can't be shown or the original changed (FIL-5, FIL-7)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 2, total: 2 })];
+    mocks.photos = [photo(1), photo(2)];
+    vi.mocked(commands.photoNotices).mockImplementation((id: number) =>
+      Promise.resolve({
+        status: "ok",
+        data:
+          id === 1
+            ? { notShown: 2, originalChanged: true }
+            : { notShown: 0, originalChanged: false },
+      }),
+    );
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("heading", { name: "Pictures" });
+
+    act(() => useStore.getState().selectPhoto(1, { toggle: false, range: false }));
+    expect(
+      await screen.findByText("This photo was changed by another program; edits may not line up."),
+    ).toBeTruthy();
+    expect(screen.getByText(/This photo has 2 edits Seura Photos can't show/)).toBeTruthy();
+
+    // Another photo has nothing to say; several selected aren't checked.
+    act(() => useStore.getState().selectPhoto(2, { toggle: false, range: false }));
+    await waitFor(() => expect(screen.queryByText(/changed by another program/)).toBeNull());
+    act(() => useStore.getState().selectPhoto(1, { toggle: true, range: false }));
+    expect(vi.mocked(commands.photoNotices)).not.toHaveBeenLastCalledWith(1);
+    expect(screen.queryByText(/changed by another program/)).toBeNull();
+    // The other tests' photos have nothing to say.
+    vi.mocked(commands.photoNotices).mockImplementation(() =>
+      Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
+    );
   });
 
   it("shows a disconnected drive's folder as not connected (LIB-6)", async () => {

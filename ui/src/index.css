@@ -319,6 +319,10 @@ button {
 
 .notice-bar .icon {
   flex: none;
+  color: var(--color-accent);
+}
+
+.notice-bar.warning .icon {
   color: var(--color-danger);
 }
 
