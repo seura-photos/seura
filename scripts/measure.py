@@ -135,6 +135,10 @@ def main():
     args = parser.parse_args()
     if not APP.exists():
         sys.exit(f"No release build at {APP}; see the instructions at the top of this script.")
+    if platform.system() == "Darwin":
+        # Keeps the display awake until this script ends: WebKit stops
+        # drawing frames while it sleeps, which stalled a long run (M3).
+        subprocess.Popen(["caffeinate", "-d", "-w", str(os.getpid())])
 
     folder_photos, folder_size = (1_000, (2016, 1512)) if args.small else (1_000, (4032, 3024))
     # At least FND-3's 10,000, for the search.
