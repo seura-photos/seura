@@ -1,8 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import type { FolderInfo, PhotoInfo, TagInfo } from "./bindings";
-import { useStore } from "./store";
+import { commands, type FolderInfo, type PhotoInfo, type TagInfo } from "./bindings";
+import { noFilter, useStore } from "./store";
 
 // vi.mock is hoisted above imports, so what it uses must be hoisted too.
 const mocks = vi.hoisted(() => {
@@ -426,7 +426,7 @@ describe("App", () => {
     expect(rows()).toEqual(["beach1", "family", "kids2"]);
 
     fireEvent.click(within(tags).getByRole("treeitem", { name: /kids/ }));
-    expect(mocks.tagPhotos).toHaveBeenCalledWith("family/kids");
+    expect(mocks.tagPhotos).toHaveBeenCalledWith("family/kids", noFilter);
     expect(await screen.findByRole("heading", { name: "family/kids" })).toBeTruthy();
     expect(screen.getByText("2 photos, from every folder")).toBeTruthy();
     expect(useStore.getState().folderId).toBeNull();
@@ -479,7 +479,7 @@ describe("App", () => {
     const box = screen.getByRole("searchbox", { name: "Search" });
     expect(document.activeElement).toBe(box);
     fireEvent.change(box, { target: { value: "beach" } });
-    expect(mocks.searchPhotos).toHaveBeenLastCalledWith("beach");
+    expect(mocks.searchPhotos).toHaveBeenLastCalledWith("beach", noFilter);
     expect(await screen.findByRole("heading", { name: "Results for “beach”" })).toBeTruthy();
     expect(screen.getByText("2 photos", { selector: ".folder-heading .meta" })).toBeTruthy();
     // The sidebar has no selection while searching.
@@ -503,6 +503,48 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("treeitem", { name: /Pictures/ }));
     expect(await screen.findByRole("heading", { name: "Pictures" })).toBeTruthy();
     expect(useStore.getState().search).toBeNull();
+  });
+
+  it("filters whatever the grid shows, from view to view, and clears (FND-1)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+    mocks.tags = [{ tag: "beach", name: "beach", parent: null, photos: 1 }];
+    mocks.photos = [1, 2, 3].map((id) => photo(id));
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("heading", { name: "Pictures" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+    mocks.photos = [photo(2)];
+    fireEvent.change(screen.getByRole("combobox", { name: "Rating" }), { target: { value: "3" } });
+    const atLeast3 = { ...noFilter, minRating: 3 };
+    expect(vi.mocked(commands.photos)).toHaveBeenLastCalledWith(1, atLeast3);
+    // The active filter shows as a chip, and the count says it's narrowed.
+    const active = await screen.findByRole("list", { name: "Active filters" });
+    expect(within(active).getByText("At least 3 stars")).toBeTruthy();
+    expect(await screen.findByText("1 of 3 photos")).toBeTruthy();
+
+    // Tags add up: a photo must have them all.
+    fireEvent.change(screen.getByRole("combobox", { name: "Tags" }), {
+      target: { value: "beach" },
+    });
+    const withBeach = { ...atLeast3, tags: ["beach"] };
+    expect(vi.mocked(commands.photos)).toHaveBeenLastCalledWith(1, withBeach);
+
+    // The filter stays set in another view, even with Filter closed.
+    fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+    fireEvent.click(screen.getByRole("treeitem", { name: /beach/ }));
+    expect(mocks.tagPhotos).toHaveBeenLastCalledWith("beach", withBeach);
+    expect(screen.getByRole("list", { name: "Active filters" })).toBeTruthy();
+
+    // Nothing matching says so, with a way out; × clears one filter.
+    mocks.photos = [];
+    fireEvent.click(screen.getByRole("treeitem", { name: /Pictures/ }));
+    expect(await screen.findByText("No photos here match the filters.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Clear beach" }));
+    expect(vi.mocked(commands.photos)).toHaveBeenLastCalledWith(1, atLeast3);
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(vi.mocked(commands.photos)).toHaveBeenLastCalledWith(1, noFilter);
+    await waitFor(() => expect(screen.queryByRole("list", { name: "Active filters" })).toBeNull());
   });
 
   it("shows a disconnected drive's folder as not connected (LIB-6)", async () => {

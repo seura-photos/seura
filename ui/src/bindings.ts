@@ -31,7 +31,7 @@ export const commands = {
 	 *  A folder's own photos (BRW-1), in the app's order (BRW-2). Their
 	 *  thumbnails are queued behind the visible ones.
 	 */
-	photos: (folder: number) => __TAURI_INVOKE<PhotoInfo[]>("photos", { folder }),
+	photos: (folder: number, filter: PhotoFilter) => __TAURI_INVOKE<PhotoInfo[]>("photos", { folder, filter }),
 	viewSettings: () => __TAURI_INVOKE<ViewSettings>("view_settings"),
 	/**  Sets the grid's order for the whole app, and remembers it (BRW-2). */
 	setSort: (by: string, ascending: boolean) => typedError<null, string>(__TAURI_INVOKE("set_sort", { by, ascending })),
@@ -51,13 +51,13 @@ export const commands = {
 	 *  The photos with exactly this tag, from every folder (TAG-5), in the
 	 *  app's order (BRW-2). Their thumbnails are queued behind the visible ones.
 	 */
-	tagPhotos: (tag: string) => __TAURI_INVOKE<PhotoInfo[]>("tag_photos", { tag }),
+	tagPhotos: (tag: string, filter: PhotoFilter) => __TAURI_INVOKE<PhotoInfo[]>("tag_photos", { tag, filter }),
 	/**
 	 *  Photos anywhere in the library whose file name or a tag contains the
 	 *  text, ignoring case and Unicode form (FND-2, TAG-2), in the app's order.
 	 *  Their thumbnails are queued behind the visible ones.
 	 */
-	searchPhotos: (text: string) => __TAURI_INVOKE<PhotoInfo[]>("search_photos", { text }),
+	searchPhotos: (text: string, filter: PhotoFilter) => __TAURI_INVOKE<PhotoInfo[]>("search_photos", { text, filter }),
 	/**
 	 *  Undoes the Library's last action, whatever is selected now (BRW-11).
 	 *  `None` when there's nothing to undo.
@@ -403,6 +403,21 @@ export type PhotoDetails = {
 	modified: number | null,
 	latitude: number | null,
 	longitude: number | null,
+};
+
+/**  What the grid is narrowed to (FND-1), applied to whatever it shows. */
+export type PhotoFilter = {
+	/**  0 for any rating. */
+	minRating: number,
+	/**  A photo must have all of these, exactly. */
+	tags: string[],
+	edited: boolean | null,
+	/**
+	 *  Inclusive bounds on the date taken, in seconds since 1970 on the
+	 *  camera's own clock. Either one alone leaves that side open.
+	 */
+	takenFrom: number | null,
+	takenTo: number | null,
 };
 
 /**  A photo, as the grid needs it. */

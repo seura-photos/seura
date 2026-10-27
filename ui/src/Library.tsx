@@ -1,7 +1,8 @@
-import { ArrowDownNarrowWide, ArrowUpNarrowWide, Plus, Search } from "lucide-react";
+import { ArrowDownNarrowWide, ArrowUpNarrowWide, Funnel, Plus, Search } from "lucide-react";
 import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import mark from "../../design/brand/seura-mark-small.svg";
 import type { FolderInfo, ScanProgress } from "./bindings";
+import { FilterChips, FilterControls } from "./Filters";
 import { FolderTree } from "./FolderTree";
 import { Grid } from "./Grid";
 import { InfoPanel } from "./InfoPanel";
@@ -10,7 +11,7 @@ import { PhotoMenu } from "./PhotoMenu";
 import { TagTree } from "./TagTree";
 import { t } from "./messages";
 import { ConfirmRemove, FolderMenu } from "./RemoveFolder";
-import { anchorOf, useStore } from "./store";
+import { anchorOf, isFiltered, useStore } from "./store";
 
 /** Where the tag picker sits: beside the last selected photo on screen,
  * in the grid's order, so it covers unselected ones rather than the
@@ -79,6 +80,9 @@ export function Library({ inert = false }: { inert?: boolean }) {
   const search = useStore((state) => state.search);
   const setSearch = useStore((state) => state.setSearch);
   const endSearch = useStore((state) => state.endSearch);
+  const filtered = useStore((state) => isFiltered(state.filter));
+  const clearFilters = useStore((state) => state.clearFilters);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const searchBox = useRef<HTMLInputElement>(null);
   // An empty library folder has no id, so nothing selected must not match it.
   const folder =
@@ -230,6 +234,15 @@ export function Library({ inert = false }: { inert?: boolean }) {
               <h1 className="view-title">{shown.title}</h1>
               <span className="meta">{shown.meta}</span>
               <div className="view-controls">
+                <button
+                  type="button"
+                  className={filtered ? "button active" : "button"}
+                  aria-expanded={filtersOpen}
+                  onClick={() => setFiltersOpen(!filtersOpen)}
+                >
+                  <Funnel className="icon" aria-hidden />
+                  {t("filter")}
+                </button>
                 <label className="view-control">
                   <span className="visually-hidden">{t("grid-sort")}</span>
                   <select
@@ -267,8 +280,17 @@ export function Library({ inert = false }: { inert?: boolean }) {
                 </label>
               </div>
             </div>
+            {filtersOpen && <FilterControls />}
+            <FilterChips />
             {tagNode && tagNode.photos === null ? (
               <p className="empty">{t("library-tag-empty", { tag: tagNode.tag })}</p>
+            ) : filtered && photos.length === 0 ? (
+              <div className="empty">
+                <p>{t("filter-none")}</p>
+                <button type="button" className="button" onClick={() => void clearFilters()}>
+                  {t("filter-clear")}
+                </button>
+              </div>
             ) : search !== null && photos.length === 0 ? (
               <p className="empty">{t("search-none", { text: search.trim() })}</p>
             ) : (
@@ -321,9 +343,13 @@ export function Library({ inert = false }: { inert?: boolean }) {
       )}
 
       <footer className="status-bar">
-        {shown && shown.count !== null && (
-          <span>{t("library-photo-count", { count: shown.count })}</span>
-        )}
+        {shown &&
+          shown.count !== null &&
+          (filtered && search === null ? (
+            <span>{t("filter-count", { shown: photos.length, count: shown.count })}</span>
+          ) : (
+            <span>{t("library-photo-count", { count: shown.count })}</span>
+          ))}
         {selection.ids.size > 0 && (
           <span>{t("library-selected", { count: selection.ids.size })}</span>
         )}

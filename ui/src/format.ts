@@ -54,3 +54,10 @@ export function formatDateTime(
     ...(local ? {} : { timeZone: "UTC" }),
   }).format(new Date(secondsSince1970 * 1000));
 }
+
+/** A date taken, without the time, such as "Jul 12, 2026", as recorded. */
+export function formatDate(secondsSince1970: number): string {
+  return new Intl.DateTimeFormat(region, { dateStyle: "medium", timeZone: "UTC" }).format(
+    new Date(secondsSince1970 * 1000),
+  );
+}

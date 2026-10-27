@@ -55,6 +55,43 @@ search-title = Results for “{ $text }”
 search-none = No photos match “{ $text }”.
 # What the Viewer goes back to from search results.
 search-back = Results
+
+## Filters (FND-1): they narrow whatever the grid shows.
+
+filter = Filter
+filter-controls = Filters
+filter-rating = Rating
+filter-any = Any
+filter-min-rating =
+    { $stars ->
+        [one] At least 1 star
+        [5] 5 stars
+       *[other] At least { $stars } stars
+    }
+filter-tags = Tags
+# The first entry of the tag list; choosing a tag adds it to the filter.
+filter-add-tag = Add a tag…
+filter-edits = Edits
+filter-edited = Edited
+filter-unedited = Not edited
+filter-taken-from = Taken from
+filter-taken-to = to
+# Chips for the date taken; $from and $to are dates, formatted for the region.
+filter-taken-between = Taken { $from } to { $to }
+filter-taken-since = Taken since { $date }
+filter-taken-until = Taken until { $date }
+filter-active = Active filters
+# A chip's × button.
+filter-remove = Clear { $filter }
+filter-clear-all = Clear all
+filter-none = No photos here match the filters.
+filter-clear = Clear filters
+# The count while filtered: how many are shown, of how many there are.
+filter-count =
+    { $count ->
+        [one] { $shown } of { $count } photo
+       *[other] { $shown } of { $count } photos
+    }
 # The sidebar, for screen readers: its folders and tags.
 library-sidebar = Folders and tags
 # The TAGS section before anything is tagged.
