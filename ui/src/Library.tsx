@@ -1,11 +1,11 @@
-import { ArrowDownNarrowWide, ArrowUpNarrowWide, Plus } from "lucide-react";
-import { useCallback, useEffect, useEffectEvent, useState } from "react";
+import { ArrowDownNarrowWide, ArrowUpNarrowWide, Plus, Search } from "lucide-react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import mark from "../../design/brand/seura-mark-small.svg";
 import type { FolderInfo, ScanProgress } from "./bindings";
 import { FolderTree } from "./FolderTree";
 import { Grid } from "./Grid";
 import { InfoPanel } from "./InfoPanel";
-import { historyKey, isSelectAll, isTagKey, ratingKey } from "./keys";
+import { historyKey, isFind, isSelectAll, isTagKey, ratingKey } from "./keys";
 import { PhotoMenu } from "./PhotoMenu";
 import { TagTree } from "./TagTree";
 import { t } from "./messages";
@@ -76,26 +76,37 @@ export function Library({ inert = false }: { inert?: boolean }) {
   const reveal = useStore((state) => state.reveal);
   const tags = useStore((state) => state.tags);
   const tag = useStore((state) => state.tag);
+  const search = useStore((state) => state.search);
+  const setSearch = useStore((state) => state.setSearch);
+  const endSearch = useStore((state) => state.endSearch);
+  const searchBox = useRef<HTMLInputElement>(null);
   // An empty library folder has no id, so nothing selected must not match it.
   const folder =
     folderId === null ? null : (folders.find((candidate) => candidate.id === folderId) ?? null);
   // Or a tag, whose photos come from every folder (TAG-5).
   const tagNode = tag === null ? null : (tags.find((node) => node.tag === tag) ?? null);
-  const shown = folder
-    ? {
-        title: folder.name,
-        meta: t("library-folder-meta", { path: folder.path, count: folder.photos }),
-        count: folder.photos,
-      }
-    : tagNode
+  const shown =
+    search !== null
       ? {
-          title: tagNode.tag,
-          // A node no photo has exactly shows no count (TAG-5); the grid's
-          // place says why.
-          meta: tagNode.photos === null ? "" : t("library-tag-meta", { count: tagNode.photos }),
-          count: tagNode.photos,
+          title: t("search-title", { text: search.trim() }),
+          meta: t("library-photo-count", { count: photos.length }),
+          count: photos.length,
         }
-      : null;
+      : folder
+        ? {
+            title: folder.name,
+            meta: t("library-folder-meta", { path: folder.path, count: folder.photos }),
+            count: folder.photos,
+          }
+        : tagNode
+          ? {
+              title: tagNode.tag,
+              // A node no photo has exactly shows no count (TAG-5); the grid's
+              // place says why.
+              meta: tagNode.photos === null ? "" : t("library-tag-meta", { count: tagNode.photos }),
+              count: tagNode.photos,
+            }
+          : null;
   const [menu, setMenu] = useState<{ folder: FolderInfo; x: number; y: number } | null>(null);
   const [removing, setRemoving] = useState<FolderInfo | null>(null);
   const [photoMenu, setPhotoMenu] = useState<{ ids: number[]; x: number; y: number } | null>(null);
@@ -111,6 +122,13 @@ export function Library({ inert = false }: { inert?: boolean }) {
   // it has its own photo.
   const onKey = useEffectEvent((event: KeyboardEvent) => {
     if (inert) return;
+    // Ctrl+F (Cmd+F) goes to the search box (FND-2).
+    if (isFind(event)) {
+      event.preventDefault();
+      searchBox.current?.focus();
+      searchBox.current?.select();
+      return;
+    }
     // Select All selects the grid's photos wherever the focus is, not the
     // window's text, as a web page would (the grid handles it itself when
     // it has the focus).
@@ -145,6 +163,26 @@ export function Library({ inert = false }: { inert?: boolean }) {
       <header className="header">
         <img className="mark" src={mark} alt="" />
         <span className="wordmark">{t("app-short-name")}</span>
+        {/* Search across the whole library (FND-2; styled mockup). */}
+        <label className="search">
+          <Search className="icon" aria-hidden />
+          <span className="visually-hidden">{t("search-label")}</span>
+          <input
+            ref={searchBox}
+            type="search"
+            placeholder={t("search-placeholder")}
+            spellCheck={false}
+            autoComplete="off"
+            value={search ?? ""}
+            onChange={(event) => void setSearch(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                void endSearch();
+              }
+            }}
+          />
+        </label>
       </header>
 
       <nav className="sidebar" aria-label={t("library-sidebar")}>
@@ -231,6 +269,8 @@ export function Library({ inert = false }: { inert?: boolean }) {
             </div>
             {tagNode && tagNode.photos === null ? (
               <p className="empty">{t("library-tag-empty", { tag: tagNode.tag })}</p>
+            ) : search !== null && photos.length === 0 ? (
+              <p className="empty">{t("search-none", { text: search.trim() })}</p>
             ) : (
               <Grid
                 folder={shown.title}

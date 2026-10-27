@@ -33,6 +33,11 @@ type State = {
   /** The tag whose photos the grid shows instead of a folder's: those with
    * exactly that tag, from every folder (TAG-5). */
   tag: string | null;
+  /** What's typed in the search box while searching (FND-2): the grid
+   * shows matches from the whole library instead of a folder or tag. */
+  search: string | null;
+  /** The folder or tag the search replaced, to go back to. */
+  beforeSearch: { folderId: number | null; tag: string | null } | null;
   /** Tag tree nodes that are open, by tag. All start closed, so a long
    * list doesn't scroll at launch (Nevada, 2026-10-26); what the user opens
    * is remembered for the session. */
@@ -72,6 +77,10 @@ type State = {
   selectFolder: (id: number) => Promise<void>;
   toggleFolder: (key: string) => void;
   selectTag: (tag: string) => Promise<void>;
+  /** Searches as the user types; empty text ends the search (FND-2). */
+  setSearch: (text: string) => Promise<void>;
+  /** Clears the search and goes back to the folder or tag before it. */
+  endSearch: () => Promise<void>;
   toggleTag: (tag: string) => void;
   selectPhoto: (id: number, modifiers: { toggle: boolean; range: boolean }) => void;
   selectAllPhotos: () => void;
@@ -164,6 +173,8 @@ export const useStore = create<State>()((set, get) => ({
   folderId: null,
   tags: [],
   tag: null,
+  search: null,
+  beforeSearch: null,
   openTags: new Set(),
   expanded: new Set(),
   photos: [],
@@ -206,6 +217,20 @@ export const useStore = create<State>()((set, get) => ({
   async loadFolders() {
     const [folders, tags] = await Promise.all([commands.folders(), commands.tags()]);
     set({ tags });
+    // Search results follow the library too.
+    const { search } = get();
+    if (search !== null) {
+      const photos = await commands.searchPhotos(search);
+      if (get().search === search) {
+        set(({ selection }) => ({
+          photos,
+          selection: keepExisting(
+            selection,
+            photos.map((photo) => photo.id),
+          ),
+        }));
+      }
+    }
     // A tag no photo has any more leaves the tree (TAG-4), and the grid.
     const { tag } = get();
     if (tag !== null) {
@@ -254,16 +279,63 @@ export const useStore = create<State>()((set, get) => ({
   async selectFolder(id) {
     // A notice is about the last action where the user was, such as a
     // read-only folder they left: it goes with the folder.
-    if (get().folderId !== id)
-      set({ folderId: id, tag: null, selection: emptySelection, notice: null });
+    // Choosing a folder ends a search (FND-2).
+    if (get().folderId !== id || get().search !== null)
+      set({
+        folderId: id,
+        tag: null,
+        search: null,
+        beforeSearch: null,
+        selection: emptySelection,
+        notice: null,
+      });
     const photos = await commands.photos(id);
     if (get().folderId === id) set({ photos });
   },
 
   async selectTag(tag) {
-    if (get().tag !== tag) set({ tag, folderId: null, selection: emptySelection, notice: null });
+    if (get().tag !== tag || get().search !== null)
+      set({
+        tag,
+        folderId: null,
+        search: null,
+        beforeSearch: null,
+        selection: emptySelection,
+        notice: null,
+      });
     const photos = await commands.tagPhotos(tag);
     if (get().tag === tag) set({ photos });
+  },
+
+  async setSearch(text) {
+    if (text.trim() === "") {
+      await get().endSearch();
+      return;
+    }
+    const { search, folderId, tag } = get();
+    if (search === null) {
+      set({
+        search: text,
+        beforeSearch: { folderId, tag },
+        folderId: null,
+        tag: null,
+        selection: emptySelection,
+        notice: null,
+      });
+    } else {
+      set({ search: text });
+    }
+    const photos = await commands.searchPhotos(text);
+    // Only the latest text's results, whatever order they arrive in.
+    if (get().search === text) set({ photos });
+  },
+
+  async endSearch() {
+    const { search, beforeSearch } = get();
+    if (search === null) return;
+    set({ search: null, beforeSearch: null, photos: [], selection: emptySelection });
+    if (beforeSearch?.folderId != null) await get().selectFolder(beforeSearch.folderId);
+    else if (beforeSearch?.tag != null) await get().selectTag(beforeSearch.tag);
   },
 
   toggleTag(tag) {
@@ -310,9 +382,10 @@ export const useStore = create<State>()((set, get) => ({
   async setSort(by, ascending) {
     set({ sortBy: by, ascending });
     await commands.setSort(by, ascending);
-    const { folderId, tag } = get();
+    const { folderId, tag, search } = get();
     if (folderId !== null) set({ photos: await commands.photos(folderId) });
     else if (tag !== null) set({ photos: await commands.tagPhotos(tag) });
+    else if (search !== null) set({ photos: await commands.searchPhotos(search) });
   },
 
   setThumbnailSize(size) {

@@ -19,9 +19,10 @@ export function App() {
   const openEditor = useStore((state) => state.openEditor);
   const viewing = useStore((state) => state.viewing);
   // What the Viewer goes back to: the folder, or the tag (TAG-5).
-  const folderName = useStore(
-    (state) =>
-      state.tag ?? state.folders.find((folder) => folder.id === state.folderId)?.name ?? "",
+  const folderName = useStore((state) =>
+    state.search !== null
+      ? t("search-back")
+      : (state.tag ?? state.folders.find((folder) => folder.id === state.folderId)?.name ?? ""),
   );
 
   useEffect(() => {

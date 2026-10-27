@@ -18,6 +18,7 @@ fn main() {
         "tag_choices",
         "tags",
         "tag_photos",
+        "search_photos",
         "undo",
         "redo",
         "show_in_folder",

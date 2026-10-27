@@ -53,6 +53,12 @@ export const commands = {
 	 */
 	tagPhotos: (tag: string) => __TAURI_INVOKE<PhotoInfo[]>("tag_photos", { tag }),
 	/**
+	 *  Photos anywhere in the library whose file name or a tag contains the
+	 *  text, ignoring case and Unicode form (FND-2, TAG-2), in the app's order.
+	 *  Their thumbnails are queued behind the visible ones.
+	 */
+	searchPhotos: (text: string) => __TAURI_INVOKE<PhotoInfo[]>("search_photos", { text }),
+	/**
 	 *  Undoes the Library's last action, whatever is selected now (BRW-11).
 	 *  `None` when there's nothing to undo.
 	 */

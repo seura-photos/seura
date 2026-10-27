@@ -18,6 +18,7 @@
     "allow-tag-choices",
     "allow-tags",
     "allow-tag-photos",
+    "allow-search-photos",
     "allow-undo",
     "allow-redo",
     "allow-show-in-folder",
