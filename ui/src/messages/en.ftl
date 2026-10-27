@@ -40,11 +40,8 @@ library-photo-count =
         [one] { $count } photo
        *[other] { $count } photos
     }
-library-folder-meta =
-    { $count ->
-        [one] { $path } · { $count } photo
-       *[other] { $path } · { $count } photos
-    }
+# Between a folder's path and its photo count above the grid.
+heading-separator = ·
 library-pick-folder = Choose a folder on the left.
 library-tags = Tags
 # The search box in the header (FND-2).
@@ -167,6 +164,8 @@ grid-sort-date-modified = Date modified
 grid-ascending = Oldest or A to Z first
 grid-descending = Newest or Z to A first
 grid-size = Size
+# The size slider's tooltip.
+grid-size-reset = Double-click for the default size
 grid-edited = Edited
 grid-unreadable = Its edit file can't be read
 grid-cell-label =

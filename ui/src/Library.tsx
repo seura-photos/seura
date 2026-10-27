@@ -12,7 +12,7 @@ import { PhotoMenu } from "./PhotoMenu";
 import { TagTree } from "./TagTree";
 import { t } from "./messages";
 import { ConfirmRemove, FolderMenu } from "./RemoveFolder";
-import { anchorOf, isFiltered, useStore } from "./store";
+import { anchorOf, DEFAULT_THUMBNAIL_SIZE, isFiltered, useStore } from "./store";
 
 /** Where the tag picker sits: beside the last selected photo on screen,
  * in the grid's order, so it covers unselected ones rather than the
@@ -100,7 +100,10 @@ export function Library({ inert = false }: { inert?: boolean }) {
       : folder
         ? {
             title: folder.name,
-            meta: t("library-folder-meta", { path: folder.path, count: folder.photos }),
+            // Apart from the count, so a long path gives way and the count
+            // stays (Nevada, #72).
+            path: folder.path,
+            meta: t("library-photo-count", { count: folder.photos }),
             count: folder.photos,
           }
         : tagNode
@@ -235,8 +238,26 @@ export function Library({ inert = false }: { inert?: boolean }) {
           <>
             <NoticeBar photos={photos} />
             <div className="folder-heading">
-              <h1 className="view-title">{shown.title}</h1>
-              <span className="meta">{shown.meta}</span>
+              {/* In full on hover, wherever they're cut short (#72). */}
+              <h1 className="view-title" title={shown.title}>
+                {shown.title}
+              </h1>
+              <span
+                className="meta"
+                title={
+                  "path" in shown
+                    ? `${shown.path} ${t("heading-separator")} ${shown.meta}`
+                    : shown.meta
+                }
+              >
+                {"path" in shown && (
+                  <>
+                    <span className="meta-path">{shown.path}</span>
+                    <span aria-hidden>{t("heading-separator")}</span>
+                  </>
+                )}
+                <span className="meta-count">{shown.meta}</span>
+              </span>
               <div className="view-controls">
                 <button
                   type="button"
@@ -277,10 +298,27 @@ export function Library({ inert = false }: { inert?: boolean }) {
                     type="range"
                     min={96}
                     max={256}
-                    step={8}
                     value={thumbnailSize}
+                    // A tick at the default, and a double-click goes back to
+                    // it (Nevada, #73).
+                    list="size-default"
+                    title={t("grid-size-reset")}
+                    onDoubleClick={() => setThumbnailSize(DEFAULT_THUMBNAIL_SIZE)}
                     onChange={(event) => setThumbnailSize(Number(event.target.value))}
+                    // Dragged, it's continuous (#73); the arrow keys move it
+                    // 8 px at a time, so the keyboard isn't slow (ACC-1).
+                    onKeyDown={(event) => {
+                      const by = { ArrowLeft: -8, ArrowDown: -8, ArrowRight: 8, ArrowUp: 8 }[
+                        event.key
+                      ];
+                      if (by === undefined) return;
+                      event.preventDefault();
+                      setThumbnailSize(Math.min(256, Math.max(96, thumbnailSize + by)));
+                    }}
                   />
+                  <datalist id="size-default">
+                    <option value={DEFAULT_THUMBNAIL_SIZE} />
+                  </datalist>
                 </label>
               </div>
             </div>

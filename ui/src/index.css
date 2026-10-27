@@ -342,10 +342,33 @@ button {
   padding: 1rem 1.5rem 0.5rem;
 }
 
-.folder-heading .meta {
+/* The name stays on one line; the path and count take what's left, and
+   give way first, ending in "…" (#72). A very long name gives way too. */
+.folder-heading .view-title {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.folder-heading .meta {
+  display: flex;
+  flex: 1 1 0;
+  gap: 0.375rem;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+/* The path gives way; the count beside it stays whole (Nevada, #72). */
+.folder-heading .meta-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.folder-heading .meta-count {
+  flex: none;
 }
 
 .empty {
