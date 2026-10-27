@@ -37,6 +37,11 @@ export const commands = {
 	setSort: (by: string, ascending: boolean) => typedError<null, string>(__TAURI_INVOKE("set_sort", { by, ascending })),
 	/**  Sets the grid's cell size, and remembers it (BRW-3). */
 	setThumbnailSize: (size: number) => typedError<null, string>(__TAURI_INVOKE("set_thumbnail_size", { size })),
+	/**
+	 *  Sets the sidebar's width, and remembers it; none goes back to the
+	 *  default, which follows the window (#74).
+	 */
+	setSidebarWidth: (width: number | null) => typedError<null, string>(__TAURI_INVOKE("set_sidebar_width", { width })),
 	/**  The photos now on screen, in order: their thumbnails are made first (LIB-3). */
 	showThumbnails: (ids: number[]) => __TAURI_INVOKE<void>("show_thumbnails", { ids }),
 	/**
@@ -645,6 +650,11 @@ export type ViewSettings = {
 	ascending: boolean,
 	/**  Grid cell size in logical pixels, 96 to 256. */
 	thumbnailSize: number,
+	/**
+	 *  The sidebar's width in logical pixels, once the user has chosen one
+	 *  (#74); otherwise it follows the window.
+	 */
+	sidebarWidth: number | null,
 };
 
 /**  What the Viewer can show of a photo (BRW-5). */

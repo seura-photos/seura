@@ -59,6 +59,9 @@ type State = {
   sortBy: string;
   ascending: boolean;
   thumbnailSize: number;
+  /** The sidebar's width in CSS pixels, once the user has dragged it; until
+   * then, null, and it follows the window (#74). */
+  sidebarWidth: number | null;
   /** The photo shown in the Viewer (BRW-5), by id. */
   viewing: number | null;
   /** The photo the grid scrolls to and focuses, after the Viewer closes. */
@@ -101,6 +104,8 @@ type State = {
   selectAllPhotos: () => void;
   setSort: (by: string, ascending: boolean) => Promise<void>;
   setThumbnailSize: (size: number) => void;
+  /** Sets the sidebar's width, null for the default, and remembers it. */
+  setSidebarWidth: (width: number | null) => void;
   /** Removes a library folder (LIB-5), by its position among them. */
   removeFolder: (root: number) => Promise<void>;
   addFolder: () => Promise<void>;
@@ -185,12 +190,18 @@ export const noFilter: PhotoFilter = {
 };
 
 export function isFiltered(filter: PhotoFilter): boolean {
+  return filterCount(filter) > 0;
+}
+
+/** How many filters are set, one for each chip: the Filter button shows
+ * it ("Filter · 2"), so an active filter isn't shown by colour alone
+ * (FND-1). */
+export function filterCount(filter: PhotoFilter): number {
   return (
-    filter.minRating > 0 ||
-    filter.tags.length > 0 ||
-    filter.edited !== null ||
-    filter.takenFrom !== null ||
-    filter.takenTo !== null
+    (filter.minRating > 0 ? 1 : 0) +
+    filter.tags.length +
+    (filter.edited !== null ? 1 : 0) +
+    (filter.takenFrom !== null || filter.takenTo !== null ? 1 : 0)
   );
 }
 
@@ -204,6 +215,11 @@ export function anchorOf(element: Element): Anchor {
 }
 
 let sizeSave = 0;
+let widthSave = 0;
+
+/** The sidebar's widths in CSS pixels, as the `sidebarMin` and `sidebarMax`
+ * tokens and the core's `SIDEBAR_WIDTHS` (#74). */
+export const SIDEBAR_WIDTHS = { min: 180, max: 400 };
 
 /** Opening more photos than this at once in the default app is confirmed
  * first, as Windows' Explorer guards more than 15 (BRW-8). */
@@ -236,6 +252,7 @@ export const useStore = create<State>()((set, get) => ({
   sortBy: "dateTaken",
   ascending: true,
   thumbnailSize: 160,
+  sidebarWidth: null,
   viewing: null,
   reveal: null,
   confirmingOpen: null,
@@ -264,6 +281,7 @@ export const useStore = create<State>()((set, get) => ({
       sortBy: view.sortBy,
       ascending: view.ascending,
       thumbnailSize: view.thumbnailSize,
+      sidebarWidth: view.sidebarWidth,
       welcome: welcome.status === "ok" && welcome.data.needed ? welcome.data : null,
     });
     await get().loadFolders();
@@ -455,6 +473,17 @@ export const useStore = create<State>()((set, get) => ({
     // Saved once the slider rests.
     window.clearTimeout(sizeSave);
     sizeSave = window.setTimeout(() => void commands.setThumbnailSize(size), 400);
+  },
+
+  setSidebarWidth(width) {
+    const chosen =
+      width === null
+        ? null
+        : Math.round(Math.min(SIDEBAR_WIDTHS.max, Math.max(SIDEBAR_WIDTHS.min, width)));
+    set({ sidebarWidth: chosen });
+    // Saved once the divider rests.
+    window.clearTimeout(widthSave);
+    widthSave = window.setTimeout(() => void commands.setSidebarWidth(chosen), 400);
   },
 
   toggleFolder(key) {

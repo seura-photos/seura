@@ -6,8 +6,8 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use seura_library::{
-    AddFolder, Change, EditFileState, Filter, FolderId, PhotoId, Problem, Scope, Sort, SortBy,
-    THUMBNAIL_SIZES, is_placeholder,
+    AddFolder, Change, EditFileState, Filter, FolderId, PhotoId, Problem, SIDEBAR_WIDTHS, Scope,
+    Sort, SortBy, THUMBNAIL_SIZES, is_placeholder,
 };
 use specta::Type;
 use tauri::{AppHandle, Manager, State};
@@ -79,6 +79,9 @@ pub struct ViewSettings {
     pub ascending: bool,
     /// Grid cell size in logical pixels, 96 to 256.
     pub thumbnail_size: u32,
+    /// The sidebar's width in logical pixels, once the user has chosen one
+    /// (#74); otherwise it follows the window.
+    pub sidebar_width: Option<u32>,
 }
 
 fn sort_name(by: SortBy) -> &'static str {
@@ -97,6 +100,7 @@ pub fn view_settings(settings: State<'_, AppSettings>) -> ViewSettings {
         sort_by: sort_name(settings.sort.by).into(),
         ascending: settings.sort.ascending,
         thumbnail_size: settings.thumbnail_size,
+        sidebar_width: settings.sidebar_width,
     }
 }
 
@@ -125,6 +129,20 @@ pub fn set_sort(
 pub fn set_thumbnail_size(settings: State<'_, AppSettings>, size: u32) -> Result<(), String> {
     let mut settings = settings.0.lock().expect("settings lock");
     settings.settings.thumbnail_size = size.clamp(THUMBNAIL_SIZES.0, THUMBNAIL_SIZES.1);
+    settings.save().map_err(|error| error.to_string())
+}
+
+/// Sets the sidebar's width, and remembers it; none goes back to the
+/// default, which follows the window (#74).
+#[tauri::command]
+#[specta::specta]
+pub fn set_sidebar_width(
+    settings: State<'_, AppSettings>,
+    width: Option<u32>,
+) -> Result<(), String> {
+    let mut settings = settings.0.lock().expect("settings lock");
+    settings.settings.sidebar_width =
+        width.map(|width| width.clamp(SIDEBAR_WIDTHS.0, SIDEBAR_WIDTHS.1));
     settings.save().map_err(|error| error.to_string())
 }
 

@@ -38,6 +38,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::view_settings,
             commands::set_sort,
             commands::set_thumbnail_size,
+            commands::set_sidebar_width,
             commands::show_thumbnails,
             commands::change_photos,
             commands::start_over,

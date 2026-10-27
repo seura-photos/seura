@@ -101,7 +101,10 @@ button {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: var(--size-sidebar) minmax(0, 1fr) var(--size-info-panel);
+  /* --sidebar-chosen once the user drags the divider (#74). */
+  grid-template-columns:
+    var(--sidebar-chosen, var(--size-sidebar)) minmax(0, 1fr)
+    var(--size-info-panel);
   grid-template-rows: var(--size-header) minmax(0, 1fr) var(--size-footer);
   grid-template-areas:
     "header header header"
@@ -113,7 +116,7 @@ button {
 @media (min-width: 1900px) {
   .shell {
     grid-template-columns:
-      calc(var(--size-sidebar) + 1.75rem) minmax(0, 1fr)
+      var(--sidebar-chosen, calc(var(--size-sidebar) + 1.75rem)) minmax(0, 1fr)
       calc(var(--size-info-panel) + 2.5rem);
   }
 }
@@ -181,6 +184,32 @@ button {
   padding: 0 0.625rem 1rem;
   background: var(--color-panel);
   border-right: 1px solid var(--color-border);
+}
+
+/* The divider between the sidebar and the grid (#74): the sidebar's 1 px
+   border at rest, with an 8 px grab area centred on it; a 2 px line in the
+   accent text colour on hover, while dragging, and when focused. */
+.sidebar-divider {
+  grid-area: sidebar;
+  justify-self: end;
+  position: relative;
+  z-index: 2;
+  width: 8px;
+  margin-right: -3.5px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sidebar-divider::after {
+  content: "";
+  position: absolute;
+  inset: 0 3px;
+}
+
+.sidebar-divider:hover::after,
+.sidebar-divider[data-dragging]::after,
+.sidebar-divider:focus-visible::after {
+  background: var(--color-accent-text);
 }
 
 /* A section's heading, with its add button (+), kept in view while the
@@ -253,7 +282,8 @@ button {
   background: var(--color-accent-subtle);
   /* The fill alone is about 1.1:1 against the sidebar; the accent bar and
      text show the selection at well over 3:1 (WCAG 1.4.11). */
-  box-shadow: inset 3px 0 0 var(--color-accent);
+  /* accentText: accent is only 2.3:1 against the fill in dark mode. */
+  box-shadow: inset 3px 0 0 var(--color-accent-text);
   color: var(--color-accent-text);
   font-weight: var(--type-panel-heading-weight);
 }

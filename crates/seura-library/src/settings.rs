@@ -20,6 +20,10 @@ pub const SETTINGS_FILE: &str = "settings.json";
 pub const THUMBNAIL_SIZES: (u32, u32) = (96, 256);
 pub const DEFAULT_THUMBNAIL_SIZE: u32 = 160;
 
+/// The sidebar's widths, in logical pixels, as the `sidebarMin` and
+/// `sidebarMax` tokens (#74; wireframes, "Resizable sidebar").
+pub const SIDEBAR_WIDTHS: (u32, u32) = (180, 400);
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
@@ -30,6 +34,9 @@ pub struct Settings {
     pub cache_folder: Option<PathBuf>,
     /// Grid cell size in logical pixels, 96 to 256 (BRW-3).
     pub thumbnail_size: u32,
+    /// The sidebar's width in logical pixels, 180 to 400, once the user has
+    /// dragged it; until then it follows the window (#74).
+    pub sidebar_width: Option<u32>,
     /// One sort order for the whole app (BRW-2).
     pub sort: Sort,
     /// Whether to check for updates (SET-4); asked on first run, used from M7.
@@ -71,6 +78,7 @@ impl Default for Settings {
             library_folders: Vec::new(),
             cache_folder: None,
             thumbnail_size: DEFAULT_THUMBNAIL_SIZE,
+            sidebar_width: None,
             sort: Sort::default(),
             check_for_updates: true,
             unknown: Map::new(),
@@ -111,6 +119,9 @@ impl SettingsFile {
         settings.thumbnail_size = settings
             .thumbnail_size
             .clamp(THUMBNAIL_SIZES.0, THUMBNAIL_SIZES.1);
+        settings.sidebar_width = settings
+            .sidebar_width
+            .map(|width| width.clamp(SIDEBAR_WIDTHS.0, SIDEBAR_WIDTHS.1));
         Ok(Some(SettingsFile {
             path,
             settings,
@@ -183,11 +194,12 @@ mod tests {
     #[test]
     fn missing_fields_take_defaults_and_unknown_ones_are_kept() {
         let folder = tempfile::tempdir().unwrap();
-        let json = r#"{ "thumbnailSize": 999, "fromTheFuture": { "a": 1 } }"#;
+        let json = r#"{ "thumbnailSize": 999, "sidebarWidth": 9, "fromTheFuture": { "a": 1 } }"#;
         fs::write(folder.path().join(SETTINGS_FILE), json).unwrap();
 
         let file = SettingsFile::load(folder.path()).unwrap().unwrap();
         assert_eq!(file.settings.thumbnail_size, THUMBNAIL_SIZES.1);
+        assert_eq!(file.settings.sidebar_width, Some(SIDEBAR_WIDTHS.0));
         assert!(file.settings.check_for_updates);
         file.save().unwrap();
         let text = fs::read_to_string(folder.path().join(SETTINGS_FILE)).unwrap();
