@@ -40,6 +40,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::set_thumbnail_size,
             commands::show_thumbnails,
             commands::change_photos,
+            commands::start_over,
+            commands::show_kept_files,
             commands::tag_choices,
             commands::tags,
             commands::tag_photos,

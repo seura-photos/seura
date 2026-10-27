@@ -56,6 +56,32 @@ search-none = No photos match “{ $text }”.
 # What the Viewer goes back to from search results.
 search-back = Results
 
+## Problems with files: the notice bar above the grid (user flows, flow 11).
+
+# The selected photos' edit files can't be read (FIL-4).
+start-over-unreadable =
+    { $count ->
+        [one] The edit file for { $name } can't be read, so the photo is shown unedited. Start over keeps that file aside, in Seura's folder, and begins again with no edits, tags, or rating.
+       *[other] { $count } of the selected photos have edit files that can't be read, so they're shown unedited. Start over keeps those files aside, in Seura's folder, and begins again with no edits, tags, or rating.
+    }
+start-over = Start over
+start-over-kept =
+    { $count ->
+        [one] The old edit file is kept in “Unreadable edit files” in Seura's folder.
+       *[other] The { $count } old edit files are kept in “Unreadable edit files” in Seura's folder.
+    }
+start-over-show = Show in folder
+start-over-readable =
+    { $count ->
+        [one] One edit file can be read now, so it was left as it is.
+       *[other] { $count } edit files can be read now, so they were left as they are.
+    }
+start-over-failed =
+    { $count ->
+        [one] One photo couldn't be started over.
+       *[other] { $count } photos couldn't be started over.
+    }
+
 ## Filters (FND-1): they narrow whatever the grid shows.
 
 filter = Filter

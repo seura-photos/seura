@@ -7,6 +7,7 @@ import { FolderTree } from "./FolderTree";
 import { Grid } from "./Grid";
 import { InfoPanel } from "./InfoPanel";
 import { historyKey, isFind, isSelectAll, isTagKey, ratingKey } from "./keys";
+import { NoticeBar } from "./NoticeBar";
 import { PhotoMenu } from "./PhotoMenu";
 import { TagTree } from "./TagTree";
 import { t } from "./messages";
@@ -230,6 +231,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
           <p className="empty">{t("library-empty")}</p>
         ) : shown ? (
           <>
+            <NoticeBar photos={photos} />
             <div className="folder-heading">
               <h1 className="view-title">{shown.title}</h1>
               <span className="meta">{shown.meta}</span>

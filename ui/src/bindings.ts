@@ -44,6 +44,18 @@ export const commands = {
 	 *  files beside them (FIL-1, FIL-2). Photos already as asked are left alone.
 	 */
 	changePhotos: (ids: number[], change: PhotoChange) => typedError<ChangeResult, string>(__TAURI_INVOKE("change_photos", { ids, change })),
+	/**
+	 *  Starts photos over from edit files that can't be read, once the user
+	 *  has confirmed with Start over (FIL-4): each old file is kept, unchanged,
+	 *  in `Unreadable edit files` in Seura's folder, named with the time in the
+	 *  user's time zone, `utc_offset_minutes` ahead of UTC.
+	 */
+	startOver: (ids: number[], utcOffsetMinutes: number) => typedError<StartOverResult, string>(__TAURI_INVOKE("start_over", { ids, utcOffsetMinutes })),
+	/**
+	 *  Shows kept edit files in Explorer or Finder (FIL-4): only files, by
+	 *  name, in `Unreadable edit files` in Seura's folder, never another path.
+	 */
+	showKeptFiles: (names: string[]) => typedError<null, string>(__TAURI_INVOKE("show_kept_files", { names })),
 	tagChoices: (ids: number[], text: string) => __TAURI_INVOKE<TagChoices>("tag_choices", { ids, text }),
 	/**  The TAGS tree: every tag some photo has, and the nodes above each. */
 	tags: () => __TAURI_INVOKE<TagInfo[]>("tags"),
@@ -483,6 +495,21 @@ export type SelectionSummary = {
 	partialTags: TagCount[],
 	/**  How many are in read-only folders (TAG-7). */
 	readOnly: number,
+};
+
+/**  What Start over did (FIL-4). */
+export type StartOverResult = {
+	/**
+	 *  The names the old edit files are kept under, in `Unreadable edit
+	 *  files` in Seura's folder.
+	 */
+	kept: string[],
+	/**  Their edit file can be read now, so it was left as it is. */
+	readable: number,
+	/**  In a read-only folder (TAG-7). */
+	readOnly: number,
+	/**  Couldn't be started over for another reason. */
+	failed: number,
 };
 
 /**
