@@ -329,7 +329,13 @@ mod tests {
             .join("2026-10-26 143012 IMG_1234.jpg.seura.json");
         assert_eq!(result, Ok(StartedOver::Kept(kept.clone())));
         assert_eq!(fs::read(&kept).unwrap(), b"{ not json");
-        assert_eq!(*trashed.borrow(), [library.edit_file()]);
+        // The edit file, however the system spells its folder (CI's
+        // temporary folders have short names on Windows).
+        let trashed = trashed.borrow();
+        assert_eq!(trashed.len(), 1);
+        assert_eq!(trashed[0].file_name(), library.edit_file().file_name());
+        assert!(!library.edit_file().exists());
+        assert!(library.edit_file().with_extension("trashed").exists());
     }
 
     #[test]
