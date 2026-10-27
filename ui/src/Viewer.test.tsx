@@ -6,7 +6,7 @@ import { Viewer } from "./Viewer";
 
 const mocks = vi.hoisted(() => ({
   viewed: { kind: "shown" } as Record<string, unknown>,
-  photoNotices: vi.fn(() =>
+  photoNotices: vi.fn<(id: number) => Promise<unknown>>(() =>
     Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
   ),
   viewPhoto: vi.fn(),
