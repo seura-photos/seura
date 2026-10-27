@@ -235,8 +235,13 @@ export function Library({ inert = false }: { inert?: boolean }) {
           <>
             <NoticeBar photos={photos} />
             <div className="folder-heading">
-              <h1 className="view-title">{shown.title}</h1>
-              <span className="meta">{shown.meta}</span>
+              {/* In full on hover, wherever they're cut short (#72). */}
+              <h1 className="view-title" title={shown.title}>
+                {shown.title}
+              </h1>
+              <span className="meta" title={shown.meta}>
+                {shown.meta}
+              </span>
               <div className="view-controls">
                 <button
                   type="button"
@@ -277,9 +282,18 @@ export function Library({ inert = false }: { inert?: boolean }) {
                     type="range"
                     min={96}
                     max={256}
-                    step={8}
                     value={thumbnailSize}
                     onChange={(event) => setThumbnailSize(Number(event.target.value))}
+                    // Dragged, it's continuous (#73); the arrow keys move it
+                    // 8 px at a time, so the keyboard isn't slow (ACC-1).
+                    onKeyDown={(event) => {
+                      const by = { ArrowLeft: -8, ArrowDown: -8, ArrowRight: 8, ArrowUp: 8 }[
+                        event.key
+                      ];
+                      if (by === undefined) return;
+                      event.preventDefault();
+                      setThumbnailSize(Math.min(256, Math.max(96, thumbnailSize + by)));
+                    }}
                   />
                 </label>
               </div>

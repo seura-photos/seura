@@ -342,7 +342,19 @@ button {
   padding: 1rem 1.5rem 0.5rem;
 }
 
+/* The name stays on one line; the path and count take what's left, and
+   give way first, ending in "…" (#72). A very long name gives way too. */
+.folder-heading .view-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .folder-heading .meta {
+  flex: 1 1 0;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

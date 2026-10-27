@@ -11,12 +11,10 @@ import {
 } from "react";
 import { commands, type PhotoInfo } from "./bindings";
 import { cellLabel } from "./cellLabel";
+import { GAP, gridLayout } from "./gridLayout";
 import { t } from "./messages";
 import { moveFocus, type Selection } from "./selection";
 import { thumbLabel, type ThumbState } from "./thumbState";
-
-/** Space between cells, in logical pixels. */
-const GAP = 12;
 
 type Props = {
   folder: string;
@@ -71,10 +69,7 @@ export function Grid({
     return () => observer.disconnect();
   }, []);
 
-  // The slider sets the smallest cell; cells then grow a little so the row
-  // fills the width, giving extra space to the photos (DSP-3).
-  const columns = Math.max(1, Math.floor((width - GAP) / (size + GAP)));
-  const cell = width > 0 ? Math.max(size, Math.floor((width - GAP) / columns) - GAP) : size;
+  const { columns, cell, columnGap } = gridLayout(width, size);
   const step = cell + GAP;
   const rows = Math.ceil(photos.length / columns);
   // TanStack Virtual returns functions React Compiler can't memoize; this
@@ -200,7 +195,7 @@ export function Grid({
             role="row"
             aria-rowindex={row.index + 1}
             className="grid-row"
-            style={{ transform: `translateY(${row.start}px)`, height: cell, gap: GAP }}
+            style={{ transform: `translateY(${row.start}px)`, height: cell, columnGap }}
           >
             {photos.slice(row.index * columns, (row.index + 1) * columns).map((photo, column) => {
               const index = row.index * columns + column;
