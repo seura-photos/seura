@@ -12,6 +12,7 @@ menu-file = File
 menu-add-folder = Add Folder…
 menu-show-in-finder = Show in Finder
 menu-open-in-default-app = Open in Default App
+menu-move-to-trash = Move to Trash…
 menu-close-window = Close Window
 menu-edit = Edit
 menu-undo = Undo

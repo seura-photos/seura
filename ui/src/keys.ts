@@ -52,3 +52,11 @@ export function ratingKey(event: KeyboardEvent): number | null {
   if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return null;
   return /^[0-5]$/.test(event.key) ? Number(event.key) : null;
 }
+
+/** Whether a key press is Delete for photos (BRW-9): the Delete key,
+ * outside a text field. Windows only: on a Mac, Cmd+Delete goes to the
+ * File menu's Move to Trash, which passes it on, so it happens once. */
+export function isDeleteKey(event: KeyboardEvent): boolean {
+  if (isMac || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
+  return event.key === "Delete" && !isTyping(event);
+}

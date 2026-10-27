@@ -1,6 +1,6 @@
 import { Menu } from "./Menu";
 import { t } from "./messages";
-import { useStore } from "./store";
+import { system, useStore } from "./store";
 
 const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
@@ -15,12 +15,13 @@ type Props = {
 /**
  * The menu for photos, opened by right-click or the context-menu key
  * (Shift+F10) in the grid and the Viewer: show them in Explorer or Finder,
- * or open them in the system's default app (BRW-8). Rust does both
- * (decision 0009).
+ * or open them in the system's default app (BRW-8), or move them to the
+ * Recycle Bin or Trash (BRW-9). Rust does these (decision 0009).
  */
 export function PhotoMenu({ ids, x, y, onClose }: Props) {
   const showInFolder = useStore((state) => state.showInFolder);
   const openInDefaultApp = useStore((state) => state.openInDefaultApp);
+  const askDelete = useStore((state) => state.askDelete);
 
   return (
     <Menu x={x} y={y} onClose={onClose}>
@@ -45,6 +46,17 @@ export function PhotoMenu({ ids, x, y, onClose }: Props) {
         }}
       >
         {t("photo-open", { count: ids.length })}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className="menu-item"
+        onClick={() => {
+          onClose();
+          void askDelete(ids);
+        }}
+      >
+        {t("photo-delete", { system })}
       </button>
     </Menu>
   );

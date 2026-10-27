@@ -16,6 +16,8 @@ fn main() {
         "show_thumbnails",
         "change_photos",
         "start_over",
+        "deleting",
+        "delete_photos",
         "photo_notices",
         "show_kept_files",
         "tag_choices",

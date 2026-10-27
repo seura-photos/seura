@@ -109,6 +109,22 @@ vi.mock("./bindings", () => ({
       }),
     ),
     showKeptFiles: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
+    deleting: vi.fn(() =>
+      Promise.resolve({
+        count: 2,
+        editFiles: 1,
+        synced: 2,
+        service: "OneDrive",
+        readOnly: 0,
+        cloudOnly: 1,
+      }),
+    ),
+    deletePhotos: vi.fn(() =>
+      Promise.resolve({
+        status: "ok",
+        data: { deleted: 2, readOnly: 0, cloudOnly: 1, failed: 0 },
+      }),
+    ),
     photoNotices: vi.fn(() =>
       Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
     ),
@@ -628,6 +644,66 @@ describe("App", () => {
     vi.mocked(commands.photoNotices).mockImplementation(() =>
       Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
     );
+  });
+
+  it("deletes photos to the Recycle Bin only once confirmed (BRW-9)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+    mocks.photos = [1, 2, 3].map((id) => photo(id));
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("heading", { name: "Pictures" });
+    act(() => {
+      useStore.getState().selectPhoto(1, { toggle: false, range: false });
+      useStore.getState().selectPhoto(2, { toggle: true, range: false });
+      useStore.getState().selectPhoto(3, { toggle: true, range: false });
+    });
+
+    // Delete asks first, saying where they go and what the cloud does.
+    fireEvent.keyDown(window, { key: "Delete" });
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Move 2 photos to the Recycle Bin?",
+    });
+    expect(dialog.textContent).toContain("These photos are in OneDrive.");
+    expect(dialog.textContent).toContain("restore both each photo and its file");
+    expect(dialog.textContent).toContain("1 photo is only in the cloud");
+    // Cancel has the focus, and does nothing.
+    expect(document.activeElement).toBe(within(dialog).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(vi.mocked(commands.deletePhotos)).not.toHaveBeenCalled();
+
+    // Confirmed, they go, and a notice says so.
+    fireEvent.keyDown(window, { key: "Delete" });
+    const again = await screen.findByRole("alertdialog");
+    fireEvent.click(within(again).getByRole("button", { name: "Move to Recycle Bin" }));
+    expect(vi.mocked(commands.deletePhotos)).toHaveBeenCalledWith([1, 2, 3]);
+    expect(await screen.findByText(/Moved 2 photos to the Recycle Bin\./)).toBeTruthy();
+    // Choosing another photo moves on from the notice.
+    act(() => useStore.getState().selectPhoto(1, { toggle: false, range: false }));
+    expect(screen.queryByText(/Moved 2 photos/)).toBeNull();
+
+    // When none can go, a dialog says why, with OK alone.
+    vi.mocked(commands.deleting).mockResolvedValueOnce({
+      count: 0,
+      editFiles: 0,
+      synced: 0,
+      service: null,
+      readOnly: 0,
+      cloudOnly: 1,
+    });
+    fireEvent.keyDown(window, { key: "Delete" });
+    const none = await screen.findByRole("alertdialog", {
+      name: "This photo can't be moved to the Recycle Bin",
+    });
+    expect(none.textContent).toContain("1 photo is only in the cloud");
+    expect(
+      within(none)
+        .getAllByRole("button")
+        .map((button) => button.textContent),
+    ).toEqual(["OK"]);
+    fireEvent.click(within(none).getByRole("button", { name: "OK" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(vi.mocked(commands.deletePhotos)).toHaveBeenCalledTimes(1);
   });
 
   it("shows a disconnected drive's folder as not connected (LIB-6)", async () => {

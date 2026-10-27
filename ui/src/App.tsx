@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { commands, events } from "./bindings";
+import { ConfirmDelete } from "./ConfirmDelete";
 import { ConfirmOpen } from "./ConfirmOpen";
 import { Editor } from "./Editor";
 import { Library } from "./Library";
@@ -48,6 +49,14 @@ export function App() {
           if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement)
             document.execCommand(payload);
           else void store[payload]();
+        } else if (payload === "delete") {
+          // In a text field, Cmd+Delete deletes to the start of the line, as
+          // it would without the menu's shortcut.
+          const focused = document.activeElement;
+          if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement) {
+            focused.setRangeText("", 0, focused.selectionEnd ?? 0, "start");
+            focused.dispatchEvent(new Event("input", { bubbles: true }));
+          } else void store.askDelete(store.chosenPhotos());
         } else if (payload === "showInFolder") void store.showInFolder(store.chosenPhotos());
         else void store.openInDefaultApp(store.chosenPhotos());
       }),
@@ -96,6 +105,7 @@ export function App() {
         </div>
       )}
       <ConfirmOpen />
+      <ConfirmDelete />
       <TagPicker />
     </div>
   );

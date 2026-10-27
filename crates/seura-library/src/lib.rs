@@ -7,6 +7,7 @@
 //! edit files (FIL-6), and the Trash.
 
 mod changes;
+mod delete;
 mod fingerprint;
 mod formats;
 mod index;
@@ -28,6 +29,7 @@ mod undo;
 mod watch;
 
 pub use changes::{Change, ChangeReport, Problem};
+pub use delete::{DeleteProblem, DeleteReport};
 pub use fingerprint::{fingerprint_file, to_hex};
 pub use formats::Format;
 pub use index::{
@@ -48,7 +50,7 @@ pub use tag_tree::TagEntry;
 pub use thumbnails::{
     ApplyEdits, Job, Made, Outcome, SWEEP_AFTER, THUMBS_FOLDER, ThumbnailCache, ThumbnailWorkers,
 };
-pub use trash::move_to_trash;
+pub use trash::{move_all_to_trash, move_to_trash};
 pub use tree::FolderEntry;
 pub use undo::{Action, History, UNDO_LIMIT, UndoReport};
 pub use watch::{Watcher, folders_to_scan};

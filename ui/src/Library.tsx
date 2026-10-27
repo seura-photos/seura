@@ -6,7 +6,7 @@ import { FilterChips, FilterControls } from "./Filters";
 import { FolderTree } from "./FolderTree";
 import { Grid } from "./Grid";
 import { InfoPanel } from "./InfoPanel";
-import { historyKey, isFind, isSelectAll, isTagKey, ratingKey } from "./keys";
+import { historyKey, isDeleteKey, isFind, isSelectAll, isTagKey, ratingKey } from "./keys";
 import { NoticeBar } from "./NoticeBar";
 import { PhotoMenu } from "./PhotoMenu";
 import { TagTree } from "./TagTree";
@@ -153,6 +153,8 @@ export function Library({ inert = false }: { inert?: boolean }) {
     const ids = [...selection.ids];
     const stars = ratingKey(event);
     if (stars !== null) void rate(ids, stars);
+    // Delete moves them to the Recycle Bin, once confirmed (BRW-9).
+    else if (isDeleteKey(event)) void useStore.getState().askDelete(ids);
     else if (isTagKey(event)) void openPicker(ids, selectionAnchor(ids));
     else return;
     event.preventDefault();

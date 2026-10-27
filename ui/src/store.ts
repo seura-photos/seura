@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   commands,
+  type Deleting,
   type DevOptions,
   type FolderInfo,
   type PhotoChange,
@@ -142,6 +143,13 @@ type State = {
   /** Starts photos over from edit files that can't be read, keeping the
    * old files in Seura's folder (FIL-4). */
   startOver: (ids: number[]) => Promise<void>;
+  /** Deleting photos, waiting to be confirmed (BRW-9). */
+  confirmingDelete: { ids: number[]; summary: Deleting } | null;
+  /** Asks to move photos to the Recycle Bin or Trash, or says why none
+   * can go (BRW-9, TAG-7), in a dialog either way. */
+  askDelete: (ids: number[]) => Promise<void>;
+  /** The answer: moves them, and the Viewer on to the next photo. */
+  confirmDelete: (yes: boolean) => Promise<void>;
 };
 
 /** Undoes or redoes, and says what happened (BRW-11). */
@@ -201,6 +209,10 @@ let sizeSave = 0;
  * first, as Windows' Explorer guards more than 15 (BRW-8). */
 export const CONFIRM_OPEN_ABOVE = 15;
 
+/** Windows says Recycle Bin, macOS Trash. */
+export const system =
+  typeof navigator !== "undefined" && /Mac/.test(navigator.platform) ? "mac" : "windows";
+
 export const useStore = create<State>()((set, get) => ({
   dev: null,
   welcome: null,
@@ -227,6 +239,7 @@ export const useStore = create<State>()((set, get) => ({
   notice: null,
   noticeId: 0,
   kept: null,
+  confirmingDelete: null,
   picker: null,
   progress: { scanning: null, done: 0, total: 0 },
 
@@ -405,9 +418,11 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   selectPhoto(id, modifiers) {
-    // What Start over did is about the photos it was done to.
+    // A notice, or what Start over did, is about the last action: choosing
+    // other photos moves on from it (Nevada, 2026-10-26).
     set(({ selection, photos }) => ({
       kept: null,
+      notice: null,
       selection: select(
         selection,
         photos.map((photo) => photo.id),
@@ -418,7 +433,11 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   selectAllPhotos() {
-    set(({ photos }) => ({ selection: selectAll(photos.map((photo) => photo.id)) }));
+    set(({ photos }) => ({
+      kept: null,
+      notice: null,
+      selection: selectAll(photos.map((photo) => photo.id)),
+    }));
   },
 
   async setSort(by, ascending) {
@@ -577,6 +596,48 @@ export const useStore = create<State>()((set, get) => ({
       failed > 0 ? t("start-over-failed", { count: failed }) : null,
     ].filter((problem) => problem !== null);
     if (problems.length > 0) get().say(problems.join(" "));
+  },
+
+  async askDelete(ids) {
+    if (ids.length === 0) return;
+    // A dialog either way, as Delete promises: to confirm, or to say why
+    // none of them can go (Nevada, 2026-10-26).
+    set({ confirmingDelete: { ids, summary: await commands.deleting(ids) } });
+  },
+
+  async confirmDelete(yes) {
+    const confirming = get().confirmingDelete;
+    set({ confirmingDelete: null });
+    if (!yes || !confirming) return;
+    const { ids } = confirming;
+    // The Viewer goes on to the next photo, or the one before at the end.
+    const { viewing, photos } = get();
+    const gone = new Set(ids);
+    const at = photos.findIndex((photo) => photo.id === viewing);
+    const after = photos.slice(at + 1).find((photo) => !gone.has(photo.id));
+    const before = photos
+      .slice(0, Math.max(at, 0))
+      .reverse()
+      .find((photo) => !gone.has(photo.id));
+    const result = await commands.deletePhotos(ids);
+    if (result.status === "error") {
+      get().say(t("delete-failed", { count: ids.length, system }));
+      return;
+    }
+    const { deleted, readOnly, cloudOnly, failed } = result.data;
+    if (deleted > 0 && viewing !== null && gone.has(viewing)) {
+      set({ viewing: (after ?? before)?.id ?? null });
+    }
+    get().say(
+      [
+        deleted > 0 ? t("delete-done", { count: deleted, system }) : null,
+        cloudOnly > 0 ? t("delete-cloud-only", { count: cloudOnly, system }) : null,
+        readOnly > 0 ? t("delete-read-only", { count: readOnly }) : null,
+        failed > 0 ? t("delete-failed", { count: failed, system }) : null,
+      ]
+        .filter((part) => part !== null)
+        .join(" "),
+    );
   },
 
   async confirmOpen(open) {

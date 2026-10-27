@@ -496,3 +496,101 @@ fn fil_6_an_unsure_match_is_left_alone() {
     );
     assert!(edit_file_path(photo).exists());
 }
+
+/// Deleting photos (BRW-9): they and their edit files reach the Trash
+/// unchanged, and nothing else in the library changes (rules 1 and 5).
+#[test]
+fn brw_9_deleted_photos_and_their_edit_files_reach_the_trash_unchanged() {
+    let library = Library::new();
+    let (index, ids) = scanned(&library);
+    let trash = Trash::new();
+    change(&index, &ids[..1], Change::Rating(4), &trash);
+    let chosen = [library.photos()[0].clone(), library.photos()[2].clone()];
+    let mut expected: Vec<(PathBuf, Vec<u8>)> = Vec::new();
+    for photo in &chosen {
+        expected.push((photo.clone(), fs::read(photo).unwrap()));
+        if edit_file_path(photo).exists() {
+            expected.push((
+                edit_file_path(photo),
+                fs::read(edit_file_path(photo)).unwrap(),
+            ));
+        }
+    }
+    let before = Snapshot::of(library.root());
+
+    let report = Index::delete_photos(&index, &[ids[0], ids[2]], &|paths| {
+        paths.iter().try_for_each(|path| trash.take(path))
+    });
+
+    assert_eq!(report.deleted, [ids[0], ids[2]]);
+    assert!(report.problems.is_empty(), "{report:?}");
+    // Everything sent arrived, byte for byte, and nothing else was sent.
+    let moved = trash.moved.borrow();
+    assert_eq!(moved.len(), expected.len());
+    for (n, (path, bytes)) in expected.iter().enumerate() {
+        // By name: the index spells temporary folders its own way on CI.
+        assert_eq!(moved[n].file_name(), path.file_name());
+        assert_eq!(
+            &fs::read(trash.folder.path().join(n.to_string())).unwrap(),
+            bytes
+        );
+    }
+    let after = Snapshot::of(library.root());
+    let mut removed: Vec<String> = expected
+        .iter()
+        .map(|(path, _)| library.relative(path))
+        .collect();
+    removed.sort();
+    assert_eq!(after.removed_since(&before), removed);
+    assert!(after.added_since(&before).is_empty());
+    assert!(after.changed_since(&before).is_empty());
+    let index = index.read().unwrap();
+    assert!(index.photo(ids[0]).is_none());
+    assert!(index.photo(ids[1]).is_some());
+}
+
+#[test]
+fn brw_9_photos_in_a_read_only_folder_are_not_deleted() {
+    let library = Library::new();
+    let winter = library.root().join("Winter");
+    let _read_only = library::read_only_folder(&winter);
+    let (index, ids) = scanned(&library);
+    let snow = ids[4];
+    let trash = Trash::new();
+    let before = Snapshot::of(library.root());
+
+    let report = Index::delete_photos(&index, &[snow], &|paths| {
+        paths.iter().try_for_each(|path| trash.take(path))
+    });
+
+    assert_eq!(
+        report.problems,
+        [(snow, seura_library::DeleteProblem::ReadOnly)]
+    );
+    assert!(trash.moved.borrow().is_empty());
+    let after = Snapshot::of(library.root());
+    assert!(after.removed_since(&before).is_empty());
+    assert!(after.changed_since(&before).is_empty());
+}
+
+/// The real Recycle Bin or Trash, several files in one operation, on CI
+/// only. They leave their folder and nothing else does.
+#[test]
+fn brw_9_the_system_trash_takes_several_files_at_once() {
+    if std::env::var_os("CI").is_none() {
+        return;
+    }
+    let folder = tempfile::tempdir().unwrap();
+    let photo = folder.path().join("IMG_1.jpg");
+    let edit_file = folder.path().join("IMG_1.jpg.seura.json");
+    let keep = folder.path().join("IMG_2.jpg");
+    for path in [&photo, &edit_file, &keep] {
+        fs::write(path, b"bytes").unwrap();
+    }
+
+    seura_library::move_all_to_trash(&[photo.clone(), edit_file.clone()]).unwrap();
+
+    assert!(!photo.exists());
+    assert!(!edit_file.exists());
+    assert_eq!(fs::read(&keep).unwrap(), b"bytes");
+}

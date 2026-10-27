@@ -310,6 +310,133 @@ photo-open-cloud =
     }
 photo-open-confirm = Open
 photo-open-cancel = Cancel
+# The photo menu's Delete (BRW-9). $system is "mac" or "windows".
+photo-delete =
+    { $system ->
+        [mac] Move to Trash…
+       *[other] Move to Recycle Bin…
+    }
+
+## Deleting photos (BRW-9). $system is "mac" or "windows".
+
+delete-title =
+    { $count ->
+        [one]
+            { $system ->
+                [mac] Move this photo to the Trash?
+               *[other] Move this photo to the Recycle Bin?
+            }
+       *[other]
+            { $system ->
+                [mac] Move { $count } photos to the Trash?
+               *[other] Move { $count } photos to the Recycle Bin?
+            }
+    }
+delete-body =
+    { $count ->
+        [one]
+            { $system ->
+                [mac] Its edits, tags, and rating go with it. You can put it back from the Trash.
+               *[other] Its edits, tags, and rating go with it. You can restore it from the Recycle Bin.
+            }
+       *[other]
+            { $system ->
+                [mac] Their edits, tags, and ratings go with them. You can put them back from the Trash.
+               *[other] Their edits, tags, and ratings go with them. You can restore them from the Recycle Bin.
+            }
+    }
+# Shown when any of the photos has an edit file, which goes too, as a separate file; $count is the photos.
+delete-restore-both =
+    { $count ->
+        [one]
+            { $system ->
+                [mac] Its edits are in a file of their own beside it. To get them back, put back both the photo and that file.
+               *[other] Its edits are in a file of their own beside it. To get them back, restore both the photo and that file.
+            }
+       *[other]
+            { $system ->
+                [mac] Edits are kept in files of their own beside the photos. To get them back, put back both each photo and its file.
+               *[other] Edits are kept in files of their own beside the photos. To get them back, restore both each photo and its file.
+            }
+    }
+# Every photo being deleted is in a folder $service syncs, such as OneDrive.
+delete-synced-all =
+    { $count ->
+        [one] This photo is in { $service }. It'll be removed from { $service } on all your devices too. { $service } keeps deleted files in its own recycle bin for a while.
+       *[other] These photos are in { $service }. They'll be removed from { $service } on all your devices too. { $service } keeps deleted files in its own recycle bin for a while.
+    }
+delete-synced-some =
+    { $count ->
+        [one] 1 of these photos is in { $service }. It'll be removed from { $service } on all your devices too. { $service } keeps deleted files in its own recycle bin for a while.
+       *[other] { $count } of these photos are in { $service }. They'll be removed from { $service } on all your devices too. { $service } keeps deleted files in its own recycle bin for a while.
+    }
+# Cloud-only photos can't go to the Recycle Bin or Trash, so they're left as they are.
+delete-cloud-only =
+    { $count ->
+        [one]
+            { $system ->
+                [mac] 1 photo is only in the cloud, so it can't go to the Trash and is left as it is. Delete it from its cloud service, or download it first.
+               *[other] 1 photo is only in the cloud, so it can't go to the Recycle Bin and is left as it is. Delete it from its cloud service, or download it first.
+            }
+       *[other]
+            { $system ->
+                [mac] { $count } photos are only in the cloud, so they can't go to the Trash and are left as they are. Delete them from their cloud service, or download them first.
+               *[other] { $count } photos are only in the cloud, so they can't go to the Recycle Bin and are left as they are. Delete them from their cloud service, or download them first.
+            }
+    }
+delete-read-only =
+    { $count ->
+        [one] 1 photo is in a read-only folder, so it's left as it is.
+       *[other] { $count } photos are in read-only folders, so they're left as they are.
+    }
+delete-confirm =
+    { $system ->
+        [mac] Move to Trash
+       *[other] Move to Recycle Bin
+    }
+delete-cancel = Cancel
+# None of the photos can be deleted; the dialog says why, with OK.
+delete-nothing-title =
+    { $count ->
+        [one]
+            { $system ->
+                [mac] This photo can't be moved to the Trash
+               *[other] This photo can't be moved to the Recycle Bin
+            }
+       *[other]
+            { $system ->
+                [mac] These photos can't be moved to the Trash
+               *[other] These photos can't be moved to the Recycle Bin
+            }
+    }
+delete-ok = OK
+delete-done =
+    { $count ->
+        [one]
+            { $system ->
+                [mac] Moved 1 photo to the Trash.
+               *[other] Moved 1 photo to the Recycle Bin.
+            }
+       *[other]
+            { $system ->
+                [mac] Moved { $count } photos to the Trash.
+               *[other] Moved { $count } photos to the Recycle Bin.
+            }
+    }
+delete-failed =
+    { $count ->
+        [one]
+            { $system ->
+                [mac] 1 photo couldn't be moved to the Trash, so it's where it was.
+               *[other] 1 photo couldn't be moved to the Recycle Bin, so it's where it was.
+            }
+       *[other]
+            { $system ->
+                [mac] { $count } photos couldn't be moved to the Trash, so they're where they were.
+               *[other] { $count } photos couldn't be moved to the Recycle Bin, so they're where they were.
+            }
+    }
+
 photo-show-failed = Couldn't show that in the folder: { $reason }
 photo-open-failed = Couldn't open that: { $reason }
 
