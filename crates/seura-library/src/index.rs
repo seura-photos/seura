@@ -366,14 +366,20 @@ impl Index {
     }
 
     /// Records what decoding the photo learned: its upright dimensions and
-    /// date taken.
-    pub fn record_details(&mut self, id: PhotoId, made: &crate::thumbnails::Made) {
-        if let Some(photo) = self.photo_mut(id) {
-            photo.dimensions = Some((made.width, made.height));
-            if made.taken.is_some() {
-                photo.taken = made.taken;
-            }
+    /// date taken. Returns whether either was new, so the index is saved
+    /// before it's lost (#99).
+    pub fn record_details(&mut self, id: PhotoId, made: &crate::thumbnails::Made) -> bool {
+        let Some(photo) = self.photo_mut(id) else {
+            return false;
+        };
+        let dimensions = Some((made.width, made.height));
+        let new =
+            photo.dimensions != dimensions || (made.taken.is_some() && photo.taken != made.taken);
+        photo.dimensions = dimensions;
+        if made.taken.is_some() {
+            photo.taken = made.taken;
         }
+        new
     }
 
     /// The photo with this name in this folder.

@@ -321,6 +321,35 @@ fn the_snapshot_restores_the_index() {
 }
 
 #[test]
+fn a_date_taken_learned_from_decoding_is_new_once_and_kept_in_the_snapshot() {
+    // #99: the app saves the index when decoding learns something new.
+    let folder = Folder::new();
+    folder.photo("a.jpg", JPEG);
+    let mut index = Index::new();
+    index.add_root(&folder.root()).unwrap();
+    index.scan(&folder.root());
+    let id = index.query(Scope::All, &Filter::default())[0];
+    let made = seura_library::Made {
+        width: 4000,
+        height: 3000,
+        taken: Some(1_783_881_720),
+    };
+    assert!(index.record_details(id, &made));
+    assert!(!index.record_details(id, &made));
+    // A thumbnail found later without a date doesn't forget the one known.
+    let undated = seura_library::Made {
+        taken: None,
+        ..made
+    };
+    assert!(!index.record_details(id, &undated));
+
+    let cache = tempfile::tempdir().unwrap();
+    index.save_snapshot(cache.path()).unwrap();
+    let loaded = Index::load_snapshot(cache.path()).expect("the snapshot loads");
+    assert_eq!(photo(&loaded, "a.jpg").taken, Some(1_783_881_720));
+}
+
+#[test]
 fn a_damaged_or_foreign_snapshot_is_ignored() {
     let folder = Folder::new();
     folder.photo("a.jpg", JPEG);

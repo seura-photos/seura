@@ -37,6 +37,9 @@ pub struct Library {
     /// tags and ratings are written, so two changes never interleave on a
     /// photo.
     history: Mutex<History>,
+    /// When decoding first learned something the saved index doesn't have,
+    /// such as a date taken; `None` when it's all saved (#99).
+    unsaved_details: Mutex<Option<Instant>>,
 }
 
 struct Store {
@@ -109,6 +112,12 @@ struct Progress {
     last_sent: Option<Instant>,
 }
 
+/// What decoding learns is saved as soon as the thumbnails are done, and at
+/// most this often while they're being made, so stopping the app without
+/// quitting loses no more than this (#99). A snapshot of a large library
+/// takes a moment, so not after every thumbnail.
+const SAVE_DETAILS_EVERY: Duration = Duration::from_secs(30);
+
 /// Progress is sent at most this often while thumbnails are being made.
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 
@@ -132,6 +141,7 @@ impl Library {
             store: RwLock::new(Store::open(app, cache)),
             ready: Mutex::new(Vec::new()),
             history: Mutex::new(History::default()),
+            unsaved_details: Mutex::new(None),
         }
     }
 
@@ -322,12 +332,28 @@ impl Library {
         let _ = event.emit(app);
     }
 
-    /// Tells the UI about the thumbnails finished since last time, if any.
-    /// Called every [`THUMBNAILS_INTERVAL`].
+    /// Tells the UI about the thumbnails finished since last time, if any,
+    /// and saves what decoding learned when it's due. Called every
+    /// [`THUMBNAILS_INTERVAL`].
     pub fn send_thumbnails<R: Runtime>(&self, app: &AppHandle<R>) {
         let ready = std::mem::take(&mut *self.ready.lock().expect("ready lock"));
         if !ready.is_empty() {
             let _ = ThumbnailsReady(ready).emit(app);
+        }
+        self.save_details_when_due();
+    }
+
+    /// Saves the index if decoding learned something new and the thumbnails
+    /// are done, or it has waited [`SAVE_DETAILS_EVERY`].
+    fn save_details_when_due(&self) {
+        let since = *self.unsaved_details.lock().expect("unsaved lock");
+        let Some(since) = since else {
+            return;
+        };
+        let idle = self.store.read().expect("store lock").workers.pending() == 0;
+        if idle || since.elapsed() >= SAVE_DETAILS_EVERY {
+            *self.unsaved_details.lock().expect("unsaved lock") = None;
+            self.save();
         }
     }
 
@@ -439,11 +465,18 @@ fn finished<R: Runtime>(app: &AppHandle<R>, id: PhotoId, outcome: Outcome) {
         return;
     };
     if let Outcome::Ready(Some(made)) = &outcome {
-        library
+        let new = library
             .index
             .write()
             .expect("index lock")
             .record_details(id, made);
+        if new {
+            library
+                .unsaved_details
+                .lock()
+                .expect("unsaved lock")
+                .get_or_insert_with(Instant::now);
+        }
     }
     library.send_progress(app, false);
     library
