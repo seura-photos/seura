@@ -461,6 +461,12 @@ delete-failed =
                *[other] { $count } photos couldn't be moved to the Recycle Bin, so they're where they were.
             }
     }
+# The system's own words for why, after delete-failed (#112).
+delete-failed-reason =
+    { $system ->
+        [mac] macOS said: { $reason }
+       *[other] Windows said: { $reason }
+    }
 
 photo-show-failed = Couldn't show that in the folder: { $reason }
 photo-open-failed = Couldn't open that: { $reason }

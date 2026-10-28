@@ -137,7 +137,14 @@ vi.mock("./bindings", () => ({
     deletePhotos: vi.fn(() =>
       Promise.resolve({
         status: "ok",
-        data: { deleted: 2, readOnly: 0, cloudOnly: 1, noTrash: 0, failed: 0 },
+        data: {
+          deleted: 2,
+          readOnly: 0,
+          cloudOnly: 1,
+          noTrash: 0,
+          failed: 0,
+          failedReason: null,
+        },
       }),
     ),
     photoNotices: vi.fn(() =>

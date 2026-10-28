@@ -28,7 +28,8 @@ pub enum DeleteProblem {
     NoTrash,
     /// It's no longer in the library.
     Gone,
-    /// The system didn't move it, such as a file in use.
+    /// The system didn't move it, such as a file in use, with its reason
+    /// when it gave one.
     Failed(String),
 }
 
@@ -115,9 +116,11 @@ impl Index {
         let mut index = index.write().expect("index lock");
         for (id, photo) in chosen {
             if fs::symlink_metadata(&photo).is_ok() {
+                // The system's words, when it said why; empty when it
+                // reported success but left the photo where it was.
                 let reason = match &result {
                     Err(error) => error.to_string(),
-                    Ok(()) => "the system left it where it was".into(),
+                    Ok(()) => String::new(),
                 };
                 report.problems.push((id, DeleteProblem::Failed(reason)));
             } else {
