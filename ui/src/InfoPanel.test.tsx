@@ -123,7 +123,8 @@ describe("Info panel (BRW-6)", () => {
     expect(await screen.findByText("3 photos selected")).toBeTruthy();
     expect(mocks.selectionSummary).toHaveBeenCalledWith([1, 2, 3]);
     expect(mocks.photoDetails).not.toHaveBeenCalled();
-    expect(screen.getByText(/ to /)).toBeTruthy();
+    // A day apart: both dates, in the region's range style (#125).
+    expect(screen.getByText(/Jul 12, 2026.*–.*Jul 13, 2026/)).toBeTruthy();
     // Empty stars, with the word, so it doesn't rest on looks alone (TAG-8).
     expect(screen.getByText("Mixed")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Rate 2 stars" }));

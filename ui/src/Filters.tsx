@@ -30,72 +30,79 @@ export function FilterControls() {
   const choices = tags.filter((node) => node.photos !== null && !filter.tags.includes(node.tag));
   return (
     <div className="filter-controls" role="group" aria-label={t("filter-controls")}>
-      <label className="view-control">
-        {t("filter-rating")}
-        <select
-          value={filter.minRating}
-          onChange={(event) => void setFilter({ minRating: Number(event.target.value) })}
-        >
-          <option value={0}>{t("filter-any")}</option>
-          {[1, 2, 3, 4, 5].map((stars) => (
-            <option key={stars} value={stars}>
-              {t("filter-min-rating", { stars })}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="view-control">
-        {t("filter-tags")}
-        <select
-          value=""
-          disabled={choices.length === 0}
-          onChange={(event) => void setFilter({ tags: [...filter.tags, event.target.value] })}
-        >
-          <option value="">{t("filter-add-tag")}</option>
-          {choices.map((node) => (
-            <option key={node.tag} value={node.tag}>
-              {node.tag}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="view-control">
-        {t("filter-edits")}
-        <select
-          value={filter.edited === null ? "" : String(filter.edited)}
-          onChange={(event) =>
-            void setFilter({
-              edited: event.target.value === "" ? null : event.target.value === "true",
-            })
-          }
-        >
-          <option value="">{t("filter-any")}</option>
-          <option value="true">{t("filter-edited")}</option>
-          <option value="false">{t("filter-unedited")}</option>
-        </select>
-      </label>
-      <label className="view-control">
-        {t("filter-taken-from")}
-        <input
-          type="date"
-          value={fieldValue(filter.takenFrom)}
-          max={fieldValue(filter.takenTo === null ? null : filter.takenTo - (DAY - 1))}
-          onChange={(event) => void setFilter({ takenFrom: dayStart(event.target.value) })}
-        />
-      </label>
-      <label className="view-control">
-        {t("filter-taken-to")}
-        <input
-          type="date"
-          value={fieldValue(filter.takenTo === null ? null : filter.takenTo - (DAY - 1))}
-          min={fieldValue(filter.takenFrom)}
-          onChange={(event) => {
-            const start = dayStart(event.target.value);
-            // The whole of the last day.
-            void setFilter({ takenTo: start === null ? null : start + DAY - 1 });
-          }}
-        />
-      </label>
+      {/* Two lines, always: what the photos have, then when they were
+          taken, so the row's height doesn't change as the window or the
+          sidebar is resized (Nevada, 2026-10-28; #118). */}
+      <div className="filter-line">
+        <label className="view-control">
+          {t("filter-rating")}
+          <select
+            value={filter.minRating}
+            onChange={(event) => void setFilter({ minRating: Number(event.target.value) })}
+          >
+            <option value={0}>{t("filter-any")}</option>
+            {[1, 2, 3, 4, 5].map((stars) => (
+              <option key={stars} value={stars}>
+                {t("filter-min-rating", { stars })}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="view-control filter-tags">
+          {t("filter-tags")}
+          <select
+            value=""
+            disabled={choices.length === 0}
+            onChange={(event) => void setFilter({ tags: [...filter.tags, event.target.value] })}
+          >
+            <option value="">{t("filter-add-tag")}</option>
+            {choices.map((node) => (
+              <option key={node.tag} value={node.tag}>
+                {node.tag}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="view-control">
+          {t("filter-edits")}
+          <select
+            value={filter.edited === null ? "" : String(filter.edited)}
+            onChange={(event) =>
+              void setFilter({
+                edited: event.target.value === "" ? null : event.target.value === "true",
+              })
+            }
+          >
+            <option value="">{t("filter-any")}</option>
+            <option value="true">{t("filter-edited")}</option>
+            <option value="false">{t("filter-unedited")}</option>
+          </select>
+        </label>
+      </div>
+      <div className="filter-line">
+        <label className="view-control">
+          {t("filter-taken-from")}
+          <input
+            type="date"
+            value={fieldValue(filter.takenFrom)}
+            max={fieldValue(filter.takenTo === null ? null : filter.takenTo - (DAY - 1))}
+            onChange={(event) => void setFilter({ takenFrom: dayStart(event.target.value) })}
+          />
+        </label>
+        <label className="view-control">
+          {t("filter-taken-to")}
+          <input
+            type="date"
+            value={fieldValue(filter.takenTo === null ? null : filter.takenTo - (DAY - 1))}
+            min={fieldValue(filter.takenFrom)}
+            onChange={(event) => {
+              const start = dayStart(event.target.value);
+              // The whole of the last day.
+              void setFilter({ takenTo: start === null ? null : start + DAY - 1 });
+            }}
+          />
+        </label>
+      </div>
     </div>
   );
 }

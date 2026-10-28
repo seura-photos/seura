@@ -55,6 +55,19 @@ export function formatDateTime(
   }).format(new Date(secondsSince1970 * 1000));
 }
 
+/**
+ * Two dates taken, as a range in the region's own style (BRW-6; #125):
+ * parts they share are written once, such as "Mar 26, 2007, 12:51 – 3:10
+ * PM", and one date shows when both are the same as displayed.
+ */
+export function formatDateTimeRange(first: number, last: number): string {
+  return new Intl.DateTimeFormat(region, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }).formatRange(new Date(first * 1000), new Date(last * 1000));
+}
+
 /** A date taken, without the time, such as "Jul 12, 2026", as recorded. */
 export function formatDate(secondsSince1970: number): string {
   return new Intl.DateTimeFormat(region, { dateStyle: "medium", timeZone: "UTC" }).format(
