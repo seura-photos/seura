@@ -142,8 +142,8 @@ Reviewed 2026-10-27, at the end of slice 11. Pull requests #78 to #123.
 | 4. The tag tree (#94) | Nevada's tags appear as a tree, and selecting one shows exactly its photos | Met: checked by Nevada on his library. |
 | 5. Undo (#96) | Tests cover undo and redo; Nevada has undone a rating and a tag on both machines | Met: checked by Nevada on both machines. |
 | 6. Finding (#97, #98, #107) | Nevada finds photos by name, tag, rating and date; search within 200 ms at 10,000 photos | Met: in Nevada's use, which found the date filter missing photos (fixed). The slowest letter took 46 ms on Windows and 79 ms on the Mac (`docs/benchmarks/m3-search.md`). |
-| 7. Problems with files (#100, #101) | Each case covered by tests; Nevada has seen the notices on purpose-made examples | Tests: met. The notices were shown on a generated sample library; the screenshots of each style for the design session are still to take. FIL-3's Editor part moved to M4, by Nevada's decision. |
-| 8. Renamed photos (#102) | Integration tests rename photos on both platforms; Nevada has renamed a tagged photo and seen its tags follow | Tests: met on both platforms in CI. Nevada's own rename isn't recorded in the journal. |
+| 7. Problems with files (#100, #101) | Each case covered by tests; Nevada has seen the notices on purpose-made examples | Met. Nevada brought up each notice on a generated sample library, with the installed 0.2.1 on Windows, and Claude Code captured each style in light and dark for the design session (2026-10-27). FIL-3's Editor part moved to M4, by Nevada's decision. |
+| 8. Renamed photos (#102) | Integration tests rename photos on both platforms; Nevada has renamed a tagged photo and seen its tags follow | Met: tests on both platforms in CI, and Nevada renamed a tagged photo in Explorer and in Finder and saw its tags follow. |
 | 9. Delete to Trash (#104, #113, #116) | Data-safety tests on both platforms; Nevada has deleted and restored photos on both machines | Met, with what the measurements changed. Cloud-only photos, and photos on drives with no Recycle Bin, are left out of Delete (decision 0017). On the Mac, the installed app can't yet delete photos in OneDrive folders (#112). |
 | 10. Library polish (#105, #110) | Nevada has checked each on both machines | Met: checked by Nevada, including the resizable sidebar. |
 | 11. Wrap-up (#107 to #123) | Nevada is tagging and rating his own library with build 0.2 on both machines | Met. Every edit file Seura wrote in Nevada's library passes `check.py`. Builds 0.2.0 and 0.2.1 are published as public pre-releases. Devlog part 9 is published. Nevada is tagging and rating with 0.2.1 on both machines and declared M3 done on 2026-10-27. |
@@ -166,7 +166,7 @@ Reviewed 2026-10-27, at the end of slice 11. Pull requests #78 to #123.
 | The filter row wrapping at 1440 px (#118) | A design session |
 | The date range repeated within one minute (#125) | M4 |
 | A drive with no Trash on the Mac (a network volume), for decision 0017 | To measure on the Mac |
-| Screenshots of each notice style for the design session | When the design session reviews the notices |
+| The design session's review of the notice styles, from the screenshots | A design session |
 | FIL-3's "Keep yours or load theirs?" in the Editor | M4, with the Editor |
 | Undo and redo buttons in the toolbar | M4, with the toolbar's other actions |
 | The HEIC colour test failing on Nevada's Mac only (#91) | M4 |
