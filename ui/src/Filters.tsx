@@ -44,7 +44,7 @@ export function FilterControls() {
           ))}
         </select>
       </label>
-      <label className="view-control">
+      <label className="view-control filter-tags">
         {t("filter-tags")}
         <select
           value=""

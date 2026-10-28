@@ -231,7 +231,6 @@ info-selected =
         [one] 1 photo selected
        *[other] { $count } photos selected
     }
-info-date-range = { $first } to { $last }
 ## Tags and ratings (TAG-1 to TAG-8)
 
 # Where the rating and tags are in the Info panel, and as a notice when 0 to 5 or T is pressed there.

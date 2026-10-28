@@ -2,7 +2,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { Cloud, Lock, Plus, Star, X } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { commands, type PhotoDetails, type SelectionSummary, type TagCount } from "./bindings";
-import { formatBytes, formatDateTime, formatNumber } from "./format";
+import { formatBytes, formatDateTime, formatDateTimeRange, formatNumber } from "./format";
 import { t } from "./messages";
 import { anchorOf, useStore } from "./store";
 
@@ -218,14 +218,7 @@ function Photo({
 function Several({ ids, summary }: { ids: number[]; summary: SelectionSummary }) {
   const { firstTaken, lastTaken } = summary;
   const dates =
-    firstTaken != null && lastTaken != null
-      ? firstTaken === lastTaken
-        ? formatDateTime(firstTaken)
-        : t("info-date-range", {
-            first: formatDateTime(firstTaken),
-            last: formatDateTime(lastTaken),
-          })
-      : null;
+    firstTaken != null && lastTaken != null ? formatDateTimeRange(firstTaken, lastTaken) : null;
   return (
     <>
       <h2 className="info-name">{t("info-selected", { count: summary.count })}</h2>

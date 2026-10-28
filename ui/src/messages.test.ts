@@ -1,7 +1,13 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { formatBytes, formatDateTime, formatNumber, setRegion } from "./format";
+import {
+  formatBytes,
+  formatDateTime,
+  formatDateTimeRange,
+  formatNumber,
+  setRegion,
+} from "./format";
 import { hasMessage, setPseudo, t } from "./messages";
 import { pseudoTranslate } from "./pseudo";
 
@@ -98,6 +104,18 @@ describe("regional formats (ACC-6)", () => {
     // Whether a narrow no-break space comes before "PM" depends on the
     // Unicode data version, which differs between Node and the web views.
     expect(formatDateTime(taken).replace(/\s/g, " ")).toBe("Jul 12, 2026, 6:42 PM");
+  });
+
+  it("writes a range's shared parts once, and one date when they're the same (#125)", () => {
+    const taken = Date.UTC(2007, 2, 26, 12, 51) / 1000;
+    // Thin and narrow spaces vary with the Unicode data, as above.
+    const range = (first: number, last: number) =>
+      formatDateTimeRange(first, last).replace(/\s/g, " ");
+    expect(range(taken, taken + 20)).toBe("Mar 26, 2007, 12:51 PM");
+    expect(range(taken, taken + 8040)).toBe("Mar 26, 2007, 12:51 – 3:05 PM");
+    setRegion("de-DE");
+    expect(range(taken, taken + 20)).toBe("26.03.2007, 12:51");
+    expect(range(taken, taken + 40 * 86400)).toBe("26.03.2007, 12:51 – 05.05.2007, 12:51");
   });
 
   it("falls back for a tag that isn't valid", () => {
