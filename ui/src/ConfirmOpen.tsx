@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { dialogKeys } from "./dialogKeys";
 import { t } from "./messages";
 import { useStore } from "./store";
 
@@ -23,12 +24,7 @@ export function ConfirmOpen() {
         aria-modal="true"
         aria-labelledby="open-title"
         aria-describedby="open-body"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.stopPropagation();
-            void confirmOpen(false);
-          }
-        }}
+        onKeyDown={(event) => dialogKeys(event, () => void confirmOpen(false))}
       >
         <h2 id="open-title" className="dialog-title">
           {t("photo-open-title", { count })}

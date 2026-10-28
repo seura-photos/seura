@@ -1,6 +1,7 @@
-import { type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import mark from "../../design/brand/seura-mark.svg";
 import { commands, type Link } from "./bindings";
+import { dialogKeys } from "./dialogKeys";
 import { t } from "./messages";
 import { useStore } from "./store";
 
@@ -25,7 +26,6 @@ export function About() {
   // What Copy did, and why a link didn't open, if one didn't.
   const [copied, setCopied] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const dialog = useRef<HTMLDivElement>(null);
   const ok = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -55,32 +55,14 @@ export function About() {
     setProblem(result.status === "error" ? t("about-link-failed", { reason: result.error }) : null);
   }
 
-  function onKeyDown(event: KeyboardEvent) {
-    // The views behind don't hear its keys: a number would rate the
-    // selected photos, Esc would close the Viewer.
-    event.stopPropagation();
-    if (event.key === "Escape") {
-      event.preventDefault();
-      setAbout(false);
-    } else if (event.key === "Tab") {
-      // The focus stays in the dialog.
-      const all = [...(dialog.current?.querySelectorAll<HTMLElement>("button") ?? [])];
-      const at = all.indexOf(document.activeElement as HTMLElement);
-      const next = event.shiftKey ? (at <= 0 ? all.length - 1 : at - 1) : (at + 1) % all.length;
-      event.preventDefault();
-      all[next]?.focus();
-    }
-  }
-
   return (
     <div className="dialog-backdrop">
       <div
-        ref={dialog}
         className="dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="about-title"
-        onKeyDown={onKeyDown}
+        onKeyDown={(event) => dialogKeys(event, () => setAbout(false))}
       >
         <div className="about-heading">
           <img className="about-mark" src={mark} alt="" />

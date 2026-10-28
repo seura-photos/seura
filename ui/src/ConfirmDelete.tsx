@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { dialogKeys } from "./dialogKeys";
 import { t } from "./messages";
 import { system, useStore } from "./store";
 
@@ -26,12 +27,7 @@ export function ConfirmDelete() {
         aria-modal="true"
         aria-labelledby="delete-title"
         aria-describedby="delete-body"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.stopPropagation();
-            void confirmDelete(false);
-          }
-        }}
+        onKeyDown={(event) => dialogKeys(event, () => void confirmDelete(false))}
       >
         <h2 id="delete-title" className="dialog-title">
           {nothing

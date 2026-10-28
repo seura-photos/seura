@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { FolderInfo } from "./bindings";
+import { dialogKeys } from "./dialogKeys";
 import { Menu } from "./Menu";
 import { t } from "./messages";
 
@@ -44,9 +45,7 @@ export function ConfirmRemove({ folder, onConfirm, onCancel }: ConfirmProps) {
         aria-modal="true"
         aria-labelledby="remove-title"
         aria-describedby="remove-body"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") onCancel();
-        }}
+        onKeyDown={(event) => dialogKeys(event, onCancel)}
       >
         <h2 id="remove-title" className="dialog-title">
           {t("library-remove-title", { name: folder.name })}
