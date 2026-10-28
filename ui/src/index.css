@@ -823,14 +823,21 @@ button {
 }
 
 /* The filter controls and active filters, above the grid (FND-1). */
-/* One line at the default size in English; it wraps only for longer
-   translations or a narrow window, never clipping (wireframes; #118). */
+/* Two lines: rating, tags and edits, then the dates taken (wireframes;
+   Nevada, 2026-10-28; #118). Each wraps only for longer translations or a
+   narrow window, never clipping. */
 .filter-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0 1.5rem 0.75rem;
+}
+
+.filter-line {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem 1.25rem;
-  padding: 0 1.5rem 0.75rem;
 }
 
 /* A list sizes itself to its longest choice, so a long tag would widen the
