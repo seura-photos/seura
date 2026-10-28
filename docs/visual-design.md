@@ -27,6 +27,8 @@ Two sets of tokens, light and dark; the app follows the operating system's setti
 | accentText | `#3352CC` | `#8EA6FF` | Links and quiet buttons |
 | accentSubtle | `#E3E8FA` | `#26304F` | Selected rows, banners, effects that are on |
 | danger | `#B3261E` | `#FF8A80` | Unreadable edit files, Trash confirmations |
+| caution | `#7A5200` | `#E3B341` | Caution icons (6.2:1 and 6.5:1 on cautionSubtle) |
+| cautionSubtle | `#FDF1D2` | `#3B3220` | Notice bar for a caution |
 | rating | `#9A6700` | `#E3B341` | Filled stars |
 | ratingOff | `#7A7A7A` | `#808080` | Empty stars, drawn as outlines (3:1 or more on the panel and surface) |
 | ratingDisabled | `#C9C9C9` | `#4D4D4D` | Stars in a read-only folder; disabled controls are exempt from contrast, and a line of text says why (TAG-7) |
@@ -41,8 +43,12 @@ Details the tokens alone don't settle, decided while building M3.
 
 - **Selected row** (folder and tag trees): the accentSubtle fill, plus a 3 px bar on the left edge and the text and icon in accentText. The fill alone is about 1.1:1 against the panel, below the 3:1 a state needs (WCAG 1.4.11). The bar uses accentText, not accent: in dark mode accent is only 2.3:1 against the fill, accentText 5.6:1.
 - **Stars:** filled in rating, empty as outlines in ratingOff, so empty and filled differ by shape as well as color; disabled in ratingDisabled.
-- **Notice bar** (problems with files, INT-6): accentSubtle with an info icon for information; with a warning icon for a caution that needs nothing done, such as a photo changed by another program (FIL-7); dangerSubtle with a warning icon only when the user needs to act, such as an unreadable edit file with Start over (FIL-4). 8 px corners, at the top of the photo area.
-- **Message** (the last action's result, INT-6): text on surface with a border and a soft shadow (`0 6px 20px rgba(0,0,0,0.18)`), 8 px corners, near the bottom of the photo area, centered, up to 480 px wide.
+- **Notice bar** (problems with files, INT-6), in three levels, as Windows' own info bars have them:
+  - **Information:** accentSubtle, info icon in accentText (FIL-5; where an old file was kept).
+  - **Caution,** something to be aware of with nothing to do: cautionSubtle, warning icon in caution (FIL-7, a photo changed by another program).
+  - **Problem,** something the user needs to act on: dangerSubtle, warning icon in danger (FIL-4, an unreadable edit file, with Start over).
+  Text is always the primary text color. 8 px corners, at the top of the photo area. Icons on accentSubtle use accentText, not accent, which is only 2.3:1 on it in dark mode (the same as the selected row).
+- **Message** (the last action's result, INT-6): text on surface with a border and a soft shadow (`0 6px 20px rgba(0,0,0,0.18)`), 8 px corners, near the bottom of the photo area, centered, up to 480 px wide. Its border is faint against the grid (about 1.4:1), which is fine: the shadow sets it apart, and WCAG asks contrast of its text, which is high, not of a container's edge.
 - **Sidebar divider:** the 1 px border at rest; 2 px in accentText on hover, while dragging, and when focused, with the focus ring (wireframes, "Resizable sidebar"). Widths are the sidebar, sidebarMin, and sidebarMax tokens.
 
 ## Type

@@ -50,6 +50,8 @@
   --color-on-accent: #FFFFFF;
   --color-danger: #B3261E;
   --color-danger-subtle: #FBE9E7;
+  --color-caution: #7A5200;
+  --color-caution-subtle: #FDF1D2;
   --color-rating: #9A6700;
   --color-rating-off: #7A7A7A;
   --color-rating-disabled: #C9C9C9;
@@ -69,6 +71,8 @@
     --color-on-accent: #FFFFFF;
     --color-danger: #FF8A80;
     --color-danger-subtle: #4A2523;
+    --color-caution: #E3B341;
+    --color-caution-subtle: #3B3220;
     --color-rating: #E3B341;
     --color-rating-off: #808080;
     --color-rating-disabled: #4D4D4D;

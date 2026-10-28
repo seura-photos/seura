@@ -26,6 +26,7 @@ A single centered card: title; two sentences (what the app does; originals are n
 - **Toolbar:** app name; search; Review; then, on the right, the selection's quick fixes (rotate left, rotate right, Enhance), Edit (primary), Export.
 - **Review banner** above the grid when new photos are found: "12 new photos in Summer. Sort through them one at a time?" with Review and Not now.
 - **Folder header row:** name, path, count; then Filter, sort, and thumbnail size on the right.
+- **Filter controls** (FND-1), in a row under the heading when Filter is open: Rating, Tags, Edits, Taken from and to. They fit one line at the default window size in English. The Tags control is at most 200 px wide, with a long tag cut off with "…" and shown in full in its list and tooltip. Where they still don't fit, as with longer translated text (ACC-7) or a narrow window, the row wraps rather than clipping anything.
 - **Notice bar** at the top of the photo area, above the heading, for problems with the selected photos' files (flow 11; INT-6).
 - **Message** near the bottom of the photo area, centered, for the last action's result: "Added. Scanning for photos…", "Moved 3 photos to the Recycle Bin.", "Undid rating on 5 photos" (INT-6).
 - **Grid:** square cells, photos letterboxed inside; selected cell outlined in the accent color. Badges: edited (bottom left), rating (bottom right), unreadable edit file (top left, red). Hovering a cell shows rotate left, rotate right, and Enhance (32 px) on the photo (BRW-10, INT-5).
