@@ -79,6 +79,8 @@ The first milestone that writes user data in earnest.
 
 **Done when:** the owner is tagging and rating his own library, the edit files pass the edit format's `check.py`, and the data-safety suite covers every new write path.
 
+**Status:** complete, 2026-10-27, with build 0.2.1 as the owner's tool for tagging and rating on both machines; see the [M3 work plan's status](m3-plan.md#status).
+
 ## M4. Fix
 
 The full editor.
