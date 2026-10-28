@@ -465,6 +465,21 @@ delete-failed =
 photo-show-failed = Couldn't show that in the folder: { $reason }
 photo-open-failed = Couldn't open that: { $reason }
 
+## Commands for the whole app: Windows' ⋯ button at the right end of the
+## toolbar (ACC-4), and About (SET-5)
+
+more = More
+more-about = About Seura Photos
+about-early-build = An early build, before the beta.
+about-copy = Copy
+about-copied = Copied.
+about-copy-failed = Couldn't copy: { $reason }
+about-website = seuraphotos.app
+about-project = The project on GitHub
+about-license = Apache License 2.0
+about-ok = OK
+about-link-failed = Couldn't open that: { $reason }
+
 ## Viewer (BRW-5)
 
 viewer-back = Back to { $folder }

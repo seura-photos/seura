@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { commands, type PhotoInfo } from "./bindings";
 import { formatNumber } from "./format";
 import { t } from "./messages";
+import { MoreButton } from "./MoreButton";
 import { type Backend, createPreview, fetchLinear } from "./preview";
 import { fitSize } from "./preview/fit";
 
@@ -157,6 +158,7 @@ export function Editor({ photo, forceWebgl2, onClose }: Props) {
         <button type="button" disabled={!ready || exporting} onClick={() => void exportPhoto()}>
           {exporting ? t("editor-exporting") : t("editor-export")}
         </button>
+        <MoreButton />
       </div>
       <div ref={stage} className="editor-stage">
         <canvas ref={canvas} aria-label={t("editor-preview", { name: photo.name })} />

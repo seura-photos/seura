@@ -10,8 +10,8 @@ html {
 body {
   margin: 0;
   /* An app's screens, not a document: their text isn't selected by dragging
-     or Select All, as in other desktop apps. Fields, and the Info panel's
-     details, which are worth copying, can be. */
+     or Select All, as in other desktop apps. Fields, the Info panel's
+     details, and the version in About, which are worth copying, can be. */
   -webkit-user-select: none;
   user-select: none;
   font-family: var(--font-app);
@@ -24,7 +24,8 @@ body {
 input,
 textarea,
 .info-name,
-.info-facts dd {
+.info-facts dd,
+.about-version-text {
   -webkit-user-select: text;
   user-select: text;
 }
@@ -231,7 +232,9 @@ button {
   padding: 0 0 0.25rem 0.5rem;
 }
 
-.section-add {
+/* Quiet buttons: the accent text color, no border (visual design). */
+.section-add,
+.more-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -244,7 +247,9 @@ button {
   cursor: pointer;
 }
 
-.section-add:hover {
+.section-add:hover,
+.more-button:hover,
+.more-button[aria-expanded="true"] {
   background: var(--color-accent-subtle);
 }
 
@@ -590,6 +595,64 @@ button {
   padding-top: 1rem;
   border-top: 1px solid var(--color-border);
   color: var(--color-text-secondary);
+}
+
+/* The ⋯ button ends the toolbar, in every view (ACC-4). */
+.more-button {
+  flex: none;
+  margin-left: auto;
+}
+
+/* In the Viewer, the zoom controls already end the bar. */
+.viewer-zoom + .more-button {
+  margin-left: 0;
+}
+
+/* About (SET-5; wireframes, "Shared structure"). */
+.about-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.about-heading .dialog-title {
+  margin: 0;
+}
+
+.about-mark {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.about-version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.about-version output {
+  color: var(--color-text-secondary);
+}
+
+.about-links {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  margin: 1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link-button {
+  padding: 0.125rem 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .dialog-actions {

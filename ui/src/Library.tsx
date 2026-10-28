@@ -15,6 +15,7 @@ import { Grid } from "./Grid";
 import { InfoPanel } from "./InfoPanel";
 import { historyKey, isDeleteKey, isFind, isSelectAll, isTagKey, ratingKey } from "./keys";
 import { Message } from "./Message";
+import { MoreButton } from "./MoreButton";
 import { NoticeBar } from "./NoticeBar";
 import { PhotoMenu } from "./PhotoMenu";
 import { TagTree } from "./TagTree";
@@ -212,6 +213,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
             }}
           />
         </label>
+        <MoreButton />
       </header>
 
       <nav className="sidebar" ref={sidebar} aria-label={t("library-sidebar")}>

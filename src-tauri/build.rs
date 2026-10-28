@@ -6,6 +6,7 @@ fn main() {
     // (technical design, section 10).
     let manifest = tauri_build::AppManifest::new().commands(&[
         "app_version",
+        "open_link",
         "add_folder",
         "folders",
         "remove_folder",
