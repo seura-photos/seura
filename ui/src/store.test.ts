@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useStore } from "./store";
 
-vi.mock("./bindings", () => ({ commands: { photos: vi.fn(() => Promise.resolve([])) } }));
+const changed = { readOnly: 0, unreadable: 0, failed: 0 };
+vi.mock("./bindings", () => ({
+  commands: {
+    photos: vi.fn(() => Promise.resolve([])),
+    changePhotos: vi.fn(() => Promise.resolve({ status: "ok", data: changed })),
+  },
+}));
 
 describe("store", () => {
   afterEach(() => useStore.setState(useStore.getInitialState(), true));
@@ -27,5 +33,31 @@ describe("store", () => {
     expect(useStore.getState().notice).not.toBeNull();
     await useStore.getState().selectFolder(2);
     expect(useStore.getState().notice).toBeNull();
+  });
+
+  it("says what a change made with a key did, and not one made with a click (INT-6)", async () => {
+    const { rate, change } = useStore.getState();
+    await rate([1, 2, 3], 3);
+    expect(useStore.getState().notice).toBeNull();
+
+    await rate([1, 2, 3], 3, true);
+    expect(useStore.getState().notice).toBe("Rated 3 photos 3 stars.");
+    await rate([1], 1, true);
+    expect(useStore.getState().notice).toBe("Rated 1 photo 1 star.");
+    await rate([1, 2], 0, true);
+    expect(useStore.getState().notice).toBe("Cleared the rating on 2 photos.");
+    await change([1, 2, 3, 4, 5], { kind: "addTag", tag: "beach" }, true);
+    expect(useStore.getState().notice).toBe("Added the tag beach to 5 photos.");
+    await change([1], { kind: "removeTag", tag: "beach" }, true);
+    expect(useStore.getState().notice).toBe("Removed the tag beach from 1 photo.");
+  });
+
+  it("counts only the photos a key changed, and says why the others weren't", async () => {
+    changed.readOnly = 1;
+    await useStore.getState().rate([1, 2, 3], 4, true);
+    changed.readOnly = 0;
+    expect(useStore.getState().notice).toBe(
+      "Rated 2 photos 4 stars. 1 photo is in a read-only folder, so it wasn't changed.",
+    );
   });
 });

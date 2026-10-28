@@ -11,9 +11,9 @@ import { useStore } from "./store";
  * offers Start over; afterwards the bar says where the old file went, with
  * Show in folder (FIL-4). For one photo, it also says when its edit file
  * has edits Seura can't show (FIL-5), and when another program has changed
- * the photo since its edits were made (FIL-7). Only a problem the user must
- * act on takes the danger colour; a caution has the warning icon on the
- * plain bar (visual design, "Notice bar").
+ * the photo since its edits were made (FIL-7). Three levels (visual design,
+ * "Notice bar"): information, a caution (FIL-7), and a problem the user
+ * must act on (FIL-4).
  */
 export function NoticeBar({ ids, photos }: { ids: number[]; photos: PhotoInfo[] }) {
   const kept = useStore((state) => state.kept);
@@ -48,7 +48,7 @@ export function NoticeBar({ ids, photos }: { ids: number[]; photos: PhotoInfo[] 
     return (
       <>
         {notices.originalChanged && (
-          <div className="notice-bar" role="status">
+          <div className="notice-bar caution" role="status">
             <TriangleAlert className="icon" aria-hidden />
             <p>{t("notice-original-changed")}</p>
           </div>

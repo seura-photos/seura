@@ -127,11 +127,13 @@ type State = {
   openInDefaultApp: (ids: number[]) => Promise<void>;
   /** The answer to that question. */
   confirmOpen: (open: boolean) => Promise<void>;
-  /** Changes photos' tags or rating, and says what couldn't be changed.
-   * The grid and Info panel follow the library. */
-  change: (ids: number[], change: PhotoChange) => Promise<void>;
-  /** Rates photos 0 to 5 stars, 0 clearing it (TAG-6). */
-  rate: (ids: number[], stars: number) => Promise<void>;
+  /** Changes photos' tags or rating, and says what couldn't be changed,
+   * and, for a change made with a key, what was (INT-6). The grid and Info
+   * panel follow the library. */
+  change: (ids: number[], change: PhotoChange, byKey?: boolean) => Promise<void>;
+  /** Rates photos 0 to 5 stars, 0 clearing it (TAG-6); `byKey` as for
+   * `change`. */
+  rate: (ids: number[], stars: number, byKey?: boolean) => Promise<void>;
   /** The tag picker, while it's open (TAG-3): its photos, and the box on
    * screen it's anchored beside (wireframes, section 7). */
   picker: { ids: number[]; anchor: Anchor } | null;
@@ -159,6 +161,19 @@ type State = {
   about: boolean;
   setAbout: (open: boolean) => void;
 };
+
+/** What a change made with a key did, for its message (INT-6). */
+function changeDone(change: PhotoChange, count: number): string {
+  if (change.kind === "rating") {
+    return change.stars === 0
+      ? t("change-done-cleared", { count })
+      : t("change-done-rated", { count, stars: change.stars });
+  }
+  return t(change.kind === "addTag" ? "change-done-added" : "change-done-removed", {
+    count,
+    tag: change.tag,
+  });
+}
 
 /** Undoes or redoes, and says what happened (BRW-11). */
 async function history(say: (notice: string) => void, which: "undo" | "redo") {
@@ -580,8 +595,8 @@ export const useStore = create<State>()((set, get) => ({
     await history(get().say, "redo");
   },
 
-  async rate(ids, stars) {
-    await get().change(ids, { kind: "rating", stars });
+  async rate(ids, stars, byKey = false) {
+    await get().change(ids, { kind: "rating", stars }, byKey);
   },
 
   async openPicker(ids, anchor) {
@@ -598,7 +613,7 @@ export const useStore = create<State>()((set, get) => ({
     set({ picker: null });
   },
 
-  async change(ids, change) {
+  async change(ids, change, byKey = false) {
     if (ids.length === 0) return;
     const result = await commands.changePhotos(ids, change);
     if (result.status === "error") {
@@ -606,7 +621,13 @@ export const useStore = create<State>()((set, get) => ({
       return;
     }
     const { readOnly, unreadable, failed } = result.data;
-    const problems = [
+    // A change made with a key says what it did: nothing changes where the
+    // user is looking, and the photos may be off screen. A click on a star
+    // or a chip changes what's under the pointer, so it needs no message
+    // (INT-6).
+    const changed = ids.length - readOnly - unreadable - failed;
+    const parts = [
+      byKey && changed > 0 ? changeDone(change, changed) : null,
       readOnly === ids.length
         ? t("read-only-folder")
         : readOnly > 0
@@ -614,8 +635,8 @@ export const useStore = create<State>()((set, get) => ({
           : null,
       unreadable > 0 ? t("change-unreadable", { count: unreadable }) : null,
       failed > 0 ? t("change-failed", { count: failed }) : null,
-    ].filter((problem) => problem !== null);
-    if (problems.length > 0) get().say(problems.join(" "));
+    ].filter((part) => part !== null);
+    if (parts.length > 0) get().say(parts.join(" "));
   },
 
   async startOver(ids) {

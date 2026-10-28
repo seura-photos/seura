@@ -330,7 +330,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     } else if (event.key === "+" || event.key === "=") zoomStep(1);
     else if (event.key === "-") zoomStep(-1);
     else if (editorAvailable && photo && event.key.toLowerCase() === "e") openEditor(photo);
-    else if (photo && stars !== null) void rate([photo.id], stars);
+    else if (photo && stars !== null) void rate([photo.id], stars, true);
     else if (photo && isTagKey(event)) {
       // Beside the Info panel's Add tag button: the photo fills the stage.
       const button = root.current?.querySelector(".info-panel [data-add-tag]");
