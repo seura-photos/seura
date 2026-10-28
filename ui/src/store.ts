@@ -12,9 +12,11 @@ import {
   type ThumbnailReady,
   type WelcomeInfo,
 } from "./bindings";
+import { pathTo } from "./folderRows";
 import { setRegion } from "./format";
 import { setPseudo, t } from "./messages";
 import { emptySelection, keepExisting, type Selection, select, selectAll } from "./selection";
+import { tagPathTo } from "./tagRows";
 import type { ThumbState } from "./thumbState";
 
 /**
@@ -88,12 +90,20 @@ type State = {
   loadFolders: () => Promise<void>;
   selectFolder: (id: number) => Promise<void>;
   toggleFolder: (key: string) => void;
+  /** Closes every folder but those on the way to the selected one (LIB-2). */
+  collapseFolders: () => void;
+  /** Opens folders, such as one and all beneath it (LIB-2). */
+  openFolders: (keys: string[]) => void;
   selectTag: (tag: string) => Promise<void>;
   /** Searches as the user types; empty text ends the search (FND-2). */
   setSearch: (text: string) => Promise<void>;
   /** Clears the search and goes back to the folder or tag before it. */
   endSearch: () => Promise<void>;
   toggleTag: (tag: string) => void;
+  /** Closes every tag but those on the way to the selected one (TAG-5). */
+  collapseTags: () => void;
+  /** Opens tags, such as one and all beneath it (TAG-5). */
+  openTagNodes: (tags: string[]) => void;
   /** Changes part of the filter, and the grid with it (FND-1). */
   setFilter: (change: Partial<PhotoFilter>) => Promise<void>;
   clearFilters: () => Promise<void>;
@@ -440,6 +450,14 @@ export const useStore = create<State>()((set, get) => ({
     });
   },
 
+  collapseTags() {
+    set(({ tags, tag }) => ({ openTags: tagPathTo(tags, tag) }));
+  },
+
+  openTagNodes(tags) {
+    set(({ openTags }) => ({ openTags: new Set([...openTags, ...tags]) }));
+  },
+
   async addFolder() {
     const result = await commands.addFolder();
     if (result.status === "error") {
@@ -511,6 +529,14 @@ export const useStore = create<State>()((set, get) => ({
       if (!next.delete(key)) next.add(key);
       return { expanded: next };
     });
+  },
+
+  collapseFolders() {
+    set(({ folders, folderId }) => ({ expanded: pathTo(folders, folderId) }));
+  },
+
+  openFolders(keys) {
+    set(({ expanded }) => ({ expanded: new Set([...expanded, ...keys]) }));
   },
 
   async removeFolder(root) {

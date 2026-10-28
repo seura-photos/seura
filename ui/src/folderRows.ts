@@ -27,3 +27,47 @@ export function visibleRows(folders: FolderInfo[], expanded: Set<string>): Row[]
   for (const folder of folders.filter((folder) => folder.root !== null)) add(folder, 0);
   return rows;
 }
+
+/** The folders open on the way to `id`, so Collapse all keeps the selection
+ * in view (LIB-2). */
+export function pathTo(folders: FolderInfo[], id: number | null): Set<string> {
+  const byId = new Map(
+    folders.flatMap((folder) => (folder.id !== null ? [[folder.id, folder]] : [])),
+  );
+  const path = new Set<string>();
+  let parent = id !== null ? (byId.get(id)?.parent ?? null) : null;
+  while (parent !== null) {
+    const folder = byId.get(parent);
+    if (!folder) break;
+    path.add(folderKey(folder));
+    parent = folder.parent;
+  }
+  return path;
+}
+
+/** `key`'s folder and every folder beneath it that has folders in it, to
+ * open for Expand all beneath (LIB-2). */
+export function folderAndBeneath(folders: FolderInfo[], key: string): string[] {
+  const start = folders.find((folder) => folderKey(folder) === key);
+  if (!start || start.id === null) return [];
+  const ids = new Set([start.id]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const folder of folders) {
+      if (
+        folder.parent !== null &&
+        ids.has(folder.parent) &&
+        folder.id !== null &&
+        !ids.has(folder.id)
+      ) {
+        ids.add(folder.id);
+        grew = true;
+      }
+    }
+  }
+  const parents = new Set(folders.map((folder) => folder.parent));
+  return folders
+    .filter((folder) => folder.id !== null && ids.has(folder.id) && parents.has(folder.id))
+    .map(folderKey);
+}

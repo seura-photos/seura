@@ -145,6 +145,9 @@ library-tag-empty = No photo has exactly “{ $tag }”. Its photos are under th
 library-selected = { $count } selected
 library-unavailable = Not connected
 library-unavailable-title = { $path } (drive not connected)
+# The sidebar trees (LIB-2, TAG-5).
+tree-collapse-all = Collapse all
+tree-expand-beneath = Expand all beneath
 library-remove-folder = Remove from library…
 library-remove-title = Remove “{ $name }” from your library?
 library-remove-body = Its photos stay where they are, and so do their edits. Seura just stops showing them and clears their thumbnails.

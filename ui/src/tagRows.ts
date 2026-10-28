@@ -23,3 +23,34 @@ export function visibleTagRows(tags: TagInfo[], open: Set<string>): TagRow[] {
   for (const node of children.get(null) ?? []) add(node, 0);
   return rows;
 }
+
+/** The tags open on the way to `tag`, so Collapse all keeps the selection in
+ * view (TAG-5): `family` and `family/kids` for `family/kids/school`. */
+export function tagPathTo(tags: TagInfo[], tag: string | null): Set<string> {
+  const byTag = new Map(tags.map((node) => [node.tag, node]));
+  const path = new Set<string>();
+  let parent = tag !== null ? (byTag.get(tag)?.parent ?? null) : null;
+  while (parent !== null) {
+    path.add(parent);
+    parent = byTag.get(parent)?.parent ?? null;
+  }
+  return path;
+}
+
+/** `tag` and every tag beneath it that has tags beneath it, to open for
+ * Expand all beneath (TAG-5). */
+export function tagAndBeneath(tags: TagInfo[], tag: string): string[] {
+  const below = new Set([tag]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const node of tags) {
+      if (node.parent !== null && below.has(node.parent) && !below.has(node.tag)) {
+        below.add(node.tag);
+        grew = true;
+      }
+    }
+  }
+  const parents = new Set(tags.map((node) => node.parent));
+  return [...below].filter((tag) => parents.has(tag));
+}
