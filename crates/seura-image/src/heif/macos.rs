@@ -1,7 +1,9 @@
 //! HEIC on macOS: Apple's ImageIO, which has a licensed HEVC decoder
-//! (decision 0011). ImageIO applies the container's rotation and mirroring,
-//! and drawing into a Display P3 bitmap lets Core Graphics convert the
-//! color without losing an iPhone photo's wide color.
+//! (decision 0011). ImageIO applies the container's rotation and mirroring.
+//! The pixels are drawn in the image's own colour space, with its profile,
+//! so moxcms makes the one conversion (#91): an iPhone photo stays Display
+//! P3, and an sRGB one isn't rounded through 8-bit P3 and back, which moved
+//! a dark channel of a saturated colour by up to 10 levels.
 
 #![allow(unsafe_code, reason = "ImageIO and Core Graphics are C APIs")]
 
@@ -11,7 +13,7 @@ use objc2_core_foundation::{
     CFBoolean, CFDictionary, CFNumber, CFString, CFType, CFURL, CGFloat, CGPoint, CGRect, CGSize,
 };
 use objc2_core_graphics::{
-    CGBitmapContextCreate, CGColorSpace, CGContext, CGImage, CGImageAlphaInfo,
+    CGBitmapContextCreate, CGColorSpace, CGColorSpaceModel, CGContext, CGImage, CGImageAlphaInfo,
     kCGColorSpaceDisplayP3,
 };
 use objc2_image_io::{
@@ -19,7 +21,7 @@ use objc2_image_io::{
     kCGImageSourceCreateThumbnailWithTransform, kCGImageSourceThumbnailMaxPixelSize,
 };
 
-use super::Pixels;
+use super::{DISPLAY_P3, Pixels};
 use crate::decode::{DecodeError, MAX_SIDE};
 use crate::raster::Rgba8;
 
@@ -50,8 +52,22 @@ pub(super) fn decode(path: &Path) -> Result<Pixels, DecodeError> {
     if width == 0 || height == 0 {
         return Err(damaged("empty image"));
     }
-    let p3 = CGColorSpace::with_name(Some(unsafe { kCGColorSpaceDisplayP3 }))
-        .ok_or_else(|| damaged("no Display P3 color space"))?;
+    // The image's own RGB space and its profile; failing that, Display P3,
+    // which Core Graphics converts to and which loses no wide colour.
+    let own = CGImage::color_space(Some(&image)).and_then(|space| {
+        let rgb = CGColorSpace::model(Some(&space)) == CGColorSpaceModel::RGB
+            && CGColorSpace::number_of_components(Some(&space)) == 3;
+        let icc = CGColorSpace::icc_data(Some(&space))?.to_vec();
+        (rgb && !icc.is_empty()).then_some((space, icc))
+    });
+    let (space, icc) = match own {
+        Some(own) => own,
+        None => (
+            CGColorSpace::with_name(Some(unsafe { kCGColorSpaceDisplayP3 }))
+                .ok_or_else(|| damaged("no Display P3 color space"))?,
+            DISPLAY_P3.clone(),
+        ),
+    };
     let mut pixels = vec![0u8; width * height * 4];
     {
         let context: Option<_> = unsafe {
@@ -61,7 +77,7 @@ pub(super) fn decode(path: &Path) -> Result<Pixels, DecodeError> {
                 height,
                 8,
                 width * 4,
-                Some(&p3),
+                Some(&space),
                 CGImageAlphaInfo::PremultipliedLast.0,
             )
         };
@@ -79,6 +95,6 @@ pub(super) fn decode(path: &Path) -> Result<Pixels, DecodeError> {
     Ok(Pixels {
         image: Rgba8::new(width as u32, height as u32, pixels),
         transformed: true,
-        display_p3: true,
+        icc: Some(icc),
     })
 }

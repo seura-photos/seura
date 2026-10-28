@@ -25,7 +25,7 @@ thiserror = { workspace = true }
 tempfile = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-core-foundation = { workspace = true, features = ["CFCGTypes", "CFDictionary", "CFNumber", "CFString", "CFURL"] }
+objc2-core-foundation = { workspace = true, features = ["CFCGTypes", "CFData", "CFDictionary", "CFNumber", "CFString", "CFURL"] }
 objc2-core-graphics = { workspace = true, features = ["CGBitmapContext", "CGColorSpace", "CGContext", "CGImage"] }
 objc2-image-io = { workspace = true, features = ["CGImageSource", "objc2-core-graphics"] }
 objc2-quick-look-thumbnailing = { workspace = true, features = ["QLThumbnailGenerationRequest", "QLThumbnailGenerator", "QLThumbnailRepresentation", "block2", "objc2-core-foundation", "objc2-core-graphics"] }

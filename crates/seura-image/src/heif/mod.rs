@@ -27,11 +27,12 @@ use crate::raster::Rgba8;
 const DECODER_SWITCH: &str = "SEURA_HEIF_DECODER";
 
 /// Pixels from a decoder: whether it already applied the container's
-/// rotation and mirroring, and whether it already converted to Display P3.
+/// rotation and mirroring, and the ICC profile of the space it drew them
+/// in, when it chose one; otherwise the container's colour applies.
 pub(crate) struct Pixels {
     pub image: Rgba8,
     pub transformed: bool,
-    pub display_p3: bool,
+    pub icc: Option<Vec<u8>>,
 }
 
 pub(crate) fn decode(path: &Path) -> Result<Source, DecodeError> {
@@ -51,15 +52,11 @@ pub(crate) fn decode(path: &Path) -> Result<Source, DecodeError> {
     } else {
         apply(pixels.image, &container)
     };
-    let icc = if pixels.display_p3 {
-        Some(DISPLAY_P3.clone())
-    } else {
-        match container.color {
-            Some(Color::Icc(icc)) => Some(icc),
-            Some(Color::Primaries(12)) => Some(DISPLAY_P3.clone()),
-            _ => None,
-        }
-    };
+    let icc = pixels.icc.or(match container.color {
+        Some(Color::Icc(icc)) => Some(icc),
+        Some(Color::Primaries(12)) => Some(DISPLAY_P3.clone()),
+        _ => None,
+    });
     // The date taken, from the EXIF item, so HEIC photos sort by it (BRW-2).
     // Its orientation is ignored: the container's applies (see container.rs).
     Ok(Source {
@@ -69,7 +66,7 @@ pub(crate) fn decode(path: &Path) -> Result<Source, DecodeError> {
     })
 }
 
-static DISPLAY_P3: LazyLock<Vec<u8>> = LazyLock::new(|| {
+pub(super) static DISPLAY_P3: LazyLock<Vec<u8>> = LazyLock::new(|| {
     moxcms::ColorProfile::new_display_p3()
         .encode()
         .expect("the built-in Display P3 profile encodes")
