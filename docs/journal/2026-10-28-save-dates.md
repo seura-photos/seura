@@ -1,0 +1,6 @@
+# Dates taken saved as they're learned (M4 slice 0e; #99)
+
+- **The bug, found while building filters (2026-10-26):** a photo's date taken and dimensions are learned when its thumbnail is made. They reached the saved index only when something else saved it, such as a scan or a change. If the app was stopped without quitting (a crash, or Ctrl+C on `cargo tauri dev`), they were lost. And since the thumbnail was already in the cache, the photo was never decoded again to learn them.
+- **The fix:** `record_details` now says whether decoding learned anything new. The timer that already sends finished thumbnails to the UI, ten times a second, also saves the index when something new is waiting: as soon as the thumbnail queue is empty, and at most every 30 seconds while it isn't. A snapshot of a large library takes a moment, so it isn't saved after every thumbnail. Stopping the app mid-scan now loses at most 30 seconds of dates.
+- **A test** checks that a date is new once, that a later decode without a date keeps the one known, and that it survives a snapshot.
+- **Photos already affected** aren't repaired by this: their thumbnails exist, so they won't be decoded again. Clearing the cache (SET-2, in M7) or deleting a thumbnail rebuilds them. Few photos are likely affected, mostly from development builds stopped with Ctrl+C.
