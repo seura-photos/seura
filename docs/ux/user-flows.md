@@ -218,6 +218,8 @@ Ctrl on Windows, Cmd on macOS. Single-letter keys work in every view except whil
 | Export | Ctrl+E |
 | Search | Ctrl+F |
 | Select all | Ctrl+A |
+| Open a tree node and its siblings (sidebar) | `*` |
+| Open a node and everything beneath it | Alt-click its arrow (Windows), Option-click (macOS) |
 | Delete | Delete (Windows), Cmd+Delete (macOS) |
 
 ## Decisions
