@@ -7,3 +7,9 @@
 - **The Mac panel shows its credits as plain text,** so the early-build line and the three addresses are there to read, not to click. The design allowed for this ("where the panel allows"). Still to check on the Mac.
 - **Nevada checked About on Windows** from the branch: it looks good.
 - **Found on the way:** the existing confirmation dialogs let keys through to the Library behind them, so a number key could rate the selected photos while Delete is being confirmed (#120). About doesn't; the others can share its handling.
+- **The Mac session's check, with Nevada reading the panel:**
+  - Under `cargo tauri dev`, the panel showed a generic folder icon, since there's no bundle there.
+  - In a bundled build, it showed Seura's icon, but "Version 0.2.1 (0.2.1)": the panel adds the bundle's build number, which is the same.
+  - The license address wrapped, and its line repeated the bundle's copyright line, which already names the license.
+  - Fixed by passing an empty build number and leaving the license address out of the credits. Still to check in a bundled build, since `cargo tauri dev` never shows the parentheses.
+  - The credits are left-aligned in larger text while the rest is centred. That's how the panel draws plain text, and Tauri passes no other kind; it's left as it is.

@@ -21,7 +21,7 @@ pub enum Link {
 }
 
 impl Link {
-    #[cfg(any(target_os = "macos", test))]
+    #[cfg(test)]
     pub const ALL: [Link; 3] = [Link::Website, Link::Project, Link::License];
 
     pub fn url(self) -> &'static str {
@@ -33,9 +33,11 @@ impl Link {
     }
 }
 
-/// What the system's About panel shows besides the name and icon, which it
-/// takes from the app bundle. The panel shows its credits as plain text, so
-/// the links are there as addresses, not to click.
+/// What the system's About panel shows besides the name, icon, and
+/// copyright, which it takes from the app bundle. The panel shows its
+/// credits as plain text, so the links are there as addresses, not to
+/// click. The license's is left out: the bundle's copyright line already
+/// names the Apache License 2.0, and the address wrapped.
 #[cfg(target_os = "macos")]
 pub fn metadata() -> tauri::menu::AboutMetadata<'static> {
     use crate::messages::t;
@@ -46,9 +48,16 @@ pub fn metadata() -> tauri::menu::AboutMetadata<'static> {
         credits.push(t("about-early-build"));
         credits.push(String::new());
     }
-    credits.extend(Link::ALL.map(|link| link.url().trim_start_matches("https://").to_string()));
+    credits.extend(
+        [Link::Website, Link::Project]
+            .map(|link| link.url().trim_start_matches("https://").to_string()),
+    );
     tauri::menu::AboutMetadata {
         version: Some(VERSION.to_string()),
+        // The build number, which the panel shows in parentheses after the
+        // version and otherwise takes from the bundle, where it's the same:
+        // "Version 0.2.1 (0.2.1)". Empty, it shows none.
+        short_version: Some(String::new()),
         credits: Some(credits.join("\n")),
         ..Default::default()
     }
