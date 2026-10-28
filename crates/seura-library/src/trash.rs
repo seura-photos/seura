@@ -23,7 +23,26 @@ pub fn move_to_trash(path: &Path) -> io::Result<()> {
 /// for no prompts (#115).
 pub fn move_all_to_trash(paths: &[PathBuf]) -> io::Result<()> {
     refuse_without_trash(paths, &has_trash)?;
-    context().delete_all(paths).map_err(io::Error::other)
+    context()
+        .delete_all(paths)
+        .map_err(|error| io::Error::other(system_reason(error)))
+}
+
+/// The system's own words for why it didn't move a file, such as "you
+/// don't have permission to access it", without the `trash` crate's
+/// preface, so they can be shown to the user (#112).
+fn system_reason(error: trash::Error) -> String {
+    match error {
+        trash::Error::Unknown { description } | trash::Error::Os { description, .. } => {
+            let words = description
+                .rsplit_once("failed: ")
+                .map(|(_, words)| words)
+                .or_else(|| description.strip_prefix("windows error: "))
+                .unwrap_or(&description);
+            words.trim().to_string()
+        }
+        other => other.to_string(),
+    }
 }
 
 /// Refuses with [`NoTrash`], which lets an emptied edit file be deleted
@@ -51,6 +70,31 @@ fn context() -> trash::TrashContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_reason_is_the_systems_own_words() {
+        let mac = trash::Error::Unknown {
+            description: concat!(
+                r#"While deleting '"/Users/n/OneDrive/IMG_1.jpg"', `trashItemAtURL` failed: "#,
+                "“IMG_1.jpg” couldn’t be moved to the trash because you don’t have ",
+                "permission to access it.",
+            )
+            .into(),
+        };
+        assert_eq!(
+            system_reason(mac),
+            "“IMG_1.jpg” couldn’t be moved to the trash because you don’t have permission to access it."
+        );
+        let windows = trash::Error::Os {
+            code: 5,
+            description: "windows error: Access is denied. (0x80070005)".into(),
+        };
+        assert_eq!(system_reason(windows), "Access is denied. (0x80070005)");
+        let plain = trash::Error::Unknown {
+            description: "Some operations were aborted".into(),
+        };
+        assert_eq!(system_reason(plain), "Some operations were aborted");
+    }
 
     #[test]
     fn nothing_goes_if_any_file_is_on_a_drive_with_no_recycle_bin() {

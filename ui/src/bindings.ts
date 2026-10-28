@@ -286,6 +286,8 @@ export type DeleteResult = {
 	noTrash: number,
 	/**  The system didn't move them, such as files in use. */
 	failed: number,
+	/**  Why, in the system's own words, for the first of them (#112). */
+	failedReason: string | null,
 };
 
 /**  What deleting photos would involve, for the confirmation to say (BRW-9). */

@@ -1116,6 +1116,8 @@ pub struct DeleteResult {
     pub no_trash: u32,
     /// The system didn't move them, such as files in use.
     pub failed: u32,
+    /// Why, in the system's own words, for the first of them (#112).
+    pub failed_reason: Option<String>,
 }
 
 /// Moves photos and their edit files to the Recycle Bin or Trash, once the
@@ -1141,7 +1143,12 @@ pub async fn delete_photos(app: AppHandle, ids: Vec<u32>) -> Result<DeleteResult
                 seura_library::DeleteProblem::CloudOnly => result.cloud_only += 1,
                 seura_library::DeleteProblem::NoTrash => result.no_trash += 1,
                 seura_library::DeleteProblem::Gone => {}
-                seura_library::DeleteProblem::Failed(_) => result.failed += 1,
+                seura_library::DeleteProblem::Failed(reason) => {
+                    result.failed += 1;
+                    if !reason.is_empty() {
+                        result.failed_reason.get_or_insert_with(|| reason.clone());
+                    }
+                }
             }
         }
         if !report.deleted.is_empty() {
