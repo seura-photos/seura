@@ -58,7 +58,9 @@ pub(super) fn decode(path: &Path) -> Result<Pixels, DecodeError> {
         let rgb = CGColorSpace::model(Some(&space)) == CGColorSpaceModel::RGB
             && CGColorSpace::number_of_components(Some(&space)) == 3;
         let icc = CGColorSpace::icc_data(Some(&space))?.to_vec();
-        (rgb && !icc.is_empty()).then_some((space, icc))
+        // A profile moxcms can't read would leave the pixels unconverted.
+        let readable = moxcms::ColorProfile::new_from_slice(&icc).is_ok();
+        (rgb && readable).then_some((space, icc))
     });
     let (space, icc) = match own {
         Some(own) => own,
