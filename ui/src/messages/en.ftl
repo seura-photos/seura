@@ -282,6 +282,30 @@ history-skipped =
 history-nothing-to-undo = Nothing to undo.
 history-nothing-to-redo = Nothing to redo.
 history-failed = Couldn't undo or redo that: { $reason }
+# After a change made with a key: 0 to 5, or T and the tag picker (INT-6).
+change-done-rated =
+    { $count ->
+        [one] Rated 1 photo
+       *[other] Rated { $count } photos
+    } { $stars ->
+        [one] 1 star.
+       *[other] { $stars } stars.
+    }
+change-done-cleared =
+    { $count ->
+        [one] Cleared the rating on 1 photo.
+       *[other] Cleared the rating on { $count } photos.
+    }
+change-done-added =
+    { $count ->
+        [one] Added the tag { $tag } to 1 photo.
+       *[other] Added the tag { $tag } to { $count } photos.
+    }
+change-done-removed =
+    { $count ->
+        [one] Removed the tag { $tag } from 1 photo.
+       *[other] Removed the tag { $tag } from { $count } photos.
+    }
 change-read-only-some =
     { $count ->
         [one] 1 photo is in a read-only folder, so it wasn't changed.

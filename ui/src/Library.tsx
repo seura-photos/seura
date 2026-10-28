@@ -166,7 +166,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
     if (selection.ids.size === 0) return;
     const ids = [...selection.ids];
     const stars = ratingKey(event);
-    if (stars !== null) void rate(ids, stars);
+    if (stars !== null) void rate(ids, stars, true);
     // Delete moves them to the Recycle Bin, once confirmed (BRW-9).
     else if (isDeleteKey(event)) void useStore.getState().askDelete(ids);
     else if (isTagKey(event)) void openPicker(ids, selectionAnchor(ids));

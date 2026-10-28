@@ -357,7 +357,9 @@ button {
   color: var(--color-text);
 }
 
-/* Problems with the selected photos' files, above the grid (flow 11). */
+/* Problems with the selected photos' files, above the grid (flow 11), in
+   three levels (visual design, "Notice bar"): information, a caution, and
+   a problem to act on. The text is always the primary colour. */
 .notice-bar {
   display: flex;
   align-items: center;
@@ -366,15 +368,25 @@ button {
   padding: 0.625rem 1rem;
   border-radius: var(--radius-panel);
   background: var(--color-accent-subtle);
+  color: var(--color-text);
+}
+
+.notice-bar.caution {
+  background: var(--color-caution-subtle);
 }
 
 .notice-bar.warning {
   background: var(--color-danger-subtle);
 }
 
+/* accentText, not accent, which is only 2.3:1 on accentSubtle in dark mode. */
 .notice-bar .icon {
   flex: none;
-  color: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+.notice-bar.caution .icon {
+  color: var(--color-caution);
 }
 
 .notice-bar.warning .icon {

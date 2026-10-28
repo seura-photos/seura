@@ -646,10 +646,13 @@ describe("App", () => {
     await screen.findByRole("heading", { name: "Pictures" });
 
     act(() => useStore.getState().selectPhoto(1, { toggle: false, range: false }));
-    expect(
-      await screen.findByText("This photo was changed by another program; edits may not line up."),
-    ).toBeTruthy();
-    expect(screen.getByText(/This photo has 2 edits Seura Photos can't show/)).toBeTruthy();
+    // A caution, and information: two levels of the notice bar (visual design).
+    const changed = await screen.findByText(
+      "This photo was changed by another program; edits may not line up.",
+    );
+    expect(changed.closest(".notice-bar")?.classList.contains("caution")).toBe(true);
+    const notShown = screen.getByText(/This photo has 2 edits Seura Photos can't show/);
+    expect(notShown.closest(".notice-bar")?.classList.contains("caution")).toBe(false);
 
     // Another photo has nothing to say; several selected aren't checked.
     act(() => useStore.getState().selectPhoto(2, { toggle: false, range: false }));

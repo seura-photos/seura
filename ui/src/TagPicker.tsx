@@ -107,7 +107,8 @@ function Picker({ ids, anchor }: NonNullable<ReturnType<typeof useStore.getState
 
   async function add(item: Item | undefined) {
     if (!item) return;
-    await change(ids, { kind: "addTag", tag: item.tag });
+    // The picker is opened with T and worked from the keyboard (INT-6).
+    await change(ids, { kind: "addTag", tag: item.tag }, true);
     setText("");
     field.current?.focus();
   }
@@ -161,7 +162,7 @@ function Picker({ ids, anchor }: NonNullable<ReturnType<typeof useStore.getState
                 className="chip-remove"
                 aria-label={t("tag-remove", { tag })}
                 title={t("tag-remove", { tag })}
-                onClick={() => void change(ids, { kind: "removeTag", tag })}
+                onClick={() => void change(ids, { kind: "removeTag", tag }, true)}
               >
                 <X className="icon" aria-hidden />
               </button>
