@@ -155,6 +155,9 @@ type State = {
   askDelete: (ids: number[]) => Promise<void>;
   /** The answer: moves them, and the Viewer on to the next photo. */
   confirmDelete: (yes: boolean) => Promise<void>;
+  /** Whether About is open: Windows' dialog, from the ⋯ button (SET-5). */
+  about: boolean;
+  setAbout: (open: boolean) => void;
 };
 
 /** Undoes or redoes, and says what happened (BRW-11). */
@@ -261,6 +264,7 @@ export const useStore = create<State>()((set, get) => ({
   noticeId: 0,
   kept: null,
   confirmingDelete: null,
+  about: false,
   picker: null,
   progress: { scanning: null, done: 0, total: 0 },
 
@@ -630,6 +634,10 @@ export const useStore = create<State>()((set, get) => ({
       failed > 0 ? t("start-over-failed", { count: failed }) : null,
     ].filter((problem) => problem !== null);
     if (problems.length > 0) get().say(problems.join(" "));
+  },
+
+  setAbout(open) {
+    set({ about: open });
   },
 
   async askDelete(ids) {

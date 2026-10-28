@@ -5,6 +5,7 @@
 //! [`specta_builder`]; their TypeScript bindings are generated into
 //! `ui/src/bindings.ts` (decision 0008).
 
+mod about;
 mod commands;
 mod editor;
 mod gpu;
@@ -31,6 +32,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .commands(collect_commands![
             commands::app_version,
+            commands::open_link,
             commands::add_folder,
             commands::folders,
             commands::remove_folder,

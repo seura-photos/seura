@@ -22,7 +22,14 @@ use crate::welcome;
 #[tauri::command]
 #[specta::specta]
 pub fn app_version() -> String {
-    env!("CARGO_PKG_VERSION").to_string()
+    crate::about::VERSION.to_string()
+}
+
+/// Opens one of About's links in the default browser (SET-5).
+#[tauri::command]
+#[specta::specta]
+pub fn open_link(link: crate::about::Link) -> Result<(), String> {
+    tauri_plugin_opener::open_url(link.url(), None::<&str>).map_err(|error| error.to_string())
 }
 
 /// A folder with photos directly in it.

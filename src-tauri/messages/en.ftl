@@ -4,6 +4,8 @@
 app-name = Seura Photos
 
 menu-about = About Seura Photos
+# In the About panel (SET-5), while the version is below 1.0.
+about-early-build = An early build, before the beta.
 menu-hide = Hide Seura Photos
 menu-hide-others = Hide Others
 menu-show-all = Show All

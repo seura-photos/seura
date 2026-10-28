@@ -6,6 +6,7 @@ import { formatBytes, formatNumber } from "./format";
 import { t } from "./messages";
 import { InfoPanel } from "./InfoPanel";
 import { Message } from "./Message";
+import { MoreButton } from "./MoreButton";
 import { NoticeBar } from "./NoticeBar";
 import { historyKey, isDeleteKey, isSelectAll, isTagKey, isTyping, ratingKey } from "./keys";
 import { SHOWN_EVENT } from "./measure";
@@ -479,6 +480,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
             <Plus className="icon" aria-hidden />
           </button>
         </div>
+        <MoreButton />
       </header>
 
       {/* The notice bar pushes the photo down rather than covering it

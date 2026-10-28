@@ -3,6 +3,9 @@ import { type KeyboardEvent, type ReactNode, useEffect, useRef } from "react";
 type Props = {
   x: number;
   y: number;
+  /** "end" puts its right edge at `x`, for a menu from a button at the
+   * window's right edge. */
+  align?: "start" | "end";
   onClose: () => void;
   /** Buttons with `role="menuitem"` and the `menu-item` class. */
   children: ReactNode;
@@ -15,7 +18,7 @@ type Props = {
  * was, so the context-menu key works again there. Clicking outside or
  * leaving the window closes it too.
  */
-export function Menu({ x, y, onClose, children }: Props) {
+export function Menu({ x, y, align = "start", onClose, children }: Props) {
   const menu = useRef<HTMLDivElement>(null);
   // The latest onClose, so opening and closing happen once however often
   // the owner renders meanwhile.
@@ -61,7 +64,11 @@ export function Menu({ x, y, onClose, children }: Props) {
         ref={menu}
         className="menu"
         role="menu"
-        style={{ left: x, top: y }}
+        style={
+          align === "end"
+            ? { left: x, top: y, transform: "translateX(-100%)" }
+            : { left: x, top: y }
+        }
         onClick={(event) => event.stopPropagation()}
         onKeyDown={onKeyDown}
       >

@@ -60,7 +60,11 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         t("app-name"),
         true,
         &[
-            &PredefinedMenuItem::about(app, Some(t("menu-about").as_str()), None)?,
+            &PredefinedMenuItem::about(
+                app,
+                Some(t("menu-about").as_str()),
+                Some(crate::about::metadata()),
+            )?,
             &separator()?,
             &PredefinedMenuItem::hide(app, Some(t("menu-hide").as_str()))?,
             &PredefinedMenuItem::hide_others(app, Some(t("menu-hide-others").as_str()))?,

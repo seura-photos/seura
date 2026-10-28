@@ -7,6 +7,8 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**  The app's version, from `Cargo.toml`. */
 	appVersion: () => __TAURI_INVOKE<string>("app_version"),
+	/**  Opens one of About's links in the default browser (SET-5). */
+	openLink: (link: Link) => typedError<null, string>(__TAURI_INVOKE("open_link", { link })),
 	/**
 	 *  Asks for a folder with the system's dialog (ACC-4), adds it to the
 	 *  library, and scans it. The UI never sees a path it could open itself
@@ -389,6 +391,12 @@ export type HistoryStep = {
 
 /**  The library's folders or photos changed, after a scan. */
 export type LibraryChanged = null;
+
+/**
+ *  A link in About. The UI names one of these rather than passing an
+ *  address, so it can't open any other.
+ */
+export type Link = "website" | "project" | "license";
 
 /**
  *  A menu command for the UI to carry out, so each command has one path
