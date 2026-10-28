@@ -50,7 +50,8 @@ New in M4:
 - **Dates taken** (#99): saved as they're learned, so stopping the app without quitting loses none.
 - **The HEIC test on Nevada's Mac** (#91): found and fixed, or the test made to say why it differs.
 - **Node 26** and the edit-format submodule moved to its latest `main`.
-- **Done when:** Nevada has seen the new notice levels, a message after a key, a date range and the trees' new controls on both machines, and the error text appears for a photo the Mac refuses.
+- **Build 0.2.2** (question 7): slice 0 with About (#121) and the dialog keys (#122), published as M3's follow-up pre-release.
+- **Done when:** Nevada has seen the new notice levels, a message after a key, a date range and the trees' new controls on both machines, the error text appears for a photo the Mac refuses, and 0.2.2 is published.
 
 ### 1. The Editor's frame (EDT-1, EDT-8, EDT-11, LIB-9)
 
@@ -128,7 +129,9 @@ New in M4:
 - **The Editor in release builds,** then build 0.3, the devlog post, part 10, and confirming every "done when".
 - **Done when:** Nevada fixes his own photos with build 0.3 on both machines, instead of another app.
 
-## Questions for a design session
+## Questions
+
+Questions 1 to 6 are for a design session; 7 and 8 were Nevada's.
 
 1. **Who writes the formulas appendix?** The edit format belongs to the design sessions, but the formulas come from the implementation. Claude Code's suggestion: it writes each formula into the appendix in its own pull request to `edit-format` as the operation is built, and the design session reviews them there, with the whole appendix reviewed again in slice 10.
 2. **Toolbar and panel items not built yet.** The Editor's wireframe has Copy edits, Export and the presets list, which come in M5. Suggestion: leave them out until they're built, as About's ⋯ menu leaves out Settings and Clean up, rather than showing them disabled.
@@ -136,5 +139,5 @@ New in M4:
 4. **Straighten and the crop.** As the angle grows, the crop shrinks so no corners show (EDT-3). When the angle goes back, should the crop grow again to what the user had set, or stay as small as it got? Suggestion: grow back to the user's crop, as long as straighten mode is open; the user's last crop is what's stored.
 5. **How sliders show their values.** "Sliders show signed values" (wireframes). Suggestion: brightness in stops with two decimals (+0.50), as the format stores it; the others as whole numbers from −100 to 100; temperature and tint with words at the ends (Cool, Warm; Green, Magenta).
 6. **Enhance on an edited photo.** Suggestion: Enhance replaces the seven settings it computes and leaves crop, rotation, effects and red-eye as they are; pressing it again gives the same result, not a stronger one.
-7. **When 0.3 ships.** Decision 0016 makes each milestone's build public. 0.3 is M4's, but slice 0 and About are ready long before the Editor. Suggestion: an interim 0.2.2 with slice 0, About and the dialog keys, so testers can say which build they have, and 0.3 with the Editor at the end of M4. Nevada's call.
-8. **Signing on the Mac (#112).** The test needs Xcode, a large install, on Nevada's MacBook, and his free Apple account as a Personal Team. Nevada's OK is needed before the Mac session installs anything.
+7. **When 0.3 ships.** Answered by Nevada (2026-10-28): an interim **0.2.2** with slice 0, About and the dialog keys, so testers can say which build they have, and 0.3 with the Editor at the end of M4.
+8. **Signing on the Mac (#112).** Answered by Nevada (2026-10-28): he'll install Xcode on the MacBook (he had it before; the command-line tools are likely still there), for the test with his free Apple account as a Personal Team.
