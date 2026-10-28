@@ -60,8 +60,9 @@ Cost is counted from the view where the user most likely is when they want the a
 | Save preset | Dialog | Save as preset in the Editor | PRE-3 |
 | Export | Dialog, then progress | Export | EXP-* |
 | Delete confirmation | Dialog | Delete | BRW-9 |
-| Cleanup | Dialog with preview | File menu, folder context menu | CLN-* |
-| Settings | Window (macOS) or dialog (Windows) | App or Edit menu | SET-2 |
+| Cleanup | Dialog with preview | File menu (macOS) or ⋯ (Windows), folder context menu | CLN-* |
+| Settings | Window (macOS) or dialog (Windows) | App menu (macOS) or ⋯ (Windows) | SET-2 |
+| About | System panel (macOS) or dialog (Windows) | App menu (macOS) or ⋯ (Windows) | SET-5 |
 | Notices | Bar at the top of the photo area, in the Library and Viewer | Problems with the selected photos' files | FIL-3, FIL-4, FIL-5, FIL-7, INT-6 |
 | Messages | Brief box near the bottom of the photo area, in the Library and Viewer | The result of the last action | INT-6 |
 
@@ -181,7 +182,7 @@ The basis of the design test: fix a crooked, dark photo in under five minutes.
 
 ### 10. Cleanup (CLN-*)
 
-1. File → Clean up, or right-click a folder → Clean up this folder.
+1. File → Clean up on macOS, ⋯ → Clean up on Windows, or right-click a folder → Clean up this folder.
 2. Choose scope and what to remove; a preview shows counts.
 3. Export edited photos first, or Move to Trash.
 
