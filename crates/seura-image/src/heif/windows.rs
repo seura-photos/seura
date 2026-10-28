@@ -73,7 +73,7 @@ pub(super) fn decode(path: &Path) -> Result<Pixels, DecodeError> {
         Ok(Pixels {
             image: Rgba8::new(width, height, pixels),
             transformed: true,
-            display_p3: false,
+            icc: None,
         })
     }
 }
