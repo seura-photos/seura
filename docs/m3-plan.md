@@ -1,6 +1,6 @@
 # M3 work plan: Organize
 
-Status: ready to start · Last updated: 2026-10-26
+Status: complete · Last updated: 2026-10-27
 
 The working plan for milestone M3 from the [milestone plan](milestone-plan.md): the first milestone that writes user data in earnest, the edit files beside your photos. It breaks the milestone into slices, one pull request each (or a few, lettered), in order. Drafted by Claude Code from the milestone plan, the [functional spec](functional-spec.md), the [user flows](ux/user-flows.md) and [wireframes](ux/wireframes.md), the [technical design](technical-design.md), and the [edit format](https://github.com/seura-photos/edit-format). The eight questions it couldn't settle went to a design session and are answered in the spec (#79); see "Questions, answered" at the end.
 
@@ -129,3 +129,44 @@ The design session answered all eight on 2026-10-26 (#79; journal, `2026-10-26-m
 | Read-only folders | A line in the Info panel, controls disabled in place, notices for keys (TAG-7) | 2, 3 |
 
 **Still open:** where an online-only file goes when it's moved to the Trash. Claude Code measures it at the start of slice 9 and reports back.
+
+## Status
+
+Reviewed 2026-10-27, at the end of slice 11. Pull requests #78 to #123.
+
+| Slice | "Done when" | Status |
+| --- | --- | --- |
+| 1. Writing edit files (#90) | The data-safety suite covers every write path on both platforms; a rating shows in the grid and survives a restart | Met. The Mac Claude session checked that the Trash shows no prompt and that Finder's Put Back works. |
+| 2. Ratings (#92) | Nevada rates by key and by clicking on both machines; ratings survive a restart and are in the edit files | Met: checked by Nevada on both machines. |
+| 3. Tags (#93) | Nevada tags photos one at a time and in a selection; a tag typed in another case finds the existing one | Met: in Nevada's use on both machines; case folding is covered by tests. |
+| 4. The tag tree (#94) | Nevada's tags appear as a tree, and selecting one shows exactly its photos | Met: checked by Nevada on his library. |
+| 5. Undo (#96) | Tests cover undo and redo; Nevada has undone a rating and a tag on both machines | Met: checked by Nevada on both machines. |
+| 6. Finding (#97, #98, #107) | Nevada finds photos by name, tag, rating and date; search within 200 ms at 10,000 photos | Met: in Nevada's use, which found the date filter missing photos (fixed). The slowest letter took 46 ms on Windows and 79 ms on the Mac (`docs/benchmarks/m3-search.md`). |
+| 7. Problems with files (#100, #101) | Each case covered by tests; Nevada has seen the notices on purpose-made examples | Tests: met. The notices were shown on a generated sample library; the screenshots of each style for the design session are still to take. FIL-3's Editor part moved to M4, by Nevada's decision. |
+| 8. Renamed photos (#102) | Integration tests rename photos on both platforms; Nevada has renamed a tagged photo and seen its tags follow | Tests: met on both platforms in CI. Nevada's own rename isn't recorded in the journal. |
+| 9. Delete to Trash (#104, #113, #116) | Data-safety tests on both platforms; Nevada has deleted and restored photos on both machines | Met, with what the measurements changed. Cloud-only photos, and photos on drives with no Recycle Bin, are left out of Delete (decision 0017). On the Mac, the installed app can't yet delete photos in OneDrive folders (#112). |
+| 10. Library polish (#105, #110) | Nevada has checked each on both machines | Met: checked by Nevada, including the resizable sidebar. |
+| 11. Wrap-up (#107 to #123) | Nevada is tagging and rating his own library with build 0.2 on both machines | Met. Every edit file Seura wrote in Nevada's library passes `check.py`. Builds 0.2.0 and 0.2.1 are published as public pre-releases. Devlog part 9 is published. Nevada is tagging and rating with 0.2.1 on both machines and declared M3 done on 2026-10-27. |
+
+**The milestone's "done when"** (Nevada tags and rates his own library, the edit files pass `check.py`, and the data-safety suite covers every new write path) is met: **M3 is complete** (2026-10-27).
+
+**Also done in M3, beyond the plan:**
+- Select All (#95) and the grid's focus after the Viewer (#114).
+- The regional formats checked on both machines (ACC-6).
+- About and the Windows ⋯ button (#121), and keys kept inside dialogs (#122). Both ship in 0.3.
+
+**Carried forward:**
+
+| Item | Where |
+| --- | --- |
+| Node 26 | Early M4; it becomes LTS on 2026-10-28 |
+| Dates taken lost when the app is stopped without quitting (#99) | M4 |
+| On the Mac, deleting photos in OneDrive folders (#112): Finder as a fallback, or Developer ID signing | A decision for Nevada or a design session |
+| The website's "Try an early build" section (#76) | A design session; 0.2.1 is out |
+| The filter row wrapping at 1440 px (#118) | A design session |
+| The date range repeated within one minute (#125) | M4 |
+| A drive with no Trash on the Mac (a network volume), for decision 0017 | To measure on the Mac |
+| Screenshots of each notice style for the design session | When the design session reviews the notices |
+| FIL-3's "Keep yours or load theirs?" in the Editor | M4, with the Editor |
+| Undo and redo buttons in the toolbar | M4, with the toolbar's other actions |
+| The HEIC colour test failing on Nevada's Mac only (#91) | M4 |
