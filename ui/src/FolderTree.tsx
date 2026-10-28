@@ -1,26 +1,30 @@
 import { ChevronDown, ChevronRight, Folder } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, useMemo, useRef, useState } from "react";
 import type { FolderInfo } from "./bindings";
-import { folderKey, type Row, visibleRows } from "./folderRows";
+import { folderAndBeneath, folderKey, type Row, visibleRows } from "./folderRows";
 import { formatNumber } from "./format";
 import { t } from "./messages";
 import { useStore } from "./store";
 
 type Props = {
-  /** Opens the folder menu (Remove from library…) for a library folder. */
+  /** Opens the folder menu: Expand all beneath for a folder with folders
+   * in it, and Remove from library… for a library folder. */
   onMenu: (folder: FolderInfo, x: number, y: number) => void;
 };
 
 /**
  * The FOLDERS tree (LIB-2), following the ARIA tree pattern for the
- * keyboard (ACC-1, ACC-2): arrows move and open, Home and End jump, and the
- * selection follows the focus, as in Explorer's navigation pane.
+ * keyboard (ACC-1, ACC-2): arrows move and open, Home and End jump, `*`
+ * opens the focused folder and its siblings, and the selection follows the
+ * focus, as in Explorer's navigation pane. Alt-click (Option-click) on an
+ * arrow opens a folder and everything beneath it, as in Finder.
  */
 export function FolderTree({ onMenu }: Props) {
   const folders = useStore((state) => state.folders);
   const folderId = useStore((state) => state.folderId);
   const expanded = useStore((state) => state.expanded);
   const toggle = useStore((state) => state.toggleFolder);
+  const openFolders = useStore((state) => state.openFolders);
   const selectFolder = useStore((state) => state.selectFolder);
   const rows = useMemo(() => visibleRows(folders, expanded), [folders, expanded]);
   const [focusKey, setFocusKey] = useState<string | null>(null);
@@ -65,10 +69,17 @@ export function FolderTree({ onMenu }: Props) {
       case " ":
         if (row.folder.id !== null) void selectFolder(row.folder.id);
         break;
+      case "*":
+        openFolders(
+          rows
+            .filter((other) => other.folder.parent === row.folder.parent && other.hasChildren)
+            .map((other) => folderKey(other.folder)),
+        );
+        break;
       case "ContextMenu":
       case "F10":
         if (event.key === "F10" && !event.shiftKey) return;
-        if (row.folder.root !== null) {
+        if (row.folder.root !== null || row.hasChildren) {
           const box = event.currentTarget.getBoundingClientRect();
           onMenu(row.folder, box.left + 24, box.bottom);
         }
@@ -81,7 +92,9 @@ export function FolderTree({ onMenu }: Props) {
 
   function onContextMenu(event: MouseEvent, row: Row) {
     event.preventDefault();
-    if (row.folder.root !== null) onMenu(row.folder, event.clientX, event.clientY);
+    if (row.folder.root !== null || row.hasChildren) {
+      onMenu(row.folder, event.clientX, event.clientY);
+    }
   }
 
   return (
@@ -118,7 +131,9 @@ export function FolderTree({ onMenu }: Props) {
               aria-hidden
               onClick={(event) => {
                 event.stopPropagation();
-                if (row.hasChildren) toggle(key);
+                if (!row.hasChildren) return;
+                if (event.altKey) openFolders(folderAndBeneath(folders, key));
+                else toggle(key);
               }}
             >
               {row.hasChildren &&

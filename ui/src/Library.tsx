@@ -1,4 +1,11 @@
-import { ArrowDownNarrowWide, ArrowUpNarrowWide, Funnel, Plus, Search } from "lucide-react";
+import {
+  ArrowDownNarrowWide,
+  ArrowUpNarrowWide,
+  ChevronsDownUp,
+  Funnel,
+  Plus,
+  Search,
+} from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -10,6 +17,7 @@ import {
 import mark from "../../design/brand/seura-mark-small.svg";
 import type { FolderInfo, ScanProgress } from "./bindings";
 import { FilterChips, FilterControls } from "./Filters";
+import { folderAndBeneath, folderKey, pathTo } from "./folderRows";
 import { FolderTree } from "./FolderTree";
 import { Grid } from "./Grid";
 import { InfoPanel } from "./InfoPanel";
@@ -19,6 +27,7 @@ import { MoreButton } from "./MoreButton";
 import { NoticeBar } from "./NoticeBar";
 import { PhotoMenu } from "./PhotoMenu";
 import { TagTree } from "./TagTree";
+import { tagPathTo } from "./tagRows";
 import { t } from "./messages";
 import { ConfirmRemove, FolderMenu } from "./RemoveFolder";
 import { SidebarDivider } from "./SidebarDivider";
@@ -86,6 +95,15 @@ export function Library({ inert = false }: { inert?: boolean }) {
   const reveal = useStore((state) => state.reveal);
   const tags = useStore((state) => state.tags);
   const tag = useStore((state) => state.tag);
+  const expanded = useStore((state) => state.expanded);
+  const openTags = useStore((state) => state.openTags);
+  const collapseFolders = useStore((state) => state.collapseFolders);
+  const collapseTags = useStore((state) => state.collapseTags);
+  const openFolders = useStore((state) => state.openFolders);
+  // Collapse all is off when nothing but the way to the selection is open
+  // (LIB-2, TAG-5).
+  const foldersOpen = moreOpen(expanded, pathTo(folders, folderId));
+  const tagsOpen = moreOpen(openTags, tagPathTo(tags, tag));
   const search = useStore((state) => state.search);
   const setSearch = useStore((state) => state.setSearch);
   const endSearch = useStore((state) => state.endSearch);
@@ -223,6 +241,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
           <div className="sidebar-heading">
             <div className="section-heading">
               <h2 className="section-label">{t("library-folders")}</h2>
+              <CollapseAll disabled={!foldersOpen} onClick={collapseFolders} />
               <button
                 type="button"
                 className="section-add"
@@ -241,6 +260,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
           <div className="sidebar-heading">
             <div className="section-heading">
               <h2 className="section-label">{t("library-tags")}</h2>
+              <CollapseAll disabled={!tagsOpen} onClick={collapseTags} />
             </div>
           </div>
           <TagTree />
@@ -380,14 +400,25 @@ export function Library({ inert = false }: { inert?: boolean }) {
       )}
       {menu && (
         <FolderMenu
-          folder={menu.folder}
           x={menu.x}
           y={menu.y}
           onClose={closeMenu}
-          onRemove={() => {
-            setRemoving(menu.folder);
-            setMenu(null);
-          }}
+          onExpand={
+            folders.some((folder) => folder.parent !== null && folder.parent === menu.folder.id)
+              ? () => {
+                  openFolders(folderAndBeneath(folders, folderKey(menu.folder)));
+                  setMenu(null);
+                }
+              : null
+          }
+          onRemove={
+            menu.folder.root !== null
+              ? () => {
+                  setRemoving(menu.folder);
+                  setMenu(null);
+                }
+              : null
+          }
         />
       )}
       {removing && removing.root !== null && (
@@ -416,5 +447,26 @@ export function Library({ inert = false }: { inert?: boolean }) {
         <ScanStatus progress={progress} />
       </footer>
     </div>
+  );
+}
+
+/** Whether anything is open besides the way to the selection. */
+function moreOpen(open: Set<string>, path: Set<string>): boolean {
+  return [...open].some((key) => !path.has(key));
+}
+
+/** A tree heading's Collapse all button (LIB-2, TAG-5; wireframes). */
+function CollapseAll({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="section-add"
+      aria-label={t("tree-collapse-all")}
+      title={t("tree-collapse-all")}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <ChevronsDownUp className="icon" aria-hidden />
+    </button>
   );
 }

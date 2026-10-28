@@ -257,6 +257,46 @@ describe("App", () => {
     expect(await screen.findByRole("treeitem", { name: /Summer/ })).toBeDefined();
   });
 
+  it("collapses the tree but the way to the selection, and expands beneath a folder (LIB-2)", async () => {
+    mocks.folders = [
+      folder({ id: 1, root: 0, name: "Pictures", photos: 1, total: 4 }),
+      folder({ id: 3, parent: 1, name: "2026", photos: 1, total: 2 }),
+      folder({ id: 4, parent: 3, name: "Summer", photos: 1, total: 1 }),
+      folder({ id: 5, root: 1, name: "Archive", photos: 1, total: 2 }),
+      folder({ id: 6, parent: 5, name: "Old", photos: 1, total: 1 }),
+    ];
+    render(<App />);
+    const pictures = await screen.findByRole("treeitem", { name: /Pictures/ });
+    const collapse = screen.getAllByRole("button", {
+      name: "Collapse all",
+    })[0] as HTMLButtonElement;
+    // Nothing is open at launch, so there's nothing to collapse.
+    expect(collapse.disabled).toBe(true);
+
+    // Alt-click on the arrow opens Pictures and everything beneath it.
+    fireEvent.click(pictures.querySelector(".folder-toggle") as Element, { altKey: true });
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Summer/ }));
+    expect(await screen.findByRole("heading", { name: "Summer" })).toBeDefined();
+    // Only the way to the selection is open: still nothing to collapse.
+    expect(collapse.disabled).toBe(true);
+
+    // Archive's menu opens it and everything beneath it.
+    fireEvent.contextMenu(screen.getByRole("treeitem", { name: /Archive/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Expand all beneath" }));
+    expect(await screen.findByRole("treeitem", { name: /Old/ })).toBeDefined();
+    expect(collapse.disabled).toBe(false);
+
+    // Collapse all closes Archive, and keeps the way to Summer open.
+    fireEvent.click(collapse);
+    expect(screen.queryByRole("treeitem", { name: /Old/ })).toBeNull();
+    expect(screen.getByRole("treeitem", { name: /Summer/ })).toBeDefined();
+    expect(collapse.disabled).toBe(true);
+
+    // * opens the focused folder and its siblings.
+    fireEvent.keyDown(screen.getByRole("treeitem", { name: /Pictures/ }), { key: "*" });
+    expect(await screen.findByRole("treeitem", { name: /Old/ })).toBeDefined();
+  });
+
   it("removes a library folder only after it's confirmed (LIB-5)", async () => {
     mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 2, total: 2 })];
     render(<App />);

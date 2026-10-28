@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FolderInfo } from "./bindings";
-import { visibleRows } from "./folderRows";
+import { folderAndBeneath, pathTo, visibleRows } from "./folderRows";
 
 function folder(fields: Partial<FolderInfo> & { name: string }): FolderInfo {
   return {
@@ -52,5 +52,20 @@ describe("folder tree rows (LIB-2)", () => {
       new Set(["f1"]),
     );
     expect(rows.map((row) => row.folder.name)).toEqual(["Scans", "Roll 9", "Roll 10"]);
+  });
+});
+
+describe("Collapse all and Expand all beneath (LIB-2)", () => {
+  it("keeps open only the way to the selected folder", () => {
+    expect([...pathTo(folders, 4)].sort()).toEqual(["f1", "f3"]);
+    expect([...pathTo(folders, 1)]).toEqual([]);
+    expect([...pathTo(folders, null)]).toEqual([]);
+  });
+
+  it("opens a folder and every folder beneath it that has folders in it", () => {
+    expect(folderAndBeneath(folders, "f1").sort()).toEqual(["f1", "f3"]);
+    // Whatever order the list is in.
+    expect(folderAndBeneath([...folders].reverse(), "f1").sort()).toEqual(["f1", "f3"]);
+    expect(folderAndBeneath(folders, "f2")).toEqual([]);
   });
 });

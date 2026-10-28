@@ -5,20 +5,29 @@ import { Menu } from "./Menu";
 import { t } from "./messages";
 
 type MenuProps = {
-  folder: FolderInfo;
   x: number;
   y: number;
-  onRemove: () => void;
+  /** Expand all beneath, for a folder with folders in it (LIB-2). */
+  onExpand: (() => void) | null;
+  /** Remove from library…, for a library folder (LIB-5). */
+  onRemove: (() => void) | null;
   onClose: () => void;
 };
 
-/** The menu for a library folder, opened by right-click or the context-menu key. */
-export function FolderMenu({ x, y, onRemove, onClose }: MenuProps) {
+/** The menu for a folder, opened by right-click or the context-menu key. */
+export function FolderMenu({ x, y, onExpand, onRemove, onClose }: MenuProps) {
   return (
     <Menu x={x} y={y} onClose={onClose}>
-      <button type="button" role="menuitem" className="menu-item" onClick={onRemove}>
-        {t("library-remove-folder")}
-      </button>
+      {onExpand && (
+        <button type="button" role="menuitem" className="menu-item" onClick={onExpand}>
+          {t("tree-expand-beneath")}
+        </button>
+      )}
+      {onRemove && (
+        <button type="button" role="menuitem" className="menu-item" onClick={onRemove}>
+          {t("library-remove-folder")}
+        </button>
+      )}
     </Menu>
   );
 }

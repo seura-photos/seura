@@ -247,10 +247,23 @@ button {
   cursor: pointer;
 }
 
-.section-add:hover,
+.section-add:hover:not(:disabled),
 .more-button:hover,
 .more-button[aria-expanded="true"] {
   background: var(--color-accent-subtle);
+}
+
+/* Collapse all, when nothing but the way to the selection is open (LIB-2),
+   as a disabled menu item looks. */
+.section-add:disabled {
+  color: var(--color-text-secondary);
+  cursor: default;
+}
+
+/* The label takes the room, so the heading's buttons sit together at its
+   right: Collapse all, then FOLDERS' + (wireframes). */
+.section-heading .section-label {
+  flex: 1;
 }
 
 .section-add .icon {
