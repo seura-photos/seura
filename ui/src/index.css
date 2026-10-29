@@ -1158,6 +1158,35 @@ button {
   border-top: 1px solid var(--color-border);
 }
 
+/* Revert to original, last and cautionary (wireframes); confirming shows
+   Cancel in its place, then the question and the destructive choice. */
+.editor-revert .button {
+  width: 100%;
+  justify-content: center;
+}
+
+.editor-revert [role="group"] {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.editor-revert p {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.button.caution {
+  color: var(--color-danger);
+}
+
+.button.danger {
+  border-color: var(--color-danger);
+  background: var(--color-danger-subtle);
+  color: var(--color-danger);
+  font-weight: var(--type-panel-heading-weight);
+}
+
 .editor-note {
   margin: 0;
   padding: 1rem;

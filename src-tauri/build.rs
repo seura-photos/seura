@@ -41,6 +41,7 @@ fn main() {
         "close_viewer",
         "edit_photo",
         "step_edit",
+        "revert_photo",
         "export_photo",
         "dev_options",
         "text_scale",

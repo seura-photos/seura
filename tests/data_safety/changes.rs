@@ -413,6 +413,67 @@ fn edt_9_the_editor_s_undo_and_redo_write_only_edit_files_and_trash_what_s_left_
 }
 
 #[test]
+fn edt_10_revert_and_its_undo_write_only_edit_files_and_keep_what_another_app_wrote() {
+    let library = Library::new();
+    let (index, ids) = scanned(&library);
+    let trash = Trash::new();
+    let before = Snapshot::of(library.root());
+    let photo = &library.photos()[0];
+    let brightness = seura_edit::Action {
+        label: "Brightness".into(),
+        edits: vec![crate::exposure(0.5)],
+    };
+    Index::edit_photo(&index, ids[0], &brightness, WRITER, now(), &|path| {
+        trash.take(path)
+    })
+    .unwrap();
+    // Another app's operation, which revert keeps exactly (rule 4).
+    let mut root: Value =
+        serde_json::from_slice(&fs::read(edit_file_path(photo)).unwrap()).unwrap();
+    let grain = serde_json::json!({
+        "id": "com.example.grain", "version": 3, "params": { "size": 2 }, "group": "effects",
+        "required": true
+    });
+    root["operations"]
+        .as_array_mut()
+        .unwrap()
+        .push(grain.clone());
+    fs::write(
+        edit_file_path(photo),
+        serde_json::to_vec_pretty(&root).unwrap(),
+    )
+    .unwrap();
+
+    let reverted = Index::edit_photo_with(
+        &index,
+        ids[0],
+        &mut None,
+        |loaded| seura_library::revert_action(loaded.map(|file| &file.document)),
+        WRITER,
+        now(),
+        &|path| trash.take(path),
+    );
+    assert_eq!(reverted, Ok(true));
+    let kept: Value = serde_json::from_slice(&fs::read(edit_file_path(photo)).unwrap()).unwrap();
+    assert_eq!(kept["operations"], serde_json::json!([grain]));
+    let undone = Index::step_photo(&index, ids[0], true, &mut None, WRITER, now(), &|path| {
+        trash.take(path)
+    });
+    assert_eq!(
+        undone,
+        Ok(seura_edit::Step::Done(seura_library::REVERT.into()))
+    );
+    assert_eq!(saved(photo).operations().len(), 2);
+
+    // Every original as it was, nothing but edit files, nothing in the Trash.
+    let after = Snapshot::of(library.root());
+    assert!(after.changed_since(&before).is_empty(), "changed");
+    assert!(after.removed_since(&before).is_empty(), "removed");
+    assert!(leftovers(&library).is_empty(), "{:?}", leftovers(&library));
+    assert!(trash.moved.borrow().is_empty());
+}
+
+#[test]
 fn fil_4_start_over_keeps_the_unreadable_file_unchanged_in_seuras_folder() {
     let library = Library::new();
     let photo = &library.photos()[0];

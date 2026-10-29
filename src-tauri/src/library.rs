@@ -178,20 +178,24 @@ impl Library {
     /// Changes one photo's edits from the Editor (EDT-11), through the same
     /// path, then saves the index and tells the UI, so the grid's badges
     /// follow. Not one of the Library's actions to undo: the photo's own
-    /// history has it (EDT-9).
-    pub fn edit<R: Runtime>(
+    /// history has it (EDT-9). The action is made from the edit file as
+    /// loaded, for revert (EDT-10); `kept` is the Editor's: see
+    /// [`Index::edit_photo_with`]. Returns whether anything changed.
+    pub fn edit_with<R: Runtime>(
         &self,
         app: &AppHandle<R>,
         id: PhotoId,
-        action: &seura_edit::Action,
-    ) -> Result<(), Problem> {
+        kept: &mut Option<seura_edit::EditDocument>,
+        make: impl FnOnce(Option<&seura_edit::EditFile>) -> seura_edit::Action,
+    ) -> Result<bool, Problem> {
         // One write at a time, as with the Library's changes.
         let changed = {
             let _history = self.history.lock().expect("history lock");
-            Index::edit_photo(
+            Index::edit_photo_with(
                 &self.index,
                 id,
-                action,
+                kept,
+                make,
                 crate::editor::WRITER,
                 time::OffsetDateTime::now_utc(),
                 &move_to_trash,
@@ -201,7 +205,7 @@ impl Library {
             self.save();
             let _ = LibraryChanged.emit(app);
         }
-        Ok(())
+        Ok(changed)
     }
 
     /// Undoes or redoes the last change in one photo's own history, from

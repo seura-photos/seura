@@ -181,14 +181,55 @@ impl Editor {
         open
     }
 
-    /// After a change to photo `id` was saved: a new change can't be redone
-    /// past, so a document kept for redo goes. Returns what undo and redo
-    /// would do now, if the photo is still open.
-    pub fn edited(&self, id: u32) -> Option<EditSteps> {
+    /// Saves a change to photo `id` (EDT-11) through the Library's one
+    /// write path, going on from the document kept for undo if its file
+    /// went to the Trash. Returns what undo and redo would do now.
+    pub fn edit<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        library: &crate::library::Library,
+        id: u32,
+        action: &Action,
+    ) -> Result<EditSteps, Problem> {
         let mut session = self.session.lock().expect("editor lock");
-        let session = session.as_mut().filter(|session| session.id == id)?;
-        session.kept = None;
-        saved(&session.photo, None).ok().map(|(_, steps)| steps)
+        let session = session
+            .as_mut()
+            .filter(|session| session.id == id)
+            .ok_or_else(|| Problem::Failed("that photo isn't open".into()))?;
+        library.edit_with(app, PhotoId::new(id), &mut session.kept, |_| action.clone())?;
+        let (_, steps) = saved(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
+        Ok(steps)
+    }
+
+    /// Reverts photo `id` to the original (EDT-10), through the Library's
+    /// one write path: one change in its history, so undo brings the edits
+    /// back. Tags and rating stay.
+    pub fn revert<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        library: &crate::library::Library,
+        id: u32,
+    ) -> Result<Stepped, Problem> {
+        let mut session = self.session.lock().expect("editor lock");
+        let session = session
+            .as_mut()
+            .filter(|session| session.id == id)
+            .ok_or_else(|| Problem::Failed("that photo isn't open".into()))?;
+        let changed = library.edit_with(app, PhotoId::new(id), &mut session.kept, |loaded| {
+            seura_library::revert_action(loaded.map(|file| &file.document))
+        })?;
+        let document = current(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
+        let document = document.as_ref();
+        Ok(Stepped {
+            step: if changed {
+                Step::Done(seura_library::REVERT.into())
+            } else {
+                Step::Nothing
+            },
+            detail: None,
+            settings: document.map(Settings::from_document).unwrap_or_default(),
+            steps: EditSteps::of(document),
+        })
     }
 
     /// Undoes or redoes the last change in photo `id`'s history (EDT-9),

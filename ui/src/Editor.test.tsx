@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
     }),
   ),
   stepEdit: vi.fn<(id: number, undo: boolean) => Promise<unknown>>(),
+  revertPhoto: vi.fn<(id: number) => Promise<unknown>>(),
   openPhoto: vi.fn<(id: number, longEdge: number, download: boolean) => Promise<unknown>>(),
   closePhoto: vi.fn(() => Promise.resolve(null)),
   draw: vi.fn(),
@@ -36,6 +37,7 @@ vi.mock("./bindings", () => ({
     closePhoto: mocks.closePhoto,
     editPhoto: mocks.editPhoto,
     stepEdit: mocks.stepEdit,
+    revertPhoto: mocks.revertPhoto,
     exportPhoto: vi.fn(),
     photoNotices: vi.fn(() =>
       Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
@@ -323,6 +325,44 @@ describe("Editor", () => {
     expect(await screen.findByText("Redid removing the rating")).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Undo Rating" }));
     expect(await screen.findByText("Undid adding “beach”")).toBeDefined();
+  });
+
+  it("reverts to the original once confirmed, Cancel where the pointer was (EDT-10)", async () => {
+    mocks.revertPhoto.mockResolvedValue({
+      status: "ok",
+      data: {
+        kind: "done",
+        label: "Revert to original",
+        detail: null,
+        settings: { exposureEv: 0, contrast: 0 },
+        steps: { undo: "Revert to original", redo: null },
+      },
+    });
+    edit();
+    const slider = await brightness();
+    fireEvent.click(screen.getByRole("button", { name: "Revert to original…" }));
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    expect(document.activeElement).toBe(cancel);
+    expect(screen.getByRole("group", { name: /Remove every edit/ })).toBeDefined();
+    // Esc cancels the revert, not the Editor.
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(useStore.getState().editing).toBe(7);
+    expect(mocks.revertPhoto).not.toHaveBeenCalled();
+
+    fireEvent.change(slider, { target: { value: "50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Revert to original…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revert to original" }));
+    await waitFor(() => expect(mocks.revertPhoto).toHaveBeenCalledWith(7));
+    // What was waiting was saved first.
+    expect(mocks.editPhoto.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.revertPhoto.mock.invocationCallOrder[0] ?? 0,
+    );
+    await waitFor(() => expect(slider.value).toBe("0"));
+    expect(screen.getByText("Reverted to original")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Undo Revert to original" })).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: "Revert to original…" }).hasAttribute("disabled"),
+    ).toBe(true);
   });
 
   it("says when another app changed the file without its history", async () => {
