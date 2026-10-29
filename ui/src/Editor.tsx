@@ -1,8 +1,15 @@
+import { Redo2, Undo2 } from "lucide-react";
 import { type PointerEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
-import { commands, NEUTRAL_SETTINGS, type PhotoEdit, type RenderSettings } from "./bindings";
+import {
+  commands,
+  type EditSteps,
+  NEUTRAL_SETTINGS,
+  type PhotoEdit,
+  type RenderSettings,
+} from "./bindings";
 import { CloudPhoto } from "./CloudPhoto";
 import { Filmstrip } from "./Filmstrip";
-import { isCompareKey, isTyping } from "./keys";
+import { historyKey, isCompareKey, isTyping } from "./keys";
 import { Message } from "./Message";
 import { t } from "./messages";
 import { MoreButton } from "./MoreButton";
@@ -33,6 +40,8 @@ type Status = { id: number } & (
       height: number;
       // As saved; the slider changes brightness in them.
       settings: RenderSettings;
+      // What Undo and Redo would undo or redo (EDT-9).
+      steps: EditSteps;
       problem: string | null;
     }
   | { kind: "downloading"; size: number }
@@ -134,19 +143,30 @@ export function Editor({ id, forceWebgl2 }: Props) {
     return () => observer.disconnect();
   }, []);
 
+  /** What's saved for photo `photoId` now, if it's still the one shown. */
+  const saved = useCallback((photoId: number, steps: EditSteps, settings?: RenderSettings) => {
+    setStatus((status) =>
+      status?.id === photoId && status.kind === "shown"
+        ? { ...status, steps, settings: settings ?? status.settings }
+        : status,
+    );
+  }, []);
+
   const save = useCallback(
     (photoId: number, edit: PhotoEdit) => {
       saving.current = saving.current.then(async () => {
         const result = await commands.editPhoto(photoId, edit);
         if (result.status === "error") say(t("editor-save-failed", { reason: result.error }));
-        else if (result.data.kind === "readOnly") say(t("editor-save-read-only"));
+        else if (result.data.kind === "saved") {
+          if (result.data.steps) saved(photoId, result.data.steps);
+        } else if (result.data.kind === "readOnly") say(t("editor-save-read-only"));
         else if (result.data.kind === "unreadable") say(t("editor-save-unreadable"));
         else if (result.data.kind === "failed")
           say(t("editor-save-failed", { reason: result.data.reason }));
       });
       return saving.current;
     },
-    [say],
+    [say, saved],
   );
 
   /** Saves a waiting change now, and waits for every save to finish. */
@@ -225,6 +245,7 @@ export function Editor({ id, forceWebgl2 }: Props) {
         width: image.width,
         height: image.height,
         settings: data.settings,
+        steps: data.steps,
         problem: data.problem,
       });
     };
@@ -250,6 +271,43 @@ export function Editor({ id, forceWebgl2 }: Props) {
     closeEditor();
   }
 
+  /** Undoes the photo's last change, or redoes the last undone, from its
+   * own history (EDT-9), after saving what's waiting. Saves and steps go
+   * one after another, so none overtakes another. */
+  function step(undo: boolean) {
+    // Not while it's loading, or can't be changed (FIL-4).
+    if (!shown || shown.problem !== null) return;
+    void flush();
+    const photoId = id;
+    saving.current = saving.current.then(async () => {
+      const result = await commands.stepEdit(photoId, undo);
+      if (result.status === "error") {
+        say(t("editor-step-failed", { undo: String(undo), reason: result.error }));
+        return;
+      }
+      const data = result.data;
+      if (data.kind === "done" || data.kind === "discarded") {
+        saved(photoId, data.steps, data.settings);
+        // Numbers from Rust can be null, which would mean NaN; there is none here.
+        if (photoId === id) setEv(data.settings.exposureEv ?? 0);
+      }
+      if (data.kind === "done")
+        say(t(undo ? "editor-undid" : "editor-redid", { change: data.label }));
+      else if (data.kind === "discarded") say(t("editor-history-discarded"));
+      else if (data.kind === "readOnly") say(t("editor-save-read-only"));
+      else if (data.kind === "unreadable") say(t("editor-save-unreadable"));
+      else if (data.kind === "failed")
+        say(t("editor-step-failed", { undo: String(undo), reason: data.reason }));
+    });
+  }
+
+  // The Edit menu's Undo and Redo come here while the Editor is open (macOS).
+  const fromMenu = useEffectEvent((undo: boolean) => step(undo));
+  useEffect(() => {
+    useStore.setState({ editorStep: (undo) => fromMenu(undo) });
+    return () => useStore.setState({ editorStep: null });
+  }, []);
+
   function move(to: number | undefined) {
     if (to === undefined) return;
     void flush();
@@ -266,6 +324,13 @@ export function Editor({ id, forceWebgl2 }: Props) {
     if (isCompareKey(event)) {
       event.preventDefault();
       if (shown) setComparing(true);
+      return;
+    }
+    // The photo's own history (EDT-9), even with the focus on a slider.
+    const history = historyKey(event);
+    if (history !== null) {
+      event.preventDefault();
+      step(history === "undo");
       return;
     }
     // Arrow keys on a slider move the slider, not the photo.
@@ -322,6 +387,12 @@ export function Editor({ id, forceWebgl2 }: Props) {
         : null;
   const problem = shown?.problem ?? null;
   const editable = shown !== null && problem === null;
+  const undoLabel = shown?.steps.undo
+    ? t("editor-undo-change", { change: shown.steps.undo })
+    : t("editor-undo");
+  const redoLabel = shown?.steps.redo
+    ? t("editor-redo-change", { change: shown.steps.redo })
+    : t("editor-redo");
 
   return (
     <div ref={root} className="editor" tabIndex={-1} aria-label={photo.name}>
@@ -330,6 +401,28 @@ export function Editor({ id, forceWebgl2 }: Props) {
         <span className="meta">
           {problem === null ? t("editor-saved-automatically") : t("editor-not-saved")}
         </span>
+        <div className="editor-history">
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={undoLabel}
+            title={undoLabel}
+            disabled={!editable || !shown?.steps.undo}
+            onClick={() => step(true)}
+          >
+            <Undo2 className="icon" aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={redoLabel}
+            title={redoLabel}
+            disabled={!editable || !shown?.steps.redo}
+            onClick={() => step(false)}
+          >
+            <Redo2 className="icon" aria-hidden />
+          </button>
+        </div>
         {/* M1's development-only export, until export is built (M5). */}
         <button
           type="button"

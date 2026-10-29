@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
 use seura_edit::{
-    Action, Edit, EditDocument, EditFile, PhotoIdentity, SaveError, Writer, edit_file_path,
+    Action, Edit, EditDocument, EditFile, PhotoIdentity, SaveError, Step, Writer, edit_file_path,
 };
 use time::OffsetDateTime;
 
@@ -225,6 +225,63 @@ impl Index {
                 Err(problem)
             }
         }
+    }
+
+    /// Undoes or redoes the last change in one photo's own history, from the
+    /// Editor (EDT-9): whatever made it, the Editor or the Library, since
+    /// they share each photo's history. The edit format's consistency check
+    /// comes first; a record that fails it is discarded, and that's saved.
+    ///
+    /// `kept` is the document of an edit file that went to the Trash
+    /// because undo left nothing in it, so redo can write it back, as the
+    /// Library's undo does (BRW-11). It's updated with what's on disk now.
+    pub fn step_photo(
+        index: &RwLock<Index>,
+        id: PhotoId,
+        undo: bool,
+        kept: &mut Option<EditDocument>,
+        writer: Writer,
+        at: OffsetDateTime,
+        trash: &dyn Fn(&Path) -> io::Result<()>,
+    ) -> Result<Step, Problem> {
+        let target = index
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .target(id)
+            .ok_or(Problem::Gone)?;
+        if target.read_only {
+            return Err(Problem::ReadOnly);
+        }
+        let edit_path = edit_file_path(&target.path);
+        let folder = target.path.parent().unwrap_or(Path::new(""));
+        let loaded = EditFile::load(&edit_path).map_err(|error| match error {
+            seura_edit::LoadError::Read(_) => Problem::Unreadable,
+            seura_edit::LoadError::Io(error) => io_problem(&error, folder),
+        })?;
+        let mut file = match (loaded, kept.as_ref()) {
+            // A file on disk is the photo's history now, whatever was kept.
+            (Some(file), _) => file,
+            // Saving checks again, at the last moment, that nothing has
+            // appeared there since.
+            (None, Some(document)) => EditFile::create(&edit_path, document.clone()),
+            (None, None) => return Ok(Step::Nothing),
+        };
+        let step = if undo {
+            file.document.undo()
+        } else {
+            file.document.redo()
+        }
+        .map_err(|error| Problem::Failed(error.to_string()))?;
+        if step == Step::Nothing {
+            return Ok(step);
+        }
+        let mut written = finish(file, folder, writer, at, trash)?;
+        *kept = written.removed.take();
+        index
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .record_written(id, &target.path, written);
+        Ok(step)
     }
 
     fn target(&self, id: PhotoId) -> Option<Target> {
@@ -596,6 +653,136 @@ mod tests {
             fs::read(dir.path().join("IMG_1.jpg.seura.json")).unwrap(),
             b"{"
         );
+    }
+
+    fn brighter(ev: f64) -> Action {
+        Action {
+            label: "Brightness".into(),
+            edits: vec![Edit::Set(seura_edit::CoreOperation::Exposure(
+                seura_edit::Exposure { ev },
+            ))],
+        }
+    }
+
+    fn step(
+        index: &RwLock<Index>,
+        id: PhotoId,
+        undo: bool,
+        kept: &mut Option<EditDocument>,
+    ) -> Result<Step, Problem> {
+        let trash = |path: &Path| fs::remove_file(path);
+        Index::step_photo(
+            index,
+            id,
+            undo,
+            kept,
+            WRITER,
+            OffsetDateTime::now_utc(),
+            &trash,
+        )
+    }
+
+    #[test]
+    fn the_editor_undoes_and_redoes_the_photo_s_own_history_edt_9() {
+        let (dir, index, id) = library();
+        let at = OffsetDateTime::now_utc();
+        let mut kept = None;
+        // A rating from the Library, then brightness from the Editor: one
+        // history, shared.
+        change(&index, id, Change::Rating(4));
+        Index::edit_photo(&index, id, &brighter(0.5), WRITER, at, &no_trash).unwrap();
+
+        assert_eq!(
+            step(&index, id, true, &mut kept),
+            Ok(Step::Done("Brightness".into()))
+        );
+        assert!(saved(&dir).operations().is_empty());
+        assert_eq!(
+            step(&index, id, true, &mut kept),
+            Ok(Step::Done("Rating".into()))
+        );
+        assert_eq!(index.read().unwrap().photo(id).unwrap().rating, 0);
+        // Nothing left but history: the file went to the Trash, and is kept
+        // here for redo to write back.
+        assert!(!dir.path().join("IMG_1.jpg.seura.json").exists());
+        assert!(kept.is_some());
+        assert_eq!(step(&index, id, true, &mut kept), Ok(Step::Nothing));
+
+        assert_eq!(
+            step(&index, id, false, &mut kept),
+            Ok(Step::Done("Rating".into()))
+        );
+        assert!(kept.is_none());
+        assert_eq!(saved(&dir).rating(), 4);
+        assert_eq!(
+            step(&index, id, false, &mut kept),
+            Ok(Step::Done("Brightness".into()))
+        );
+        assert_eq!(saved(&dir).operations().len(), 1);
+        assert_eq!(
+            index.read().unwrap().photo(id).unwrap().edit_file,
+            EditFileState::Read { edited: true }
+        );
+        assert_eq!(step(&index, id, false, &mut kept), Ok(Step::Nothing));
+    }
+
+    #[test]
+    fn undo_survives_a_restart_edt_9() {
+        let (dir, index, id) = library();
+        let at = OffsetDateTime::now_utc();
+        Index::edit_photo(&index, id, &brighter(0.5), WRITER, at, &no_trash).unwrap();
+        Index::edit_photo(&index, id, &brighter(1.0), WRITER, at, &no_trash).unwrap();
+        assert_eq!(
+            step(&index, id, true, &mut None),
+            Ok(Step::Done("Brightness".into()))
+        );
+        // Nothing in memory: the file alone has what's needed.
+        let mut kept = None;
+        assert_eq!(
+            step(&index, id, false, &mut kept),
+            Ok(Step::Done("Brightness".into()))
+        );
+        assert_eq!(saved(&dir).undo_steps(), 2);
+    }
+
+    #[test]
+    fn a_history_changed_by_another_app_is_discarded_not_applied() {
+        let (dir, index, id) = library();
+        let at = OffsetDateTime::now_utc();
+        Index::edit_photo(&index, id, &brighter(0.5), WRITER, at, &no_trash).unwrap();
+        // Another app sets brightness without recording it in the history.
+        let path = dir.path().join("IMG_1.jpg.seura.json");
+        let text = fs::read_to_string(&path).unwrap().replacen("0.5", "2.0", 1);
+        fs::write(&path, text).unwrap();
+        assert_eq!(step(&index, id, true, &mut None), Ok(Step::Discarded));
+        let document = saved(&dir);
+        assert_eq!(document.history_len(), 0);
+        // The other app's setting stays.
+        assert_eq!(
+            document.core(seura_edit::CoreOpId::Exposure),
+            Some(seura_edit::CoreOperation::Exposure(seura_edit::Exposure {
+                ev: 2.0
+            }))
+        );
+    }
+
+    #[test]
+    fn undo_leaves_files_it_can_t_change_alone() {
+        let (dir, index, id) = library();
+        let at = OffsetDateTime::now_utc();
+        Index::edit_photo(&index, id, &brighter(0.5), WRITER, at, &no_trash).unwrap();
+        let path = dir.path().join("IMG_1.jpg.seura.json");
+        // In a read-only folder (TAG-7).
+        let folder = index.read().unwrap().photo(id).unwrap().folder;
+        index.write().unwrap().set_read_only(folder, true);
+        let before = fs::read(&path).unwrap();
+        assert_eq!(step(&index, id, true, &mut None), Err(Problem::ReadOnly));
+        assert_eq!(fs::read(&path).unwrap(), before);
+        index.write().unwrap().set_read_only(folder, false);
+        // Unreadable: never overwritten (CLAUDE.md rule 4).
+        fs::write(&path, "{").unwrap();
+        assert_eq!(step(&index, id, true, &mut None), Err(Problem::Unreadable));
+        assert_eq!(fs::read(&path).unwrap(), b"{");
     }
 
     #[test]

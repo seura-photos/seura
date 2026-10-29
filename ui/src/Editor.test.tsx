@@ -8,8 +8,12 @@ import { useStore } from "./store";
 // vi.mock is hoisted above imports, so what it uses must be hoisted too.
 const mocks = vi.hoisted(() => ({
   editPhoto: vi.fn<(id: number, edit: unknown) => Promise<unknown>>(() =>
-    Promise.resolve({ status: "ok", data: { kind: "saved" } }),
+    Promise.resolve({
+      status: "ok",
+      data: { kind: "saved", steps: { undo: "Brightness", redo: null } },
+    }),
   ),
+  stepEdit: vi.fn<(id: number, undo: boolean) => Promise<unknown>>(),
   openPhoto: vi.fn<(id: number, longEdge: number, download: boolean) => Promise<unknown>>(),
   closePhoto: vi.fn(() => Promise.resolve(null)),
   draw: vi.fn(),
@@ -19,6 +23,7 @@ const mocks = vi.hoisted(() => ({
     width: 4,
     height: 3,
     settings: { exposureEv: 0.4, contrast: 20 },
+    steps: { undo: null as string | null, redo: null as string | null },
     problem: null as string | null,
   },
   neutral: { exposureEv: 0, contrast: 0 },
@@ -30,6 +35,7 @@ vi.mock("./bindings", () => ({
     openPhoto: mocks.openPhoto,
     closePhoto: mocks.closePhoto,
     editPhoto: mocks.editPhoto,
+    stepEdit: mocks.stepEdit,
     exportPhoto: vi.fn(),
     photoNotices: vi.fn(() =>
       Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
@@ -109,6 +115,7 @@ async function brightness() {
 describe("Editor", () => {
   beforeEach(() => {
     mocks.opened.problem = null;
+    mocks.opened.steps = { undo: null, redo: null };
     mocks.openPhoto.mockImplementation(() => Promise.resolve({ status: "ok", data: mocks.opened }));
   });
 
@@ -249,6 +256,76 @@ describe("Editor", () => {
     const after = within(strip).getByRole("button", { name: "IMG_7.jpg" }).querySelector("img");
     expect(after).toBe(image);
     expect(after?.getAttribute("src")).toMatch(/\?v=1$/);
+  });
+
+  it("undoes from the photo's own history, saving what's waiting first (EDT-9)", async () => {
+    mocks.opened.steps = { undo: "Rating", redo: null };
+    mocks.stepEdit.mockResolvedValue({
+      status: "ok",
+      data: {
+        kind: "done",
+        label: "Brightness",
+        settings: { exposureEv: 0.4, contrast: 20 },
+        steps: { undo: "Rating", redo: "Brightness" },
+      },
+    });
+    edit();
+    const slider = await brightness();
+    const undo = screen.getByRole("button", { name: "Undo Rating" });
+    expect(screen.getByRole("button", { name: "Redo" }).hasAttribute("disabled")).toBe(true);
+    fireEvent.change(slider, { target: { value: "50" } });
+    // Saved, then undone: never the other way round.
+    fireEvent.click(undo);
+    await waitFor(() => expect(mocks.stepEdit).toHaveBeenCalledWith(7, true));
+    expect(mocks.editPhoto.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.stepEdit.mock.invocationCallOrder[0] ?? 0,
+    );
+    await waitFor(() => expect(slider.value).toBe("10"));
+    expect(screen.getByText("Undid Brightness")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Redo Brightness" })).toBeDefined();
+    expect(mocks.draw).toHaveBeenLastCalledWith({ exposureEv: 0.4, contrast: 20 });
+  });
+
+  it("undoes and redoes with the keys and the Edit menu (EDT-9)", async () => {
+    mocks.opened.steps = { undo: "Brightness", redo: "Rating" };
+    mocks.stepEdit.mockResolvedValue({ status: "ok", data: { kind: "nothing" } });
+    edit();
+    const slider = await brightness();
+    // Even with the focus on the slider.
+    fireEvent.keyDown(slider, { key: "z", ctrlKey: true });
+    await waitFor(() => expect(mocks.stepEdit).toHaveBeenLastCalledWith(7, true));
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true, shiftKey: true });
+    await waitFor(() => expect(mocks.stepEdit).toHaveBeenLastCalledWith(7, false));
+    act(() => useStore.getState().editorStep?.(true));
+    await waitFor(() => expect(mocks.stepEdit).toHaveBeenCalledTimes(3));
+  });
+
+  it("says when another app changed the file without its history", async () => {
+    mocks.opened.steps = { undo: "Brightness", redo: null };
+    mocks.stepEdit.mockResolvedValue({
+      status: "ok",
+      data: {
+        kind: "discarded",
+        settings: { exposureEv: 2, contrast: 20 },
+        steps: { undo: null, redo: null },
+      },
+    });
+    edit();
+    const slider = await brightness();
+    fireEvent.click(screen.getByRole("button", { name: "Undo Brightness" }));
+    await waitFor(() => expect(slider.value).toBe("50"));
+    expect(screen.getByText(/changed outside Seura Photos without their history/)).toBeDefined();
+    expect(screen.getByRole("button", { name: "Undo" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("can't undo on a photo whose edit file can't be read (FIL-4)", async () => {
+    mocks.opened.problem = "not JSON";
+    mocks.opened.steps = { undo: null, redo: null };
+    edit();
+    await screen.findByText(/can't be read/);
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+    expect(screen.getByRole("button", { name: "Undo" }).hasAttribute("disabled")).toBe(true);
+    expect(mocks.stepEdit).not.toHaveBeenCalled();
   });
 
   it("lets the photo go when it closes, after saving what's waiting", async () => {

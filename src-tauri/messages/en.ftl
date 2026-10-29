@@ -39,6 +39,10 @@ menu-redo-action =
         [one] 1 photo
        *[other] { $count } photos
     })
+# In the Editor, they name the photo's last change by the label its edit
+# file's history gives it, such as "Brightness" or "Rating" (EDT-9).
+menu-undo-edit = Undo { $change }
+menu-redo-edit = Redo { $change }
 menu-cut = Cut
 menu-copy = Copy
 menu-paste = Paste

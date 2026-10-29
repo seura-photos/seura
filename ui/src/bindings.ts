@@ -178,6 +178,12 @@ export const commands = {
 	 *  "History").
 	 */
 	editPhoto: (id: number, edit: PhotoEdit) => typedError<EditSaved, string>(__TAURI_INVOKE("edit_photo", { id, edit })),
+	/**
+	 *  Undoes the last change to photo `id`, open in the Editor, from its own
+	 *  history, or with `undo` false redoes the last undone (EDT-9). The
+	 *  history is the edit file's, shared with the Library's undo.
+	 */
+	stepEdit: (id: number, undo: boolean) => typedError<EditStepped, string>(__TAURI_INVOKE("step_edit", { id, undo })),
 	/**  Asks for a folder and exports the open photo there as JPEG (EXP-1, EXP-5). */
 	exportPhoto: (id: number) => typedError<ExportResult, string>(__TAURI_INVOKE("export_photo", { id })),
 	devOptions: () => __TAURI_INVOKE<DevOptions>("dev_options"),
@@ -363,8 +369,11 @@ export type DevOptions = {
 
 /**  What saving an Editor change did. */
 export type EditSaved = 
-/**  Written, or already as asked. */
-{ kind: "saved" } | 
+/**
+ *  Written, or already as asked; with what Undo and Redo would do now,
+ *  if the photo is still open.
+ */
+{ kind: "saved"; steps: EditSteps | null } | 
 /**  In a read-only folder (TAG-7). */
 { kind: "readOnly" } | 
 /**  Its edit file can't be read, so it's left alone (FIL-4). */
@@ -374,6 +383,33 @@ export type EditSaved =
  *  meanwhile.
  */
 { kind: "failed"; reason: string };
+
+/**  What undo or redo in the Editor did (EDT-9). */
+export type EditStepped = 
+/**  The change with this label was undone or redone. */
+{ kind: "done"; label: string; settings: RenderSettings; steps: EditSteps } | 
+/**  Nothing to undo or redo. */
+{ kind: "nothing" } | 
+/**
+ *  The edit file was changed without updating its history, so the
+ *  change wasn't undone or redone, and the history that no longer
+ *  matched is gone (edit format, "History").
+ */
+{ kind: "discarded"; settings: RenderSettings; steps: EditSteps } | 
+/**  In a read-only folder (TAG-7). */
+{ kind: "readOnly" } | 
+/**  Its edit file can't be read, so it's left alone (FIL-4). */
+{ kind: "unreadable" } | { kind: "failed"; reason: string };
+
+/**
+ *  What the Editor's Undo and Redo would undo or redo next, by the labels
+ *  of the changes in the photo's own history (EDT-9). `None` when there's
+ *  nothing.
+ */
+export type EditSteps = {
+	undo: string | null,
+	redo: string | null,
+};
 
 /**  What exporting did. */
 export type ExportResult = 
@@ -446,6 +482,8 @@ export type OpenedPhoto =
 { kind: "opened"; 
 /**  The preview's size. */
 width: number; height: number; settings: RenderSettings; 
+/**  What Undo and Redo would undo or redo (EDT-9). */
+steps: EditSteps; 
 /**
  *  Why the photo can't be edited, if it can't: its edit file can't
  *  be read, and is never overwritten (FIL-4).

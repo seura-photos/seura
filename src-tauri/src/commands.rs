@@ -13,7 +13,7 @@ use specta::Type;
 use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 
-use crate::editor::Editor;
+use crate::editor::{EditSteps, Editor};
 use crate::library::{AppSettings, Library, LibraryChanged};
 use crate::viewer::{Viewer, Wanted};
 use crate::welcome;
@@ -1280,6 +1280,8 @@ pub enum OpenedPhoto {
         width: u32,
         height: u32,
         settings: RenderSettings,
+        /// What Undo and Redo would undo or redo (EDT-9).
+        steps: EditSteps,
         /// Why the photo can't be edited, if it can't: its edit file can't
         /// be read, and is never overwritten (FIL-4).
         problem: Option<String>,
@@ -1479,10 +1481,12 @@ pub async fn open_photo(
         } else {
             open(&app)?
         };
+        crate::menu::edit_steps_changed(&app, &opened.steps);
         Ok(OpenedPhoto::Opened {
             width: opened.width,
             height: opened.height,
             settings: opened.settings.into(),
+            steps: opened.steps,
             problem: opened.problem,
         })
     })
@@ -1493,8 +1497,11 @@ pub async fn open_photo(
 /// The Editor let photo `id` go: closed, or moved on to another.
 #[tauri::command]
 #[specta::specta]
-pub fn close_photo(editor: State<'_, Editor>, id: u32) {
-    editor.close(id);
+pub fn close_photo(app: AppHandle, editor: State<'_, Editor>, id: u32) {
+    // The Edit menu names the Library's undo again.
+    if editor.close(id) {
+        app.state::<Library>().show_history(&app);
+    }
 }
 
 /// A change made in the Editor (EDT-5).
@@ -1509,8 +1516,9 @@ pub enum PhotoEdit {
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum EditSaved {
-    /// Written, or already as asked.
-    Saved,
+    /// Written, or already as asked; with what Undo and Redo would do now,
+    /// if the photo is still open.
+    Saved { steps: Option<EditSteps> },
     /// In a read-only folder (TAG-7).
     ReadOnly,
     /// Its edit file can't be read, so it's left alone (FIL-4).
@@ -1532,16 +1540,93 @@ pub async fn edit_photo(app: AppHandle, id: u32, edit: PhotoEdit) -> Result<Edit
             PhotoEdit::Brightness { ev } => crate::editor::exposure_action(ev),
         };
         match app.state::<Library>().edit(&app, PhotoId::new(id), &action) {
-            Ok(()) => EditSaved::Saved,
+            Ok(()) => {
+                let steps = app.state::<Editor>().edited(id);
+                if let Some(steps) = &steps {
+                    crate::menu::edit_steps_changed(&app, steps);
+                }
+                EditSaved::Saved { steps }
+            }
             Err(Problem::ReadOnly) => EditSaved::ReadOnly,
             Err(Problem::Unreadable) => EditSaved::Unreadable,
-            Err(Problem::ChangedOnDisk) => EditSaved::Failed {
-                reason: "its edit file changed on disk meanwhile".into(),
+            Err(problem) => EditSaved::Failed {
+                reason: reason(problem),
             },
-            Err(Problem::Gone) => EditSaved::Failed {
-                reason: "it's no longer in the library".into(),
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+/// Why a change to a photo's edit file couldn't be made, for a message.
+fn reason(problem: Problem) -> String {
+    match problem {
+        Problem::ReadOnly => "its folder is read-only".into(),
+        Problem::Unreadable => "its edit file can't be read".into(),
+        Problem::ChangedOnDisk => "its edit file changed on disk meanwhile".into(),
+        Problem::Gone => "it's no longer in the library".into(),
+        Problem::Failed(reason) => reason,
+    }
+}
+
+/// What undo or redo in the Editor did (EDT-9).
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum EditStepped {
+    /// The change with this label was undone or redone.
+    #[serde(rename_all = "camelCase")]
+    Done {
+        label: String,
+        settings: RenderSettings,
+        steps: EditSteps,
+    },
+    /// Nothing to undo or redo.
+    Nothing,
+    /// The edit file was changed without updating its history, so the
+    /// change wasn't undone or redone, and the history that no longer
+    /// matched is gone (edit format, "History").
+    #[serde(rename_all = "camelCase")]
+    Discarded {
+        settings: RenderSettings,
+        steps: EditSteps,
+    },
+    /// In a read-only folder (TAG-7).
+    ReadOnly,
+    /// Its edit file can't be read, so it's left alone (FIL-4).
+    Unreadable,
+    Failed {
+        reason: String,
+    },
+}
+
+/// Undoes the last change to photo `id`, open in the Editor, from its own
+/// history, or with `undo` false redoes the last undone (EDT-9). The
+/// history is the edit file's, shared with the Library's undo.
+#[tauri::command]
+#[specta::specta]
+pub async fn step_edit(app: AppHandle, id: u32, undo: bool) -> Result<EditStepped, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let library = app.state::<Library>();
+        match app.state::<Editor>().step(&app, &library, id, undo) {
+            Ok(stepped) => {
+                crate::menu::edit_steps_changed(&app, &stepped.steps);
+                let settings = stepped.settings.into();
+                let steps = stepped.steps;
+                match stepped.step {
+                    seura_edit::Step::Done(label) => EditStepped::Done {
+                        label,
+                        settings,
+                        steps,
+                    },
+                    seura_edit::Step::Nothing => EditStepped::Nothing,
+                    seura_edit::Step::Discarded => EditStepped::Discarded { settings, steps },
+                }
+            }
+            Err(Problem::ReadOnly) => EditStepped::ReadOnly,
+            Err(Problem::Unreadable) => EditStepped::Unreadable,
+            Err(problem) => EditStepped::Failed {
+                reason: reason(problem),
             },
-            Err(Problem::Failed(reason)) => EditSaved::Failed { reason },
         }
     })
     .await

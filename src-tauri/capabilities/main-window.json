@@ -40,6 +40,7 @@
     "allow-view-region",
     "allow-close-viewer",
     "allow-edit-photo",
+    "allow-step-edit",
     "allow-export-photo",
     "allow-dev-options",
     "allow-text-scale",

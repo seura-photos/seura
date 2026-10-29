@@ -213,6 +213,24 @@ pub fn history_changed<R: Runtime>(
     let _ = commands.0[1].set_text(label("menu-redo-action", "menu-redo", redo));
 }
 
+/// Names the Editor's next undo and redo in the Edit menu, "Undo
+/// Brightness", from the photo's own history (EDT-9), while it's open.
+#[cfg(target_os = "macos")]
+pub fn edit_steps_changed<R: Runtime>(app: &AppHandle<R>, steps: &crate::editor::EditSteps) {
+    let Some(commands) = app.try_state::<HistoryCommands<R>>() else {
+        return;
+    };
+    let label = |id: &str, plain: &str, next: &Option<String>| match next {
+        None => t(plain),
+        Some(change) => t_with(id, &[("change", FluentValue::from(change.as_str()))]),
+    };
+    let _ = commands.0[0].set_text(label("menu-undo-edit", "menu-undo", &steps.undo));
+    let _ = commands.0[1].set_text(label("menu-redo-edit", "menu-redo", &steps.redo));
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn edit_steps_changed<R: Runtime>(_app: &AppHandle<R>, _steps: &crate::editor::EditSteps) {}
+
 #[cfg(not(target_os = "macos"))]
 pub fn history_changed<R: Runtime>(
     _app: &AppHandle<R>,

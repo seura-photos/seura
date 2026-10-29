@@ -204,6 +204,43 @@ impl Library {
         Ok(())
     }
 
+    /// Undoes or redoes the last change in one photo's own history, from
+    /// the Editor (EDT-9), then saves the index and tells the UI. `kept` is
+    /// the Editor's: see [`Index::step_photo`].
+    pub fn step_edit<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        id: PhotoId,
+        undo: bool,
+        kept: &mut Option<seura_edit::EditDocument>,
+    ) -> Result<seura_edit::Step, Problem> {
+        // One write at a time, as with the Library's changes.
+        let step = {
+            let _history = self.history.lock().expect("history lock");
+            Index::step_photo(
+                &self.index,
+                id,
+                undo,
+                kept,
+                crate::editor::WRITER,
+                time::OffsetDateTime::now_utc(),
+                &move_to_trash,
+            )?
+        };
+        if step != seura_edit::Step::Nothing {
+            self.save();
+            let _ = LibraryChanged.emit(app);
+        }
+        Ok(step)
+    }
+
+    /// Names the Library's next undo and redo in the Edit menu again, after
+    /// the Editor named its own (BRW-11).
+    pub fn show_history<R: Runtime>(&self, app: &AppHandle<R>) {
+        let history = self.history.lock().expect("history lock");
+        crate::menu::history_changed(app, history.next_undo(), history.next_redo());
+    }
+
     /// Undoes the last action, whatever is selected now (BRW-11). `None`
     /// when there's nothing to undo.
     pub fn undo<R: Runtime>(&self, app: &AppHandle<R>) -> Option<UndoReport> {
