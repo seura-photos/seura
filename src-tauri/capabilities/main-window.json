@@ -42,6 +42,7 @@
     "allow-edit-photo",
     "allow-step-edit",
     "allow-revert-photo",
+    "allow-resolve-outside-change",
     "allow-export-photo",
     "allow-dev-options",
     "allow-text-scale",

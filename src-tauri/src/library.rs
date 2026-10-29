@@ -303,13 +303,16 @@ impl Library {
     /// Brings the index up to date with folders the watcher reported, then
     /// saves it, queues new thumbnails, and tells the UI (LIB-4).
     fn changed<R: Runtime>(&self, app: &AppHandle<R>, folders: &[PathBuf]) {
+        let mut edit_files_changed = Vec::new();
         {
             let _scanning = self.scanning.lock().expect("scan lock");
             let roots = self.index.read().expect("index lock").roots().to_vec();
             let mut orphans = Vec::new();
             for folder in folders {
                 if let Some(root) = roots.iter().find(|root| folder.starts_with(root)) {
-                    orphans.extend(Index::scan_shared(&self.index, root, folder).orphan_edit_files);
+                    let report = Index::scan_shared(&self.index, root, folder);
+                    orphans.extend(report.orphan_edit_files);
+                    edit_files_changed.extend(report.edit_files_changed);
                 }
             }
             self.reattach_renamed(&orphans);
@@ -317,6 +320,12 @@ impl Library {
         self.save();
         self.queue_all(app);
         let _ = LibraryChanged.emit(app);
+        // The photo open in the Editor may be one of them (FIL-3).
+        if !edit_files_changed.is_empty()
+            && let Some(editor) = app.try_state::<crate::editor::Editor>()
+        {
+            editor.changed_outside(app, &edit_files_changed);
+        }
     }
 
     /// Moves the cache to `cache`: the workers stop and start again there.

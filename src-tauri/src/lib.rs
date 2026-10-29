@@ -68,6 +68,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::edit_photo,
             commands::step_edit,
             commands::revert_photo,
+            commands::resolve_outside_change,
             commands::export_photo,
             commands::dev_options,
             commands::text_scale,
@@ -86,7 +87,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             ThumbnailsReady,
             LibraryChanged,
             ScanProgress,
-            menu::MenuCommand
+            menu::MenuCommand,
+            editor::EditFileChanged
         ])
         // Nothing changed, as the preview draws the original (EDT-1).
         .constant(

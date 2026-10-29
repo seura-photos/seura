@@ -190,6 +190,13 @@ export const commands = {
 	 *  Editor confirms first.
 	 */
 	revertPhoto: (id: number) => typedError<EditStepped, string>(__TAURI_INVOKE("revert_photo", { id })),
+	/**
+	 *  After photo `id`'s edit file changed outside Seura while it's open in
+	 *  the Editor (FIL-3; user flows, flow 11): with `keep`, writes the
+	 *  Editor's edits back over the other, as one change that can be undone;
+	 *  otherwise loads the other.
+	 */
+	resolveOutsideChange: (id: number, keep: boolean) => typedError<EditStepped, string>(__TAURI_INVOKE("resolve_outside_change", { id, keep })),
 	/**  Asks for a folder and exports the open photo there as JPEG (EXP-1, EXP-5). */
 	exportPhoto: (id: number) => typedError<ExportResult, string>(__TAURI_INVOKE("export_photo", { id })),
 	devOptions: () => __TAURI_INVOKE<DevOptions>("dev_options"),
@@ -260,6 +267,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	editFileChanged: makeEvent<EditFileChanged>("edit-file-changed"),
 	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
 	scanProgress: makeEvent<ScanProgress>("scan-progress"),
@@ -379,6 +387,18 @@ export type DevOptions = {
 	 *  the UI can say they're on: they're easy to leave set by accident.
 	 */
 	active: string[],
+};
+
+/**
+ *  The open photo's edit file changed outside Seura (FIL-3): `conflict`
+ *  when Seura's operations in it are no longer what the Editor shows, so
+ *  the user chooses to keep theirs or load the other. Otherwise only its
+ *  tags, rating, or history changed, and undo and redo are as `steps`.
+ */
+export type EditFileChanged = {
+	id: number,
+	conflict: boolean,
+	steps: EditSteps,
 };
 
 /**  What saving an Editor change did. */

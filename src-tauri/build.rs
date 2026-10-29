@@ -42,6 +42,7 @@ fn main() {
         "edit_photo",
         "step_edit",
         "revert_photo",
+        "resolve_outside_change",
         "export_photo",
         "dev_options",
         "text_scale",

@@ -27,6 +27,10 @@ pub struct ScanReport {
     pub unreadable_edit_files: Vec<PathBuf>,
     /// Edit files whose photo isn't there: perhaps renamed (FIL-6).
     pub orphan_edit_files: Vec<PathBuf>,
+    /// Photos whose edit file appeared, changed, or went since the index
+    /// last read or wrote it: changed outside Seura's own writes, which
+    /// record what they wrote (FIL-3).
+    pub edit_files_changed: Vec<PhotoId>,
     /// The library folder couldn't be read, for example on a disconnected
     /// drive. Its photos were kept, not removed (LIB-6).
     pub unavailable: bool,
@@ -305,6 +309,7 @@ impl Index {
             return;
         }
 
+        report.edit_files_changed.push(id);
         let (state, rating, tags) = match stamp {
             None => (EditFileState::None, 0, Vec::new()),
             Some(_) => match EditFile::load(&edit_file_path(photo_path)) {

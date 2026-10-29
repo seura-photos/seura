@@ -8,7 +8,8 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use seura_edit::{
-    Action, CoreOperation, Edit, EditDocument, EditFile, Exposure, Step, Writer, edit_file_path,
+    Action, CoreOpId, CoreOperation, Edit, EditDocument, EditFile, Exposure, Step, Writer,
+    edit_file_path,
 };
 use seura_image::{LinearImage, Rgba8};
 use seura_library::{PhotoId, Problem};
@@ -16,6 +17,7 @@ use seura_render::check::{CHECK_SETTINGS, CHECK_TOLERANCE, check_image, differen
 use seura_render::{Output, Settings, export_jpeg};
 use specta::Type;
 use tauri::{AppHandle, Runtime};
+use tauri_specta::Event;
 
 /// Recorded in every edit file Seura writes.
 pub(crate) const WRITER: Writer = Writer {
@@ -44,6 +46,88 @@ struct Session {
     /// The document of its edit file, while the file is in the Trash
     /// because undo left nothing in it, for redo to write back.
     kept: Option<EditDocument>,
+    /// Seura's operations as the Editor shows them.
+    mine: Mine,
+    /// Whether its edit file changed outside Seura to something else, and
+    /// the user hasn't yet chosen to keep theirs or load the other (FIL-3).
+    outside: bool,
+}
+
+/// Seura's operations as the Editor last saved or loaded them, in canonical
+/// order: what "Keep yours" writes back when the edit file changes outside
+/// Seura (FIL-3).
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Mine(Vec<Option<CoreOperation>>);
+
+impl Mine {
+    fn of(document: Option<&EditDocument>) -> Mine {
+        Mine(
+            CoreOpId::ALL
+                .iter()
+                .map(|id| document.and_then(|document| document.core(*id)))
+                .collect(),
+        )
+    }
+
+    fn get(&self, id: CoreOpId) -> Option<&CoreOperation> {
+        let at = CoreOpId::ALL.iter().position(|each| *each == id)?;
+        self.0.get(at)?.as_ref()
+    }
+
+    /// The Editor's change, made to these as the edit format makes it to
+    /// a file: a neutral setting removes the operation.
+    fn apply(&mut self, action: &Action) {
+        if self.0.is_empty() {
+            *self = Mine::of(None);
+        }
+        for edit in &action.edits {
+            let (id, operation) = match edit {
+                Edit::Set(operation) => (
+                    operation.id(),
+                    (!operation.is_neutral()).then(|| operation.clone()),
+                ),
+                Edit::Remove(id) => (*id, None),
+                Edit::Tags(_) | Edit::Rating(_) => continue,
+            };
+            if let Some(at) = CoreOpId::ALL.iter().position(|each| *each == id) {
+                self.0[at] = operation;
+            }
+        }
+    }
+
+    /// The one change that makes `theirs` show these again. Tags, rating,
+    /// and other apps' operations are theirs, and stay.
+    fn keep(&self, theirs: Option<&EditDocument>) -> Action {
+        let theirs = Mine::of(theirs);
+        Action {
+            label: KEEP.into(),
+            edits: CoreOpId::ALL
+                .iter()
+                .filter(|id| self.get(**id) != theirs.get(**id))
+                .map(|id| match self.get(*id) {
+                    Some(operation) => Edit::Set(operation.clone()),
+                    None => Edit::Remove(*id),
+                })
+                .collect(),
+        }
+    }
+}
+
+/// "Keep yours", in the history.
+const KEEP: &str = "Keep my edits";
+/// "Load theirs", which isn't in the history: nothing is written.
+const LOAD: &str = "Load theirs";
+
+/// The open photo's edit file changed outside Seura (FIL-3): `conflict`
+/// when Seura's operations in it are no longer what the Editor shows, so
+/// the user chooses to keep theirs or load the other. Otherwise only its
+/// tags, rating, or history changed, and undo and redo are as `steps`.
+#[derive(Clone, Debug, Serialize, Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct EditFileChanged {
+    pub id: u32,
+    pub conflict: bool,
+    pub steps: EditSteps,
 }
 
 /// What the Editor's Undo and Redo would undo or redo next, by the labels
@@ -149,6 +233,7 @@ impl Editor {
     pub fn open(&self, id: u32, photo: PathBuf, long_edge: u32) -> Result<Opened, String> {
         let preview = seura_image::decode_linear(&photo, Some(long_edge.clamp(1, MAX_PREVIEW)))
             .map_err(|error| error.to_string())?;
+        let photo_path = photo.clone();
         let ((settings, steps), problem) = match saved(&photo, None) {
             Ok(saved) => (saved, None),
             Err(problem) => ((Settings::default(), EditSteps::default()), Some(problem)),
@@ -158,6 +243,8 @@ impl Editor {
             photo,
             preview: Arc::new(encode_linear(&preview)),
             kept: None,
+            mine: Mine::of(current(&photo_path, None).ok().flatten().as_ref()),
+            outside: false,
         });
         Ok(Opened {
             width: preview.width,
@@ -197,8 +284,91 @@ impl Editor {
             .filter(|session| session.id == id)
             .ok_or_else(|| Problem::Failed("that photo isn't open".into()))?;
         library.edit_with(app, PhotoId::new(id), &mut session.kept, |_| action.clone())?;
-        let (_, steps) = saved(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
-        Ok(steps)
+        let document = current(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
+        // While the user hasn't chosen, theirs is the change on top of the
+        // other edits; their own stay as the Editor shows them.
+        if session.outside {
+            session.mine.apply(action);
+        } else {
+            session.mine = Mine::of(document.as_ref());
+        }
+        Ok(EditSteps::of(document.as_ref()))
+    }
+
+    /// The watcher read these photos' edit files again (FIL-3): if one is
+    /// open here, says how it changed. Seura's own writes aren't reported,
+    /// and the Editor's lock is held while it writes, so it's never taken
+    /// for another app's.
+    pub fn changed_outside<R: Runtime>(&self, app: &AppHandle<R>, ids: &[PhotoId]) {
+        let mut session = self.session.lock().expect("editor lock");
+        let Some(session) = session
+            .as_mut()
+            .filter(|session| ids.contains(&PhotoId::new(session.id)))
+        else {
+            return;
+        };
+        let document = current(&session.photo, None);
+        let theirs = document.as_ref().ok().and_then(Option::as_ref);
+        // A file that can't be read isn't the Editor's to show, either.
+        if document.is_err() || Mine::of(theirs) != session.mine {
+            session.outside = true;
+        }
+        if document.as_ref().is_ok_and(Option::is_some) {
+            session.kept = None;
+        }
+        let _ = EditFileChanged {
+            id: session.id,
+            conflict: session.outside,
+            steps: EditSteps::of(theirs),
+        }
+        .emit(app);
+    }
+
+    /// After the edit file changed outside Seura (FIL-3): with `keep`,
+    /// writes the Editor's edits back over the other, as one change that
+    /// can be undone; otherwise shows the other.
+    pub fn resolve<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        library: &crate::library::Library,
+        id: u32,
+        keep: bool,
+    ) -> Result<Stepped, Problem> {
+        let mut session = self.session.lock().expect("editor lock");
+        let session = session
+            .as_mut()
+            .filter(|session| session.id == id)
+            .ok_or_else(|| Problem::Failed("that photo isn't open".into()))?;
+        let mine = session.mine.clone();
+        let changed = keep
+            && library.edit_with(app, PhotoId::new(id), &mut session.kept, |loaded| {
+                mine.keep(loaded.map(|file| &file.document))
+            })?;
+        let document = current(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
+        let document = document.as_ref();
+        session.mine = Mine::of(document);
+        session.outside = false;
+        // Loading the other changes nothing on disk, but what's shown.
+        Ok(Stepped {
+            step: Step::Done(if changed { KEEP } else { LOAD }.into()),
+            detail: None,
+            settings: document.map(Settings::from_document).unwrap_or_default(),
+            steps: EditSteps::of(document),
+        })
+    }
+
+    /// The open photo, unless its edit file changed outside Seura and the
+    /// user hasn't chosen yet: undo, redo, and revert work on the file's
+    /// history, which is the other's now.
+    fn settled(session: &mut Option<Session>, id: u32) -> Result<&mut Session, Problem> {
+        let session = session
+            .as_mut()
+            .filter(|session| session.id == id)
+            .ok_or_else(|| Problem::Failed("that photo isn't open".into()))?;
+        if session.outside {
+            return Err(Problem::ChangedOnDisk);
+        }
+        Ok(session)
     }
 
     /// Reverts photo `id` to the original (EDT-10), through the Library's
@@ -211,15 +381,13 @@ impl Editor {
         id: u32,
     ) -> Result<Stepped, Problem> {
         let mut session = self.session.lock().expect("editor lock");
-        let session = session
-            .as_mut()
-            .filter(|session| session.id == id)
-            .ok_or_else(|| Problem::Failed("that photo isn't open".into()))?;
+        let session = Editor::settled(&mut session, id)?;
         let changed = library.edit_with(app, PhotoId::new(id), &mut session.kept, |loaded| {
             seura_library::revert_action(loaded.map(|file| &file.document))
         })?;
         let document = current(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
         let document = document.as_ref();
+        session.mine = Mine::of(document);
         Ok(Stepped {
             step: if changed {
                 Step::Done(seura_library::REVERT.into())
@@ -242,13 +410,11 @@ impl Editor {
         undo: bool,
     ) -> Result<Stepped, Problem> {
         let mut session = self.session.lock().expect("editor lock");
-        let session = session
-            .as_mut()
-            .filter(|session| session.id == id)
-            .ok_or_else(|| Problem::Failed("that photo isn't open".into()))?;
+        let session = Editor::settled(&mut session, id)?;
         let step = library.step_edit(app, PhotoId::new(id), undo, &mut session.kept)?;
         let document = current(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
         let document = document.as_ref();
+        session.mine = Mine::of(document);
         // The record just stepped: after undo the first undone, after redo
         // the last that isn't.
         let record = document.and_then(|document| {
@@ -414,6 +580,77 @@ mod tests {
         let now = time::OffsetDateTime::now_utc();
         file.document.apply(&exposure_action(ev), now).unwrap();
         file.save(WRITER, now).unwrap();
+    }
+
+    /// A document with these operations, as another app might leave it.
+    fn document(operations: serde_json::Value) -> EditDocument {
+        let root = serde_json::json!({
+            "format": "seura-edit",
+            "formatVersion": "1.0",
+            "writer": { "app": "Another app", "version": "1" },
+            "modified": "2026-10-29T12:00:00Z",
+            "photo": { "file": "IMG_1.jpg", "size": 1 },
+            "operations": operations,
+            "rating": 4
+        });
+        EditDocument::parse(&serde_json::to_vec(&root).unwrap()).unwrap()
+    }
+
+    fn exposure(ev: f64) -> CoreOperation {
+        CoreOperation::Exposure(Exposure { ev })
+    }
+
+    #[test]
+    fn keeping_yours_writes_back_only_seura_s_operations_that_differ_fil_3() {
+        let saved = document(serde_json::json!([
+            { "id": "seura.exposure", "version": 1, "params": { "ev": 0.5 } }
+        ]));
+        let mut mine = Mine::of(Some(&saved));
+        // A change made while the user hadn't chosen yet.
+        mine.apply(&exposure_action(1.0));
+        assert_eq!(mine.get(CoreOpId::Exposure), Some(&exposure(1.0)));
+
+        // The other: brightness changed, contrast added, another app's
+        // operation added.
+        let theirs = document(serde_json::json!([
+            { "id": "seura.exposure", "version": 1, "params": { "ev": 2.0 } },
+            { "id": "seura.contrast", "version": 1, "params": { "amount": 30 } },
+            { "id": "com.example.grain", "version": 1, "params": {}, "group": "effects" }
+        ]));
+        assert_ne!(Mine::of(Some(&theirs)), mine);
+        let keep = mine.keep(Some(&theirs));
+        assert_eq!(keep.label, KEEP);
+        assert_eq!(
+            keep.edits,
+            [Edit::Set(exposure(1.0)), Edit::Remove(CoreOpId::Contrast)]
+        );
+        // A neutral setting removes it, as in the file.
+        mine.apply(&exposure_action(0.0));
+        assert_eq!(mine.get(CoreOpId::Exposure), None);
+        assert_eq!(mine, Mine::of(None));
+    }
+
+    #[test]
+    fn only_tags_or_rating_changed_isn_t_a_conflict_fil_3() {
+        let ours = document(serde_json::json!([
+            { "id": "seura.exposure", "version": 1, "params": { "ev": 0.5 } }
+        ]));
+        let mut theirs = ours.clone();
+        theirs
+            .apply(
+                &Action {
+                    label: "Rating".into(),
+                    edits: vec![Edit::Rating(1)],
+                },
+                time::OffsetDateTime::now_utc(),
+            )
+            .unwrap();
+        assert_eq!(Mine::of(Some(&ours)), Mine::of(Some(&theirs)));
+        assert!(mine_keeps_nothing(&Mine::of(Some(&ours)), &theirs));
+    }
+
+    fn mine_keeps_nothing(mine: &Mine, theirs: &EditDocument) -> bool {
+        mine.keep(Some(theirs)).edits.is_empty()
     }
 
     #[test]
