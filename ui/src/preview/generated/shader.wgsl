@@ -80,12 +80,14 @@ fn contrast(color: vec3<f32>, amount: f32) -> vec3<f32> {
 }
 
 // seura.saturation: moves each channel away from the pixel's luminance by
-// s = 1 + amount / 100, so −100 is gray and 100 doubles the color. Light
-// can't be negative, so channels stop at 0.
+// s = 1 + amount / 100, so −100 is gray and 100 doubles the color. Colors
+// outside Display P3 have components below 0, which are kept, and a vivid
+// color made more so can go below 0 itself (the formulas appendix,
+// "Working space").
 fn saturation(color: vec3<f32>, amount: f32) -> vec3<f32> {
     let y = dot(P3_LUMINANCE, color);
     let s = 1.0 + amount / 100.0;
-    return max(vec3<f32>(y) + (color - vec3<f32>(y)) * s, vec3<f32>(0.0));
+    return vec3<f32>(y) + (color - vec3<f32>(y)) * s;
 }
 
 // The render pass: draws the photo with its edits, in the canonical order

@@ -450,6 +450,11 @@ detail: ChangeDetail | null; settings: RenderSettings; steps: EditSteps } |
 export type EditSteps = {
 	undo: string | null,
 	redo: string | null,
+	/**
+	 *  Whether the file has operations from other apps, or versions Seura
+	 *  can't edit, which revert keeps and says so (EDT-10).
+	 */
+	otherApps: boolean,
 };
 
 /**  What exporting did. */

@@ -138,6 +138,9 @@ pub struct EditFileChanged {
 pub struct EditSteps {
     pub undo: Option<String>,
     pub redo: Option<String>,
+    /// Whether the file has operations from other apps, or versions Seura
+    /// can't edit, which revert keeps and says so (EDT-10).
+    pub other_apps: bool,
 }
 
 impl EditSteps {
@@ -148,6 +151,12 @@ impl EditSteps {
         EditSteps {
             undo: document.and_then(|document| label(document.last_change())),
             redo: document.and_then(|document| label(document.next_redo())),
+            other_apps: document.is_some_and(|document| {
+                document
+                    .operations()
+                    .iter()
+                    .any(|operation| operation.core.is_none())
+            }),
         }
     }
 }
@@ -657,6 +666,20 @@ mod tests {
         mine.apply(&exposure_action(0.0));
         assert_eq!(mine.get(CoreOpId::Exposure), None);
         assert_eq!(mine, Mine::of(None));
+    }
+
+    #[test]
+    fn steps_say_when_other_apps_operations_are_there_edt_10() {
+        let ours = document(serde_json::json!([
+            { "id": "seura.exposure", "version": 1, "params": { "ev": 0.5 } }
+        ]));
+        assert!(!EditSteps::of(Some(&ours)).other_apps);
+        let theirs = document(serde_json::json!([
+            { "id": "seura.exposure", "version": 1, "params": { "ev": 0.5 } },
+            { "id": "com.example.grain", "version": 1, "params": {}, "group": "effects" }
+        ]));
+        assert!(EditSteps::of(Some(&theirs)).other_apps);
+        assert!(!EditSteps::of(None).other_apps);
     }
 
     #[test]

@@ -56,11 +56,12 @@ fn contrast(c: [f64; 3], amount: f64) -> [f64; 3] {
     c.map(|v| v * scale)
 }
 
-/// `seura.saturation`: away from luminance by 1 + amount/100, never below 0.
+/// `seura.saturation`: away from luminance by 1 + amount/100. Components
+/// below 0 are kept, and can be made.
 fn saturation(c: [f64; 3], amount: f64) -> [f64; 3] {
     let y = luminance(c);
     let s = 1.0 + amount / 100.0;
-    c.map(|v| (y + (v - y) * s).max(0.0))
+    c.map(|v| y + (v - y) * s)
 }
 
 fn encode(linear: f64) -> f64 {
@@ -196,6 +197,32 @@ fn light_and_color_match_the_definitions() {
 /// What the formulas promise, on single pixels: gray keeps its luminance
 /// through white balance, contrast keeps black, middle gray and white where
 /// they are, and saturation −100 leaves gray.
+#[test]
+fn colors_outside_display_p3_go_through_every_operation() {
+    let renderer = renderer();
+    // Wider-gamut colors have components below 0 in Display P3.
+    let pixels = [[-0.05, 0.4, 0.2], [0.6, -0.02, 0.3], [0.1, 0.5, -0.1]]
+        .iter()
+        .flat_map(|[r, g, b]| [*r, *g, *b, 1.0].map(f16::from_f32))
+        .collect();
+    let image = LinearImage {
+        width: 3,
+        height: 1,
+        pixels,
+    };
+    let settings = Settings {
+        temperature: -30.0,
+        contrast: 40.0,
+        saturation: 60.0,
+        ..Settings::NEUTRAL
+    };
+    for output in [Output::Srgb, Output::DisplayP3] {
+        assert_matches(&image, &settings, output, &renderer);
+    }
+    // A component below 0 stays below 0 through saturation.
+    assert!(saturation([-0.05, 0.4, 0.2], 60.0)[0] < -0.05);
+}
+
 #[test]
 fn light_and_color_keep_what_they_promise() {
     let gray = [0.18, 0.18, 0.18];
