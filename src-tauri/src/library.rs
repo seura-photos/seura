@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use seura_library::{
-    ApplyEdits, Change, ChangeReport, Filter, FolderId, History, Index, Outcome, PhotoId,
+    ApplyEdits, Change, ChangeReport, Filter, FolderId, History, Index, Outcome, PhotoId, Problem,
     SWEEP_AFTER, Scope, SettingsFile, ThumbnailCache, ThumbnailWorkers, UndoReport, Watcher,
     move_to_trash,
 };
@@ -173,6 +173,35 @@ impl Library {
             let _ = LibraryChanged.emit(app);
         }
         report
+    }
+
+    /// Changes one photo's edits from the Editor (EDT-11), through the same
+    /// path, then saves the index and tells the UI, so the grid's badges
+    /// follow. Not one of the Library's actions to undo: the photo's own
+    /// history has it (EDT-9).
+    pub fn edit<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        id: PhotoId,
+        action: &seura_edit::Action,
+    ) -> Result<(), Problem> {
+        // One write at a time, as with the Library's changes.
+        let changed = {
+            let _history = self.history.lock().expect("history lock");
+            Index::edit_photo(
+                &self.index,
+                id,
+                action,
+                crate::editor::WRITER,
+                time::OffsetDateTime::now_utc(),
+                &move_to_trash,
+            )?
+        };
+        if changed {
+            self.save();
+            let _ = LibraryChanged.emit(app);
+        }
+        Ok(())
     }
 
     /// Undoes the last action, whatever is selected now (BRW-11). `None`

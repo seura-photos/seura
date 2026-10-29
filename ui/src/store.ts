@@ -68,8 +68,11 @@ type State = {
   viewing: number | null;
   /** The photo the grid scrolls to and focuses, after the Viewer closes. */
   reveal: { id: number } | null;
-  /** The photo open in M1's Editor (development builds only). */
-  editing: PhotoInfo | null;
+  /** The photo open in the Editor (EDT-1), by id; development builds only
+   * until M4's wrap-up. */
+  editing: number | null;
+  /** Where Done goes back to: the Viewer, or the grid (user flows, flow 4). */
+  editedFrom: "viewer" | "library";
   /** A one-line message about the last action, such as adding a folder. */
   notice: string | null;
   /** Counts notices, so the same message twice is announced twice. */
@@ -125,10 +128,14 @@ type State = {
   view: (id: number) => void;
   /** Closes the Viewer: back to the grid with the last photo selected. */
   closeViewer: () => void;
-  openEditor: (photo: PhotoInfo | null) => void;
+  /** Opens the Editor on a photo, or moves it to another (the filmstrip). */
+  openEditor: (id: number) => void;
+  /** Closes the Editor: back where it was opened, on the photo it ends on. */
+  closeEditor: () => void;
   /** Opening several photos in the default app, waiting to be confirmed. */
   confirmingOpen: { ids: number[]; count: number; cloudOnly: number } | null;
-  /** The photos the photo commands act on: the one in the Viewer, or the selection. */
+  /** The photos the photo commands act on: the one in the Editor or the
+   * Viewer, or the selection. */
   chosenPhotos: () => number[];
   /** Shows photos in Explorer or Finder (BRW-8). */
   showInFolder: (ids: number[]) => Promise<void>;
@@ -285,6 +292,7 @@ export const useStore = create<State>()((set, get) => ({
   reveal: null,
   confirmingOpen: null,
   editing: null,
+  editedFrom: "library",
   notice: null,
   noticeId: 0,
   kept: null,
@@ -579,8 +587,29 @@ export const useStore = create<State>()((set, get) => ({
     }));
   },
 
-  openEditor(photo) {
-    set({ editing: photo });
+  openEditor(id) {
+    const { editing, viewing } = get();
+    if (editing !== null) set({ editing: id });
+    else set({ editing: id, editedFrom: viewing !== null ? "viewer" : "library" });
+  },
+
+  closeEditor() {
+    const { editing, editedFrom } = get();
+    if (editing === null) return;
+    // The Viewer shows the photo the Editor ends on; the grid selects it
+    // and scrolls to it, as when the Viewer closes.
+    if (editedFrom === "viewer") set({ editing: null, viewing: editing });
+    else
+      set(({ photos }) => ({
+        editing: null,
+        reveal: { id: editing },
+        selection: select(
+          emptySelection,
+          photos.map((photo) => photo.id),
+          editing,
+          { toggle: false, range: false },
+        ),
+      }));
   },
 
   async showInFolder(ids) {
@@ -589,7 +618,8 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   chosenPhotos() {
-    const { viewing, selection } = get();
+    const { editing, viewing, selection } = get();
+    if (editing !== null) return [editing];
     return viewing !== null ? [viewing] : [...selection.ids];
   },
 

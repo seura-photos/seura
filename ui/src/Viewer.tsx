@@ -1,14 +1,22 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { ChevronLeft, ChevronRight, LoaderCircle, Minus, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
 import { type PointerEvent, useEffect, useEffectEvent, useRef, useState } from "react";
 import { commands } from "./bindings";
-import { formatBytes, formatNumber } from "./format";
+import { CloudPhoto } from "./CloudPhoto";
+import { formatNumber } from "./format";
 import { t } from "./messages";
 import { InfoPanel } from "./InfoPanel";
 import { Message } from "./Message";
 import { MoreButton } from "./MoreButton";
 import { NoticeBar } from "./NoticeBar";
-import { historyKey, isDeleteKey, isSelectAll, isTagKey, isTyping, ratingKey } from "./keys";
+import {
+  historyKey,
+  isDeleteKey,
+  isEditKey,
+  isSelectAll,
+  isTagKey,
+  isTyping,
+  ratingKey,
+} from "./keys";
 import { SHOWN_EVENT } from "./measure";
 import { PhotoMenu } from "./PhotoMenu";
 import { type Backend, createPreview, fetchLinear } from "./preview";
@@ -36,7 +44,7 @@ type Props = {
   /** The folder's name, for the way back. */
   folder: string;
   forceWebgl2: boolean;
-  /** M1's Editor opens with E (development builds only). */
+  /** The Editor opens with E or Edit (development builds only, until M4's wrap-up). */
   editorAvailable: boolean;
 };
 
@@ -329,7 +337,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
       setMenu({ x: box ? box.left + box.width / 2 : 0, y: box ? box.top + box.height / 2 : 0 });
     } else if (event.key === "+" || event.key === "=") zoomStep(1);
     else if (event.key === "-") zoomStep(-1);
-    else if (editorAvailable && photo && event.key.toLowerCase() === "e") openEditor(photo);
+    else if (editorAvailable && photo && isEditKey(event)) openEditor(photo.id);
     else if (photo && stars !== null) void rate([photo.id], stars, true);
     else if (photo && isTagKey(event)) {
       // Beside the Info panel's Add tag button: the photo fills the stage.
@@ -410,17 +418,14 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
   const percent = current
     ? formatNumber(current.zoom, { style: "percent", maximumFractionDigits: 0 })
     : null;
-  const message =
-    status.kind === "downloading"
-      ? t("viewer-downloading", { size: formatBytes(status.size) })
-      : status.kind === "downloadFailed"
-        ? t("viewer-download-failed")
-        : status.kind === "failed"
-          ? t("viewer-failed", { reason: status.reason })
-          : noPreview
-            ? t("viewer-no-preview")
-            : null;
   const inCloud = status.kind === "downloading" || status.kind === "downloadFailed";
+  const message =
+    status.kind === "failed"
+      ? t("viewer-failed", { reason: status.reason })
+      : noPreview && !inCloud
+        ? t("viewer-no-preview")
+        : null;
+  const covered = inCloud || message !== null;
   const atFullSize = current !== null && Math.abs(current.zoom - 1) < 0.001;
 
   return (
@@ -480,6 +485,15 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
             <Plus className="icon" aria-hidden />
           </button>
         </div>
+        {editorAvailable && (
+          <button
+            type="button"
+            className="button primary toolbar-edit"
+            onClick={() => openEditor(photo.id)}
+          >
+            {t("viewer-edit")}
+          </button>
+        )}
         <MoreButton />
       </header>
 
@@ -503,43 +517,26 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
             ref={canvas}
             className="viewer-photo"
             aria-label={t("viewer-photo", { name: photo.name })}
-            hidden={whole === null || message !== null}
+            hidden={whole === null || covered}
             style={whole ?? undefined}
           />
           <canvas
             ref={detailCanvas}
             className="viewer-photo"
             aria-hidden
-            hidden={sharp === null || message !== null}
+            hidden={sharp === null || covered}
             style={sharp ?? undefined}
           />
           {inCloud && (
-            // The cached thumbnail, enlarged and blurred, while the photo
-            // downloads (LIB-9).
-            <img
-              className="viewer-thumbnail"
-              src={convertFileSrc(`thumb-${photo.id}`, "seura")}
-              alt=""
-              draggable={false}
+            <CloudPhoto
+              id={photo.id}
+              state={status}
+              onTryAgain={() => setAttempt((count) => count + 1)}
             />
           )}
           {message !== null && (
             <div className="viewer-message" role="status">
-              {status.kind === "downloading" && (
-                <LoaderCircle className="icon viewer-spinner" aria-hidden />
-              )}
               <p>{message}</p>
-              {status.kind === "downloadFailed" && (
-                <button
-                  type="button"
-                  className="button"
-                  onClick={() => {
-                    setAttempt((count) => count + 1);
-                  }}
-                >
-                  {t("viewer-try-again")}
-                </button>
-              )}
             </div>
           )}
           <button

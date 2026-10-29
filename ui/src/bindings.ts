@@ -147,10 +147,13 @@ export const commands = {
 	selectionSummary: (ids: number[]) => __TAURI_INVOKE<SelectionSummary>("selection_summary", { ids }),
 	/**
 	 *  Opens a photo in the Editor, with a preview `longEdge` pixels on its long
-	 *  side (the canvas size × the device pixel ratio, DSP-1).
+	 *  side (the canvas size Ã— the device pixel ratio, DSP-1). A cloud-only
+	 *  photo is read, downloading it, only with `download`, and waited for as
+	 *  the Viewer waits (LIB-9).
 	 */
-	openPhoto: (id: number, longEdge: number) => typedError<OpenedPhoto, string>(__TAURI_INVOKE("open_photo", { id, longEdge })),
-	closePhoto: () => __TAURI_INVOKE<void>("close_photo"),
+	openPhoto: (id: number, longEdge: number, download: boolean) => typedError<OpenedPhoto, string>(__TAURI_INVOKE("open_photo", { id, longEdge, download })),
+	/**  The Editor let photo `id` go: closed, or moved on to another. */
+	closePhoto: (id: number) => __TAURI_INVOKE<void>("close_photo", { id }),
 	/**
 	 *  Shows photo `id` in the Viewer, decoded to fit an area of `width` ×
 	 *  `height` device pixels (DSP-1), and decodes `neighbors` ahead (PRF-5).
@@ -168,8 +171,13 @@ export const commands = {
 	viewRegion: (id: number, x: number, y: number, width: number, height: number, outWidth: number, outHeight: number) => typedError<RegionSize, string>(__TAURI_INVOKE("view_region", { id, x, y, width, height, outWidth, outHeight })),
 	/**  The Viewer closed: its decoded photos are let go. */
 	closeViewer: () => __TAURI_INVOKE<void>("close_viewer"),
-	/**  Sets the open photo's exposure (EDT-5) and saves its edit file (EDT-11). */
-	setExposure: (id: number, ev: number | null) => typedError<null, string>(__TAURI_INVOKE("set_exposure", { id, ev })),
+	/**
+	 *  Saves a change to photo `id`'s edits (EDT-11), through the one write
+	 *  path for edit files. The Editor sends it within a second of the last
+	 *  change, and a slider drag as one change when it ends (edit format,
+	 *  "History").
+	 */
+	editPhoto: (id: number, edit: PhotoEdit) => typedError<EditSaved, string>(__TAURI_INVOKE("edit_photo", { id, edit })),
 	/**  Asks for a folder and exports the open photo there as JPEG (EXP-1, EXP-5). */
 	exportPhoto: (id: number) => typedError<ExportResult, string>(__TAURI_INVOKE("export_photo", { id })),
 	devOptions: () => __TAURI_INVOKE<DevOptions>("dev_options"),
@@ -350,6 +358,20 @@ export type DevOptions = {
 	active: string[],
 };
 
+/**  What saving an Editor change did. */
+export type EditSaved = 
+/**  Written, or already as asked. */
+{ kind: "saved" } | 
+/**  In a read-only folder (TAG-7). */
+{ kind: "readOnly" } | 
+/**  Its edit file can't be read, so it's left alone (FIL-4). */
+{ kind: "unreadable" } | 
+/**
+ *  Anything else, such as a full drive, or the file changing on disk
+ *  meanwhile.
+ */
+{ kind: "failed"; reason: string };
+
 /**  What exporting did. */
 export type ExportResult = 
 /**  The user closed the folder dialog. */
@@ -415,18 +437,24 @@ export type MenuCommand = "addFolder" |
  */
 "undo" | "redo";
 
-/**  A photo opened in the Editor. */
-export type OpenedPhoto = {
-	/**  The preview's size, fetched from `seura://…/preview`. */
-	width: number,
-	height: number,
-	exposureEv: number | null,
-	/**
-	 *  Why the photo can't be edited, if it can't: its edit file can't be
-	 *  read, and is never overwritten (FIL-4).
-	 */
-	problem: string | null,
-};
+/**  What the Editor can show of a photo (EDT-1). */
+export type OpenedPhoto = 
+/**  Decoded: its preview is at `seura://â€¦/preview`. */
+{ kind: "opened"; 
+/**  The preview's size. */
+width: number; height: number; exposureEv: number | null; 
+/**
+ *  Why the photo can't be edited, if it can't: its edit file can't
+ *  be read, and is never overwritten (FIL-4).
+ */
+problem: string | null } | 
+/**
+ *  Only in the cloud, and not read: ask again with `download` to read
+ *  it, which downloads it (LIB-9), as in the Viewer.
+ */
+{ kind: "cloudOnly"; 
+/**  In bytes, from the placeholder: what the download will be. */
+size: number | null };
 
 /**
  *  What opening photos in the default app would involve, for the UI to
@@ -488,6 +516,11 @@ export type PhotoDetails = {
 	latitude: number | null,
 	longitude: number | null,
 };
+
+/**  A change made in the Editor (EDT-5). */
+export type PhotoEdit = 
+/**  `seura.exposure`, in stops. */
+{ kind: "brightness"; ev: number | null };
 
 /**  What the grid is narrowed to (FND-1), applied to whatever it shows. */
 export type PhotoFilter = {

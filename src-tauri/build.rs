@@ -39,7 +39,7 @@ fn main() {
         "view_photo",
         "view_region",
         "close_viewer",
-        "set_exposure",
+        "edit_photo",
         "export_photo",
         "dev_options",
         "text_scale",

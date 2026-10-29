@@ -271,7 +271,7 @@ describe("Viewer (BRW-5)", () => {
     cleanup();
     show(1, true);
     fireEvent.keyDown(window, { key: "e" });
-    expect(useStore.getState().editing?.id).toBe(1);
+    expect(useStore.getState().editing).toBe(1);
   });
 
   it("lets go of its photos when it closes", () => {

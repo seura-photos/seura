@@ -65,7 +65,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::view_photo,
             commands::view_region,
             commands::close_viewer,
-            commands::set_exposure,
+            commands::edit_photo,
             commands::export_photo,
             commands::dev_options,
             commands::text_scale,

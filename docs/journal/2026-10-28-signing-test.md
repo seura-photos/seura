@@ -1,0 +1,7 @@
+# The Mac signing test (M4 slice 0; #112)
+
+- **The question** (M4 plan, question 8): is the Mac refusing to move OneDrive photos to the Trash because Seura's local builds are only ad-hoc signed? Nevada installed Xcode on the MacBook for a test with his free Apple account as a Personal Team.
+- **The App Store wouldn't install Xcode:** its confirmation sheet showed only Cancel, with no way to confirm. Nevada downloaded Xcode from Apple's developer site instead.
+- **A fresh Mac couldn't use the new certificate at first.** Xcode made the Apple Development certificate, but `security find-identity` found no valid identity, and `codesign` failed with `errSecInternalComponent`. The keychain held only Apple's old WWDR intermediate certificate, which expired in 2023. The Mac session added the current one, WWDR G3, from Apple's certificate authority page, with Nevada's approval.
+- **Result: signing doesn't fix it.** A bundle of main (0.2.2), signed with the Apple Development certificate and opened as Finder would, was refused exactly as before: "macOS said: … you don't have permission to access it." The photo stayed where it was, and nothing in the log said why. Developer ID signing on its own probably won't help either.
+- **What's left for #112:** asking Finder to move the photo when macOS refuses, which asks the user once to let Seura control Finder (a design question, since M3's slice 9 avoided it on purpose); or finding what Finder and Terminal have that a Seura bundle lacks.

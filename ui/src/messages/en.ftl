@@ -25,6 +25,7 @@ welcome-problem = Something went wrong: { $reason }
 ## The Library
 
 library-add-folder = Add folder
+library-edit = Edit
 library-empty = Add a folder to see its photos.
 library-added = Added. Scanning for photos…
 library-already-included = That folder is already in your library, in { $folder }.
@@ -531,15 +532,22 @@ viewer-keys-edit = ← → next and previous · + − zoom · T tag · 0–5 rat
 viewer-downloading = Downloading { $size } from the cloud…
 viewer-download-failed = This photo is in the cloud, and it couldn't be downloaded. Check your connection.
 viewer-try-again = Try again
+viewer-edit = Edit
 viewer-failed = This photo can't be shown: { $reason }
 viewer-no-preview = This computer's graphics can't show photos here.
 
-## M1's Editor (development builds only until M4)
+## The Editor (EDT-*; development builds only until M4's wrap-up)
 
-editor-back = Back to photos
+editor-saved-automatically = Edits saved automatically
+editor-not-saved = Edits can't be saved
 editor-preview = { $name }, edited
-editor-exposure = Exposure
-editor-ev = { $value } EV
+editor-original = { $name }, original
+editor-tools = Tools
+editor-compare = Hold to compare
+editor-done = Done
+editor-light = Light
+editor-brightness = Brightness
+editor-filmstrip = Filmstrip
 editor-export = Export…
 editor-exporting = Exporting…
 editor-exported = Exported { $file } to { $folder }.
@@ -547,6 +555,8 @@ editor-export-failed = The photo couldn't be exported: { $reason }
 editor-open-failed = This photo couldn't be opened: { $reason }
 editor-no-preview = This computer's graphics can't show the preview.
 editor-save-failed = Your change couldn't be saved: { $reason }
+editor-save-read-only = This photo's folder is read-only, so your change couldn't be saved.
+editor-save-unreadable = This photo's edit file can't be read, so your change wasn't saved.
 editor-read-only = This photo's edit file can't be read, so Seura won't change it: { $reason }
 
 ## Developer tools
