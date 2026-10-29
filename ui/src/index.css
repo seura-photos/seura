@@ -526,7 +526,8 @@ button {
   font-weight: var(--type-panel-heading-weight);
 }
 
-.button:disabled {
+.button:disabled,
+.icon-button:disabled {
   opacity: 0.6;
   cursor: default;
 }
@@ -1041,7 +1042,10 @@ button {
   font-weight: var(--type-panel-heading-weight);
 }
 
-.editor-export {
+/* Undo and redo, then the toolbar's buttons, on the right (styled mockup). */
+.editor-history {
+  display: flex;
+  gap: 0.5rem;
   margin-left: auto;
 }
 

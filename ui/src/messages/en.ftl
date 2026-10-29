@@ -558,6 +558,50 @@ editor-save-failed = Your change couldn't be saved: { $reason }
 editor-save-read-only = This photo's folder is read-only, so your change couldn't be saved.
 editor-save-unreadable = This photo's edit file can't be read, so your change wasn't saved.
 editor-read-only = This photo's edit file can't be read, so Seura won't change it: { $reason }
+# Undo and redo name the change by the label its edit file's history gives
+# it, such as "Brightness" or "Rating" (EDT-9).
+editor-undo = Undo
+editor-redo = Redo
+editor-undo-change = Undo { $change }
+editor-redo-change = Redo { $change }
+editor-undid = Undid { $change }
+editor-redid = Redid { $change }
+# Undoing or redoing a rating or tag change made in the Library, which
+# the Editor doesn't show.
+editor-stepped-rating =
+    { $undo ->
+        [true] { $stars ->
+            [0] Undid removing the rating
+           *[other] Undid rating of { $stars ->
+                [one] 1 star
+               *[other] { $stars } stars
+            }
+        }
+       *[false] { $stars ->
+            [0] Redid removing the rating
+           *[other] Redid rating of { $stars ->
+                [one] 1 star
+               *[other] { $stars } stars
+            }
+        }
+    }
+editor-stepped-tag =
+    { $undo ->
+        [true] { $kind ->
+            [addTag] Undid adding “{ $tag }”
+           *[removeTag] Undid removing “{ $tag }”
+        }
+       *[false] { $kind ->
+            [addTag] Redid adding “{ $tag }”
+           *[removeTag] Redid removing “{ $tag }”
+        }
+    }
+editor-history-discarded = This photo's edits were changed outside Seura Photos without their history, so the history before that change is gone.
+editor-step-failed =
+    { $undo ->
+        [true] The change couldn't be undone: { $reason }
+       *[false] The change couldn't be redone: { $reason }
+    }
 
 ## Developer tools
 

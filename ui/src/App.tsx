@@ -47,9 +47,11 @@ export function App() {
         const store = useStore.getState();
         if (payload === "addFolder") void store.addFolder();
         else if (payload === "undo" || payload === "redo") {
-          // The Editor's undo is the photo's own history (EDT-9, M4 slice
-          // 2); until then it undoes nothing, rather than the Library's.
-          if (store.editing !== null) return;
+          // In the Editor, the photo's own history (EDT-9).
+          if (store.editing !== null) {
+            store.editorStep?.(payload === "undo");
+            return;
+          }
           // In a text field, the menu's Undo is the field's own.
           const focused = document.activeElement;
           if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement)

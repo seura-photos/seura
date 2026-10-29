@@ -73,6 +73,8 @@ type State = {
   editing: number | null;
   /** Where Done goes back to: the Viewer, or the grid (user flows, flow 4). */
   editedFrom: "viewer" | "library";
+  /** The open Editor's undo (`true`) and redo, for the Edit menu's (EDT-9). */
+  editorStep: ((undo: boolean) => void) | null;
   /** A one-line message about the last action, such as adding a folder. */
   notice: string | null;
   /** Counts notices, so the same message twice is announced twice. */
@@ -293,6 +295,7 @@ export const useStore = create<State>()((set, get) => ({
   confirmingOpen: null,
   editing: null,
   editedFrom: "library",
+  editorStep: null,
   notice: null,
   noticeId: 0,
   kept: null,

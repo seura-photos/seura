@@ -40,6 +40,7 @@ fn main() {
         "view_region",
         "close_viewer",
         "edit_photo",
+        "step_edit",
         "export_photo",
         "dev_options",
         "text_scale",

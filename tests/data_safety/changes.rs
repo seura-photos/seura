@@ -364,6 +364,55 @@ fn brw_11_undo_and_redo_write_only_edit_files_and_bring_back_what_went_to_the_tr
 }
 
 #[test]
+fn edt_9_the_editor_s_undo_and_redo_write_only_edit_files_and_trash_what_s_left_empty() {
+    let library = Library::new();
+    let (index, ids) = scanned(&library);
+    let trash = Trash::new();
+    let before = Snapshot::of(library.root());
+    let photo = &library.photos()[0];
+    let brightness = seura_edit::Action {
+        label: "Brightness".into(),
+        edits: vec![crate::exposure(0.5)],
+    };
+    Index::edit_photo(&index, ids[0], &brightness, WRITER, now(), &|path| {
+        trash.take(path)
+    })
+    .unwrap();
+    let mut kept = None;
+    let step = |undo: bool, kept: &mut Option<EditDocument>| {
+        Index::step_photo(&index, ids[0], undo, kept, WRITER, now(), &|path| {
+            trash.take(path)
+        })
+    };
+
+    // Undone, nothing's left: the file goes to the Trash (rule 5), and
+    // redo writes it back from memory.
+    assert_eq!(
+        step(true, &mut kept),
+        Ok(seura_edit::Step::Done("Brightness".into()))
+    );
+    assert!(!edit_file_path(photo).exists());
+    assert_eq!(trash.moved.borrow().len(), 1);
+    assert_eq!(
+        step(false, &mut kept),
+        Ok(seura_edit::Step::Done("Brightness".into()))
+    );
+    assert_eq!(saved(photo).operations().len(), 1);
+
+    // A file that can't be read is never overwritten (rule 4).
+    fs::write(edit_file_path(photo), "{").unwrap();
+    assert_eq!(step(true, &mut kept), Err(Problem::Unreadable));
+    assert_eq!(fs::read(edit_file_path(photo)).unwrap(), b"{");
+    fs::remove_file(edit_file_path(photo)).unwrap();
+
+    // Every original as it was, nothing but edit files and nothing left behind.
+    let after = Snapshot::of(library.root());
+    assert!(after.changed_since(&before).is_empty(), "changed");
+    assert!(after.removed_since(&before).is_empty(), "removed");
+    assert!(leftovers(&library).is_empty(), "{:?}", leftovers(&library));
+}
+
+#[test]
 fn fil_4_start_over_keeps_the_unreadable_file_unchanged_in_seuras_folder() {
     let library = Library::new();
     let photo = &library.photos()[0];
