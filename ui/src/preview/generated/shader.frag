@@ -83,7 +83,7 @@ vec3 contrast(vec3 color_3, float amount) {
 vec3 saturation(vec3 color_4, float amount_1) {
     float y_1 = dot(P3_LUMINANCE, color_4);
     float s = (1.0 + (amount_1 / 100.0));
-    return max((vec3(y_1) + ((color_4 - vec3(y_1)) * s)), vec3(0.0));
+    return (vec3(y_1) + ((color_4 - vec3(y_1)) * s));
 }
 
 void main() {

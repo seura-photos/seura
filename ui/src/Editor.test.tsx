@@ -466,6 +466,32 @@ describe("Editor", () => {
     expect(screen.getByText("Loaded the edits made outside Seura Photos")).toBeDefined();
   });
 
+  it("says other apps' edits are kept when reverting a photo that has them (EDT-10)", async () => {
+    mocks.opened.steps = {
+      undo: "Brightness",
+      redo: null,
+      otherApps: true,
+    } as typeof mocks.opened.steps;
+    edit();
+    await brightness();
+    fireEvent.click(screen.getByRole("button", { name: "Revert to original…" }));
+    expect(screen.getByText(/Edits made in other apps are kept\./)).toBeDefined();
+  });
+
+  it("says the user's changes weren't kept when they leave before choosing (FIL-3)", async () => {
+    edit();
+    await brightness();
+    act(() =>
+      mocks.fileChanged?.({
+        payload: { id: 7, conflict: true, steps: { undo: null, redo: null, otherApps: false } },
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(useStore.getState().notice).toBe(
+      "Your changes to this photo since it changed elsewhere weren't kept.",
+    );
+  });
+
   it("follows the history when only tags or the rating changed outside Seura", async () => {
     edit();
     await brightness();

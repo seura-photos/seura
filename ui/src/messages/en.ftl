@@ -608,6 +608,9 @@ editor-stepped-tag =
     }
 editor-revert = Revert to original…
 editor-revert-question = Remove every edit to this photo? Its tags and rating stay, and you can undo this.
+# Added to the question when the photo has operations from other apps,
+# which revert keeps (EDT-10).
+editor-revert-other-apps = Edits made in other apps are kept.
 editor-revert-confirm = Revert to original
 editor-revert-cancel = Cancel
 editor-reverted = Reverted to original
@@ -620,6 +623,8 @@ editor-load-theirs = Load theirs
 editor-kept-yours = Kept your edits
 editor-loaded-theirs = Loaded the edits made outside Seura Photos
 editor-resolve-failed = That didn't work: { $reason }
+# Said when the user leaves the photo before choosing.
+editor-left-outside = Your changes to this photo since it changed elsewhere weren't kept.
 editor-history-discarded = This photo's edits were changed outside Seura Photos without their history, so the history before that change is gone.
 editor-step-failed =
     { $undo ->

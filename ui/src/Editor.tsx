@@ -303,7 +303,14 @@ export function Editor({ id, forceWebgl2 }: Props) {
 
   function done() {
     void flush();
+    leaving();
     closeEditor();
+  }
+
+  /** Leaving a photo whose edit file changed outside Seura before choosing
+   * keeps the other version, as it is on disk, and says so (FIL-3). */
+  function leaving() {
+    if (outsideNow) say(t("editor-left-outside"));
   }
 
   /**
@@ -397,6 +404,7 @@ export function Editor({ id, forceWebgl2 }: Props) {
   function move(to: number | undefined) {
     if (to === undefined) return;
     void flush();
+    leaving();
     openEditor(to);
   }
 
@@ -680,7 +688,10 @@ export function Editor({ id, forceWebgl2 }: Props) {
               >
                 {t("editor-revert-cancel")}
               </button>
-              <p id="revert-question">{t("editor-revert-question")}</p>
+              <p id="revert-question">
+                {t("editor-revert-question")}
+                {shown?.steps.otherApps && ` ${t("editor-revert-other-apps")}`}
+              </p>
               <button type="button" className="button danger" onClick={revert}>
                 {t("editor-revert-confirm")}
               </button>
