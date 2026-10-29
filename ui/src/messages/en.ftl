@@ -441,6 +441,16 @@ delete-no-trash =
                *[other] { $count } photos are on a drive with no Recycle Bin, such as a USB stick or a network share. Deleting them there would be permanent, so they're left as they are. You can delete them in File Explorer.
             }
     }
+# On the Mac, photos in a file provider's folder such as OneDrive's: macOS
+# refuses to move them to the Trash for Seura (#112), so they're left as
+# they are, and Finder can delete them. $service is "OneDrive", for example.
+delete-file-provider =
+    { $count ->
+        [one] 1 photo is in { $service }, where macOS doesn't let Seura Photos move photos to the Trash, so it's left as it is. You can delete it in Finder.
+       *[other] { $count } photos are in { $service }, where macOS doesn't let Seura Photos move photos to the Trash, so they're left as they are. You can delete them in Finder.
+    }
+delete-cloud-service = a cloud service's folder
+delete-show-in-finder = Show in Finder
 delete-confirm =
     { $system ->
         [mac] Move to Trash

@@ -746,7 +746,9 @@ export const useStore = create<State>()((set, get) => ({
       get().say(t("delete-failed", { count: ids.length, system }));
       return;
     }
-    const { deleted, readOnly, cloudOnly, noTrash, failed, failedReason } = result.data;
+    const { deleted, readOnly, cloudOnly, noTrash, fileProvider, failed, failedReason } =
+      result.data;
+    const service = confirming.summary.fileProviderService ?? t("delete-cloud-service");
     if (deleted > 0 && viewing !== null && gone.has(viewing)) {
       set({ viewing: (after ?? before)?.id ?? null });
     }
@@ -756,6 +758,7 @@ export const useStore = create<State>()((set, get) => ({
         cloudOnly > 0 ? t("delete-cloud-only", { count: cloudOnly, system }) : null,
         readOnly > 0 ? t("delete-read-only", { count: readOnly }) : null,
         noTrash > 0 ? t("delete-no-trash", { count: noTrash, system }) : null,
+        fileProvider > 0 ? t("delete-file-provider", { count: fileProvider, service }) : null,
         failed > 0 ? t("delete-failed", { count: failed, system }) : null,
         failed > 0 && failedReason !== null
           ? t("delete-failed-reason", { reason: failedReason, system })

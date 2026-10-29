@@ -1056,20 +1056,25 @@ pub struct Deleting {
     /// Left as they are: on a drive with no Recycle Bin, such as a USB stick
     /// or a network share.
     pub no_trash: u32,
+    /// Left as they are, by id: on the Mac, in a file provider's folder
+    /// such as OneDrive's, where macOS refuses to move them to the Trash for
+    /// Seura (#112), and the service, for the confirmation to name.
+    pub file_provider: Vec<u32>,
+    pub file_provider_service: Option<String>,
 }
 
 #[tauri::command(async)]
 #[specta::specta]
 pub fn deleting(library: State<'_, Library>, ids: Vec<u32>) -> Deleting {
-    let photos: Vec<(PathBuf, bool)> = {
+    let photos: Vec<(u32, PathBuf, bool)> = {
         let index = library.index.read().expect("index lock");
         ids.iter()
             .filter_map(|id| {
-                let id = PhotoId::new(*id);
+                let photo = PhotoId::new(*id);
                 let read_only = index
-                    .folder(index.photo(id)?.folder)
+                    .folder(index.photo(photo)?.folder)
                     .is_some_and(|folder| folder.read_only);
-                Some((index.path(id)?, read_only))
+                Some((*id, index.path(photo)?, read_only))
             })
             .collect()
     };
@@ -1078,7 +1083,7 @@ pub fn deleting(library: State<'_, Library>, ids: Vec<u32>) -> Deleting {
     let mut services: std::collections::HashMap<PathBuf, Option<String>> =
         std::collections::HashMap::new();
     let mut trash_for: std::collections::HashMap<PathBuf, bool> = std::collections::HashMap::new();
-    for (path, read_only) in photos {
+    for (id, path, read_only) in photos {
         let folder = path.parent().unwrap_or(&path).to_path_buf();
         if read_only {
             deleting.read_only += 1;
@@ -1087,6 +1092,11 @@ pub fn deleting(library: State<'_, Library>, ids: Vec<u32>) -> Deleting {
             .or_insert_with_key(|folder| seura_library::has_trash(folder))
         {
             deleting.no_trash += 1;
+        } else if seura_library::trash_refused(&path) {
+            deleting.file_provider.push(id);
+            if deleting.file_provider_service.is_none() {
+                deleting.file_provider_service = crate::synced::sync_service(&folder);
+            }
         } else if std::fs::metadata(&path).is_ok_and(|metadata| is_placeholder(&metadata)) {
             deleting.cloud_only += 1;
         } else {
@@ -1115,6 +1125,8 @@ pub struct DeleteResult {
     pub read_only: u32,
     pub cloud_only: u32,
     pub no_trash: u32,
+    /// On the Mac, in a file provider's folder (#112).
+    pub file_provider: u32,
     /// The system didn't move them, such as files in use.
     pub failed: u32,
     /// Why, in the system's own words, for the first of them (#112).
@@ -1143,6 +1155,7 @@ pub async fn delete_photos(app: AppHandle, ids: Vec<u32>) -> Result<DeleteResult
                 seura_library::DeleteProblem::ReadOnly => result.read_only += 1,
                 seura_library::DeleteProblem::CloudOnly => result.cloud_only += 1,
                 seura_library::DeleteProblem::NoTrash => result.no_trash += 1,
+                seura_library::DeleteProblem::FileProvider => result.file_provider += 1,
                 seura_library::DeleteProblem::Gone => {}
                 seura_library::DeleteProblem::Failed(reason) => {
                     result.failed += 1;

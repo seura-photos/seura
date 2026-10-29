@@ -323,6 +323,8 @@ export type DeleteResult = {
 	readOnly: number,
 	cloudOnly: number,
 	noTrash: number,
+	/**  On the Mac, in a file provider's folder (#112). */
+	fileProvider: number,
 	/**  The system didn't move them, such as files in use. */
 	failed: number,
 	/**  Why, in the system's own words, for the first of them (#112). */
@@ -357,6 +359,13 @@ export type Deleting = {
 	 *  or a network share.
 	 */
 	noTrash: number,
+	/**
+	 *  Left as they are, by id: on the Mac, in a file provider's folder
+	 *  such as OneDrive's, where macOS refuses to move them to the Trash for
+	 *  Seura (#112), and the service, for the confirmation to name.
+	 */
+	fileProvider: number[],
+	fileProviderService: string | null,
 };
 
 /**  Developer switches, from environment variables. */
