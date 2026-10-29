@@ -526,7 +526,8 @@ button {
   font-weight: var(--type-panel-heading-weight);
 }
 
-.button:disabled {
+.button:disabled,
+.icon-button:disabled {
   opacity: 0.6;
   cursor: default;
 }
