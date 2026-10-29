@@ -1628,6 +1628,28 @@ pub async fn revert_photo(app: AppHandle, id: u32) -> Result<EditStepped, String
     .map_err(|error| error.to_string())
 }
 
+/// After photo `id`'s edit file changed outside Seura while it's open in
+/// the Editor (FIL-3; user flows, flow 11): with `keep`, writes the
+/// Editor's edits back over the other, as one change that can be undone;
+/// otherwise loads the other.
+#[tauri::command]
+#[specta::specta]
+pub async fn resolve_outside_change(
+    app: AppHandle,
+    id: u32,
+    keep: bool,
+) -> Result<EditStepped, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let library = app.state::<Library>();
+        stepped(
+            &app,
+            app.state::<Editor>().resolve(&app, &library, id, keep),
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
 /// What an undo, redo, or revert in the Editor did, for the UI.
 fn stepped(app: &AppHandle, result: Result<crate::editor::Stepped, Problem>) -> EditStepped {
     match result {

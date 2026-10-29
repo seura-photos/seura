@@ -474,6 +474,51 @@ fn edt_10_revert_and_its_undo_write_only_edit_files_and_keep_what_another_app_wr
 }
 
 #[test]
+fn fil_3_a_save_after_the_file_changed_on_disk_keeps_what_the_other_app_wrote() {
+    let library = Library::new();
+    let (index, ids) = scanned(&library);
+    let trash = Trash::new();
+    let photo = &library.photos()[0];
+    let brightness = |ev| seura_edit::Action {
+        label: "Brightness".into(),
+        edits: vec![crate::exposure(ev)],
+    };
+    Index::edit_photo(&index, ids[0], &brightness(0.5), WRITER, now(), &|path| {
+        trash.take(path)
+    })
+    .unwrap();
+    // Meanwhile, another app (or Seura on another computer) changes the
+    // file: a rating, and an operation of its own.
+    let mut root: Value =
+        serde_json::from_slice(&fs::read(edit_file_path(photo)).unwrap()).unwrap();
+    root["rating"] = serde_json::json!(5);
+    let grain = serde_json::json!({
+        "id": "com.example.grain", "version": 1, "params": { "size": 2 }, "group": "effects"
+    });
+    root["operations"]
+        .as_array_mut()
+        .unwrap()
+        .push(grain.clone());
+    fs::write(
+        edit_file_path(photo),
+        serde_json::to_vec_pretty(&root).unwrap(),
+    )
+    .unwrap();
+
+    // The Editor's change that was waiting is saved onto the file as it is
+    // now, never over it.
+    Index::edit_photo(&index, ids[0], &brightness(1.0), WRITER, now(), &|path| {
+        trash.take(path)
+    })
+    .unwrap();
+    let after: Value = serde_json::from_slice(&fs::read(edit_file_path(photo)).unwrap()).unwrap();
+    assert_eq!(after["rating"], 5);
+    assert_eq!(after["operations"][1], grain);
+    assert_eq!(after["operations"][0]["params"]["ev"], 1.0);
+    assert_eq!(saved(photo).history_len(), 2);
+}
+
+#[test]
 fn fil_4_start_over_keeps_the_unreadable_file_unchanged_in_seuras_folder() {
     let library = Library::new();
     let photo = &library.photos()[0];

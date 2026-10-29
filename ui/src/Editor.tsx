@@ -1,9 +1,10 @@
-import { Redo2, Undo2 } from "lucide-react";
+import { Redo2, TriangleAlert, Undo2 } from "lucide-react";
 import { type PointerEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   type ChangeDetail,
   commands,
   type EditSteps,
+  events,
   NEUTRAL_SETTINGS,
   type PhotoEdit,
   type RenderSettings,
@@ -107,6 +108,10 @@ export function Editor({ id, forceWebgl2 }: Props) {
   useEffect(() => {
     idNow.current = id;
   }, [id]);
+  // The photo whose edit file changed outside Seura, until the user chooses
+  // to keep theirs or load the other (FIL-3).
+  const [outside, setOutside] = useState<number | null>(null);
+  const outsideNow = outside === id;
   // The photo whose revert is being confirmed (EDT-10).
   const [confirming, setConfirming] = useState<number | null>(null);
   const confirmingNow = confirming === id;
@@ -331,8 +336,10 @@ export function Editor({ id, forceWebgl2 }: Props) {
   }
 
   /** Undoes the photo's last change, or redoes the last undone, from its
-   * own history (EDT-9). */
+   * own history (EDT-9). Not while the file changed outside Seura and the
+   * user hasn't chosen: the history is the other's then. */
   function step(undo: boolean) {
+    if (outsideNow) return;
     changeWhole(
       (photoId) => commands.stepEdit(photoId, undo),
       (label, detail) => stepMessage(undo, label, detail),
@@ -343,12 +350,39 @@ export function Editor({ id, forceWebgl2 }: Props) {
   /** Reverts to the original, once confirmed (EDT-10); undo brings it back. */
   function revert() {
     setConfirming(null);
+    if (outsideNow) return;
     changeWhole(
       (photoId) => commands.revertPhoto(photoId),
       () => t("editor-reverted"),
       (reason) => t("editor-revert-failed", { reason }),
     );
   }
+
+  /** Keeps the user's edits over the other, as one change that can be
+   * undone, or loads the other (FIL-3; user flows, flow 11). */
+  function resolve(keep: boolean) {
+    setOutside(null);
+    changeWhole(
+      (photoId) => commands.resolveOutsideChange(photoId, keep),
+      () => t(keep ? "editor-kept-yours" : "editor-loaded-theirs"),
+      (reason) => t("editor-resolve-failed", { reason }),
+    );
+  }
+
+  // The watcher found the open photo's edit file changed outside Seura:
+  // its edits stay as shown until the user chooses (FIL-3). When only its
+  // tags, rating, or history changed, undo and redo follow.
+  const changedOutside = useEffectEvent(
+    (changed: { id: number; conflict: boolean; steps: EditSteps }) => {
+      if (changed.id !== idNow.current) return;
+      if (changed.conflict) setOutside(changed.id);
+      saved(changed.id, changed.steps);
+    },
+  );
+  useEffect(() => {
+    const listening = events.editFileChanged.listen(({ payload }) => changedOutside(payload));
+    return () => void listening.then((stop) => stop());
+  }, []);
 
   // The Edit menu's Undo and Redo come here while the Editor is open (macOS).
   const fromMenu = useEffectEvent((undo: boolean) => step(undo));
@@ -467,7 +501,7 @@ export function Editor({ id, forceWebgl2 }: Props) {
             className="icon-button"
             aria-label={undoLabel}
             title={undoLabel}
-            disabled={!editable || !shown?.steps.undo}
+            disabled={!editable || outsideNow || !shown?.steps.undo}
             onClick={() => step(true)}
           >
             <Undo2 className="icon" aria-hidden />
@@ -477,7 +511,7 @@ export function Editor({ id, forceWebgl2 }: Props) {
             className="icon-button"
             aria-label={redoLabel}
             title={redoLabel}
-            disabled={!editable || !shown?.steps.redo}
+            disabled={!editable || outsideNow || !shown?.steps.redo}
             onClick={() => step(false)}
           >
             <Redo2 className="icon" aria-hidden />
@@ -499,6 +533,18 @@ export function Editor({ id, forceWebgl2 }: Props) {
         {/* The notice bar pushes the photo down rather than covering it
             (INT-6); the message is over the photo, near its bottom. */}
         <div className="editor-photo">
+          {outsideNow && (
+            <div className="notice-bar caution" role="alert">
+              <TriangleAlert className="icon" aria-hidden />
+              <p>{t("editor-changed-outside")}</p>
+              <button type="button" className="button" onClick={() => resolve(true)}>
+                {t("editor-keep-yours")}
+              </button>
+              <button type="button" className="button" onClick={() => resolve(false)}>
+                {t("editor-load-theirs")}
+              </button>
+            </div>
+          )}
           <NoticeBar ids={[photo.id]} photos={photos} />
           <div ref={stage} className="editor-stage">
             <canvas
@@ -602,7 +648,7 @@ export function Editor({ id, forceWebgl2 }: Props) {
               ref={revertButton}
               type="button"
               className="button caution"
-              disabled={!editable || !edited}
+              disabled={!editable || outsideNow || !edited}
               onClick={() => setConfirming(id)}
             >
               {t("editor-revert")}

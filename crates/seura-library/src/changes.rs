@@ -668,6 +668,25 @@ mod tests {
     }
 
     #[test]
+    fn a_rescan_reports_only_edit_files_changed_outside_seura_fil_3() {
+        let (dir, index, id) = library();
+        let root = index.read().unwrap().roots()[0].clone();
+        let rescan = || Index::scan_shared(&index, &root, &root).edit_files_changed;
+        change(&index, id, Change::Rating(3));
+        // Seura's own write isn't reported.
+        assert!(rescan().is_empty());
+        // Another app's is, once.
+        let path = dir.path().join("IMG_1.jpg.seura.json");
+        let text = fs::read_to_string(&path)
+            .unwrap()
+            .replace("\"rating\": 3", "\"rating\": 5");
+        fs::write(&path, text).unwrap();
+        assert_eq!(rescan(), [id]);
+        assert!(rescan().is_empty());
+        assert_eq!(index.read().unwrap().photo(id).unwrap().rating, 5);
+    }
+
+    #[test]
     fn an_edit_from_the_editor_goes_through_the_same_path_edt_11() {
         let (dir, index, id) = library();
         change(&index, id, Change::Rating(4));

@@ -602,6 +602,14 @@ editor-revert-confirm = Revert to original
 editor-revert-cancel = Cancel
 editor-reverted = Reverted to original
 editor-revert-failed = The photo couldn't be reverted: { $reason }
+# The open photo's edit file changed outside Seura (FIL-3; user flows,
+# flow 11).
+editor-changed-outside = This photo's edits were changed outside Seura Photos. Keep yours or load theirs?
+editor-keep-yours = Keep yours
+editor-load-theirs = Load theirs
+editor-kept-yours = Kept your edits
+editor-loaded-theirs = Loaded the edits made outside Seura Photos
+editor-resolve-failed = That didn't work: { $reason }
 editor-history-discarded = This photo's edits were changed outside Seura Photos without their history, so the history before that change is gone.
 editor-step-failed =
     { $undo ->

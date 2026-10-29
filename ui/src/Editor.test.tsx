@@ -15,6 +15,9 @@ const mocks = vi.hoisted(() => ({
   ),
   stepEdit: vi.fn<(id: number, undo: boolean) => Promise<unknown>>(),
   revertPhoto: vi.fn<(id: number) => Promise<unknown>>(),
+  resolveOutsideChange: vi.fn<(id: number, keep: boolean) => Promise<unknown>>(),
+  // The Editor's listener for its photo's edit file changing outside Seura.
+  fileChanged: null as ((event: { payload: unknown }) => void) | null,
   openPhoto: vi.fn<(id: number, longEdge: number, download: boolean) => Promise<unknown>>(),
   closePhoto: vi.fn(() => Promise.resolve(null)),
   draw: vi.fn(),
@@ -32,12 +35,21 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("./bindings", () => ({
   NEUTRAL_SETTINGS: mocks.neutral,
+  events: {
+    editFileChanged: {
+      listen: (listener: (event: { payload: unknown }) => void) => {
+        mocks.fileChanged = listener;
+        return Promise.resolve(() => {});
+      },
+    },
+  },
   commands: {
     openPhoto: mocks.openPhoto,
     closePhoto: mocks.closePhoto,
     editPhoto: mocks.editPhoto,
     stepEdit: mocks.stepEdit,
     revertPhoto: mocks.revertPhoto,
+    resolveOutsideChange: mocks.resolveOutsideChange,
     exportPhoto: vi.fn(),
     photoNotices: vi.fn(() =>
       Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
@@ -363,6 +375,77 @@ describe("Editor", () => {
     expect(
       screen.getByRole("button", { name: "Revert to original…" }).hasAttribute("disabled"),
     ).toBe(true);
+  });
+
+  it("keeps the user's edits when the file changes outside Seura, until they choose (FIL-3)", async () => {
+    mocks.opened.steps = { undo: "Brightness", redo: null };
+    mocks.resolveOutsideChange.mockImplementation((_id, keep) =>
+      Promise.resolve({
+        status: "ok",
+        data: {
+          kind: "done",
+          label: keep ? "Keep my edits" : "Load theirs",
+          detail: null,
+          settings: { exposureEv: keep ? 0.4 : 2, contrast: 20 },
+          steps: { undo: "Brightness", redo: null },
+        },
+      }),
+    );
+    edit();
+    const slider = await brightness();
+    act(() =>
+      mocks.fileChanged?.({
+        payload: { id: 7, conflict: true, steps: { undo: "Contrast", redo: null } },
+      }),
+    );
+    expect(
+      screen.getByText(
+        "This photo's edits were changed outside Seura Photos. Keep yours or load theirs?",
+      ),
+    ).toBeDefined();
+    // What's shown stays the user's; the history is the other's for now.
+    expect(slider.value).toBe("10");
+    expect(screen.getByRole("button", { name: "Undo Contrast" }).hasAttribute("disabled")).toBe(
+      true,
+    );
+    expect(
+      screen.getByRole("button", { name: "Revert to original…" }).hasAttribute("disabled"),
+    ).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Keep yours" }));
+    await waitFor(() => expect(mocks.resolveOutsideChange).toHaveBeenCalledWith(7, true));
+    expect(await screen.findByText("Kept your edits")).toBeDefined();
+    expect(screen.queryByText(/Keep yours or load theirs/)).toBeNull();
+
+    act(() =>
+      mocks.fileChanged?.({
+        payload: { id: 7, conflict: true, steps: { undo: "Brightness", redo: null } },
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Load theirs" }));
+    await waitFor(() => expect(slider.value).toBe("50"));
+    expect(screen.getByText("Loaded the edits made outside Seura Photos")).toBeDefined();
+  });
+
+  it("follows the history when only tags or the rating changed outside Seura", async () => {
+    edit();
+    await brightness();
+    act(() =>
+      mocks.fileChanged?.({
+        payload: { id: 7, conflict: false, steps: { undo: "Rating", redo: null } },
+      }),
+    );
+    expect(screen.queryByText(/Keep yours or load theirs/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Undo Rating" }).hasAttribute("disabled")).toBe(
+      false,
+    );
+    // Another photo's file isn't this one's business.
+    act(() =>
+      mocks.fileChanged?.({
+        payload: { id: 6, conflict: true, steps: { undo: null, redo: null } },
+      }),
+    );
+    expect(screen.queryByText(/Keep yours or load theirs/)).toBeNull();
   });
 
   it("says when another app changed the file without its history", async () => {
