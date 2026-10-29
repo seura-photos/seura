@@ -132,6 +132,8 @@ vi.mock("./bindings", () => ({
         readOnly: 0,
         cloudOnly: 1,
         noTrash: 0,
+        fileProvider: [],
+        fileProviderService: null,
       }),
     ),
     deletePhotos: vi.fn(() =>
@@ -142,6 +144,7 @@ vi.mock("./bindings", () => ({
           readOnly: 0,
           cloudOnly: 1,
           noTrash: 0,
+          fileProvider: 0,
           failed: 0,
           failedReason: null,
         },
@@ -758,6 +761,8 @@ describe("App", () => {
       readOnly: 0,
       cloudOnly: 1,
       noTrash: 2,
+      fileProvider: [],
+      fileProviderService: null,
     });
     fireEvent.keyDown(window, { key: "Delete" });
     const none = await screen.findByRole("alertdialog", {

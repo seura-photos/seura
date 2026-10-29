@@ -12,6 +12,7 @@ vi.mock("./bindings", () => ({
           readOnly: 0,
           cloudOnly: 0,
           noTrash: 0,
+          fileProvider: 0,
           failed: 1,
           failedReason: "Access is denied. (0x80070005)",
         },
@@ -32,6 +33,8 @@ describe("deleting photos (BRW-9)", () => {
       readOnly: 0,
       cloudOnly: 0,
       noTrash: 0,
+      fileProvider: [],
+      fileProviderService: null,
     };
     useStore.setState({ confirmingDelete: { ids: [1], summary } });
     await useStore.getState().confirmDelete(true);

@@ -17,6 +17,8 @@ const summary: Deleting = {
   readOnly: 0,
   cloudOnly: 0,
   noTrash: 0,
+  fileProvider: [],
+  fileProviderService: null,
 };
 
 const folder = { id: 1, name: "Holidays" } as FolderInfo;

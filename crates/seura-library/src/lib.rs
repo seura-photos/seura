@@ -37,7 +37,7 @@ pub use index::{
     TagId,
 };
 pub use notices::FileNotices;
-pub use platform::{has_trash, is_placeholder};
+pub use platform::{has_trash, is_placeholder, trash_refused};
 pub use scan::ScanReport;
 pub use settings::{
     DEFAULT_THUMBNAIL_SIZE, SETTINGS_FILE, SIDEBAR_WIDTHS, Settings, SettingsError, SettingsFile,

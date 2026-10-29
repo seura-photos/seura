@@ -15,7 +15,7 @@ use std::sync::RwLock;
 use seura_edit::edit_file_path;
 
 use crate::index::{Index, PhotoId};
-use crate::platform::{has_trash, is_placeholder};
+use crate::platform::{has_trash, is_placeholder, trash_refused};
 
 /// Why a photo wasn't deleted. It's where it was.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -26,6 +26,9 @@ pub enum DeleteProblem {
     CloudOnly,
     /// Its drive has no Recycle Bin, such as a USB stick or a network share.
     NoTrash,
+    /// On the Mac, it's in a file provider's folder, such as OneDrive's,
+    /// where macOS refuses to move it to the Trash for Seura (#112).
+    FileProvider,
     /// It's no longer in the library.
     Gone,
     /// The system didn't move it, such as a file in use, with its reason
@@ -87,6 +90,10 @@ impl Index {
                     .or_insert_with_key(|folder| has_trash(folder))
                 {
                     report.problems.push((id, DeleteProblem::NoTrash));
+                    continue;
+                }
+                if trash_refused(&path) {
+                    report.problems.push((id, DeleteProblem::FileProvider));
                     continue;
                 }
                 // As it is now, not as last scanned.

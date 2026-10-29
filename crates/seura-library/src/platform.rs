@@ -162,6 +162,29 @@ mod access {
     }
 }
 
+/// Whether macOS refuses Seura when it moves this path's files to the
+/// Trash: they're in a file provider's folder, `~/Library/CloudStorage`,
+/// where OneDrive, Google Drive and Dropbox keep theirs. The installed app
+/// was refused for downloaded OneDrive photos, signed or not (#112), so
+/// Delete leaves them as they are and says why (the design session,
+/// 2026-10-29). Never on Windows.
+pub fn trash_refused(path: &Path) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else {
+            return false;
+        };
+        let cloud_storage = home.join("Library").join("CloudStorage");
+        path.canonicalize()
+            .is_ok_and(|path| path.starts_with(&cloud_storage))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = path;
+        false
+    }
+}
+
 /// Whether files on this path's drive can go to the Recycle Bin or Trash
 /// (BRW-9). On Windows, only fixed drives have a Recycle Bin: on a USB stick
 /// or a network share, the system deletes for good instead, and with the
