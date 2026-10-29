@@ -1777,10 +1777,12 @@ pub struct DevOptions {
     /// The settings the render check uses, so both sides agree.
     pub check_settings: RenderSettings,
     /// Whether M1's Editor is available: in development builds only, since
-    /// M2 writes no edit files (M2 work plan).
+    /// M2 writes no edit files (M2 work plan), and when measuring it.
     pub editor_available: bool,
     /// `SEURA_MEASURE=1` runs the measurement script (M2 slice 10).
     pub measure: bool,
+    /// `SEURA_MEASURE=sliders` runs the Editor's instead (PRF-6).
+    pub measure_sliders: bool,
     /// Every switch that changes how the app behaves, as `NAME=value`, so
     /// the UI can say they're on: they're easy to leave set by accident.
     pub active: Vec<String>,
@@ -1815,8 +1817,9 @@ pub fn dev_options() -> DevOptions {
         render_check: render_check_mode(),
         pseudo_locale: crate::locale::pseudo(),
         check_settings: seura_render::check::CHECK_SETTINGS.into(),
-        editor_available: cfg!(debug_assertions),
+        editor_available: cfg!(debug_assertions) || crate::measure::sliders(),
         measure: crate::measure::active(),
+        measure_sliders: crate::measure::sliders(),
         active: active_switches(),
     }
 }

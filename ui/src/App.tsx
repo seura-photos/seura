@@ -5,7 +5,7 @@ import { ConfirmDelete } from "./ConfirmDelete";
 import { ConfirmOpen } from "./ConfirmOpen";
 import { Editor } from "./Editor";
 import { Library } from "./Library";
-import { measure } from "./measure";
+import { measure, measureSliders } from "./measure";
 import { t } from "./messages";
 import { RenderCheck } from "./RenderCheck";
 import { TagPicker } from "./TagPicker";
@@ -34,8 +34,11 @@ export function App() {
       .getState()
       .start()
       .then(() => {
-        // SEURA_MEASURE=1: the release build measures itself (M2 slice 10).
-        if (useStore.getState().dev?.measure) void measure();
+        // SEURA_MEASURE=1: the release build measures itself (M2 slice 10);
+        // SEURA_MEASURE=sliders, the Editor's sliders (PRF-6).
+        const dev = useStore.getState().dev;
+        if (dev?.measureSliders) void measureSliders();
+        else if (dev?.measure) void measure();
       });
     const subscriptions = [
       events.libraryChanged.listen(() => void useStore.getState().loadFolders()),

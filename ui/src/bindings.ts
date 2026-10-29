@@ -377,11 +377,13 @@ export type DevOptions = {
 	checkSettings: RenderSettings,
 	/**
 	 *  Whether M1's Editor is available: in development builds only, since
-	 *  M2 writes no edit files (M2 work plan).
+	 *  M2 writes no edit files (M2 work plan), and when measuring it.
 	 */
 	editorAvailable: boolean,
 	/**  `SEURA_MEASURE=1` runs the measurement script (M2 slice 10). */
 	measure: boolean,
+	/**  `SEURA_MEASURE=sliders` runs the Editor's instead (PRF-6). */
+	measureSliders: boolean,
 	/**
 	 *  Every switch that changes how the app behaves, as `NAME=value`, so
 	 *  the UI can say they're on: they're easy to leave set by accident.

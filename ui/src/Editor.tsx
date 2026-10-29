@@ -14,6 +14,7 @@ import { Filmstrip } from "./Filmstrip";
 import { historyKey, isCompareKey, isTyping } from "./keys";
 import { Message } from "./Message";
 import { t } from "./messages";
+import { SHOWN_EVENT } from "./measure";
 import { MoreButton } from "./MoreButton";
 import { NoticeBar } from "./NoticeBar";
 import { type Backend, createPreview, fetchLinear } from "./preview";
@@ -274,6 +275,8 @@ export function Editor({ id, forceWebgl2 }: Props) {
         steps: data.steps,
         problem: data.problem,
       });
+      // For the measurement script (PRF-6): this photo is drawn.
+      window.dispatchEvent(new CustomEvent(SHOWN_EVENT, { detail: id }));
     };
     opening.current = opening.current.then(show).catch((error: unknown) => {
       if (live) setStatus({ id, kind: "failed", reason: String(error) });
