@@ -18,7 +18,8 @@ import { noFilter, useStore } from "./store";
  */
 export async function measure(): Promise<void> {
   const report: Record<string, unknown> = {
-    screen: {
+    // The window's content area in CSS pixels, not the whole screen.
+    window: {
       width: window.innerWidth,
       height: window.innerHeight,
       scale: window.devicePixelRatio,
@@ -51,7 +52,8 @@ export async function measure(): Promise<void> {
 export async function measureSliders(): Promise<void> {
   const dev = useStore.getState().dev;
   const report: Record<string, unknown> = {
-    screen: {
+    // The window's content area in CSS pixels, not the whole screen.
+    window: {
       width: window.innerWidth,
       height: window.innerHeight,
       scale: window.devicePixelRatio,

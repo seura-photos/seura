@@ -11,4 +11,8 @@
   - every slider on every photo drew about 120 frames a second on both WebGPU and WebGL2, which is every frame the display shows; the target is 30;
   - opening took 0.14 s at 12 MP, 0.20 s at 24 MP and 0.32 s at 48 MP.
   - The preview is decoded to the window's size, so the photo's size only shows in the time to open it.
-- **The Mac is still to be measured,** with a release bundle there.
+- **The Mac, measured by the Mac session at Nevada's request** (M1 Max, macOS 26.6, 120 Hz ProMotion display, a 1440 × 868 window at scale 2):
+  - every slider on every photo drew 60 frames a second on both WebGPU and WebGL2, with no frame over 33 ms;
+  - opening took 0.19 s at 12 MP, 0.29 s at 24 MP and 0.50 s at 48 MP on WebGPU, and about the same on WebGL2.
+  - WebKit gives a page at most 60 animation frames a second, even on a 120 Hz display, so 60 is the ceiling there, not the GPU's limit. The margin over 30 is real; how much more there is, this can't show.
+- **A label fixed, from the Mac session's report:** the results called the window's size "screen"; it's now "window", in both scripts.
