@@ -22,6 +22,7 @@ tempfile = { workspace = true }
 [dev-dependencies]
 naga = { workspace = true }
 half = { workspace = true }
+serde_json = { workspace = true }
 
 [lints]
 workspace = true
