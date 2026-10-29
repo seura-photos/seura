@@ -1,6 +1,7 @@
 import { Redo2, Undo2 } from "lucide-react";
 import { type PointerEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import {
+  type ChangeDetail,
   commands,
   type EditSteps,
   NEUTRAL_SETTINGS,
@@ -31,6 +32,16 @@ type Props = {
   id: number;
   forceWebgl2: boolean;
 };
+
+/** What undo or redo did, for the message: a rating or tag change says
+ * what it was, since the Editor doesn't show them; an edit, its label. */
+function stepMessage(undo: boolean, label: string, detail: ChangeDetail | null): string {
+  const done = String(undo);
+  if (detail?.kind === "rating")
+    return t("editor-stepped-rating", { undo: done, stars: detail.stars });
+  if (detail) return t("editor-stepped-tag", { undo: done, kind: detail.kind, tag: detail.tag });
+  return t(undo ? "editor-undid" : "editor-redid", { change: label });
+}
 
 /** What's known of a photo being opened; until there's any, it's loading. */
 type Status = { id: number } & (
@@ -291,8 +302,7 @@ export function Editor({ id, forceWebgl2 }: Props) {
         // Numbers from Rust can be null, which would mean NaN; there is none here.
         if (photoId === id) setEv(data.settings.exposureEv ?? 0);
       }
-      if (data.kind === "done")
-        say(t(undo ? "editor-undid" : "editor-redid", { change: data.label }));
+      if (data.kind === "done") say(stepMessage(undo, data.label, data.detail));
       else if (data.kind === "discarded") say(t("editor-history-discarded"));
       else if (data.kind === "readOnly") say(t("editor-save-read-only"));
       else if (data.kind === "unreadable") say(t("editor-save-unreadable"));

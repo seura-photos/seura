@@ -68,9 +68,67 @@ impl EditSteps {
     }
 }
 
+/// A change to a photo's rating or tags, which the Editor doesn't show, so
+/// the message after undoing or redoing it says what it was.
+#[derive(Clone, Debug, PartialEq, Serialize, Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ChangeDetail {
+    /// The rating was set to `stars`; 0 is removing it.
+    Rating {
+        stars: u8,
+    },
+    AddTag {
+        tag: String,
+    },
+    RemoveTag {
+        tag: String,
+    },
+}
+
+impl ChangeDetail {
+    /// The detail of a history record that changed only the rating, or
+    /// added or removed one tag; `None` for anything else, which its label
+    /// names well enough.
+    fn of(record: &serde_json::Value) -> Option<ChangeDetail> {
+        let [change] = record.get("changes")?.as_array()?.as_slice() else {
+            return None;
+        };
+        let tags = |side: &str| -> Option<Vec<&str>> {
+            change
+                .get(side)?
+                .as_array()?
+                .iter()
+                .map(serde_json::Value::as_str)
+                .collect()
+        };
+        match change.get("field")?.as_str()? {
+            "rating" => Some(ChangeDetail::Rating {
+                stars: u8::try_from(change.get("to")?.as_u64()?).ok()?,
+            }),
+            "tags" => {
+                let (from, to) = (tags("from")?, tags("to")?);
+                let added: Vec<_> = to.iter().filter(|tag| !from.contains(tag)).collect();
+                let removed: Vec<_> = from.iter().filter(|tag| !to.contains(tag)).collect();
+                match (added.as_slice(), removed.as_slice()) {
+                    ([tag], []) => Some(ChangeDetail::AddTag {
+                        tag: tag.to_string(),
+                    }),
+                    ([], [tag]) => Some(ChangeDetail::RemoveTag {
+                        tag: tag.to_string(),
+                    }),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
 /// What undoing or redoing a change in the Editor did, and the photo now.
 pub struct Stepped {
     pub step: Step,
+    /// The change undone or redone, when it was to the rating or tags.
+    pub detail: Option<ChangeDetail>,
     pub settings: Settings,
     pub steps: EditSteps,
 }
@@ -148,12 +206,25 @@ impl Editor {
             .filter(|session| session.id == id)
             .ok_or_else(|| Problem::Failed("that photo isn't open".into()))?;
         let step = library.step_edit(app, PhotoId::new(id), undo, &mut session.kept)?;
-        let (settings, steps) =
-            saved(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
+        let document = current(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
+        let document = document.as_ref();
+        // The record just stepped: after undo the first undone, after redo
+        // the last that isn't.
+        let record = document.and_then(|document| {
+            if undo {
+                document.next_redo()
+            } else {
+                document.last_change()
+            }
+        });
         Ok(Stepped {
+            detail: match step {
+                Step::Done(_) => record.as_ref().and_then(ChangeDetail::of),
+                _ => None,
+            },
             step,
-            settings,
-            steps,
+            settings: document.map(Settings::from_document).unwrap_or_default(),
+            steps: EditSteps::of(document),
         })
     }
 
@@ -224,12 +295,20 @@ impl Editor {
 /// error if the file can't be read: the photo can't be edited then, and its
 /// file is never overwritten (FIL-4; CLAUDE.md rule 4).
 fn saved(photo: &Path, kept: Option<&EditDocument>) -> Result<(Settings, EditSteps), String> {
-    let file = EditFile::load(&edit_file_path(photo)).map_err(|error| error.to_string())?;
-    let document = file.as_ref().map(|file| &file.document).or(kept);
+    let document = current(photo, kept)?;
     Ok((
-        document.map(Settings::from_document).unwrap_or_default(),
-        EditSteps::of(document),
+        document
+            .as_ref()
+            .map(Settings::from_document)
+            .unwrap_or_default(),
+        EditSteps::of(document.as_ref()),
     ))
+}
+
+/// The photo's edit document: its file's, or without a file, `kept`.
+fn current(photo: &Path, kept: Option<&EditDocument>) -> Result<Option<EditDocument>, String> {
+    let file = EditFile::load(&edit_file_path(photo)).map_err(|error| error.to_string())?;
+    Ok(file.map(|file| file.document).or_else(|| kept.cloned()))
 }
 
 /// The action for a brightness setting (EDT-5): one record in the photo's
@@ -313,6 +392,45 @@ mod tests {
         save_exposure(&photo, 1.25);
         let opened = Editor::default().open(1, photo, 16).unwrap();
         assert_eq!(opened.settings.exposure_ev, 1.25);
+    }
+
+    #[test]
+    fn a_rating_or_tag_change_is_described_for_the_message() {
+        let record = |changes: serde_json::Value| serde_json::json!({ "changes": changes });
+        assert_eq!(
+            ChangeDetail::of(&record(serde_json::json!([
+                { "field": "rating", "from": 0, "to": 3 }
+            ]))),
+            Some(ChangeDetail::Rating { stars: 3 })
+        );
+        assert_eq!(
+            ChangeDetail::of(&record(serde_json::json!([
+                { "field": "tags", "from": ["sea"], "to": ["sea", "beach"] }
+            ]))),
+            Some(ChangeDetail::AddTag {
+                tag: "beach".into()
+            })
+        );
+        assert_eq!(
+            ChangeDetail::of(&record(serde_json::json!([
+                { "field": "tags", "from": ["sea", "beach"], "to": ["beach"] }
+            ]))),
+            Some(ChangeDetail::RemoveTag { tag: "sea".into() })
+        );
+        // An edit, or several changes at once, is named by its label.
+        assert_eq!(
+            ChangeDetail::of(&record(serde_json::json!([
+                { "op": "seura.exposure", "from": null, "to": { "ev": 1.0 } }
+            ]))),
+            None
+        );
+        assert_eq!(
+            ChangeDetail::of(&record(serde_json::json!([
+                { "field": "rating", "from": 0, "to": 3 },
+                { "field": "tags", "from": [], "to": ["sea"] }
+            ]))),
+            None
+        );
     }
 
     #[test]

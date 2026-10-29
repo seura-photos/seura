@@ -10,3 +10,10 @@
 - **Saves and undo take turns.** A change waiting to be saved is saved first, then undone. A save that finished after the undo would otherwise have overwritten it.
 - **Checked in the real app** through UI Automation on the scratch library: undo, undo to an empty file (it went to the Recycle Bin), and redo writing it back with all three records.
 - **A gap for the design session, found while planning revert (2b):** EDT-10 says revert "removes all edits". A history record keeps only an operation's `params`, so undo couldn't bring back another app's operation whole (its `version`, `group` and `required`). Rule 4 also says such operations are kept. Claude Code's plan for 2b: revert removes Seura's own operations and keeps other apps', said plainly in that pull request.
+- **Found by Nevada in their check:**
+  - The undo and redo buttons looked the same whether or not there was anything to undo. Icon buttons had no disabled style; they now fade like other disabled buttons.
+  - Undoing a rating from the Editor worked, but the only sign was "Undid Rating", since the Editor doesn't show ratings. Claude Code offered three ways forward:
+    - name the change in the message;
+    - show the rating and tags in the Editor;
+    - keep the Editor's undo to edits only, which would break the shared history.
+  - **Nevada chose the first, and ruled out showing them:** "the editor is for editing the photo itself, not its metadata." The message now says "Undid rating of 3 stars", "Undid removing the rating", or "Undid adding “beach”".

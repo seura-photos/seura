@@ -273,6 +273,14 @@ export type AddFolderResult =
 /**  Added, replacing these library folders inside it. */
 { kind: "absorbed"; folders: string[] };
 
+/**
+ *  A change to a photo's rating or tags, which the Editor doesn't show, so
+ *  the message after undoing or redoing it says what it was.
+ */
+export type ChangeDetail = 
+/**  The rating was set to `stars`; 0 is removing it. */
+{ kind: "rating"; stars: number } | { kind: "addTag"; tag: string } | { kind: "removeTag"; tag: string };
+
 /**  What a change did, in numbers of photos. */
 export type ChangeResult = {
 	/**  Their edit files were written, created, or moved to the Trash. */
@@ -387,7 +395,12 @@ export type EditSaved =
 /**  What undo or redo in the Editor did (EDT-9). */
 export type EditStepped = 
 /**  The change with this label was undone or redone. */
-{ kind: "done"; label: string; settings: RenderSettings; steps: EditSteps } | 
+{ kind: "done"; label: string; 
+/**
+ *  What it was, when it changed the rating or tags, which the
+ *  Editor doesn't show.
+ */
+detail: ChangeDetail | null; settings: RenderSettings; steps: EditSteps } | 
 /**  Nothing to undo or redo. */
 { kind: "nothing" } | 
 /**

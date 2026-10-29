@@ -300,6 +300,31 @@ describe("Editor", () => {
     await waitFor(() => expect(mocks.stepEdit).toHaveBeenCalledTimes(3));
   });
 
+  it("says what a rating or tag change was, since the Editor doesn't show them", async () => {
+    mocks.opened.steps = { undo: "Rating", redo: null };
+    const done = (detail: unknown) => ({
+      status: "ok",
+      data: {
+        kind: "done",
+        label: "Rating",
+        detail,
+        settings: { exposureEv: 0.4, contrast: 20 },
+        steps: { undo: "Rating", redo: "Rating" },
+      },
+    });
+    mocks.stepEdit.mockResolvedValueOnce(done({ kind: "rating", stars: 3 }));
+    mocks.stepEdit.mockResolvedValueOnce(done({ kind: "rating", stars: 0 }));
+    mocks.stepEdit.mockResolvedValueOnce(done({ kind: "addTag", tag: "beach" }));
+    edit();
+    await brightness();
+    fireEvent.click(screen.getByRole("button", { name: "Undo Rating" }));
+    expect(await screen.findByText("Undid rating of 3 stars")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Redo Rating" }));
+    expect(await screen.findByText("Redid removing the rating")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Undo Rating" }));
+    expect(await screen.findByText("Undid adding “beach”")).toBeDefined();
+  });
+
   it("says when another app changed the file without its history", async () => {
     mocks.opened.steps = { undo: "Brightness", redo: null };
     mocks.stepEdit.mockResolvedValue({

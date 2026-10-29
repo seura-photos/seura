@@ -566,6 +566,36 @@ editor-undo-change = Undo { $change }
 editor-redo-change = Redo { $change }
 editor-undid = Undid { $change }
 editor-redid = Redid { $change }
+# Undoing or redoing a rating or tag change made in the Library, which
+# the Editor doesn't show.
+editor-stepped-rating =
+    { $undo ->
+        [true] { $stars ->
+            [0] Undid removing the rating
+           *[other] Undid rating of { $stars ->
+                [one] 1 star
+               *[other] { $stars } stars
+            }
+        }
+       *[false] { $stars ->
+            [0] Redid removing the rating
+           *[other] Redid rating of { $stars ->
+                [one] 1 star
+               *[other] { $stars } stars
+            }
+        }
+    }
+editor-stepped-tag =
+    { $undo ->
+        [true] { $kind ->
+            [addTag] Undid adding “{ $tag }”
+           *[removeTag] Undid removing “{ $tag }”
+        }
+       *[false] { $kind ->
+            [addTag] Redid adding “{ $tag }”
+           *[removeTag] Redid removing “{ $tag }”
+        }
+    }
 editor-history-discarded = This photo's edits were changed outside Seura Photos without their history, so the history before that change is gone.
 editor-step-failed =
     { $undo ->

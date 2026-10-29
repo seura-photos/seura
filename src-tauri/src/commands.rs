@@ -13,7 +13,7 @@ use specta::Type;
 use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 
-use crate::editor::{EditSteps, Editor};
+use crate::editor::{ChangeDetail, EditSteps, Editor};
 use crate::library::{AppSettings, Library, LibraryChanged};
 use crate::viewer::{Viewer, Wanted};
 use crate::welcome;
@@ -1577,6 +1577,9 @@ pub enum EditStepped {
     #[serde(rename_all = "camelCase")]
     Done {
         label: String,
+        /// What it was, when it changed the rating or tags, which the
+        /// Editor doesn't show.
+        detail: Option<ChangeDetail>,
         settings: RenderSettings,
         steps: EditSteps,
     },
@@ -1615,6 +1618,7 @@ pub async fn step_edit(app: AppHandle, id: u32, undo: bool) -> Result<EditSteppe
                 match stepped.step {
                     seura_edit::Step::Done(label) => EditStepped::Done {
                         label,
+                        detail: stepped.detail,
                         settings,
                         steps,
                     },
