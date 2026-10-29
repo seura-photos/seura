@@ -596,6 +596,12 @@ editor-stepped-tag =
            *[removeTag] Redid removing “{ $tag }”
         }
     }
+editor-revert = Revert to original…
+editor-revert-question = Remove every edit to this photo? Its tags and rating stay, and you can undo this.
+editor-revert-confirm = Revert to original
+editor-revert-cancel = Cancel
+editor-reverted = Reverted to original
+editor-revert-failed = The photo couldn't be reverted: { $reason }
 editor-history-discarded = This photo's edits were changed outside Seura Photos without their history, so the history before that change is gone.
 editor-step-failed =
     { $undo ->

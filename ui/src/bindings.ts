@@ -184,6 +184,12 @@ export const commands = {
 	 *  history is the edit file's, shared with the Library's undo.
 	 */
 	stepEdit: (id: number, undo: boolean) => typedError<EditStepped, string>(__TAURI_INVOKE("step_edit", { id, undo })),
+	/**
+	 *  Reverts photo `id`, open in the Editor, to the original (EDT-10): one
+	 *  change in its history, so it can be undone. Tags and rating stay. The
+	 *  Editor confirms first.
+	 */
+	revertPhoto: (id: number) => typedError<EditStepped, string>(__TAURI_INVOKE("revert_photo", { id })),
 	/**  Asks for a folder and exports the open photo there as JPEG (EXP-1, EXP-5). */
 	exportPhoto: (id: number) => typedError<ExportResult, string>(__TAURI_INVOKE("export_photo", { id })),
 	devOptions: () => __TAURI_INVOKE<DevOptions>("dev_options"),

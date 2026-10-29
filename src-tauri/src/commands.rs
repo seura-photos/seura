@@ -1539,13 +1539,11 @@ pub async fn edit_photo(app: AppHandle, id: u32, edit: PhotoEdit) -> Result<Edit
         let action = match edit {
             PhotoEdit::Brightness { ev } => crate::editor::exposure_action(ev),
         };
-        match app.state::<Library>().edit(&app, PhotoId::new(id), &action) {
-            Ok(()) => {
-                let steps = app.state::<Editor>().edited(id);
-                if let Some(steps) = &steps {
-                    crate::menu::edit_steps_changed(&app, steps);
-                }
-                EditSaved::Saved { steps }
+        let library = app.state::<Library>();
+        match app.state::<Editor>().edit(&app, &library, id, &action) {
+            Ok(steps) => {
+                crate::menu::edit_steps_changed(&app, &steps);
+                EditSaved::Saved { steps: Some(steps) }
             }
             Err(Problem::ReadOnly) => EditSaved::ReadOnly,
             Err(Problem::Unreadable) => EditSaved::Unreadable,
@@ -1610,31 +1608,50 @@ pub enum EditStepped {
 pub async fn step_edit(app: AppHandle, id: u32, undo: bool) -> Result<EditStepped, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let library = app.state::<Library>();
-        match app.state::<Editor>().step(&app, &library, id, undo) {
-            Ok(stepped) => {
-                crate::menu::edit_steps_changed(&app, &stepped.steps);
-                let settings = stepped.settings.into();
-                let steps = stepped.steps;
-                match stepped.step {
-                    seura_edit::Step::Done(label) => EditStepped::Done {
-                        label,
-                        detail: stepped.detail,
-                        settings,
-                        steps,
-                    },
-                    seura_edit::Step::Nothing => EditStepped::Nothing,
-                    seura_edit::Step::Discarded => EditStepped::Discarded { settings, steps },
-                }
-            }
-            Err(Problem::ReadOnly) => EditStepped::ReadOnly,
-            Err(Problem::Unreadable) => EditStepped::Unreadable,
-            Err(problem) => EditStepped::Failed {
-                reason: reason(problem),
-            },
-        }
+        stepped(&app, app.state::<Editor>().step(&app, &library, id, undo))
     })
     .await
     .map_err(|error| error.to_string())
+}
+
+/// Reverts photo `id`, open in the Editor, to the original (EDT-10): one
+/// change in its history, so it can be undone. Tags and rating stay. The
+/// Editor confirms first.
+#[tauri::command]
+#[specta::specta]
+pub async fn revert_photo(app: AppHandle, id: u32) -> Result<EditStepped, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let library = app.state::<Library>();
+        stepped(&app, app.state::<Editor>().revert(&app, &library, id))
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+/// What an undo, redo, or revert in the Editor did, for the UI.
+fn stepped(app: &AppHandle, result: Result<crate::editor::Stepped, Problem>) -> EditStepped {
+    match result {
+        Ok(stepped) => {
+            crate::menu::edit_steps_changed(app, &stepped.steps);
+            let settings = stepped.settings.into();
+            let steps = stepped.steps;
+            match stepped.step {
+                seura_edit::Step::Done(label) => EditStepped::Done {
+                    label,
+                    detail: stepped.detail,
+                    settings,
+                    steps,
+                },
+                seura_edit::Step::Nothing => EditStepped::Nothing,
+                seura_edit::Step::Discarded => EditStepped::Discarded { settings, steps },
+            }
+        }
+        Err(Problem::ReadOnly) => EditStepped::ReadOnly,
+        Err(Problem::Unreadable) => EditStepped::Unreadable,
+        Err(problem) => EditStepped::Failed {
+            reason: reason(problem),
+        },
+    }
 }
 
 /// What exporting did.

@@ -102,6 +102,20 @@ export function Editor({ id, forceWebgl2 }: Props) {
   const saving = useRef<Promise<unknown>>(Promise.resolve());
   // Photos open one after another, so a slow one can't replace a newer one.
   const opening = useRef<Promise<unknown>>(Promise.resolve());
+  // The photo shown now, for work that finishes after a move to another.
+  const idNow = useRef(id);
+  useEffect(() => {
+    idNow.current = id;
+  }, [id]);
+  // The photo whose revert is being confirmed (EDT-10).
+  const [confirming, setConfirming] = useState<number | null>(null);
+  const confirmingNow = confirming === id;
+  const cancelRevert = useRef<HTMLButtonElement>(null);
+  const revertButton = useRef<HTMLButtonElement>(null);
+  // The safe choice has the focus, so Enter is safe (INT-5).
+  useEffect(() => {
+    if (confirmingNow) cancelRevert.current?.focus();
+  }, [confirmingNow]);
 
   const index = photos.findIndex((photo) => photo.id === id);
   const photo = index >= 0 ? photos[index] : undefined;
@@ -282,33 +296,58 @@ export function Editor({ id, forceWebgl2 }: Props) {
     closeEditor();
   }
 
-  /** Undoes the photo's last change, or redoes the last undone, from its
-   * own history (EDT-9), after saving what's waiting. Saves and steps go
-   * one after another, so none overtakes another. */
-  function step(undo: boolean) {
+  /**
+   * Changes the photo's edits as a whole, by undo, redo, or revert, after
+   * saving what's waiting: saves and these go one after another, so none
+   * overtakes another. The Editor then shows what's saved.
+   */
+  function changeWhole(
+    call: (photoId: number) => ReturnType<typeof commands.stepEdit>,
+    done: (label: string, detail: ChangeDetail | null) => string,
+    failed: (reason: string) => string,
+  ) {
     // Not while it's loading, or can't be changed (FIL-4).
     if (!shown || shown.problem !== null) return;
     void flush();
     const photoId = id;
     saving.current = saving.current.then(async () => {
-      const result = await commands.stepEdit(photoId, undo);
+      const result = await call(photoId);
       if (result.status === "error") {
-        say(t("editor-step-failed", { undo: String(undo), reason: result.error }));
+        say(failed(result.error));
         return;
       }
       const data = result.data;
       if (data.kind === "done" || data.kind === "discarded") {
         saved(photoId, data.steps, data.settings);
         // Numbers from Rust can be null, which would mean NaN; there is none here.
-        if (photoId === id) setEv(data.settings.exposureEv ?? 0);
+        if (photoId === idNow.current) setEv(data.settings.exposureEv ?? 0);
       }
-      if (data.kind === "done") say(stepMessage(undo, data.label, data.detail));
+      if (data.kind === "done") say(done(data.label, data.detail));
       else if (data.kind === "discarded") say(t("editor-history-discarded"));
       else if (data.kind === "readOnly") say(t("editor-save-read-only"));
       else if (data.kind === "unreadable") say(t("editor-save-unreadable"));
-      else if (data.kind === "failed")
-        say(t("editor-step-failed", { undo: String(undo), reason: data.reason }));
+      else if (data.kind === "failed") say(failed(data.reason));
     });
+  }
+
+  /** Undoes the photo's last change, or redoes the last undone, from its
+   * own history (EDT-9). */
+  function step(undo: boolean) {
+    changeWhole(
+      (photoId) => commands.stepEdit(photoId, undo),
+      (label, detail) => stepMessage(undo, label, detail),
+      (reason) => t("editor-step-failed", { undo: String(undo), reason }),
+    );
+  }
+
+  /** Reverts to the original, once confirmed (EDT-10); undo brings it back. */
+  function revert() {
+    setConfirming(null);
+    changeWhole(
+      (photoId) => commands.revertPhoto(photoId),
+      () => t("editor-reverted"),
+      (reason) => t("editor-revert-failed", { reason }),
+    );
   }
 
   // The Edit menu's Undo and Redo come here while the Editor is open (macOS).
@@ -328,7 +367,11 @@ export function Editor({ id, forceWebgl2 }: Props) {
   const onKey = useEffectEvent((event: KeyboardEvent) => {
     if (event.key === "Escape") {
       event.preventDefault();
-      done();
+      // Esc first cancels a revert being confirmed.
+      if (confirmingNow) {
+        setConfirming(null);
+        revertButton.current?.focus();
+      } else done();
       return;
     }
     if (isCompareKey(event)) {
@@ -397,6 +440,13 @@ export function Editor({ id, forceWebgl2 }: Props) {
         : null;
   const problem = shown?.problem ?? null;
   const editable = shown !== null && problem === null;
+  // Whether there's anything of Seura's to revert, as shown now.
+  const edited =
+    shown !== null &&
+    Object.entries(NEUTRAL_SETTINGS).some(
+      ([name, neutral]) =>
+        (name === "exposureEv" ? ev : shown.settings[name as keyof RenderSettings]) !== neutral,
+    );
   const undoLabel = shown?.steps.undo
     ? t("editor-undo-change", { change: shown.steps.undo })
     : t("editor-undo");
@@ -525,6 +575,40 @@ export function Editor({ id, forceWebgl2 }: Props) {
             {t("editor-read-only", { reason: problem })}
           </p>
         )}
+
+        {/* Last, and cautionary (wireframes). Confirming puts Cancel where
+            the pointer is, the destructive choice below it (INT-5). */}
+        <div className="editor-section editor-revert">
+          {confirmingNow ? (
+            <div role="group" aria-labelledby="revert-question">
+              <button
+                ref={cancelRevert}
+                type="button"
+                className="button"
+                onClick={() => {
+                  setConfirming(null);
+                  revertButton.current?.focus();
+                }}
+              >
+                {t("editor-revert-cancel")}
+              </button>
+              <p id="revert-question">{t("editor-revert-question")}</p>
+              <button type="button" className="button danger" onClick={revert}>
+                {t("editor-revert-confirm")}
+              </button>
+            </div>
+          ) : (
+            <button
+              ref={revertButton}
+              type="button"
+              className="button caution"
+              disabled={!editable || !edited}
+              onClick={() => setConfirming(id)}
+            >
+              {t("editor-revert")}
+            </button>
+          )}
+        </div>
       </aside>
     </div>
   );

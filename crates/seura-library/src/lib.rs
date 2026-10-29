@@ -28,7 +28,7 @@ mod tree;
 mod undo;
 mod watch;
 
-pub use changes::{Change, ChangeReport, Problem};
+pub use changes::{Change, ChangeReport, Problem, REVERT, revert_action};
 pub use delete::{DeleteProblem, DeleteReport};
 pub use fingerprint::{fingerprint_file, to_hex};
 pub use formats::Format;

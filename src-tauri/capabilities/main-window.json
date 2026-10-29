@@ -41,6 +41,7 @@
     "allow-close-viewer",
     "allow-edit-photo",
     "allow-step-edit",
+    "allow-revert-photo",
     "allow-export-photo",
     "allow-dev-options",
     "allow-text-scale",

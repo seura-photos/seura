@@ -158,6 +158,7 @@ impl Index {
             }
             match write(
                 &target,
+                None,
                 |loaded| action_for(change, loaded),
                 writer,
                 at,
@@ -198,6 +199,28 @@ impl Index {
         at: OffsetDateTime,
         trash: &dyn Fn(&Path) -> io::Result<()>,
     ) -> Result<bool, Problem> {
+        let mut kept = None;
+        Index::edit_photo_with(index, id, &mut kept, |_| action.clone(), writer, at, trash)
+    }
+
+    /// The same, with the action made from the edit file as loaded (none
+    /// if the photo has none yet), for a change that depends on what's
+    /// there, such as revert (EDT-10).
+    ///
+    /// `kept` is the Editor's, as for [`Index::step_photo`]: the document
+    /// of an edit file that went to the Trash because nothing was left in
+    /// it. Without a file on disk, the change starts from it, so the
+    /// photo's history goes on and the change before can still be undone.
+    /// It's updated with what's on disk now.
+    pub fn edit_photo_with(
+        index: &RwLock<Index>,
+        id: PhotoId,
+        kept: &mut Option<EditDocument>,
+        make: impl FnOnce(Option<&EditFile>) -> Action,
+        writer: Writer,
+        at: OffsetDateTime,
+        trash: &dyn Fn(&Path) -> io::Result<()>,
+    ) -> Result<bool, Problem> {
         let target = index
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -206,9 +229,10 @@ impl Index {
         if target.read_only {
             return Err(Problem::ReadOnly);
         }
-        match write(&target, |_| action.clone(), writer, at, trash) {
+        match write(&target, kept.clone(), make, writer, at, trash) {
             Ok(None) => Ok(false),
-            Ok(Some(written)) => {
+            Ok(Some(mut written)) => {
+                *kept = written.removed.take();
                 index
                     .write()
                     .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -327,6 +351,29 @@ impl Index {
     }
 }
 
+/// Revert's label in the history.
+pub const REVERT: &str = "Revert to original";
+
+/// Revert to original (EDT-10): removes each of Seura's operations that's
+/// on, as one action. Kept: tags and rating; other apps' operations and
+/// versions Seura can't edit, which undo couldn't bring back whole (a
+/// history record has only their `params`; CLAUDE.md rule 4); and
+/// operations that are off, which aren't drawn, and which undo would bring
+/// back on.
+pub fn revert_action(document: Option<&EditDocument>) -> Action {
+    Action {
+        label: REVERT.into(),
+        edits: document
+            .map(EditDocument::operations)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|operation| operation.enabled)
+            .filter_map(|operation| operation.core)
+            .map(|core| Edit::Remove(core.id()))
+            .collect(),
+    }
+}
+
 /// A Library change as an action on a photo's edit file, as `loaded` (none
 /// if the photo has no edit file yet).
 fn action_for(change: &Change, loaded: Option<&EditFile>) -> Action {
@@ -358,6 +405,7 @@ fn action_for(change: &Change, loaded: Option<&EditFile>) -> Action {
 /// as it's loaded now. `None` if the action changes nothing.
 fn write(
     target: &Target,
+    base: Option<EditDocument>,
     make: impl FnOnce(Option<&EditFile>) -> Action,
     writer: Writer,
     at: OffsetDateTime,
@@ -369,6 +417,9 @@ fn write(
         seura_edit::LoadError::Read(_) => Problem::Unreadable,
         seura_edit::LoadError::Io(error) => io_problem(&error, folder),
     })?;
+    // Without a file, `base` is where the change starts, if given; saving
+    // checks again, at the last moment, that nothing has appeared since.
+    let loaded = loaded.or_else(|| base.map(|document| EditFile::create(&edit_path, document)));
     let action = make(loaded.as_ref());
 
     let mut fingerprint = None;
@@ -763,6 +814,136 @@ mod tests {
             Some(seura_edit::CoreOperation::Exposure(seura_edit::Exposure {
                 ev: 2.0
             }))
+        );
+    }
+
+    fn revert(index: &RwLock<Index>, id: PhotoId) -> Result<bool, Problem> {
+        revert_kept(index, id, &mut None)
+    }
+
+    fn revert_kept(
+        index: &RwLock<Index>,
+        id: PhotoId,
+        kept: &mut Option<EditDocument>,
+    ) -> Result<bool, Problem> {
+        let trash = |path: &Path| fs::remove_file(path);
+        Index::edit_photo_with(
+            index,
+            id,
+            kept,
+            |loaded| revert_action(loaded.map(|file| &file.document)),
+            WRITER,
+            OffsetDateTime::now_utc(),
+            &trash,
+        )
+    }
+
+    #[test]
+    fn a_change_that_empties_the_file_can_still_be_undone_edt_10() {
+        let (dir, index, id) = library();
+        let path = dir.path().join("IMG_1.jpg.seura.json");
+        let trash = |path: &Path| fs::remove_file(path);
+        let edit = |ev, kept: &mut Option<EditDocument>| {
+            Index::edit_photo_with(
+                &index,
+                id,
+                kept,
+                |_| brighter(ev),
+                WRITER,
+                OffsetDateTime::now_utc(),
+                &trash,
+            )
+        };
+        let mut kept = None;
+        edit(0.5, &mut kept).unwrap();
+
+        // Reverted, nothing's left: the file goes, and the Editor keeps it.
+        assert_eq!(revert_kept(&index, id, &mut kept), Ok(true));
+        assert!(!path.exists());
+        assert_eq!(
+            step(&index, id, true, &mut kept),
+            Ok(Step::Done(REVERT.into()))
+        );
+        assert_eq!(saved(&dir).operations().len(), 1);
+
+        // Brightness back to 0: the same, and the next change goes on from
+        // the history rather than starting a new one.
+        edit(0.0, &mut kept).unwrap();
+        assert!(!path.exists());
+        edit(1.0, &mut kept).unwrap();
+        assert!(kept.is_none());
+        // The undone revert went with the next change, as the format says.
+        assert_eq!(saved(&dir).history_len(), 3);
+        assert_eq!(
+            step(&index, id, true, &mut kept),
+            Ok(Step::Done("Brightness".into()))
+        );
+        assert_eq!(
+            step(&index, id, true, &mut kept),
+            Ok(Step::Done("Brightness".into()))
+        );
+        assert_eq!(
+            saved(&dir).core(seura_edit::CoreOpId::Exposure),
+            Some(seura_edit::CoreOperation::Exposure(seura_edit::Exposure {
+                ev: 0.5
+            }))
+        );
+    }
+
+    #[test]
+    fn revert_removes_seura_s_edits_and_keeps_the_rest_edt_10() {
+        let (dir, index, id) = library();
+        let at = OffsetDateTime::now_utc();
+        change(&index, id, Change::Rating(4));
+        change(&index, id, Change::AddTag("beach".into()));
+        Index::edit_photo(&index, id, &brighter(0.5), WRITER, at, &no_trash).unwrap();
+        // Another app's operation, and one of Seura's turned off.
+        let path = dir.path().join("IMG_1.jpg.seura.json");
+        let mut root: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        let operations = root["operations"].as_array_mut().unwrap();
+        operations.push(serde_json::json!({
+            "id": "seura.contrast", "version": 1, "params": { "amount": 30 }, "enabled": false
+        }));
+        operations.push(serde_json::json!({
+            "id": "com.example.grain", "version": 1, "params": { "size": 2 }, "group": "effects"
+        }));
+        fs::write(&path, serde_json::to_vec_pretty(&root).unwrap()).unwrap();
+
+        assert_eq!(revert(&index, id), Ok(true));
+        let document = saved(&dir);
+        let ids: Vec<_> = document.operations().into_iter().map(|op| op.id).collect();
+        assert_eq!(ids, ["seura.contrast", "com.example.grain"]);
+        assert_eq!(document.rating(), 4);
+        assert_eq!(document.tags(), ["beach"]);
+        assert_eq!(document.history_len(), 4);
+        // Nothing of Seura's left on: a second revert changes nothing.
+        assert_eq!(revert(&index, id), Ok(false));
+
+        // One change in the history, so undo brings the edits back (EDT-10).
+        assert_eq!(
+            step(&index, id, true, &mut None),
+            Ok(Step::Done(REVERT.into()))
+        );
+        assert_eq!(
+            saved(&dir).core(seura_edit::CoreOpId::Exposure),
+            Some(seura_edit::CoreOperation::Exposure(seura_edit::Exposure {
+                ev: 0.5
+            }))
+        );
+    }
+
+    #[test]
+    fn reverting_an_unedited_photo_writes_nothing() {
+        let (dir, index, id) = library();
+        assert_eq!(revert(&index, id), Ok(false));
+        assert!(!dir.path().join("IMG_1.jpg.seura.json").exists());
+        change(&index, id, Change::Rating(2));
+        let before = fs::read(dir.path().join("IMG_1.jpg.seura.json")).unwrap();
+        assert_eq!(revert(&index, id), Ok(false));
+        assert_eq!(
+            fs::read(dir.path().join("IMG_1.jpg.seura.json")).unwrap(),
+            before
         );
     }
 
