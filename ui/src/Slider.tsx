@@ -3,6 +3,9 @@ import { formatSigned } from "./format";
 
 type Props = {
   label: string;
+  /** What the track's ends mean, named under it: Cool and Warm, Green and
+   * Magenta (EDT-5). */
+  ends?: [string, string];
   /** −100 to 100, neutral at 0 (EDT-5). */
   value: number;
   disabled: boolean;
@@ -18,7 +21,7 @@ type Props = {
  * drag ends, so a drag is one record in the photo's history (edit format,
  * "History"). Double-click resets it.
  */
-export function Slider({ label, value, disabled, onInput, onCommit }: Props) {
+export function Slider({ label, ends, value, disabled, onInput, onCommit }: Props) {
   const id = useId();
   const input = useRef<HTMLInputElement>(null);
   // The input's own change event is the commit: it fires when a drag is
@@ -56,6 +59,12 @@ export function Slider({ label, value, disabled, onInput, onCommit }: Props) {
           onCommit(0);
         }}
       />
+      {ends && (
+        <div className="slider-ends" aria-hidden>
+          <span>{ends[0]}</span>
+          <span>{ends[1]}</span>
+        </div>
+      )}
     </div>
   );
 }

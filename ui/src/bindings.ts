@@ -600,7 +600,18 @@ export type PhotoDetails = {
 /**  A change made in the Editor (EDT-5). */
 export type PhotoEdit = 
 /**  `seura.exposure`, in stops. */
-{ kind: "brightness"; ev: number | null };
+{ kind: "brightness"; ev: number | null } | 
+/**  `seura.contrast`, −100 to 100. */
+{ kind: "contrast"; amount: number | null } | 
+/**
+ *  `seura.whiteBalance` from the Temperature slider: both its
+ *  settings, −100 to 100.
+ */
+{ kind: "temperature"; temperature: number | null; tint: number | null } | 
+/**  The same, from the Tint slider. */
+{ kind: "tint"; temperature: number | null; tint: number | null } | 
+/**  `seura.saturation`, −100 to 100. */
+{ kind: "saturation"; amount: number | null };
 
 /**  What the grid is narrowed to (FND-1), applied to whatever it shows. */
 export type PhotoFilter = {

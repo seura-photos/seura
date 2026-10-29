@@ -94,8 +94,6 @@ export function Editor({ id, forceWebgl2 }: Props) {
   const [status, setStatus] = useState<Status | null>(null);
   // Try again after a failed download asks for the photo once more.
   const [attempt, setAttempt] = useState(0);
-  // The photo's settings as shown: brightness in stops.
-  const [ev, setEv] = useState(0);
   const [comparing, setComparing] = useState(false);
   const [exporting, setExporting] = useState(false);
   // A finished change waiting to be saved, and the saves in progress.
@@ -267,8 +265,6 @@ export function Editor({ id, forceWebgl2 }: Props) {
       element.height = image.height;
       renderer.upload(image);
       renderer.draw(data.settings);
-      // Numbers from Rust can be null, which would mean NaN; there is none here.
-      setEv(data.settings.exposureEv ?? 0);
       setStatus({
         id,
         kind: "shown",
@@ -292,9 +288,18 @@ export function Editor({ id, forceWebgl2 }: Props) {
   const settings = shown?.settings ?? null;
   useEffect(() => {
     if (!settings) return;
-    const drawn = comparing ? NEUTRAL_SETTINGS : { ...settings, exposureEv: ev };
+    const drawn = comparing ? NEUTRAL_SETTINGS : settings;
     void backend.current?.then((renderer) => renderer?.draw(drawn));
-  }, [settings, ev, comparing]);
+  }, [settings, comparing]);
+
+  /** A slider's movement, shown at once; saved when it's committed. */
+  function adjust(change: Partial<RenderSettings>) {
+    setStatus((status) =>
+      status?.id === id && status.kind === "shown"
+        ? { ...status, settings: { ...status.settings, ...change } }
+        : status,
+    );
+  }
 
   function done() {
     void flush();
@@ -324,8 +329,6 @@ export function Editor({ id, forceWebgl2 }: Props) {
       const data = result.data;
       if (data.kind === "done" || data.kind === "discarded") {
         saved(photoId, data.steps, data.settings);
-        // Numbers from Rust can be null, which would mean NaN; there is none here.
-        if (photoId === idNow.current) setEv(data.settings.exposureEv ?? 0);
       }
       if (data.kind === "done") say(done(data.label, data.detail));
       else if (data.kind === "discarded") say(t("editor-history-discarded"));
@@ -478,9 +481,12 @@ export function Editor({ id, forceWebgl2 }: Props) {
   const edited =
     shown !== null &&
     Object.entries(NEUTRAL_SETTINGS).some(
-      ([name, neutral]) =>
-        (name === "exposureEv" ? ev : shown.settings[name as keyof RenderSettings]) !== neutral,
+      ([name, neutral]) => shown.settings[name as keyof RenderSettings] !== neutral,
     );
+  // The sliders' values as shown. Numbers from Rust can be null, which
+  // would mean NaN; there is none here.
+  const value = (name: "exposureEv" | "contrast" | "temperature" | "tint" | "saturation") =>
+    shown?.settings[name] ?? 0;
   const undoLabel = shown?.steps.undo
     ? t("editor-undo-change", { change: shown.steps.undo })
     : t("editor-undo");
@@ -609,10 +615,46 @@ export function Editor({ id, forceWebgl2 }: Props) {
           </h2>
           <Slider
             label={t("editor-brightness")}
-            value={ev * PER_STOP}
+            value={value("exposureEv") * PER_STOP}
             disabled={!editable}
-            onInput={(value) => setEv(value / PER_STOP)}
-            onCommit={(value) => commit({ kind: "brightness", ev: value / PER_STOP })}
+            onInput={(to) => adjust({ exposureEv: to / PER_STOP })}
+            onCommit={(to) => commit({ kind: "brightness", ev: to / PER_STOP })}
+          />
+          <Slider
+            label={t("editor-contrast")}
+            value={value("contrast")}
+            disabled={!editable}
+            onInput={(to) => adjust({ contrast: to })}
+            onCommit={(to) => commit({ kind: "contrast", amount: to })}
+          />
+        </section>
+
+        <section className="editor-section" aria-label={t("editor-color")}>
+          <h2 className="section-label" aria-hidden>
+            {t("editor-color")}
+          </h2>
+          <Slider
+            label={t("editor-temperature")}
+            ends={[t("editor-cool"), t("editor-warm")]}
+            value={value("temperature")}
+            disabled={!editable}
+            onInput={(to) => adjust({ temperature: to })}
+            onCommit={(to) => commit({ kind: "temperature", temperature: to, tint: value("tint") })}
+          />
+          <Slider
+            label={t("editor-tint")}
+            ends={[t("editor-green"), t("editor-magenta")]}
+            value={value("tint")}
+            disabled={!editable}
+            onInput={(to) => adjust({ tint: to })}
+            onCommit={(to) => commit({ kind: "tint", temperature: value("temperature"), tint: to })}
+          />
+          <Slider
+            label={t("editor-saturation")}
+            value={value("saturation")}
+            disabled={!editable}
+            onInput={(to) => adjust({ saturation: to })}
+            onCommit={(to) => commit({ kind: "saturation", amount: to })}
           />
         </section>
 

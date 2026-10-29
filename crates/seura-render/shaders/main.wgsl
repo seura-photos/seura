@@ -5,7 +5,8 @@
 // format's canonical order (seura-render's `Settings`). An operation whose
 // parameters are neutral is skipped: the branch is on a uniform, so it costs
 // nothing, and there are no separate flags to keep in step. Operations arrive
-// one by one in M4; so far only exposure is rendered.
+// one by one in M4; so far exposure, white balance, contrast and saturation
+// are rendered.
 struct Params {
     // 0: Display P3, for the preview. 1: sRGB, for export (EXP-5).
     output_srgb: u32,
@@ -66,6 +67,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var color = sample.rgb;
     if params.exposure_ev != 0.0 {
         color = exposure(color, params.exposure_ev);
+    }
+    if params.temperature != 0.0 || params.tint != 0.0 {
+        color = white_balance(color, params.temperature, params.tint);
+    }
+    if params.contrast != 0.0 {
+        color = contrast(color, params.contrast);
+    }
+    if params.saturation != 0.0 {
+        color = saturation(color, params.saturation);
     }
     if params.output_srgb == 1u {
         color = P3_TO_SRGB * color;

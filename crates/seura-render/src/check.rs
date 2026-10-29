@@ -7,10 +7,15 @@ use seura_image::{LinearImage, Rgba8};
 
 use crate::Settings;
 
-/// The settings the check renders with: an exposure that isn't a whole
-/// stop, so rounding differences would show.
+/// The settings the check renders with: every operation built so far, at
+/// values that aren't round, so a difference in any would show. Contrast is
+/// moderate, so the ramps keep some pixels on each side of middle gray.
 pub const CHECK_SETTINGS: Settings = Settings {
     exposure_ev: 0.7,
+    temperature: 23.0,
+    tint: -17.0,
+    contrast: 37.0,
+    saturation: 29.0,
     ..Settings::NEUTRAL
 };
 

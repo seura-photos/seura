@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 use seura_edit::{
-    Action, CoreOpId, CoreOperation, Edit, EditDocument, EditFile, Exposure, Step, Writer,
-    edit_file_path,
+    Action, Amount, CoreOpId, CoreOperation, Edit, EditDocument, EditFile, Exposure, Step,
+    WhiteBalance, Writer, edit_file_path,
 };
 use seura_image::{LinearImage, Rgba8};
 use seura_library::{PhotoId, Problem};
@@ -529,6 +529,35 @@ pub fn exposure_action(ev: f64) -> Action {
     }
 }
 
+/// The edit format's range for the light and color sliders (EDT-5).
+const AMOUNT_RANGE: (f64, f64) = (-100.0, 100.0);
+
+/// One setting of a light or color slider (EDT-5), as its action: one
+/// record in the photo's history, labelled as the slider is; a neutral
+/// setting removes the operation.
+pub fn slider_action(label: &str, operation: CoreOperation) -> Action {
+    let amount = |value: f64| value.clamp(AMOUNT_RANGE.0, AMOUNT_RANGE.1);
+    let operation = match operation {
+        CoreOperation::WhiteBalance(WhiteBalance { temperature, tint }) => {
+            CoreOperation::WhiteBalance(WhiteBalance {
+                temperature: amount(temperature),
+                tint: amount(tint),
+            })
+        }
+        CoreOperation::Contrast(Amount { amount: value }) => CoreOperation::Contrast(Amount {
+            amount: amount(value),
+        }),
+        CoreOperation::Saturation(Amount { amount: value }) => CoreOperation::Saturation(Amount {
+            amount: amount(value),
+        }),
+        other => other,
+    };
+    Action {
+        label: label.into(),
+        edits: vec![Edit::Set(operation)],
+    }
+}
+
 /// Working-space pixels as the preview fetches them: width and height as
 /// little-endian `u32`s, then RGBA half floats, little-endian.
 pub fn encode_linear(image: &LinearImage) -> Vec<u8> {
@@ -717,6 +746,36 @@ mod tests {
             exposure_action(9.0).edits,
             [Edit::Set(CoreOperation::Exposure(Exposure { ev: 4.0 }))]
         );
+    }
+
+    #[test]
+    fn light_and_color_sliders_are_clamped_and_labelled_edt_5() {
+        let action = slider_action(
+            "Temperature",
+            CoreOperation::WhiteBalance(WhiteBalance {
+                temperature: 140.0,
+                tint: -101.0,
+            }),
+        );
+        assert_eq!(action.label, "Temperature");
+        assert_eq!(
+            action.edits,
+            [Edit::Set(CoreOperation::WhiteBalance(WhiteBalance {
+                temperature: 100.0,
+                tint: -100.0
+            }))]
+        );
+        // A neutral setting removes the operation from the file.
+        let (_folder, photo) = photo();
+        save_exposure(&photo, 0.5);
+        let mut file = EditFile::load(&edit_file_path(&photo)).unwrap().unwrap();
+        let now = time::OffsetDateTime::now_utc();
+        let contrast =
+            |amount| slider_action("Contrast", CoreOperation::Contrast(Amount { amount }));
+        file.document.apply(&contrast(30.0), now).unwrap();
+        assert!(file.document.core(CoreOpId::Contrast).is_some());
+        file.document.apply(&contrast(0.0), now).unwrap();
+        assert!(file.document.core(CoreOpId::Contrast).is_none());
     }
 
     #[test]

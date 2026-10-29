@@ -9,3 +9,7 @@
   - Keep yours wrote +40 back as "Keep my edits";
   - after a second change, Load theirs showed −25.
 - **Left as it is:** moving to another photo or closing the Editor before choosing leaves the file as it is on disk, the other app's version. The user's version wasn't saved anywhere else, so nothing of the file is lost. But their unsaved view is, and the pull request says so for Nevada to judge.
+- **How often it matters, after merging.** Nevada's impression: the case this mainly handles is uncommon, since it needs the same photo edited on two computers at once through a synced folder. Claude Code agreed, and listed the other ways it can happen, all rarer still: a late sync arriving while the photo is open, another app, a hand edit, or an older copy restored from a backup. The work is worth more than the notice, for two reasons:
+  - **The detection runs much more often than the notice shows.** Tags and ratings changed on the other computer sync in while the photo is open, and the Editor quietly follows them, so its undo never works from an out-of-date history.
+  - **The data was already safe, and still is.** Seura saves onto the file as it is on disk, never over it, so the other computer's edits are never lost. 2c adds the choice of what's shown; the data-safety test written for it checks that the other app's edits survive.
+- **For the devlog:** Nevada asked that the next post say this was built even though its main scenario is unlikely, and give these two reasons.
