@@ -1207,6 +1207,14 @@ button {
   gap: 0.5rem;
 }
 
+/* What the track's ends mean, small and quiet under it (EDT-5). */
+.slider-ends {
+  display: flex;
+  justify-content: space-between;
+  color: var(--color-text-secondary);
+  font-size: var(--type-meta-size);
+}
+
 .slider output {
   color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;

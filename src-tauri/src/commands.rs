@@ -17,6 +17,7 @@ use crate::editor::{ChangeDetail, EditSteps, Editor};
 use crate::library::{AppSettings, Library, LibraryChanged};
 use crate::viewer::{Viewer, Wanted};
 use crate::welcome;
+use seura_edit::{Amount, CoreOperation, WhiteBalance};
 
 /// The app's version, from `Cargo.toml`.
 #[tauri::command]
@@ -1510,6 +1511,15 @@ pub fn close_photo(app: AppHandle, editor: State<'_, Editor>, id: u32) {
 pub enum PhotoEdit {
     /// `seura.exposure`, in stops.
     Brightness { ev: f64 },
+    /// `seura.contrast`, −100 to 100.
+    Contrast { amount: f64 },
+    /// `seura.whiteBalance` from the Temperature slider: both its
+    /// settings, −100 to 100.
+    Temperature { temperature: f64, tint: f64 },
+    /// The same, from the Tint slider.
+    Tint { temperature: f64, tint: f64 },
+    /// `seura.saturation`, −100 to 100.
+    Saturation { amount: f64 },
 }
 
 /// What saving an Editor change did.
@@ -1538,6 +1548,21 @@ pub async fn edit_photo(app: AppHandle, id: u32, edit: PhotoEdit) -> Result<Edit
     tauri::async_runtime::spawn_blocking(move || {
         let action = match edit {
             PhotoEdit::Brightness { ev } => crate::editor::exposure_action(ev),
+            PhotoEdit::Contrast { amount } => {
+                crate::editor::slider_action("Contrast", CoreOperation::Contrast(Amount { amount }))
+            }
+            PhotoEdit::Temperature { temperature, tint } => crate::editor::slider_action(
+                "Temperature",
+                CoreOperation::WhiteBalance(WhiteBalance { temperature, tint }),
+            ),
+            PhotoEdit::Tint { temperature, tint } => crate::editor::slider_action(
+                "Tint",
+                CoreOperation::WhiteBalance(WhiteBalance { temperature, tint }),
+            ),
+            PhotoEdit::Saturation { amount } => crate::editor::slider_action(
+                "Saturation",
+                CoreOperation::Saturation(Amount { amount }),
+            ),
         };
         let library = app.state::<Library>();
         match app.state::<Editor>().edit(&app, &library, id, &action) {

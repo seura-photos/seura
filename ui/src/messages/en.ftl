@@ -547,6 +547,16 @@ editor-compare = Hold to compare
 editor-done = Done
 editor-light = Light
 editor-brightness = Brightness
+editor-contrast = Contrast
+editor-color = Color
+editor-temperature = Temperature
+editor-tint = Tint
+editor-saturation = Saturation
+# The ends of the temperature and tint sliders (EDT-5).
+editor-cool = Cool
+editor-warm = Warm
+editor-green = Green
+editor-magenta = Magenta
 editor-filmstrip = Filmstrip
 editor-export = Export…
 editor-exporting = Exporting…

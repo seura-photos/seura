@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
     kind: "opened",
     width: 4,
     height: 3,
-    settings: { exposureEv: 0.4, contrast: 20 },
+    settings: { exposureEv: 0.4, contrast: 20 } as Record<string, number>,
     steps: { undo: null as string | null, redo: null as string | null },
     problem: null as string | null,
   },
@@ -129,6 +129,7 @@ async function brightness() {
 describe("Editor", () => {
   beforeEach(() => {
     mocks.opened.problem = null;
+    mocks.opened.settings = { exposureEv: 0.4, contrast: 20 };
     mocks.opened.steps = { undo: null, redo: null };
     mocks.openPhoto.mockImplementation(() => Promise.resolve({ status: "ok", data: mocks.opened }));
   });
@@ -163,6 +164,44 @@ describe("Editor", () => {
     fireEvent.change(slider, { target: { value: "25" } });
     await waitFor(() => expect(mocks.editPhoto).toHaveBeenCalledTimes(1), { timeout: 1000 });
     expect(mocks.editPhoto).toHaveBeenCalledWith(7, { kind: "brightness", ev: 1 });
+  });
+
+  it("draws and saves contrast, temperature, tint and saturation (EDT-5)", async () => {
+    mocks.opened.settings = { exposureEv: 0.4, contrast: 20, temperature: 0, tint: 15 };
+    edit();
+    await brightness();
+    const slider = (name: string) => screen.getByRole("slider", { name }) as HTMLInputElement;
+    expect(slider("Contrast").value).toBe("20");
+    expect(slider("Tint").value).toBe("15");
+    expect(screen.getByText("Cool")).toBeDefined();
+    expect(screen.getByText("Magenta")).toBeDefined();
+
+    fireEvent.input(slider("Temperature"), { target: { value: "30" } });
+    await waitFor(() =>
+      expect(mocks.draw).toHaveBeenLastCalledWith({
+        exposureEv: 0.4,
+        contrast: 20,
+        temperature: 30,
+        tint: 15,
+      }),
+    );
+    // One operation: the temperature saved with the tint as it is.
+    fireEvent.change(slider("Temperature"), { target: { value: "30" } });
+    await waitFor(() =>
+      expect(mocks.editPhoto).toHaveBeenCalledWith(7, {
+        kind: "temperature",
+        temperature: 30,
+        tint: 15,
+      }),
+    );
+    fireEvent.change(slider("Saturation"), { target: { value: "-40" } });
+    await waitFor(() =>
+      expect(mocks.editPhoto).toHaveBeenLastCalledWith(7, { kind: "saturation", amount: -40 }),
+    );
+    fireEvent.doubleClick(slider("Contrast"));
+    await waitFor(() =>
+      expect(mocks.editPhoto).toHaveBeenLastCalledWith(7, { kind: "contrast", amount: 0 }),
+    );
   });
 
   it("double-clicking the slider resets it (EDT-5)", async () => {
