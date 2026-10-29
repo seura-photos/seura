@@ -1195,17 +1195,28 @@ pub fn show_thumbnails(library: State<'_, Library>, ids: Vec<u32>) {
     library.show(jobs);
 }
 
-/// A photo opened in the Editor.
+/// What the Editor can show of a photo (EDT-1).
 #[derive(Clone, Debug, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct OpenedPhoto {
-    /// The preview's size, fetched from `seura://…/preview`.
-    pub width: u32,
-    pub height: u32,
-    pub exposure_ev: f64,
-    /// Why the photo can't be edited, if it can't: its edit file can't be
-    /// read, and is never overwritten (FIL-4).
-    pub problem: Option<String>,
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum OpenedPhoto {
+    /// Decoded: its preview is at `seura://â€¦/preview`.
+    #[serde(rename_all = "camelCase")]
+    Opened {
+        /// The preview's size.
+        width: u32,
+        height: u32,
+        exposure_ev: f64,
+        /// Why the photo can't be edited, if it can't: its edit file can't
+        /// be read, and is never overwritten (FIL-4).
+        problem: Option<String>,
+    },
+    /// Only in the cloud, and not read: ask again with `download` to read
+    /// it, which downloads it (LIB-9), as in the Viewer.
+    #[serde(rename_all = "camelCase")]
+    CloudOnly {
+        /// In bytes, from the placeholder: what the download will be.
+        size: f64,
+    },
 }
 
 /// What the Viewer can show of a photo (BRW-5).
@@ -1359,26 +1370,42 @@ pub fn close_viewer(viewer: State<'_, Viewer>) {
 }
 
 /// Opens a photo in the Editor, with a preview `longEdge` pixels on its long
-/// side (the canvas size × the device pixel ratio, DSP-1).
+/// side (the canvas size Ã— the device pixel ratio, DSP-1). A cloud-only
+/// photo is read, downloading it, only with `download`, and waited for as
+/// the Viewer waits (LIB-9).
 #[tauri::command]
 #[specta::specta]
-pub async fn open_photo(app: AppHandle, id: u32, long_edge: u32) -> Result<OpenedPhoto, String> {
+pub async fn open_photo(
+    app: AppHandle,
+    id: u32,
+    long_edge: u32,
+    download: bool,
+) -> Result<OpenedPhoto, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let (photo, dimensions) = {
-            let library = app.state::<Library>();
-            let index = library.index.read().expect("index lock");
-            let photo = index
-                .path(PhotoId::new(id))
-                .ok_or("that photo isn't in the library")?;
-            let dimensions = index
-                .photo(PhotoId::new(id))
-                .and_then(|photo| photo.dimensions);
-            (photo, dimensions)
+        let (wanted, cloud_only, size) =
+            viewable(&app, id).ok_or("that photo isn't in the library")?;
+        if cloud_only && !download {
+            return Ok(OpenedPhoto::CloudOnly { size: size as f64 });
+        }
+        let open = move |app: &AppHandle| {
+            app.state::<Editor>()
+                .open(wanted.id, wanted.path, long_edge)
         };
-        let opened = app
-            .state::<Editor>()
-            .open(id, photo, dimensions, long_edge)?;
-        Ok(OpenedPhoto {
+        let opened = if cloud_only {
+            // On a thread of its own, as in the Viewer, so a download that
+            // never ends doesn't hold the Editor.
+            let (sender, receiver) = std::sync::mpsc::channel();
+            let handle = app.clone();
+            std::thread::spawn(move || {
+                let _ = sender.send(open(&handle));
+            });
+            receiver
+                .recv_timeout(DOWNLOAD_WAIT)
+                .map_err(|_| "the download took too long".to_string())??
+        } else {
+            open(&app)?
+        };
+        Ok(OpenedPhoto::Opened {
             width: opened.width,
             height: opened.height,
             exposure_ev: opened.exposure_ev,
@@ -1389,19 +1416,62 @@ pub async fn open_photo(app: AppHandle, id: u32, long_edge: u32) -> Result<Opene
     .map_err(|error| error.to_string())?
 }
 
+/// The Editor let photo `id` go: closed, or moved on to another.
 #[tauri::command]
 #[specta::specta]
-pub fn close_photo(editor: State<'_, Editor>) {
-    editor.close();
+pub fn close_photo(editor: State<'_, Editor>, id: u32) {
+    editor.close(id);
 }
 
-/// Sets the open photo's exposure (EDT-5) and saves its edit file (EDT-11).
+/// A change made in the Editor (EDT-5).
+#[derive(Clone, Debug, Deserialize, Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum PhotoEdit {
+    /// `seura.exposure`, in stops.
+    Brightness { ev: f64 },
+}
+
+/// What saving an Editor change did.
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum EditSaved {
+    /// Written, or already as asked.
+    Saved,
+    /// In a read-only folder (TAG-7).
+    ReadOnly,
+    /// Its edit file can't be read, so it's left alone (FIL-4).
+    Unreadable,
+    /// Anything else, such as a full drive, or the file changing on disk
+    /// meanwhile.
+    Failed { reason: String },
+}
+
+/// Saves a change to photo `id`'s edits (EDT-11), through the one write
+/// path for edit files. The Editor sends it within a second of the last
+/// change, and a slider drag as one change when it ends (edit format,
+/// "History").
 #[tauri::command]
 #[specta::specta]
-pub async fn set_exposure(app: AppHandle, id: u32, ev: f64) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || app.state::<Editor>().set_exposure(id, ev))
-        .await
-        .map_err(|error| error.to_string())?
+pub async fn edit_photo(app: AppHandle, id: u32, edit: PhotoEdit) -> Result<EditSaved, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let action = match edit {
+            PhotoEdit::Brightness { ev } => crate::editor::exposure_action(ev),
+        };
+        match app.state::<Library>().edit(&app, PhotoId::new(id), &action) {
+            Ok(()) => EditSaved::Saved,
+            Err(Problem::ReadOnly) => EditSaved::ReadOnly,
+            Err(Problem::Unreadable) => EditSaved::Unreadable,
+            Err(Problem::ChangedOnDisk) => EditSaved::Failed {
+                reason: "its edit file changed on disk meanwhile".into(),
+            },
+            Err(Problem::Gone) => EditSaved::Failed {
+                reason: "it's no longer in the library".into(),
+            },
+            Err(Problem::Failed(reason)) => EditSaved::Failed { reason },
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 /// What exporting did.

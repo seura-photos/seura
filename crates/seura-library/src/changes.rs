@@ -1,6 +1,7 @@
-//! Changing photos' tags and ratings from the Library (M3 slice 1): the one
-//! path every view uses to write edit files, so the rules live in one place
-//! (FIL-1, FIL-2, TAG-7; CLAUDE.md rules 1 to 5).
+//! Changing photos' tags and ratings from the Library (M3 slice 1), and
+//! their edits from the Editor (M4 slice 1): the one path every view uses to
+//! write edit files, so the rules live in one place (FIL-1, FIL-2, TAG-7;
+//! CLAUDE.md rules 1 to 5).
 //!
 //! Each photo's edit file is read, changed, and saved atomically, or moved to
 //! the Trash when nothing is left in it, and the index is updated with what
@@ -155,7 +156,13 @@ impl Index {
                 report.problems.push((id, Problem::ReadOnly));
                 continue;
             }
-            match write(&target, change, writer, at, trash) {
+            match write(
+                &target,
+                |loaded| action_for(change, loaded),
+                writer,
+                at,
+                trash,
+            ) {
                 Ok(None) => {}
                 Ok(Some(mut written)) => {
                     action.touched(id, &target.path, &mut written);
@@ -177,6 +184,47 @@ impl Index {
             }
         }
         (report, action)
+    }
+
+    /// Changes one photo's edits from the Editor (EDT-11), as `action`,
+    /// writing its edit file through the same path as the Library's changes.
+    /// Not recorded for the Library's undo: the photo's own history has it
+    /// (EDT-9). `Ok(false)` if the action changes nothing.
+    pub fn edit_photo(
+        index: &RwLock<Index>,
+        id: PhotoId,
+        action: &Action,
+        writer: Writer,
+        at: OffsetDateTime,
+        trash: &dyn Fn(&Path) -> io::Result<()>,
+    ) -> Result<bool, Problem> {
+        let target = index
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .target(id)
+            .ok_or(Problem::Gone)?;
+        if target.read_only {
+            return Err(Problem::ReadOnly);
+        }
+        match write(&target, |_| action.clone(), writer, at, trash) {
+            Ok(None) => Ok(false),
+            Ok(Some(written)) => {
+                index
+                    .write()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .record_written(id, &target.path, written);
+                Ok(true)
+            }
+            Err(problem) => {
+                if problem == Problem::ReadOnly {
+                    index
+                        .write()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .mark_read_only(id);
+                }
+                Err(problem)
+            }
+        }
     }
 
     fn target(&self, id: PhotoId) -> Option<Target> {
@@ -222,24 +270,10 @@ impl Index {
     }
 }
 
-/// Changes one photo's edit file. `None` if the change changes nothing.
-fn write(
-    target: &Target,
-    change: &Change,
-    writer: Writer,
-    at: OffsetDateTime,
-    trash: &dyn Fn(&Path) -> io::Result<()>,
-) -> Result<Option<Written>, Problem> {
-    let edit_path = edit_file_path(&target.path);
-    let folder = target.path.parent().unwrap_or(Path::new(""));
-    let loaded = EditFile::load(&edit_path).map_err(|error| match error {
-        seura_edit::LoadError::Read(_) => Problem::Unreadable,
-        seura_edit::LoadError::Io(error) => io_problem(&error, folder),
-    })?;
-    let current_tags = loaded
-        .as_ref()
-        .map(|file| file.document.tags())
-        .unwrap_or_default();
+/// A Library change as an action on a photo's edit file, as `loaded` (none
+/// if the photo has no edit file yet).
+fn action_for(change: &Change, loaded: Option<&EditFile>) -> Action {
+    let current_tags = loaded.map(|file| file.document.tags()).unwrap_or_default();
     let edit = match change {
         Change::Rating(stars) => Edit::Rating((*stars).min(5)),
         Change::AddTag(tag) => {
@@ -257,10 +291,28 @@ fn write(
             )
         }
     };
-    let action = Action {
+    Action {
         label: change.label().into(),
         edits: vec![edit],
-    };
+    }
+}
+
+/// Changes one photo's edit file with the action `make` gives for the file
+/// as it's loaded now. `None` if the action changes nothing.
+fn write(
+    target: &Target,
+    make: impl FnOnce(Option<&EditFile>) -> Action,
+    writer: Writer,
+    at: OffsetDateTime,
+    trash: &dyn Fn(&Path) -> io::Result<()>,
+) -> Result<Option<Written>, Problem> {
+    let edit_path = edit_file_path(&target.path);
+    let folder = target.path.parent().unwrap_or(Path::new(""));
+    let loaded = EditFile::load(&edit_path).map_err(|error| match error {
+        seura_edit::LoadError::Read(_) => Problem::Unreadable,
+        seura_edit::LoadError::Io(error) => io_problem(&error, folder),
+    })?;
+    let action = make(loaded.as_ref());
 
     let mut fingerprint = None;
     let mut file = match loaded {
@@ -504,6 +556,45 @@ mod tests {
         assert_eq!(
             photo.edit_file_stamp,
             Some((metadata.len(), FileTime::from(metadata.modified().unwrap())))
+        );
+    }
+
+    #[test]
+    fn an_edit_from_the_editor_goes_through_the_same_path_edt_11() {
+        let (dir, index, id) = library();
+        change(&index, id, Change::Rating(4));
+        let brighter = |ev| Action {
+            label: "Brightness".into(),
+            edits: vec![Edit::Set(seura_edit::CoreOperation::Exposure(
+                seura_edit::Exposure { ev },
+            ))],
+        };
+        let at = OffsetDateTime::now_utc();
+        assert_eq!(
+            Index::edit_photo(&index, id, &brighter(0.5), WRITER, at, &no_trash),
+            Ok(true)
+        );
+        let document = saved(&dir);
+        assert_eq!(document.rating(), 4);
+        assert_eq!(document.operations().len(), 1);
+        assert_eq!(
+            index.read().unwrap().photo(id).unwrap().edit_file,
+            EditFileState::Read { edited: true }
+        );
+        // The same setting again changes nothing, and writes nothing.
+        assert_eq!(
+            Index::edit_photo(&index, id, &brighter(0.5), WRITER, at, &no_trash),
+            Ok(false)
+        );
+        // A file that can't be read is never overwritten (CLAUDE.md rule 4).
+        fs::write(dir.path().join("IMG_1.jpg.seura.json"), "{").unwrap();
+        assert_eq!(
+            Index::edit_photo(&index, id, &brighter(1.0), WRITER, at, &no_trash),
+            Err(Problem::Unreadable)
+        );
+        assert_eq!(
+            fs::read(dir.path().join("IMG_1.jpg.seura.json")).unwrap(),
+            b"{"
         );
     }
 

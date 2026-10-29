@@ -39,7 +39,7 @@
     "allow-view-photo",
     "allow-view-region",
     "allow-close-viewer",
-    "allow-set-exposure",
+    "allow-edit-photo",
     "allow-export-photo",
     "allow-dev-options",
     "allow-text-scale",

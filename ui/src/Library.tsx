@@ -21,7 +21,15 @@ import { folderAndBeneath, folderKey, pathTo } from "./folderRows";
 import { FolderTree } from "./FolderTree";
 import { Grid } from "./Grid";
 import { InfoPanel } from "./InfoPanel";
-import { historyKey, isDeleteKey, isFind, isSelectAll, isTagKey, ratingKey } from "./keys";
+import {
+  historyKey,
+  isDeleteKey,
+  isEditKey,
+  isFind,
+  isSelectAll,
+  isTagKey,
+  ratingKey,
+} from "./keys";
 import { Message } from "./Message";
 import { MoreButton } from "./MoreButton";
 import { NoticeBar } from "./NoticeBar";
@@ -92,6 +100,8 @@ export function Library({ inert = false }: { inert?: boolean }) {
   const removeFolder = useStore((state) => state.removeFolder);
   const addFolder = useStore((state) => state.addFolder);
   const view = useStore((state) => state.view);
+  const openEditor = useStore((state) => state.openEditor);
+  const editorAvailable = useStore((state) => state.dev?.editorAvailable ?? false);
   const reveal = useStore((state) => state.reveal);
   const tags = useStore((state) => state.tags);
   const tag = useStore((state) => state.tag);
@@ -185,12 +195,19 @@ export function Library({ inert = false }: { inert?: boolean }) {
     const ids = [...selection.ids];
     const stars = ratingKey(event);
     if (stars !== null) void rate(ids, stars, true);
+    else if (editorAvailable && isEditKey(event)) edit();
     // Delete moves them to the Recycle Bin, once confirmed (BRW-9).
     else if (isDeleteKey(event)) void useStore.getState().askDelete(ids);
     else if (isTagKey(event)) void openPicker(ids, selectionAnchor(ids));
     else return;
     event.preventDefault();
   });
+  /** Opens the Editor on the selection's first photo in the grid's order. */
+  function edit() {
+    const first = photos.find((photo) => selection.ids.has(photo.id));
+    if (first) openEditor(first.id);
+  }
+
   useEffect(() => {
     const key = (event: KeyboardEvent) => onKey(event);
     window.addEventListener("keydown", key);
@@ -231,6 +248,16 @@ export function Library({ inert = false }: { inert?: boolean }) {
             }}
           />
         </label>
+        {editorAvailable && (
+          <button
+            type="button"
+            className="button primary toolbar-edit"
+            disabled={selection.ids.size === 0}
+            onClick={edit}
+          >
+            {t("library-edit")}
+          </button>
+        )}
         <MoreButton />
       </header>
 

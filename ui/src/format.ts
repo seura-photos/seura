@@ -74,3 +74,11 @@ export function formatDate(secondsSince1970: number): string {
     new Date(secondsSince1970 * 1000),
   );
 }
+
+/**
+ * A slider's value as a signed whole number (EDT-5): "+12", "0", "−30",
+ * with a true minus sign whatever the region writes.
+ */
+export function formatSigned(value: number): string {
+  return formatNumber(Math.round(value), { signDisplay: "exceptZero" }).replace("-", "−");
+}

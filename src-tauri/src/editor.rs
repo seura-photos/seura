@@ -1,19 +1,15 @@
-//! The photo open in the Editor (M1: exposure only): its preview in the
-//! working space, its edit file and autosave (EDT-11), and export. Also the
-//! render check that compares the preview with export (M1 slice 5).
+//! The photo open in the Editor: its preview in the working space, the
+//! changes the Editor makes (saved through the Library's one write path,
+//! EDT-11), and M1's development-only export. Also the render check that
+//! compares the preview with export (M1 slice 5).
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use seura_edit::{
-    Action, CoreOperation, Edit, EditDocument, EditFile, Exposure, PhotoIdentity, Writer,
-    edit_file_path,
-};
+use seura_edit::{Action, CoreOperation, Edit, EditFile, Exposure, Writer, edit_file_path};
 use seura_image::{LinearImage, Rgba8};
-use seura_library::{fingerprint_file, to_hex};
 use seura_render::check::{CHECK_SETTINGS, CHECK_TOLERANCE, check_image, difference};
 use seura_render::{Output, Settings, export_jpeg};
-use time::OffsetDateTime;
 
 /// Recorded in every edit file Seura writes.
 pub(crate) const WRITER: Writer = Writer {
@@ -37,13 +33,6 @@ pub struct Editor {
 struct Session {
     id: u32,
     photo: PathBuf,
-    /// Upright pixel dimensions, if the index knows them.
-    dimensions: Option<(u32, u32)>,
-    /// Made on the first change, so opening a photo writes nothing.
-    file: Option<EditFile>,
-    /// Why the edit file can't be changed: it exists but can't be read, so
-    /// it's never overwritten (CLAUDE.md rule 4).
-    problem: Option<String>,
     /// The preview pixels, as served by the `seura://` protocol.
     preview: Arc<Vec<u8>>,
 }
@@ -60,87 +49,40 @@ impl Editor {
     /// Opens photo `id` of the index, at `photo`: decodes its preview at
     /// `long_edge` and reads its edit file, if any. Only reads (CLAUDE.md
     /// rule 1).
-    pub fn open(
-        &self,
-        id: u32,
-        photo: PathBuf,
-        dimensions: Option<(u32, u32)>,
-        long_edge: u32,
-    ) -> Result<Opened, String> {
+    pub fn open(&self, id: u32, photo: PathBuf, long_edge: u32) -> Result<Opened, String> {
         let preview = seura_image::decode_linear(&photo, Some(long_edge.clamp(1, MAX_PREVIEW)))
             .map_err(|error| error.to_string())?;
-        let (file, problem) = match EditFile::load(&edit_file_path(&photo)) {
-            Ok(file) => (file, None),
-            Err(error) => (None, Some(error.to_string())),
-        };
-        let settings = file
-            .as_ref()
-            .map(|file| Settings::from_document(&file.document))
-            .unwrap_or_default();
-        let opened = Opened {
-            width: preview.width,
-            height: preview.height,
-            exposure_ev: f64::from(settings.exposure_ev),
-            problem: problem.clone(),
+        let (settings, problem) = match saved_settings(&photo) {
+            Ok(settings) => (settings, None),
+            Err(problem) => (Settings::default(), Some(problem)),
         };
         *self.session.lock().expect("editor lock") = Some(Session {
             id,
             photo,
-            dimensions,
-            file,
-            problem,
             preview: Arc::new(encode_linear(&preview)),
         });
-        Ok(opened)
+        Ok(Opened {
+            width: preview.width,
+            height: preview.height,
+            exposure_ev: f64::from(settings.exposure_ev),
+            problem,
+        })
     }
 
-    pub fn close(&self) {
-        *self.session.lock().expect("editor lock") = None;
+    /// Closes photo `id`, unless another has been opened since: moving
+    /// through the filmstrip opens the next photo before the last one's
+    /// close arrives.
+    pub fn close(&self, id: u32) {
+        let mut session = self.session.lock().expect("editor lock");
+        if session.as_ref().is_some_and(|session| session.id == id) {
+            *session = None;
+        }
     }
 
     /// The open photo's preview pixels, for the protocol.
     pub fn preview(&self) -> Option<Arc<Vec<u8>>> {
         let session = self.session.lock().expect("editor lock");
         session.as_ref().map(|session| Arc::clone(&session.preview))
-    }
-
-    /// Sets the open photo's exposure and saves the edit file at once, so a
-    /// change is on disk well within a second (EDT-11). The UI sends a
-    /// change when the slider pauses, so each pause is one history record.
-    pub fn set_exposure(&self, id: u32, ev: f64) -> Result<(), String> {
-        let mut session = self.session.lock().expect("editor lock");
-        let session = session
-            .as_mut()
-            .filter(|session| session.id == id)
-            .ok_or("that photo isn't open")?;
-        if let Some(problem) = &session.problem {
-            return Err(problem.clone());
-        }
-        let file = match &mut session.file {
-            Some(file) => file,
-            None => {
-                let identity = identity(&session.photo, session.dimensions)?;
-                let document = EditDocument::new_for_photo(&identity);
-                session
-                    .file
-                    .insert(EditFile::create(&edit_file_path(&session.photo), document))
-            }
-        };
-        let ev = ev.clamp(EXPOSURE_RANGE.0, EXPOSURE_RANGE.1);
-        let action = Action {
-            label: "Exposure".into(),
-            // A neutral setting removes the operation.
-            edits: vec![Edit::Set(CoreOperation::Exposure(Exposure { ev }))],
-        };
-        let now = OffsetDateTime::now_utc();
-        if file
-            .document
-            .apply(&action, now)
-            .map_err(|error| error.to_string())?
-        {
-            file.save(WRITER, now).map_err(|error| error.to_string())?;
-        }
-        Ok(())
     }
 
     /// Exports the open photo with its edits into `folder` (EXP-1).
@@ -151,12 +93,7 @@ impl Editor {
                 .as_ref()
                 .filter(|session| session.id == id)
                 .ok_or("that photo isn't open")?;
-            let settings = session
-                .file
-                .as_ref()
-                .map(|file| Settings::from_document(&file.document))
-                .unwrap_or_default();
-            (session.photo.clone(), settings)
+            (session.photo.clone(), saved_settings(&session.photo)?)
         };
         crate::gpu::with_renderer(|renderer| export_jpeg(renderer, &photo, &settings, folder))?
             .map_err(|error| error.to_string())
@@ -204,24 +141,25 @@ impl Editor {
     }
 }
 
-/// The photo's identity for a new edit file: name, size, fingerprint, and
-/// dimensions if the index knows them (edit format: "Photo identity").
-fn identity(photo: &Path, dimensions: Option<(u32, u32)>) -> Result<PhotoIdentity, String> {
-    let size = std::fs::metadata(photo)
-        .map_err(|error| error.to_string())?
-        .len();
-    let sha256 = fingerprint_file(photo).map_err(|error| error.to_string())?;
-    Ok(PhotoIdentity {
-        file: photo
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned(),
-        size,
-        sha256: Some(to_hex(&sha256)),
-        width: dimensions.map(|(width, _)| width),
-        height: dimensions.map(|(_, height)| height),
-    })
+/// The settings in a photo's edit file, neutral without one. An error if
+/// the file can't be read: the photo can't be edited then, and its file is
+/// never overwritten (FIL-4; CLAUDE.md rule 4).
+fn saved_settings(photo: &Path) -> Result<Settings, String> {
+    let file = EditFile::load(&edit_file_path(photo)).map_err(|error| error.to_string())?;
+    Ok(file
+        .map(|file| Settings::from_document(&file.document))
+        .unwrap_or_default())
+}
+
+/// The action for a brightness setting (EDT-5): one record in the photo's
+/// history; a neutral setting removes the operation.
+pub fn exposure_action(ev: f64) -> Action {
+    Action {
+        label: "Brightness".into(),
+        edits: vec![Edit::Set(CoreOperation::Exposure(Exposure {
+            ev: ev.clamp(EXPOSURE_RANGE.0, EXPOSURE_RANGE.1),
+        }))],
+    }
 }
 
 /// Working-space pixels as the preview fetches them: width and height as
@@ -246,7 +184,7 @@ mod tests {
     use std::fs;
 
     use half::f16;
-    use seura_edit::{CoreOpId, EditDocument};
+    use seura_edit::EditDocument;
 
     use super::*;
 
@@ -259,93 +197,80 @@ mod tests {
         (folder, path)
     }
 
-    fn saved(photo: &Path) -> EditDocument {
-        EditDocument::parse(&fs::read(edit_file_path(photo)).unwrap()).unwrap()
+    /// Writes an edit file with this exposure beside the photo.
+    fn save_exposure(photo: &Path, ev: f64) {
+        let identity = seura_edit::PhotoIdentity {
+            file: "IMG_1.jpg".into(),
+            size: fs::metadata(photo).unwrap().len(),
+            sha256: None,
+            width: None,
+            height: None,
+        };
+        let mut file = EditFile::create(
+            &edit_file_path(photo),
+            EditDocument::new_for_photo(&identity),
+        );
+        let now = time::OffsetDateTime::now_utc();
+        file.document.apply(&exposure_action(ev), now).unwrap();
+        file.save(WRITER, now).unwrap();
     }
 
     #[test]
     fn opening_a_photo_writes_nothing() {
         let (folder, photo) = photo();
         let editor = Editor::default();
-        let opened = editor.open(1, photo.clone(), None, 16).unwrap();
+        let opened = editor.open(1, photo, 16).unwrap();
         assert_eq!((opened.width, opened.height), (16, 12));
         assert_eq!(opened.exposure_ev, 0.0);
+        assert_eq!(opened.problem, None);
         assert_eq!(fs::read_dir(folder.path()).unwrap().count(), 1);
     }
 
     #[test]
-    fn each_change_is_saved_with_its_history() {
+    fn reopened_a_photo_shows_what_was_saved_edt_8() {
         let (_folder, photo) = photo();
-        let original = fs::read(&photo).unwrap();
-        let editor = Editor::default();
-        editor.open(1, photo.clone(), Some((32, 24)), 16).unwrap();
-
-        editor.set_exposure(1, 0.5).unwrap();
-        editor.set_exposure(1, 1.25).unwrap();
-
-        let document = saved(&photo);
-        assert_eq!(
-            document.core(CoreOpId::Exposure),
-            Some(CoreOperation::Exposure(Exposure { ev: 1.25 }))
-        );
-        assert_eq!(document.history_len(), 2);
-        let identity = document.photo().unwrap();
-        assert_eq!(identity.file, "IMG_1.jpg");
-        assert_eq!(identity.size, original.len() as u64);
-        assert!(identity.sha256.is_some());
-        assert_eq!((identity.width, identity.height), (Some(32), Some(24)));
-        // The photo itself is untouched (CLAUDE.md rule 1).
-        assert_eq!(fs::read(&photo).unwrap(), original);
-        // For checking with the format's own tool (M1 slice 5's "done when").
-        if let Some(out) = std::env::var_os("SEURA_KEEP_EDIT_FILE") {
-            fs::copy(edit_file_path(&photo), out).unwrap();
-        }
-
-        // Reopened, the photo starts from what was saved.
-        let reopened = editor.open(1, photo.clone(), Some((32, 24)), 16).unwrap();
-        assert_eq!(reopened.exposure_ev, 1.25);
+        save_exposure(&photo, 1.25);
+        let opened = Editor::default().open(1, photo, 16).unwrap();
+        assert_eq!(opened.exposure_ev, 1.25);
     }
 
     #[test]
-    fn exposure_is_clamped_to_the_format_s_range() {
-        let (_folder, photo) = photo();
-        let editor = Editor::default();
-        editor.open(1, photo.clone(), None, 16).unwrap();
-        editor.set_exposure(1, 9.0).unwrap();
+    fn brightness_is_clamped_to_the_format_s_range() {
         assert_eq!(
-            saved(&photo).core(CoreOpId::Exposure),
-            Some(CoreOperation::Exposure(Exposure { ev: 4.0 }))
+            exposure_action(9.0).edits,
+            [Edit::Set(CoreOperation::Exposure(Exposure { ev: 4.0 }))]
         );
     }
 
     #[test]
-    fn an_unreadable_edit_file_is_never_overwritten() {
+    fn an_unreadable_edit_file_is_reported_and_left_alone() {
         let (_folder, photo) = photo();
         let edit_file = edit_file_path(&photo);
         fs::write(&edit_file, b"{ not json").unwrap();
-        let editor = Editor::default();
 
-        let opened = editor.open(1, photo.clone(), None, 16).unwrap();
+        let opened = Editor::default().open(1, photo, 16).unwrap();
         assert!(opened.problem.is_some());
-        assert!(editor.set_exposure(1, 0.5).is_err());
         assert_eq!(fs::read(&edit_file).unwrap(), b"{ not json");
     }
 
     #[test]
-    fn another_photo_s_change_is_refused() {
+    fn closing_an_earlier_photo_keeps_the_one_open_now() {
         let (_folder, photo) = photo();
         let editor = Editor::default();
-        editor.open(1, photo.clone(), None, 16).unwrap();
-        assert!(editor.set_exposure(2, 0.5).is_err());
-        assert!(!edit_file_path(&photo).exists());
+        editor.open(1, photo.clone(), 16).unwrap();
+        editor.open(2, photo, 16).unwrap();
+        editor.close(1);
+        assert!(editor.preview().is_some());
+        editor.close(2);
+        assert!(editor.preview().is_none());
     }
 
     #[test]
     fn export_uses_the_saved_exposure() {
         let (folder, photo) = photo();
+        save_exposure(&photo, 1.0);
         let editor = Editor::default();
-        editor.open(1, photo.clone(), None, 16).unwrap();
-        editor.set_exposure(1, 1.0).unwrap();
+        editor.open(1, photo, 16).unwrap();
         let out = tempfile::tempdir().unwrap();
 
         let exported = editor.export(1, out.path()).unwrap();

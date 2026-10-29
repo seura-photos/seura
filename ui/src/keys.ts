@@ -60,3 +60,15 @@ export function isDeleteKey(event: KeyboardEvent): boolean {
   if (isMac || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
   return event.key === "Delete" && !isTyping(event);
 }
+
+/** Whether a key press is `E`, for the Editor (EDT-1). */
+export function isEditKey(event: KeyboardEvent): boolean {
+  if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return false;
+  return event.key === "e" || event.key === "E";
+}
+
+/** Whether a key is `\`, held to compare with the original (EDT-1). */
+export function isCompareKey(event: KeyboardEvent): boolean {
+  if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return false;
+  return event.key === "\\";
+}

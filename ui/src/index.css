@@ -1004,45 +1004,185 @@ button {
   text-align: center;
 }
 
-/* M1's Editor, in development builds only until M4 replaces it. */
+/* The Editor (EDT-*; wireframes, "Editor"; styled mockup): over the
+   Library, with the tool panel where the Info panel was and the filmstrip
+   under the photo. */
 
 .editor {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+  position: absolute;
+  inset: 0;
+  /* As the Viewer: above the Library, below menus and dialogs. */
+  z-index: 5;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--size-edit-panel);
+  grid-template-rows: var(--size-header) minmax(0, 1fr);
+  grid-template-areas:
+    "bar bar"
+    "main panel";
+  background: var(--color-photo);
 }
 
-.editor-bar,
-.editor-controls {
+/* Focused on opening, for the keyboard. */
+.editor:focus {
+  outline: none;
+}
+
+.editor-bar {
+  grid-area: bar;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0 1rem;
   background: var(--color-panel);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .editor-name {
+  font-weight: var(--type-panel-heading-weight);
+}
+
+.editor-export {
+  margin-left: auto;
+}
+
+.editor-export + .more-button {
+  margin-left: 0;
+}
+
+.editor-main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* The notice bar, then the stage below it, with the message over the
+   stage near its bottom (INT-6). */
+.editor-photo {
   flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .editor-stage {
   flex: 1;
   min-height: 0;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 2rem;
   overflow: hidden;
 }
 
-.editor-controls label {
+/* 84 px (wireframes), the cells in a row on the surround. */
+.filmstrip {
+  flex: none;
+  height: 5.25rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--color-panel);
+  scrollbar-width: thin;
+}
+
+.filmstrip-track {
+  position: relative;
+  height: 100%;
+  margin: 0 1rem;
+}
+
+.filmstrip-cell {
+  position: absolute;
+  top: 0.875rem;
+  left: 0;
+  width: 4.75rem;
+  height: 3.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-thumbnail);
+  background: var(--color-border);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.filmstrip-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The current photo, outlined in the accent color. */
+.filmstrip-cell[aria-current="true"] {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.editor-panel {
+  grid-area: panel;
+  overflow-y: auto;
+  background: var(--color-panel);
+  border-left: 1px solid var(--color-border);
+}
+
+/* Hold to compare and Done, 44 px each, on the first row (INT-5). */
+.editor-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.editor-actions .button {
+  justify-content: center;
+  min-height: var(--size-primary-target);
+  padding: 0 0.75rem;
+}
+
+.editor-compare[aria-pressed="true"] {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-text);
+}
+
+.editor-section {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.editor-note {
+  margin: 0;
+  padding: 1rem;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+/* A slider (EDT-5): the name and its signed value, then the track. */
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.slider-head {
+  display: flex;
+  justify-content: space-between;
   gap: 0.5rem;
 }
 
-.editor-controls input[type="range"] {
-  width: 15rem;
+.slider output {
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.slider input[type="range"] {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--color-accent);
 }
 
 /* The Viewer (BRW-5; styled mockup): the photo on the surround, between a
@@ -1529,4 +1669,17 @@ button {
 .tag-create {
   color: var(--color-accent-text);
   font-weight: 600;
+}
+
+/* Edit (primary) at the right of a toolbar, before the ⋯ button, at the
+   toolbar's height (styled mockups). */
+.button.primary.toolbar-edit {
+  min-height: var(--size-tier1-target);
+  padding: 0 0.875rem;
+  margin-left: auto;
+}
+
+.viewer-zoom + .button.primary.toolbar-edit,
+.toolbar-edit + .more-button {
+  margin-left: 0;
 }

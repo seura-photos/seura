@@ -25,7 +25,8 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
   gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, uniforms);
   gl.uniform1i(gl.getUniformLocation(program, names.photo), 0);
   // The vertex shader makes its own triangle; WebGL2 still wants an array bound.
-  gl.bindVertexArray(gl.createVertexArray());
+  const vertices = gl.createVertexArray();
+  gl.bindVertexArray(vertices);
 
   const photo = gl.createTexture();
   let size = { width: 0, height: 0 };
@@ -90,11 +91,15 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
       }
       return Promise.resolve(pixels);
     },
+    // Frees what this made, but leaves the context alone: a canvas has one
+    // WebGL2 context for its life, so losing it would leave the next preview
+    // made on the same canvas (React mounts effects twice in development)
+    // unable to draw. The context goes with the canvas.
     destroy() {
       gl.deleteTexture(photo);
       gl.deleteBuffer(uniforms);
+      gl.deleteVertexArray(vertices);
       gl.deleteProgram(program);
-      gl.getExtension("WEBGL_lose_context")?.loseContext();
     },
   };
 }
