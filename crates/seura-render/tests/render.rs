@@ -1,10 +1,13 @@
 //! The shaders, run with wgpu, against the edit format's definitions
 //! computed here on the CPU, as its formulas appendix gives them: each tone
 //! and color operation in the canonical order, then the result encoded for
-//! Display P3 or sRGB (EXP-5).
+//! Display P3 or sRGB (EXP-5). The definitions are checked against the
+//! appendix's own test vectors, and the shaders are run on those too.
 //!
 //! The images are generated: ramps through every channel, including Display
 //! P3 colors outside sRGB, which sRGB output must clip.
+
+use std::path::PathBuf;
 
 use half::f16;
 use seura_image::LinearImage;
@@ -73,10 +76,11 @@ fn encode(linear: f64) -> f64 {
     }
 }
 
-/// What a pixel must come out as.
-fn expected(pixel: [f16; 4], settings: &Settings, output: Output) -> [u8; 3] {
+/// The tone and color operations on a linear Display P3 color, in the
+/// canonical order.
+fn defined(color: [f64; 3], settings: &Settings) -> [f64; 3] {
     let scale = 2f64.powf(settings.exposure_ev.into());
-    let mut p3 = [0, 1, 2].map(|i| f64::from(pixel[i].to_f32()) * scale);
+    let mut p3 = color.map(|v| v * scale);
     if settings.temperature != 0.0 || settings.tint != 0.0 {
         p3 = white_balance(p3, settings.temperature.into(), settings.tint.into());
     }
@@ -86,6 +90,12 @@ fn expected(pixel: [f16; 4], settings: &Settings, output: Output) -> [u8; 3] {
     if settings.saturation != 0.0 {
         p3 = saturation(p3, settings.saturation.into());
     }
+    p3
+}
+
+/// What a pixel must come out as.
+fn expected(pixel: [f16; 4], settings: &Settings, output: Output) -> [u8; 3] {
+    let p3 = defined([0, 1, 2].map(|i| f64::from(pixel[i].to_f32())), settings);
     let linear = match output {
         Output::DisplayP3 => p3,
         Output::Srgb => P3_TO_SRGB.map(|row| row.iter().zip(p3).map(|(m, v)| m * v).sum()),
@@ -243,6 +253,142 @@ fn light_and_color_keep_what_they_promise() {
             .iter()
             .all(|v| (v - luminance(color)).abs() < 1e-12)
     );
+}
+
+/// One of the formulas appendix's test vectors: an operation's params, an
+/// input color, and what it must come out as.
+struct Vector {
+    settings: Settings,
+    input: [f64; 3],
+    output: [f64; 3],
+}
+
+/// Every vector in the edit format's `tests/formulas/`, with the settings
+/// that give each operation its params alone.
+fn appendix_vectors() -> Vec<(String, Vec<Vector>)> {
+    let folder = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../third_party/edit-format/tests/formulas");
+    let mut files: Vec<PathBuf> = std::fs::read_dir(&folder)
+        .expect("the edit format's test vectors; run `git submodule update --init`")
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .collect();
+    files.sort();
+    files
+        .iter()
+        .map(|path| {
+            let file: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+            let operation = file["operation"].as_str().unwrap().to_string();
+            let color = |value: &serde_json::Value| -> [f64; 3] {
+                let values: Vec<f64> = value
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_f64().unwrap())
+                    .collect();
+                values.try_into().unwrap()
+            };
+            let vectors = file["cases"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|case| {
+                    let param = |name: &str| case["params"][name].as_f64().unwrap() as f32;
+                    let neutral = Settings::NEUTRAL;
+                    let settings = match operation.as_str() {
+                        "seura.exposure" => Settings {
+                            exposure_ev: param("ev"),
+                            ..neutral
+                        },
+                        "seura.whiteBalance" => Settings {
+                            temperature: param("temperature"),
+                            tint: param("tint"),
+                            ..neutral
+                        },
+                        "seura.contrast" => Settings {
+                            contrast: param("amount"),
+                            ..neutral
+                        },
+                        "seura.saturation" => Settings {
+                            saturation: param("amount"),
+                            ..neutral
+                        },
+                        other => panic!("{other} has test vectors, but no test here yet"),
+                    };
+                    Vector {
+                        settings,
+                        input: color(&case["input"]),
+                        output: color(&case["output"]),
+                    }
+                })
+                .collect();
+            (operation, vectors)
+        })
+        .collect()
+}
+
+/// The definitions above are the appendix's: every vector, within its
+/// files' tolerance (absolute 0.0001, relative 0.001).
+#[test]
+fn the_definitions_match_the_appendix_vectors() {
+    let all = appendix_vectors();
+    assert!(
+        all.len() >= 4,
+        "exposure, white balance, contrast and saturation"
+    );
+    for (operation, vectors) in &all {
+        for vector in vectors {
+            let found = defined(vector.input, &vector.settings);
+            for (found, want) in found.iter().zip(vector.output) {
+                assert!(
+                    (found - want).abs() <= 0.0001 + 0.001 * want.abs(),
+                    "{operation}, {:?} on {:?}: found {found:?}, expected {:?}",
+                    vector.settings,
+                    vector.input,
+                    vector.output,
+                );
+            }
+        }
+    }
+}
+
+/// The shaders give the appendix's outputs, within one level once encoded:
+/// the vectors' inputs are half floats, so they go in unchanged.
+#[test]
+fn the_shaders_match_the_appendix_vectors() {
+    let renderer = renderer();
+    for (operation, vectors) in appendix_vectors() {
+        for vector in vectors {
+            let pixel = [vector.input[0], vector.input[1], vector.input[2], 1.0].map(f16::from_f64);
+            assert_eq!(pixel.map(|v| v.to_f64())[..3], vector.input, "exact in f16");
+            let image = LinearImage {
+                width: 1,
+                height: 1,
+                pixels: pixel.to_vec(),
+            };
+            let rendered = renderer
+                .render(&image, &vector.settings, Output::DisplayP3)
+                .unwrap();
+            let want = vector.output.map(|v| (encode(v) * 255.0).round() as u8);
+            let off = rendered.pixels[..3]
+                .iter()
+                .zip(want)
+                .map(|(a, b)| a.abs_diff(b))
+                .max()
+                .unwrap();
+            assert!(
+                off <= 1,
+                "{operation}, {:?} on {:?}: found {:?}, expected {want:?}",
+                vector.settings,
+                vector.input,
+                &rendered.pixels[..3],
+            );
+        }
+    }
 }
 
 /// Larger than one tile both ways, so tiles are placed and joined right.

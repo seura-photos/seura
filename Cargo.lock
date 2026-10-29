@@ -4115,6 +4115,7 @@ dependencies = [
  "half",
  "naga",
  "pollster 1.0.1",
+ "serde_json",
  "seura-edit",
  "seura-image",
  "tempfile",
