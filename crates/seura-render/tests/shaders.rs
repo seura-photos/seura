@@ -74,7 +74,58 @@ fn generated() -> Vec<(&'static str, String)> {
         files.push((file, format!("{version}\n// {HEADER}\n{rest}")));
     }
     files.push(("gl-names.json", names.remove(0)));
+    files.push(("params.json", params_layout(&module)));
     files
+}
+
+/// Where each of `Params`' fields is in the uniform block, as naga lays it
+/// out, for the preview to write them (`ui/src/preview/backend.ts`).
+fn params_layout(module: &naga::Module) -> String {
+    let (members, span) = module
+        .types
+        .iter()
+        .find_map(|(_, ty)| match &ty.inner {
+            naga::TypeInner::Struct { members, span } if ty.name.as_deref() == Some("Params") => {
+                Some((members, *span))
+            }
+            _ => None,
+        })
+        .expect("a Params struct");
+    let fields: Vec<String> = members
+        .iter()
+        .map(|member| {
+            let kind = match module.types[member.ty].inner {
+                naga::TypeInner::Scalar(naga::Scalar {
+                    kind: naga::ScalarKind::Float,
+                    width: 4,
+                }) => "f32",
+                naga::TypeInner::Scalar(naga::Scalar {
+                    kind: naga::ScalarKind::Uint,
+                    width: 4,
+                }) => "u32",
+                ref other => panic!("Params holds only f32 and u32, not {other:?}"),
+            };
+            format!(
+                "    {{ \"name\": \"{}\", \"offset\": {}, \"type\": \"{kind}\" }}",
+                member.name.as_deref().expect("a named field"),
+                member.offset
+            )
+        })
+        .collect();
+    format!(
+        "{{
+  \"note\": \"{HEADER}\",
+  \"size\": {span},
+  \"fields\": [
+{}
+  ]
+}}
+",
+        fields.join(
+            ",
+"
+        )
+    )
 }
 
 #[test]

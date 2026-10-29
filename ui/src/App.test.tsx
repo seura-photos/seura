@@ -74,7 +74,7 @@ vi.mock("./bindings", () => ({
       Promise.resolve({
         forceWebgl2: false,
         renderCheck: false,
-        checkExposureEv: 0.7,
+        checkSettings: { exposureEv: 0.7 },
         editorAvailable: mocks.dev.editorAvailable,
         pseudoLocale: false,
         active: mocks.dev.active,

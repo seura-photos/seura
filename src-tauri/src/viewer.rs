@@ -42,7 +42,7 @@ pub struct Shown {
     pub full_width: u32,
     pub full_height: u32,
     /// Its edits, from its edit file; none if that can't be read.
-    pub exposure_ev: f64,
+    pub settings: Settings,
 }
 
 #[derive(Default)]
@@ -149,7 +149,7 @@ impl Viewer {
             height: decoded.size.1,
             full_width: decoded.full.0,
             full_height: decoded.full.1,
-            exposure_ev: f64::from(edits(photo).exposure_ev),
+            settings: edits(photo),
         })
     }
 

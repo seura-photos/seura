@@ -13,16 +13,19 @@ const mocks = vi.hoisted(() => ({
   openPhoto: vi.fn<(id: number, longEdge: number, download: boolean) => Promise<unknown>>(),
   closePhoto: vi.fn(() => Promise.resolve(null)),
   draw: vi.fn(),
+  // Saved settings beside brightness, which the slider must keep.
   opened: {
     kind: "opened",
     width: 4,
     height: 3,
-    exposureEv: 0.4,
+    settings: { exposureEv: 0.4, contrast: 20 },
     problem: null as string | null,
   },
+  neutral: { exposureEv: 0, contrast: 0 },
 }));
 
 vi.mock("./bindings", () => ({
+  NEUTRAL_SETTINGS: mocks.neutral,
   commands: {
     openPhoto: mocks.openPhoto,
     closePhoto: mocks.closePhoto,
@@ -120,7 +123,7 @@ describe("Editor", () => {
     const slider = await brightness();
     expect(slider.value).toBe("10");
     expect(screen.getByText("+10")).toBeDefined();
-    expect(mocks.draw).toHaveBeenCalledWith(0.4);
+    expect(mocks.draw).toHaveBeenCalledWith({ exposureEv: 0.4, contrast: 20 });
     expect(screen.getByText("Edits saved automatically")).toBeDefined();
   });
 
@@ -130,8 +133,10 @@ describe("Editor", () => {
     for (const value of ["15", "20", "25"]) {
       fireEvent.input(slider, { target: { value } });
     }
-    // The preview follows every move.
-    await waitFor(() => expect(mocks.draw).toHaveBeenLastCalledWith(1));
+    // The preview follows every move, the other settings as they were.
+    await waitFor(() =>
+      expect(mocks.draw).toHaveBeenLastCalledWith({ exposureEv: 1, contrast: 20 }),
+    );
     expect(mocks.editPhoto).not.toHaveBeenCalled();
     // Released: one change, saved within a second.
     fireEvent.change(slider, { target: { value: "25" } });
@@ -170,17 +175,21 @@ describe("Editor", () => {
     edit();
     await brightness();
     fireEvent.keyDown(window, { key: "\\" });
-    await waitFor(() => expect(mocks.draw).toHaveBeenLastCalledWith(0));
+    await waitFor(() => expect(mocks.draw).toHaveBeenLastCalledWith(mocks.neutral));
     fireEvent.keyUp(window, { key: "\\" });
-    await waitFor(() => expect(mocks.draw).toHaveBeenLastCalledWith(0.4));
+    await waitFor(() =>
+      expect(mocks.draw).toHaveBeenLastCalledWith({ exposureEv: 0.4, contrast: 20 }),
+    );
 
     const compare = screen.getByRole("button", { name: "Hold to compare" });
     compare.setPointerCapture = vi.fn();
     fireEvent.pointerDown(compare, { button: 0, pointerId: 1 });
-    await waitFor(() => expect(mocks.draw).toHaveBeenLastCalledWith(0));
+    await waitFor(() => expect(mocks.draw).toHaveBeenLastCalledWith(mocks.neutral));
     expect(compare.getAttribute("aria-pressed")).toBe("true");
     fireEvent.pointerUp(compare, { pointerId: 1 });
-    await waitFor(() => expect(mocks.draw).toHaveBeenLastCalledWith(0.4));
+    await waitFor(() =>
+      expect(mocks.draw).toHaveBeenLastCalledWith({ exposureEv: 0.4, contrast: 20 }),
+    );
   });
 
   it("goes back to the grid with Done, the photo selected (flow 4)", async () => {

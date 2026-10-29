@@ -254,6 +254,9 @@ export const events = {
 	thumbnailsReady: makeEvent<ThumbnailsReady>("thumbnails-ready"),
 };
 
+/* Constants */
+export const NEUTRAL_SETTINGS = {"rotate":0,"flipH":false,"flipV":false,"straighten":0.0,"cropX":0.0,"cropY":0.0,"cropWidth":1.0,"cropHeight":1.0,"exposureEv":0.0,"temperature":0.0,"tint":0.0,"highlights":0.0,"shadows":0.0,"contrast":0.0,"saturation":0.0,"blackAndWhite":0.0,"sepia":0.0,"vignetteAmount":0.0,"vignetteSize":0.0} as const;
+
 /* Types */
 /**  What adding a folder did (LIB-1). */
 export type AddFolderResult = 
@@ -342,8 +345,8 @@ export type DevOptions = {
 	 *  longer translations fit (ACC-7).
 	 */
 	pseudoLocale: boolean,
-	/**  The exposure the render check uses, so both sides agree. */
-	checkExposureEv: number | null,
+	/**  The settings the render check uses, so both sides agree. */
+	checkSettings: RenderSettings,
 	/**
 	 *  Whether M1's Editor is available: in development builds only, since
 	 *  M2 writes no edit files (M2 work plan).
@@ -442,7 +445,7 @@ export type OpenedPhoto =
 /**  Decoded: its preview is at `seura://â€¦/preview`. */
 { kind: "opened"; 
 /**  The preview's size. */
-width: number; height: number; exposureEv: number | null; 
+width: number; height: number; settings: RenderSettings; 
 /**
  *  Why the photo can't be edited, if it can't: its edit file can't
  *  be read, and is never overwritten (FIL-4).
@@ -582,6 +585,33 @@ export type RegionSize = {
 };
 
 /**
+ *  A photo's edits as the preview renders them: every core operation's
+ *  parameters (seura-render's `Settings`), neutral where the edit file has
+ *  none. The preview writes them into the shaders' uniform block.
+ */
+export type RenderSettings = {
+	rotate: number,
+	flipH: boolean,
+	flipV: boolean,
+	straighten: number | null,
+	cropX: number | null,
+	cropY: number | null,
+	cropWidth: number | null,
+	cropHeight: number | null,
+	exposureEv: number | null,
+	temperature: number | null,
+	tint: number | null,
+	highlights: number | null,
+	shadows: number | null,
+	contrast: number | null,
+	saturation: number | null,
+	blackAndWhite: number | null,
+	sepia: number | null,
+	vignetteAmount: number | null,
+	vignetteSize: number | null,
+};
+
+/**
  *  How far scanning has got, for the status bar (LIB-3): first looking for
  *  photos in a library folder, then making their thumbnails. All empty and
  *  zero when there's nothing to do.
@@ -711,7 +741,7 @@ export type ViewedPhoto =
 /**  Decoded: its pixels are at `seura://…/view-<id>`. */
 { kind: "shown"; width: number; height: number; 
 /**  The photo's own upright size, for zooming. */
-fullWidth: number; fullHeight: number; exposureEv: number | null } | 
+fullWidth: number; fullHeight: number; settings: RenderSettings } | 
 /**
  *  Only in the cloud, and not read: ask again with `download` to read
  *  it, which downloads it (LIB-9).

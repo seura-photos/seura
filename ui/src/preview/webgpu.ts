@@ -1,4 +1,5 @@
-import { type Backend, type LinearImage, params } from "./backend";
+import type { RenderSettings } from "../bindings";
+import { type Backend, type LinearImage, PARAMS_SIZE, params } from "./backend";
 import shader from "./generated/shader.wgsl?raw";
 
 // WebGPU's flag values (from the WebGPU specification). TypeScript's DOM
@@ -42,7 +43,7 @@ export async function createWebGpu(canvas: HTMLCanvasElement | null): Promise<Ba
     return found;
   };
   const uniforms = device.createBuffer({
-    size: 16,
+    size: PARAMS_SIZE,
     usage: BUFFER.UNIFORM | BUFFER.COPY_DST,
   });
   // Linear for the display, which may scale; nearest for the check, which
@@ -56,11 +57,11 @@ export async function createWebGpu(canvas: HTMLCanvasElement | null): Promise<Ba
     target: GPUTexture,
     format: GPUTextureFormat,
     sampler: GPUSampler,
-    exposureEv: number,
+    settings: RenderSettings,
     outputSrgb: boolean,
   ) => {
     if (!photo) return null;
-    device.queue.writeBuffer(uniforms, 0, params(exposureEv, outputSrgb));
+    device.queue.writeBuffer(uniforms, 0, params(settings, outputSrgb));
     const chosen = pipeline(format);
     const bindings = device.createBindGroup({
       layout: chosen.getBindGroupLayout(0),
@@ -105,18 +106,18 @@ export async function createWebGpu(canvas: HTMLCanvasElement | null): Promise<Ba
         size,
       );
     },
-    draw(exposureEv: number) {
+    draw(settings: RenderSettings) {
       if (!context) return;
-      const encoder = render(context.getCurrentTexture(), canvasFormat, linear, exposureEv, false);
+      const encoder = render(context.getCurrentTexture(), canvasFormat, linear, settings, false);
       if (encoder) device.queue.submit([encoder.finish()]);
     },
-    async read(exposureEv: number) {
+    async read(settings: RenderSettings) {
       const target = device.createTexture({
         size,
         format: "rgba8unorm",
         usage: TEXTURE.RENDER_ATTACHMENT | TEXTURE.COPY_SRC,
       });
-      const encoder = render(target, "rgba8unorm", nearest, exposureEv, true);
+      const encoder = render(target, "rgba8unorm", nearest, settings, true);
       if (!encoder) throw new Error("no photo uploaded");
       // Rows in a copy to a buffer are padded to 256 bytes.
       const row = size.width * 4;

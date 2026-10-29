@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { commands } from "./bindings";
+import { commands, type RenderSettings } from "./bindings";
 import { t } from "./messages";
 import { type Backend, createWebGl2, createWebGpu, fetchLinear } from "./preview";
 
@@ -9,7 +9,7 @@ import { type Backend, createWebGl2, createWebGpu, fetchLinear } from "./preview
  * pixels to the core to compare with export, then the app exits with the
  * result. CI runs it on every platform.
  */
-export function RenderCheck({ exposureEv }: { exposureEv: number }) {
+export function RenderCheck({ settings }: { settings: RenderSettings }) {
   const [log, setLog] = useState<string[]>([]);
   // Effects run twice in development; the check runs once.
   const started = useRef(false);
@@ -33,7 +33,7 @@ export function RenderCheck({ exposureEv }: { exposureEv: number }) {
             continue;
           }
           backend.upload(image);
-          const pixels = await backend.read(exposureEv);
+          const pixels = await backend.read(settings);
           backend.destroy();
           const result = await commands.checkRender(
             name,
@@ -53,7 +53,7 @@ export function RenderCheck({ exposureEv }: { exposureEv: number }) {
       await commands.finishRenderCheck(skipped, problems);
     };
     void run().catch((error: unknown) => commands.finishRenderCheck([], [String(error)]));
-  }, [exposureEv]);
+  }, [settings]);
 
   return (
     <main className="render-check">

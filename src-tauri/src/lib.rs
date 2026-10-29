@@ -86,6 +86,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             ScanProgress,
             menu::MenuCommand
         ])
+        // Nothing changed, as the preview draws the original (EDT-1).
+        .constant(
+            "NEUTRAL_SETTINGS",
+            commands::RenderSettings::from(seura_render::Settings::NEUTRAL),
+        )
 }
 
 /// Builds and runs the app. Called from `main`.

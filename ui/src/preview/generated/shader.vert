@@ -5,10 +5,26 @@ precision highp float;
 precision highp int;
 
 struct Params {
-    float exposure_ev;
     uint output_srgb;
-    uint _pad0_;
-    uint _pad1_;
+    uint rotate;
+    uint flip_h;
+    uint flip_v;
+    float straighten;
+    float crop_x;
+    float crop_y;
+    float crop_width;
+    float crop_height;
+    float exposure_ev;
+    float temperature;
+    float tint;
+    float highlights;
+    float shadows;
+    float contrast;
+    float saturation;
+    float black_and_white;
+    float sepia;
+    float vignette_amount;
+    float vignette_size;
 };
 struct VertexOutput {
     vec4 position;
