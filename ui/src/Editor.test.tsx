@@ -213,6 +213,35 @@ describe("Editor", () => {
     expect(useStore.getState().editing).toBe(6);
   });
 
+  it("moves the filmstrip's focus with the arrow keys, so one cell is outlined", async () => {
+    const { rerender } = edit();
+    await brightness();
+    const strip = screen.getByRole("navigation", { name: "Filmstrip" });
+    within(strip).getByRole("button", { name: "IMG_7.jpg" }).focus();
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(useStore.getState().editing).toBe(8);
+    // As App does, the Editor follows the store.
+    rerender(<Editor id={8} forceWebgl2={false} />);
+    const next = within(strip).getByRole("button", { name: "IMG_8.jpg" });
+    await waitFor(() => expect(document.activeElement).toBe(next));
+    expect(within(strip).getByRole("button", { name: "IMG_7.jpg" }).tabIndex).toBe(-1);
+  });
+
+  it("replaces a cell's thumbnail in place, so it doesn't flash empty", async () => {
+    edit();
+    await brightness();
+    const strip = screen.getByRole("navigation", { name: "Filmstrip" });
+    const image = within(strip).getByRole("button", { name: "IMG_7.jpg" }).querySelector("img");
+    act(() => {
+      useStore
+        .getState()
+        .thumbnailsReady([{ id: 7, cloudOnly: false, needsCodec: false, failed: false }]);
+    });
+    const after = within(strip).getByRole("button", { name: "IMG_7.jpg" }).querySelector("img");
+    expect(after).toBe(image);
+    expect(after?.getAttribute("src")).toMatch(/\?v=1$/);
+  });
+
   it("lets the photo go when it closes, after saving what's waiting", async () => {
     const { unmount } = edit();
     const slider = await brightness();
