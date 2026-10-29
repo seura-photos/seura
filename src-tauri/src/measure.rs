@@ -3,6 +3,8 @@
 //! `SEURA_MEASURE=1` makes the UI run a fixed script on itself (see
 //! `ui/src/measure.ts`) and report what it measured here; the core adds its
 //! own memory use, writes `measurement.json` to Seura's folder, and quits.
+//! `SEURA_MEASURE=sliders` runs the Editor's script instead: dragging its
+//! sliders (PRF-6, M4 slice 3).
 //! Meant to be run with `SEURA_DATA` pointing at a folder of its own, by
 //! `scripts/measure.py`, so a real library is never touched.
 
@@ -23,7 +25,16 @@ pub fn start() {
 }
 
 pub fn active() -> bool {
-    std::env::var(MEASURE_SWITCH).as_deref() == Ok("1")
+    matches!(
+        std::env::var(MEASURE_SWITCH).as_deref(),
+        Ok("1" | "sliders")
+    )
+}
+
+/// Whether it's the Editor's script, which needs the Editor in a release
+/// build.
+pub fn sliders() -> bool {
+    std::env::var(MEASURE_SWITCH).as_deref() == Ok("sliders")
 }
 
 /// Milliseconds since the app started.

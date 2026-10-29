@@ -38,6 +38,110 @@ export async function measure(): Promise<void> {
   await commands.measureReport(JSON.stringify(report));
 }
 
+/**
+ * The Editor's script (PRF-6, M4 slice 3), run with `SEURA_MEASURE=sliders`
+ * on a library of one photo in each folder, from 12 to 48 megapixels. Once
+ * the thumbnails are made, it opens each photo in the Editor and drags each
+ * of its sliders in turn, a step every frame, timing the frames (at least
+ * 30 a second). Each slider stays where its drag left it, so the last drag
+ * has every operation on. The drag sends only the sliders' input events,
+ * which redraw the photo, never their change events, which save it, so no
+ * edit file is written.
+ */
+export async function measureSliders(): Promise<void> {
+  const dev = useStore.getState().dev;
+  const report: Record<string, unknown> = {
+    screen: {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      scale: window.devicePixelRatio,
+    },
+    // As the Editor chooses it: WebGPU where the web view has it.
+    preview: dev?.forceWebgl2 || !("gpu" in navigator) ? "webgl2" : "webgpu",
+  };
+  try {
+    await waitFor(() => document.querySelector('[role="treeitem"]') !== null, 60_000);
+    // Thumbnails made meanwhile would take the processor from the drags.
+    await firstScan();
+    const folders = useStore
+      .getState()
+      .folders.filter((folder) => folder.id !== null && folder.photos > 0)
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    const photos = [];
+    for (const folder of folders) {
+      if (folder.id !== null) photos.push(await editPhoto(folder.id));
+    }
+    if (photos.length === 0) throw new Error("no photos to edit");
+    report.photos = photos;
+    report.slowestFramesPerSecond = Math.min(
+      ...photos.flatMap((photo) =>
+        Object.values(photo.sliders).map((drag) => drag.framesPerSecond),
+      ),
+    );
+  } catch (error) {
+    report.error = String(error);
+  }
+  await commands.measureReport(JSON.stringify(report));
+}
+
+/** Opens the folder's first photo in the Editor, drags each slider for two
+ * seconds, and closes it again. */
+async function editPhoto(folder: number) {
+  await useStore.getState().selectFolder(folder);
+  const [photo] = useStore.getState().photos;
+  if (!photo) throw new Error("an empty folder");
+  const started = performance.now();
+  useStore.getState().openEditor(photo.id);
+  await shown(photo.id);
+  const openMs = performance.now() - started;
+  const sliders: Record<string, ReturnType<typeof frameStats>> = {};
+  const inputs = document.querySelectorAll<HTMLInputElement>('.editor-panel input[type="range"]');
+  for (const input of inputs) {
+    sliders[input.labels?.[0]?.textContent ?? input.id] = await drag(input, 2_000);
+  }
+  useStore.getState().closeEditor();
+  await nextFrame();
+  return {
+    name: photo.name,
+    megapixels: round(((photo.width ?? 0) * (photo.height ?? 0)) / 1e6),
+    openMs: round(openMs),
+    sliders,
+  };
+}
+
+/** Moves a slider back and forth across its range, a step every frame, as
+ * a drag does, for `duration` ms. */
+async function drag(input: HTMLInputElement, duration: number) {
+  // As dragging does, through the input's own event, so React sees it.
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+  const frames: number[] = [];
+  let value = Number(input.value);
+  let step = 4;
+  let last = await nextFrame();
+  const end = last + duration;
+  while (last < end) {
+    if (Math.abs(value + step) > 100) step = -step;
+    value += step;
+    setValue?.call(input, String(value));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    const now = await nextFrame();
+    frames.push(now - last);
+    last = now;
+  }
+  return frameStats(frames, duration);
+}
+
+/** Frames drawn in `duration` ms, and how even they were. */
+function frameStats(frames: number[], duration: number) {
+  const sorted = [...frames].sort((a, b) => a - b);
+  return {
+    framesPerSecond: round((frames.length * 1000) / duration),
+    p95FrameMs: round(percentile(sorted, 0.95)),
+    longestFrameMs: round(sorted[sorted.length - 1] ?? 0),
+    framesOver33Ms: frames.filter((frame) => frame > 1000 / 30).length,
+  };
+}
+
 /** When thumbnails are being made at launch (an empty cache), waits for
  * them all, and reports how many and how fast (PRF-3). */
 async function firstScan() {
@@ -121,13 +225,7 @@ async function scroll(duration: number) {
     frames.push(now - last);
     last = now;
   }
-  const sorted = [...frames].sort((a, b) => a - b);
-  return {
-    framesPerSecond: round((frames.length * 1000) / duration),
-    p95FrameMs: round(percentile(sorted, 0.95)),
-    longestFrameMs: round(sorted[sorted.length - 1] ?? 0),
-    framesOver33Ms: frames.filter((frame) => frame > 1000 / 30).length,
-  };
+  return frameStats(frames, duration);
 }
 
 /** Opens the Viewer and moves to the next photo `count` times, pausing
@@ -202,7 +300,8 @@ async function searchAsTyped(text: string) {
   };
 }
 
-/** Resolves once the Viewer has drawn photo `id`, on the frame after. */
+/** Resolves once the Viewer or the Editor has drawn photo `id`, on the
+ * frame after. */
 function shown(id: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = window.setTimeout(() => {
@@ -220,7 +319,8 @@ function shown(id: number): Promise<void> {
   });
 }
 
-/** The Viewer's announcement that it drew a photo, with the photo's id. */
+/** The Viewer's or the Editor's announcement that it drew a photo, with
+ * the photo's id. */
 export const SHOWN_EVENT = "seura-photo-shown";
 
 function nextFrame(): Promise<number> {
