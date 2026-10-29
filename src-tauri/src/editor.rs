@@ -41,7 +41,7 @@ struct Session {
 pub struct Opened {
     pub width: u32,
     pub height: u32,
-    pub exposure_ev: f64,
+    pub settings: Settings,
     pub problem: Option<String>,
 }
 
@@ -64,7 +64,7 @@ impl Editor {
         Ok(Opened {
             width: preview.width,
             height: preview.height,
-            exposure_ev: f64::from(settings.exposure_ev),
+            settings,
             problem,
         })
     }
@@ -221,7 +221,7 @@ mod tests {
         let editor = Editor::default();
         let opened = editor.open(1, photo, 16).unwrap();
         assert_eq!((opened.width, opened.height), (16, 12));
-        assert_eq!(opened.exposure_ev, 0.0);
+        assert_eq!(opened.settings, Settings::NEUTRAL);
         assert_eq!(opened.problem, None);
         assert_eq!(fs::read_dir(folder.path()).unwrap().count(), 1);
     }
@@ -231,7 +231,7 @@ mod tests {
         let (_folder, photo) = photo();
         save_exposure(&photo, 1.25);
         let opened = Editor::default().open(1, photo, 16).unwrap();
-        assert_eq!(opened.exposure_ev, 1.25);
+        assert_eq!(opened.settings.exposure_ev, 1.25);
     }
 
     #[test]

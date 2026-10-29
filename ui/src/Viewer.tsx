@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
 import { type PointerEvent, useEffect, useEffectEvent, useRef, useState } from "react";
-import { commands } from "./bindings";
+import { commands, type RenderSettings } from "./bindings";
 import { CloudPhoto } from "./CloudPhoto";
 import { formatNumber } from "./format";
 import { t } from "./messages";
@@ -50,7 +50,7 @@ type Props = {
 
 type Status =
   | { kind: "loading" }
-  | { kind: "shown"; id: number; full: Size; exposureEv: number }
+  | { kind: "shown"; id: number; full: Size; settings: RenderSettings }
   | { kind: "downloading"; size: number }
   | { kind: "downloadFailed" }
   | { kind: "failed"; reason: string };
@@ -215,14 +215,12 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
       element.width = image.width;
       element.height = image.height;
       renderer.upload(image);
-      // Numbers from Rust can be null, which would mean NaN; there is none here.
-      const exposureEv = data.exposureEv ?? 0;
-      renderer.draw(exposureEv);
+      renderer.draw(data.settings);
       setStatus({
         kind: "shown",
         id: viewing,
         full: { width: data.fullWidth, height: data.fullHeight },
-        exposureEv,
+        settings: data.settings,
       });
       // For the measurement script (PRF-5): this photo is drawn.
       window.dispatchEvent(new CustomEvent(SHOWN_EVENT, { detail: viewing }));
@@ -268,7 +266,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
         element.width = image.width;
         element.height = image.height;
         renderer.upload(image);
-        renderer.draw(shown.exposureEv);
+        renderer.draw(shown.settings);
         setDetail({ id: shown.id, region: wanted });
       };
       void fetchPart().catch(() => {});
@@ -279,7 +277,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     };
     // The key stands for `wanted` and `current`, which are new objects each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantedKey, shown?.id, shown?.exposureEv]);
+  }, [wantedKey, shown?.id, shown?.settings]);
 
   function move(to: number | undefined) {
     if (to === undefined) return;

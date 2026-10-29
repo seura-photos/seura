@@ -1,0 +1,26 @@
+{
+  "note": "Generated from crates/seura-render/shaders by `npm run shaders`. Don't edit.",
+  "size": 80,
+  "fields": [
+    { "name": "output_srgb", "offset": 0, "type": "u32" },
+    { "name": "rotate", "offset": 4, "type": "u32" },
+    { "name": "flip_h", "offset": 8, "type": "u32" },
+    { "name": "flip_v", "offset": 12, "type": "u32" },
+    { "name": "straighten", "offset": 16, "type": "f32" },
+    { "name": "crop_x", "offset": 20, "type": "f32" },
+    { "name": "crop_y", "offset": 24, "type": "f32" },
+    { "name": "crop_width", "offset": 28, "type": "f32" },
+    { "name": "crop_height", "offset": 32, "type": "f32" },
+    { "name": "exposure_ev", "offset": 36, "type": "f32" },
+    { "name": "temperature", "offset": 40, "type": "f32" },
+    { "name": "tint", "offset": 44, "type": "f32" },
+    { "name": "highlights", "offset": 48, "type": "f32" },
+    { "name": "shadows", "offset": 52, "type": "f32" },
+    { "name": "contrast", "offset": 56, "type": "f32" },
+    { "name": "saturation", "offset": 60, "type": "f32" },
+    { "name": "black_and_white", "offset": 64, "type": "f32" },
+    { "name": "sepia", "offset": 68, "type": "f32" },
+    { "name": "vignette_amount", "offset": 72, "type": "f32" },
+    { "name": "vignette_size", "offset": 76, "type": "f32" }
+  ]
+}

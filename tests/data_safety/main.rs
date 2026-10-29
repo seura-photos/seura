@@ -453,7 +453,10 @@ fn rules_1_and_2_export_adds_only_new_files_and_replaces_none() {
     let before = Snapshot::of(library.root());
 
     let renderer = seura_render::Renderer::new().expect("a graphics adapter");
-    let settings = seura_render::Settings { exposure_ev: 1.0 };
+    let settings = seura_render::Settings {
+        exposure_ev: 1.0,
+        ..seura_render::Settings::NEUTRAL
+    };
     let first = seura_render::export_jpeg(&renderer, &photo, &settings, folder).unwrap();
     let second = seura_render::export_jpeg(&renderer, &photo, &settings, folder).unwrap();
 

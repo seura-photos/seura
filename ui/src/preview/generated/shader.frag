@@ -5,10 +5,26 @@ precision highp float;
 precision highp int;
 
 struct Params {
-    float exposure_ev;
     uint output_srgb;
-    uint _pad0_;
-    uint _pad1_;
+    uint rotate;
+    uint flip_h;
+    uint flip_v;
+    float straighten;
+    float crop_x;
+    float crop_y;
+    float crop_width;
+    float crop_height;
+    float exposure_ev;
+    float temperature;
+    float tint;
+    float highlights;
+    float shadows;
+    float contrast;
+    float saturation;
+    float black_and_white;
+    float sepia;
+    float vignette_amount;
+    float vignette_size;
 };
 struct VertexOutput {
     vec4 position;
@@ -38,17 +54,22 @@ void main() {
     VertexOutput in_ = VertexOutput(gl_FragCoord, _vs2fs_location0);
     vec3 color = vec3(0.0);
     vec4 sample_ = textureLod(_group_0_binding_1_fs, vec2(in_.uv), 0.0);
-    float _e9 = _group_0_binding_0_fs.exposure_ev;
-    vec3 _e10 = exposure(sample_.xyz, _e9);
-    color = _e10;
-    uint _e14 = _group_0_binding_0_fs.output_srgb;
-    if ((_e14 == 1u)) {
-        vec3 _e18 = color;
-        color = (P3_TO_SRGB * _e18);
+    color = sample_.xyz;
+    float _e10 = _group_0_binding_0_fs.exposure_ev;
+    if ((_e10 != 0.0)) {
+        vec3 _e13 = color;
+        float _e16 = _group_0_binding_0_fs.exposure_ev;
+        vec3 _e17 = exposure(_e13, _e16);
+        color = _e17;
     }
-    vec3 _e20 = color;
-    vec3 _e21 = encode_transfer(_e20);
-    _fs2p_location0 = vec4(clamp(_e21, vec3(0.0), vec3(1.0)), 1.0);
+    uint _e20 = _group_0_binding_0_fs.output_srgb;
+    if ((_e20 == 1u)) {
+        vec3 _e24 = color;
+        color = (P3_TO_SRGB * _e24);
+    }
+    vec3 _e26 = color;
+    vec3 _e27 = encode_transfer(_e26);
+    _fs2p_location0 = vec4(clamp(_e27, vec3(0.0), vec3(1.0)), 1.0);
     return;
 }
 

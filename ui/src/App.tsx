@@ -81,7 +81,7 @@ export function App() {
   }, [anyChosen]);
 
   if (dev === null) return null;
-  if (dev.renderCheck) return <RenderCheck exposureEv={dev.checkExposureEv ?? 0} />;
+  if (dev.renderCheck) return <RenderCheck settings={dev.checkSettings} />;
 
   const editingNow = editing !== null && dev.editorAvailable;
   // Developer switches are easy to leave set in a terminal, so they're always shown.

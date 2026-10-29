@@ -9,7 +9,10 @@ use crate::Settings;
 
 /// The settings the check renders with: an exposure that isn't a whole
 /// stop, so rounding differences would show.
-pub const CHECK_SETTINGS: Settings = Settings { exposure_ev: 0.7 };
+pub const CHECK_SETTINGS: Settings = Settings {
+    exposure_ev: 0.7,
+    ..Settings::NEUTRAL
+};
 
 /// How far a preview pixel may be from export's, in 8-bit levels: GPUs
 /// round a little differently, but never visibly.

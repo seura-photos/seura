@@ -1195,6 +1195,80 @@ pub fn show_thumbnails(library: State<'_, Library>, ids: Vec<u32>) {
     library.show(jobs);
 }
 
+/// A photo's edits as the preview renders them: every core operation's
+/// parameters (seura-render's `Settings`), neutral where the edit file has
+/// none. The preview writes them into the shaders' uniform block.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RenderSettings {
+    pub rotate: u16,
+    pub flip_h: bool,
+    pub flip_v: bool,
+    pub straighten: f32,
+    pub crop_x: f32,
+    pub crop_y: f32,
+    pub crop_width: f32,
+    pub crop_height: f32,
+    pub exposure_ev: f32,
+    pub temperature: f32,
+    pub tint: f32,
+    pub highlights: f32,
+    pub shadows: f32,
+    pub contrast: f32,
+    pub saturation: f32,
+    pub black_and_white: f32,
+    pub sepia: f32,
+    pub vignette_amount: f32,
+    pub vignette_size: f32,
+}
+
+impl From<seura_render::Settings> for RenderSettings {
+    fn from(settings: seura_render::Settings) -> RenderSettings {
+        let seura_render::Settings {
+            rotate,
+            flip_h,
+            flip_v,
+            straighten,
+            crop_x,
+            crop_y,
+            crop_width,
+            crop_height,
+            exposure_ev,
+            temperature,
+            tint,
+            highlights,
+            shadows,
+            contrast,
+            saturation,
+            black_and_white,
+            sepia,
+            vignette_amount,
+            vignette_size,
+        } = settings;
+        RenderSettings {
+            rotate,
+            flip_h,
+            flip_v,
+            straighten,
+            crop_x,
+            crop_y,
+            crop_width,
+            crop_height,
+            exposure_ev,
+            temperature,
+            tint,
+            highlights,
+            shadows,
+            contrast,
+            saturation,
+            black_and_white,
+            sepia,
+            vignette_amount,
+            vignette_size,
+        }
+    }
+}
+
 /// What the Editor can show of a photo (EDT-1).
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -1205,7 +1279,7 @@ pub enum OpenedPhoto {
         /// The preview's size.
         width: u32,
         height: u32,
-        exposure_ev: f64,
+        settings: RenderSettings,
         /// Why the photo can't be edited, if it can't: its edit file can't
         /// be read, and is never overwritten (FIL-4).
         problem: Option<String>,
@@ -1231,7 +1305,7 @@ pub enum ViewedPhoto {
         /// The photo's own upright size, for zooming.
         full_width: u32,
         full_height: u32,
-        exposure_ev: f64,
+        settings: RenderSettings,
     },
     /// Only in the cloud, and not read: ask again with `download` to read
     /// it, which downloads it (LIB-9).
@@ -1297,7 +1371,7 @@ pub async fn view_photo(
             height: shown.height,
             full_width: shown.full_width,
             full_height: shown.full_height,
-            exposure_ev: shown.exposure_ev,
+            settings: shown.settings.into(),
         })
     })
     .await
@@ -1408,7 +1482,7 @@ pub async fn open_photo(
         Ok(OpenedPhoto::Opened {
             width: opened.width,
             height: opened.height,
-            exposure_ev: opened.exposure_ev,
+            settings: opened.settings.into(),
             problem: opened.problem,
         })
     })
@@ -1547,8 +1621,8 @@ pub struct DevOptions {
     /// `SEURA_LOCALE=pseudo` pseudo-translates every string, to check that
     /// longer translations fit (ACC-7).
     pub pseudo_locale: bool,
-    /// The exposure the render check uses, so both sides agree.
-    pub check_exposure_ev: f32,
+    /// The settings the render check uses, so both sides agree.
+    pub check_settings: RenderSettings,
     /// Whether M1's Editor is available: in development builds only, since
     /// M2 writes no edit files (M2 work plan).
     pub editor_available: bool,
@@ -1587,7 +1661,7 @@ pub fn dev_options() -> DevOptions {
         force_webgl2: std::env::var("SEURA_PREVIEW").as_deref() == Ok("webgl2"),
         render_check: render_check_mode(),
         pseudo_locale: crate::locale::pseudo(),
-        check_exposure_ev: seura_render::check::CHECK_SETTINGS.exposure_ev,
+        check_settings: seura_render::check::CHECK_SETTINGS.into(),
         editor_available: cfg!(debug_assertions),
         measure: crate::measure::active(),
         active: active_switches(),

@@ -5,7 +5,6 @@
 
 use std::sync::mpsc;
 
-use bytemuck::{Pod, Zeroable};
 use half::f16;
 use seura_image::{LinearImage, Rgba8};
 
@@ -31,15 +30,6 @@ pub enum RenderError {
     Device(String),
     #[error("couldn't read the rendered pixels: {0}")]
     Readback(String),
-}
-
-/// The shader's `Params`, with the same layout.
-#[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-struct Params {
-    exposure_ev: f32,
-    output_srgb: u32,
-    _pad: [u32; 2],
 }
 
 /// A graphics device with the render pipeline built. Making one takes a
@@ -164,7 +154,7 @@ impl Renderer {
         });
         let params = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Seura params"),
-            size: size_of::<Params>() as u64,
+            size: size_of::<crate::settings::Params>() as u64,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -192,11 +182,7 @@ impl Renderer {
         settings: &Settings,
         output: Output,
     ) -> Result<Rgba8, RenderError> {
-        let params = Params {
-            exposure_ev: settings.exposure_ev,
-            output_srgb: u32::from(output == Output::Srgb),
-            _pad: [0; 2],
-        };
+        let params = settings.uniforms(output);
         self.queue
             .write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
         let (width, height) = (image.width, image.height);

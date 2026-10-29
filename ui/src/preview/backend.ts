@@ -1,4 +1,6 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
+import type { RenderSettings } from "../bindings";
+import layout from "./generated/params.json";
 
 /**
  * Pixels in the working space (linear light, Display P3 primaries) as RGBA
@@ -16,17 +18,40 @@ export interface Backend {
   /** Uploads the photo. The canvas must already have its size. */
   upload(image: LinearImage): void;
   /** Draws the photo with these settings on the canvas, for the display. */
-  draw(exposureEv: number): void;
+  draw(settings: RenderSettings): void;
   /** Renders the photo at its own size encoded as sRGB, like export, and reads it back as 8-bit RGBA rows, top first. */
-  read(exposureEv: number): Promise<Uint8Array>;
+  read(settings: RenderSettings): Promise<Uint8Array>;
   destroy(): void;
 }
 
-/** The shader's `Params`: 16 bytes, as in `crates/seura-render/shaders/main.wgsl`. */
-export function params(exposureEv: number, outputSrgb: boolean): ArrayBuffer {
-  const buffer = new ArrayBuffer(16);
-  new Float32Array(buffer, 0, 1)[0] = exposureEv;
-  new Uint32Array(buffer, 4, 1)[0] = outputSrgb ? 1 : 0;
+/** The size in bytes of the shaders' `Params`, the uniform block. */
+export const PARAMS_SIZE = layout.size;
+
+/** A field of `Params` as the settings name it: `exposure_ev` is `exposureEv`. */
+export function settingName(field: string): string {
+  return field.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+}
+
+/**
+ * The shaders' `Params` for these settings (`crates/seura-render/shaders/
+ * main.wgsl`), each field where naga lays it out: the layout is generated
+ * from the WGSL with the shaders (`generated/params.json`), so it can't
+ * drift from them.
+ */
+export function params(settings: RenderSettings, outputSrgb: boolean): ArrayBuffer {
+  const buffer = new ArrayBuffer(layout.size);
+  const view = new DataView(buffer);
+  for (const field of layout.fields) {
+    const value =
+      field.name === "output_srgb"
+        ? outputSrgb
+        : settings[settingName(field.name) as keyof RenderSettings];
+    // Numbers from Rust can be null, which would mean NaN; edit files hold
+    // only finite numbers, so there is none here.
+    const number = typeof value === "boolean" ? Number(value) : (value ?? 0);
+    if (field.type === "u32") view.setUint32(field.offset, number, true);
+    else view.setFloat32(field.offset, number, true);
+  }
   return buffer;
 }
 

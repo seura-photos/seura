@@ -33,13 +33,42 @@ fn exposure(color: vec3<f32>, ev: f32) -> vec3<f32> {
 // The render pass: draws the photo with its edits, in the canonical order
 // (decision 0003), then encodes it for the preview or for export.
 
+// Every core operation's parameters but red-eye's regions, in the edit
+// format's canonical order (seura-render's `Settings`). An operation whose
+// parameters are neutral is skipped: the branch is on a uniform, so it costs
+// nothing, and there are no separate flags to keep in step. Operations arrive
+// one by one in M4; so far only exposure is rendered.
 struct Params {
-    // seura.exposure's ev; 0 is neutral.
-    exposure_ev: f32,
     // 0: Display P3, for the preview. 1: sRGB, for export (EXP-5).
     output_srgb: u32,
-    _pad0: u32,
-    _pad1: u32,
+    // seura.orient: 0, 90, 180, or 270 degrees clockwise; flips are 0 or 1.
+    rotate: u32,
+    flip_h: u32,
+    flip_v: u32,
+    // seura.straighten, degrees clockwise.
+    straighten: f32,
+    // seura.crop, fractions of the straightened photo; 0, 0, 1, 1 is all of it.
+    crop_x: f32,
+    crop_y: f32,
+    crop_width: f32,
+    crop_height: f32,
+    // seura.exposure's ev; 0 is neutral.
+    exposure_ev: f32,
+    // seura.whiteBalance, −100 to 100.
+    temperature: f32,
+    tint: f32,
+    // seura.highlights, seura.shadows, seura.contrast, seura.saturation:
+    // −100 to 100.
+    highlights: f32,
+    shadows: f32,
+    contrast: f32,
+    saturation: f32,
+    // seura.blackAndWhite and seura.sepia: 0 to 100.
+    black_and_white: f32,
+    sepia: f32,
+    // seura.vignette: amount −100 to 100, size 0 to 100.
+    vignette_amount: f32,
+    vignette_size: f32,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -66,7 +95,10 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let sample = textureSampleLevel(photo, photo_sampler, in.uv, 0.0);
-    var color = exposure(sample.rgb, params.exposure_ev);
+    var color = sample.rgb;
+    if params.exposure_ev != 0.0 {
+        color = exposure(color, params.exposure_ev);
+    }
     if params.output_srgb == 1u {
         color = P3_TO_SRGB * color;
     }

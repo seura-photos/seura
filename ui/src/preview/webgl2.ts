@@ -1,4 +1,5 @@
-import { type Backend, type LinearImage, params } from "./backend";
+import type { RenderSettings } from "../bindings";
+import { type Backend, type LinearImage, PARAMS_SIZE, params } from "./backend";
 import names from "./generated/gl-names.json";
 import fragmentSource from "./generated/shader.frag?raw";
 import vertexSource from "./generated/shader.vert?raw";
@@ -21,7 +22,7 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
   gl.uniformBlockBinding(program, block, 0);
   const uniforms = gl.createBuffer();
   gl.bindBuffer(gl.UNIFORM_BUFFER, uniforms);
-  gl.bufferData(gl.UNIFORM_BUFFER, 16, gl.DYNAMIC_DRAW);
+  gl.bufferData(gl.UNIFORM_BUFFER, PARAMS_SIZE, gl.DYNAMIC_DRAW);
   gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, uniforms);
   gl.uniform1i(gl.getUniformLocation(program, names.photo), 0);
   // The vertex shader makes its own triangle; WebGL2 still wants an array bound.
@@ -31,9 +32,9 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
   const photo = gl.createTexture();
   let size = { width: 0, height: 0 };
 
-  const render = (exposureEv: number, outputSrgb: boolean, filter: number) => {
+  const render = (settings: RenderSettings, outputSrgb: boolean, filter: number) => {
     gl.bindBuffer(gl.UNIFORM_BUFFER, uniforms);
-    gl.bufferSubData(gl.UNIFORM_BUFFER, 0, params(exposureEv, outputSrgb));
+    gl.bufferSubData(gl.UNIFORM_BUFFER, 0, params(settings, outputSrgb));
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, photo);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
@@ -63,12 +64,12 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
         image.data,
       );
     },
-    draw(exposureEv: number) {
+    draw(settings: RenderSettings) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-      render(exposureEv, false, gl.LINEAR);
+      render(settings, false, gl.LINEAR);
     },
-    read(exposureEv: number) {
+    read(settings: RenderSettings) {
       const target = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, target);
       gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, size.width, size.height);
@@ -76,7 +77,7 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
       gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, target, 0);
       gl.viewport(0, 0, size.width, size.height);
-      render(exposureEv, true, gl.NEAREST);
+      render(settings, true, gl.NEAREST);
       const row = size.width * 4;
       const bottomFirst = new Uint8Array(row * size.height);
       gl.readPixels(0, 0, size.width, size.height, gl.RGBA, gl.UNSIGNED_BYTE, bottomFirst);

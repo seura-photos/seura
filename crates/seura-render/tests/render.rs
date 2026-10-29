@@ -48,6 +48,7 @@ fn renderer() -> Renderer {
 fn assert_matches(image: &LinearImage, ev: f64, output: Output, renderer: &Renderer) {
     let settings = Settings {
         exposure_ev: ev as f32,
+        ..Settings::NEUTRAL
     };
     let rendered = renderer.render(image, &settings, output).unwrap();
     assert_eq!(

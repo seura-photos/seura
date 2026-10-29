@@ -102,7 +102,7 @@ describe("Viewer (BRW-5)", () => {
       height: 600,
       fullWidth: 1600,
       fullHeight: 1200,
-      exposureEv: 0.5,
+      settings: { exposureEv: 0.5 },
     };
     mocks.viewPhoto.mockImplementation(() => Promise.resolve({ status: "ok", data: mocks.viewed }));
     mocks.viewRegion.mockImplementation(() =>
@@ -120,7 +120,7 @@ describe("Viewer (BRW-5)", () => {
     show(2);
     expect(screen.getByText("IMG_2.jpg")).toBeTruthy();
     expect(screen.getByText("2 of 3")).toBeTruthy();
-    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalledWith(0.5));
+    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalledWith({ exposureEv: 0.5 }));
     const scale = window.devicePixelRatio;
     expect(mocks.viewPhoto).toHaveBeenCalledWith(2, [1, 3], 800 * scale, 600 * scale, false);
     expect(mocks.fetchLinear).toHaveBeenCalledWith("view-2");
@@ -182,7 +182,7 @@ describe("Viewer (BRW-5)", () => {
     expect(screen.queryByRole("progressbar")).toBeNull();
     expect(screen.queryByRole("button", { name: /cancel/i })).toBeNull();
     finish({ status: "ok", data: mocks.viewed });
-    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalledWith(0.5));
+    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalledWith({ exposureEv: 0.5 }));
     expect(screen.queryByText(/Downloading/)).toBeNull();
   });
 
@@ -201,7 +201,7 @@ describe("Viewer (BRW-5)", () => {
     expect(await screen.findByText(/couldn't be downloaded/)).toBeTruthy();
     fail = false;
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalledWith(0.5));
+    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalledWith({ exposureEv: 0.5 }));
   });
 
   it("moves on from a download without waiting for it (LIB-9)", async () => {

@@ -1,5 +1,5 @@
 import { type PointerEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
-import { commands, type PhotoEdit } from "./bindings";
+import { commands, NEUTRAL_SETTINGS, type PhotoEdit, type RenderSettings } from "./bindings";
 import { CloudPhoto } from "./CloudPhoto";
 import { Filmstrip } from "./Filmstrip";
 import { isCompareKey, isTyping } from "./keys";
@@ -27,7 +27,14 @@ type Props = {
 
 /** What's known of a photo being opened; until there's any, it's loading. */
 type Status = { id: number } & (
-  | { kind: "shown"; width: number; height: number; problem: string | null }
+  | {
+      kind: "shown";
+      width: number;
+      height: number;
+      // As saved; the slider changes brightness in them.
+      settings: RenderSettings;
+      problem: string | null;
+    }
   | { kind: "downloading"; size: number }
   | { kind: "downloadFailed" }
   | { kind: "failed"; reason: string }
@@ -209,15 +216,15 @@ export function Editor({ id, forceWebgl2 }: Props) {
       element.width = image.width;
       element.height = image.height;
       renderer.upload(image);
+      renderer.draw(data.settings);
       // Numbers from Rust can be null, which would mean NaN; there is none here.
-      const exposureEv = data.exposureEv ?? 0;
-      renderer.draw(exposureEv);
-      setEv(exposureEv);
+      setEv(data.settings.exposureEv ?? 0);
       setStatus({
         id,
         kind: "shown",
         width: image.width,
         height: image.height,
+        settings: data.settings,
         problem: data.problem,
       });
     };
@@ -231,11 +238,12 @@ export function Editor({ id, forceWebgl2 }: Props) {
   }, [id, attempt, measured, flush]);
 
   // Every change of a setting, or holding compare, redraws the photo.
-  const shownId = shown?.id ?? null;
+  const settings = shown?.settings ?? null;
   useEffect(() => {
-    if (shownId === null) return;
-    void backend.current?.then((renderer) => renderer?.draw(comparing ? 0 : ev));
-  }, [shownId, ev, comparing]);
+    if (!settings) return;
+    const drawn = comparing ? NEUTRAL_SETTINGS : { ...settings, exposureEv: ev };
+    void backend.current?.then((renderer) => renderer?.draw(drawn));
+  }, [settings, ev, comparing]);
 
   function done() {
     void flush();
