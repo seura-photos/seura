@@ -6,4 +6,5 @@
   - Show in Finder reveals just those photos and closes the confirmation.
   - If they're all the photos, the confirmation has OK and Show in Finder, and no Move to Trash.
 - **A wider scope than asked, Claude Code's choice, in the pull request for Nevada to confirm:** OneDrive, Google Drive and Dropbox all keep their folders in `~/Library/CloudStorage` and use the same file provider mechanism, so the rule covers that whole folder rather than OneDrive alone. iCloud Drive, in `~/Library/Mobile Documents`, works differently and hasn't shown the problem, so its photos still go to the Trash.
-- **The hour of looking for an entitlement** needs the Mac, so it's left for the Mac session, with Nevada's OK.
+- **Nevada confirmed the wider scope:** "Applying it to all of the cloud storage folder is fine for now. We will assume that they all operate the same way and err on the side of caution." Dropbox and Google Drive get tested later; Nevada has accounts with both but uses only OneDrive now.
+- **The hour of looking for an entitlement** needs the Mac. Nevada asked the Mac session to spend it, together with measuring PRF-6 there for #159.
