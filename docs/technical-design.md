@@ -144,7 +144,7 @@ Decode at full resolution → render all operations with the wgpu pipeline in ti
 
 1. **Geometry** (orient, straighten, crop) is applied as a coordinate transform when sampling, not as a separate pass.
 2. **Retouch** (red-eye) samples the photo in its pre-geometry coordinates.
-3. **Tone and color**, then **effects**, run as one fused fragment pass over the visible region, with uniforms for each operation's parameters. Operations with neutral settings are compiled out by uniform flags rather than separate shader variants.
+3. **Tone and color**, then **effects**, run as one fused fragment pass over the visible region, with uniforms for each operation's parameters. An operation with neutral settings is skipped by a branch on its own uniform values (for example, contrast only when its amount isn't 0), rather than separate shader variants or separate flags that would have to be kept in step with the values.
 
 ### Neighborhood operations: highlights and shadows
 
