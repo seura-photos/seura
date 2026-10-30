@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { formatNumber } from "./format";
-import type { LinearImage } from "./preview";
+import { type LinearImage, type Orient, orientedSize, uprightRegion } from "./preview";
 import type { Region as Fraction } from "./preview/backend";
 import {
   clampView,
@@ -35,11 +35,15 @@ type Options = {
   inset?: { left: number; top: number };
   /** The photo shown, by id, and its own upright size; `null` while none is. */
   photo: { id: number; full: Size } | null;
-  /** Has the core cut `region` of photo `id`, scaled to `width` × `height`,
-   * and fetches it; `null` if a newer part replaced it meanwhile. */
+  /** How the photo's edits turn it (`seura.orient`): zoom works on the
+   * photo as it's shown. */
+  orient?: Orient | null;
+  /** Has the core cut `region` of photo `id` (upright pixels), scaled to
+   * `width` × `height`, and fetches it; `null` if a newer part replaced it
+   * meanwhile. */
   cut: (id: number, region: Region, width: number, height: number) => Promise<LinearImage | null>;
-  /** Uploads and draws a sharp part, where it is as fractions of the
-   * photo. False if it's no longer wanted. */
+  /** Uploads and draws a sharp part (upright), where it is as fractions of
+   * the upright photo. False if it's no longer wanted. */
   show: (image: LinearImage, at: Fraction) => Promise<boolean>;
   /** Anything that means the sharp part must be fetched again. */
   version?: unknown;
@@ -51,15 +55,30 @@ type Options = {
  * image decoded to fit the stage. Zoomed in, that image is enlarged
  * underneath while the part on screen is cut from the full-size photo and
  * drawn sharp over it once zooming or panning rests (technical design §6).
- * Each photo opens fitted.
+ * Each photo opens fitted. Positions are in the photo as its edits turn
+ * it; the core cuts parts of the upright photo.
  */
-export function useZoom({ stage, area, inset, photo, cut, show, version }: Options) {
+export function useZoom({
+  stage,
+  area,
+  inset,
+  photo: upright,
+  orient,
+  cut,
+  show,
+  version,
+}: Options) {
   const scale = window.devicePixelRatio;
   const stageSize: Size = { width: area.width * scale, height: area.height * scale };
+  const turn = orient ?? { rotate: 0, flipH: false, flipV: false };
+  // The photo as it's shown.
+  const photo = upright && { id: upright.id, full: orientedSize(upright.full, turn) };
+  const turned = `${turn.rotate} ${turn.flipH} ${turn.flipV}`;
   // Zoomed in on a photo; none while it's fitted.
   const [zoomed, setZoomed] = useState<{ id: number; view: View } | null>(null);
-  // The sharp part on screen while zoomed in, and which photo it's from.
-  const [detail, setDetail] = useState<{ id: number; region: Region } | null>(null);
+  // The sharp part on screen while zoomed in, which photo it's from, and
+  // how that photo was turned.
+  const [detail, setDetail] = useState<{ id: number; region: Region; turned: string } | null>(null);
   const drag = useRef<{ pointer: number; x: number; y: number } | null>(null);
 
   const fitted = photo ? fitView(photo.full, stageSize) : null;
@@ -81,21 +100,33 @@ export function useZoom({ stage, area, inset, photo, cut, show, version }: Optio
     const zoom = Math.min(1, current.zoom);
     const timer = window.setTimeout(() => {
       const fetchPart = async () => {
+        if (!upright) return;
+        // Where the part is in the upright photo, which the core cuts and
+        // whose guide the part samples.
+        const at = uprightRegion(
+          {
+            x: wanted.x / photo.full.width,
+            y: wanted.y / photo.full.height,
+            width: wanted.width / photo.full.width,
+            height: wanted.height / photo.full.height,
+          },
+          turn,
+        );
+        const region = {
+          x: Math.round(at.x * upright.full.width),
+          y: Math.round(at.y * upright.full.height),
+          width: Math.round(at.width * upright.full.width),
+          height: Math.round(at.height * upright.full.height),
+        };
         const image = await cut(
           photo.id,
-          wanted,
-          Math.max(1, Math.round(wanted.width * zoom)),
-          Math.max(1, Math.round(wanted.height * zoom)),
+          region,
+          Math.max(1, Math.round(region.width * zoom)),
+          Math.max(1, Math.round(region.height * zoom)),
         );
         if (!live || !image) return;
-        // Its guide is the whole photo's, sampled where the part is.
-        const drawn = await show(image, {
-          x: wanted.x / photo.full.width,
-          y: wanted.y / photo.full.height,
-          width: wanted.width / photo.full.width,
-          height: wanted.height / photo.full.height,
-        });
-        if (live && drawn) setDetail({ id: photo.id, region: wanted });
+        const drawn = await show(image, at);
+        if (live && drawn) setDetail({ id: photo.id, region: wanted, turned });
       };
       void fetchPart().catch(() => {});
     }, ZOOM_SETTLE);
@@ -105,7 +136,7 @@ export function useZoom({ stage, area, inset, photo, cut, show, version }: Optio
     };
     // The key stands for `wanted` and `current`, which are new objects each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantedKey, photo?.id, version]);
+  }, [wantedKey, photo?.id, version, turned]);
 
   /** Zooms to `zoom` about `point` (device pixels from the stage's center). */
   function zoomTo(zoom: number, point = { x: 0, y: 0 }) {
@@ -208,7 +239,10 @@ export function useZoom({ stage, area, inset, photo, cut, show, version }: Optio
       : null,
     /** The whole photo's place, and the sharp part's while zoomed in. */
     whole: photo ? place({ x: 0, y: 0, ...photo.full }) : null,
-    sharp: isZoomed && detail && detail.id === photo?.id ? place(detail.region) : null,
+    sharp:
+      isZoomed && detail && detail.id === photo?.id && detail.turned === turned
+        ? place(detail.region)
+        : null,
     zoomTo,
     zoomStep,
     fit,

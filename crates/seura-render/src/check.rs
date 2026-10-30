@@ -9,8 +9,12 @@ use crate::Settings;
 
 /// The settings the check renders with: every operation built so far, at
 /// values that aren't round, so a difference in any would show. Contrast is
-/// moderate, so the ramps keep some pixels on each side of middle gray.
+/// moderate, so the ramps keep some pixels on each side of middle gray. The
+/// photo is turned on its side and flipped, so a preview that turned it any
+/// other way, or kept its size, would fail.
 pub const CHECK_SETTINGS: Settings = Settings {
+    rotate: 90,
+    flip_h: true,
     exposure_ev: 0.7,
     temperature: 23.0,
     tint: -17.0,

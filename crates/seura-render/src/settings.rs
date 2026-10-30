@@ -2,7 +2,7 @@
 //! block that carries them to the shaders.
 
 use bytemuck::{Pod, Zeroable};
-use seura_edit::{CoreOperation, EditDocument};
+use seura_edit::{CoreOperation, EditDocument, Operation};
 
 use crate::Output;
 
@@ -74,14 +74,21 @@ impl Settings {
     /// Disabled operations are skipped, as are ones Seura can't render
     /// (edit format: "Operations").
     pub fn from_document(document: &EditDocument) -> Settings {
+        Settings::from_operations(
+            document
+                .operations()
+                .iter()
+                .filter(|operation| operation.enabled)
+                .filter_map(|operation: &Operation| operation.core.as_ref()),
+        )
+    }
+
+    /// The settings these core operations make, the rest neutral.
+    pub fn from_operations<'a>(
+        operations: impl IntoIterator<Item = &'a CoreOperation>,
+    ) -> Settings {
         let mut settings = Settings::NEUTRAL;
-        for operation in document.operations() {
-            if !operation.enabled {
-                continue;
-            }
-            let Some(core) = &operation.core else {
-                continue;
-            };
+        for core in operations {
             match core {
                 CoreOperation::Orient(orient) => {
                     settings.rotate = orient.rotate;
@@ -119,6 +126,23 @@ impl Settings {
             }
         }
         settings
+    }
+
+    /// Whether `seura.orient` turns the photo on its side, so its width and
+    /// height trade places.
+    pub fn sideways(&self) -> bool {
+        self.rotate % 180 == 90
+    }
+
+    /// The size of the photo drawn with these settings, for a photo of
+    /// `width` × `height` upright: turned by `seura.orient`. Straighten and
+    /// crop arrive with slice 5 of M4.
+    pub fn output_size(&self, width: u32, height: u32) -> (u32, u32) {
+        if self.sideways() {
+            (height, width)
+        } else {
+            (width, height)
+        }
     }
 
     /// The shaders' `Params` for these settings, encoded for `output`, for
@@ -265,6 +289,25 @@ mod tests {
                 vignette_size: 70.0,
             }
         );
+    }
+
+    #[test]
+    fn a_photo_turned_on_its_side_trades_width_and_height() {
+        let turned = |rotate| Settings {
+            rotate,
+            ..Settings::NEUTRAL
+        };
+        assert_eq!(turned(0).output_size(4, 3), (4, 3));
+        assert_eq!(turned(90).output_size(4, 3), (3, 4));
+        assert_eq!(turned(180).output_size(4, 3), (4, 3));
+        assert_eq!(turned(270).output_size(4, 3), (3, 4));
+        // Flips keep the size.
+        let flipped = Settings {
+            flip_h: true,
+            flip_v: true,
+            ..Settings::NEUTRAL
+        };
+        assert_eq!(flipped.output_size(4, 3), (4, 3));
     }
 
     #[test]

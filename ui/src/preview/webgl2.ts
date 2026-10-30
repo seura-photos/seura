@@ -8,6 +8,7 @@ import {
   WHOLE,
   guideKey,
   needsGuide,
+  orientedSize,
   params,
 } from "./backend";
 import names from "./generated/gl-names.json";
@@ -173,21 +174,22 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
       render(settings, false, gl.LINEAR, null, gl.drawingBufferWidth, gl.drawingBufferHeight);
     },
     read(settings: RenderSettings) {
-      const target = texture(size.width, size.height, gl.RGBA8, gl.NEAREST);
+      const { width, height } = orientedSize(size, settings);
+      const target = texture(width, height, gl.RGBA8, gl.NEAREST);
       const readFrom = gl.createFramebuffer();
       gl.bindFramebuffer(gl.FRAMEBUFFER, readFrom);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, target, 0);
-      render(settings, true, gl.NEAREST, readFrom, size.width, size.height);
-      const row = size.width * 4;
-      const bottomFirst = new Uint8Array(row * size.height);
-      gl.readPixels(0, 0, size.width, size.height, gl.RGBA, gl.UNSIGNED_BYTE, bottomFirst);
+      render(settings, true, gl.NEAREST, readFrom, width, height);
+      const row = width * 4;
+      const bottomFirst = new Uint8Array(row * height);
+      gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, bottomFirst);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.deleteFramebuffer(readFrom);
       gl.deleteTexture(target);
       // WebGL reads from the bottom row up; the photo's top is the last row.
       const pixels = new Uint8Array(bottomFirst.length);
-      for (let y = 0; y < size.height; y++) {
-        const from = (size.height - 1 - y) * row;
+      for (let y = 0; y < height; y++) {
+        const from = (height - 1 - y) * row;
         pixels.set(bottomFirst.subarray(from, from + row), y * row);
       }
       return Promise.resolve(pixels);

@@ -193,6 +193,43 @@ vec4 guide_pass(vec4 position) {
     }
 }
 
+vec2 upright_position(vec2 uv) {
+    vec2 p = vec2(0.0);
+    p = uv;
+    uint _e4 = _group_0_binding_0_fs.flip_h;
+    if ((_e4 == 1u)) {
+        float _e9 = p.x;
+        p.x = (1.0 - _e9);
+    }
+    uint _e14 = _group_0_binding_0_fs.flip_v;
+    if ((_e14 == 1u)) {
+        float _e19 = p.y;
+        p.y = (1.0 - _e19);
+    }
+    uint _e24 = _group_0_binding_0_fs.rotate;
+    switch(_e24) {
+        case 90u: {
+            float _e26 = p.y;
+            float _e28 = p.x;
+            return vec2(_e26, (1.0 - _e28));
+        }
+        case 180u: {
+            float _e33 = p.x;
+            float _e37 = p.y;
+            return vec2((1.0 - _e33), (1.0 - _e37));
+        }
+        case 270u: {
+            float _e42 = p.y;
+            float _e46 = p.x;
+            return vec2((1.0 - _e42), _e46);
+        }
+        default: {
+            vec2 _e48 = p;
+            return _e48;
+        }
+    }
+}
+
 void main() {
     VertexOutput in_ = VertexOutput(gl_FragCoord, _vs2fs_location0);
     vec3 color = vec3(0.0);
@@ -205,44 +242,45 @@ void main() {
         _fs2p_location0 = _e7;
         return;
     }
-    vec4 sample_ = textureLod(_group_0_binding_1_fs, vec2(in_.uv), 0.0);
+    vec2 _e9 = upright_position(in_.uv);
+    vec4 sample_ = textureLod(_group_0_binding_1_fs, vec2(_e9), 0.0);
     color = sample_.xyz;
-    float _e17 = _group_0_binding_0_fs.exposure_ev;
-    if ((_e17 != 0.0)) {
-        vec3 _e20 = color;
-        float _e23 = _group_0_binding_0_fs.exposure_ev;
-        vec3 _e24 = exposure(_e20, _e23);
-        color = _e24;
+    float _e18 = _group_0_binding_0_fs.exposure_ev;
+    if ((_e18 != 0.0)) {
+        vec3 _e21 = color;
+        float _e24 = _group_0_binding_0_fs.exposure_ev;
+        vec3 _e25 = exposure(_e21, _e24);
+        color = _e25;
     }
-    float _e27 = _group_0_binding_0_fs.temperature;
-    if (!((_e27 != 0.0))) {
-        float _e35 = _group_0_binding_0_fs.tint;
-        local = (_e35 != 0.0);
+    float _e28 = _group_0_binding_0_fs.temperature;
+    if (!((_e28 != 0.0))) {
+        float _e36 = _group_0_binding_0_fs.tint;
+        local = (_e36 != 0.0);
     } else {
         local = true;
     }
-    bool _e39 = local;
-    if (_e39) {
-        vec3 _e40 = color;
-        float _e43 = _group_0_binding_0_fs.temperature;
-        float _e46 = _group_0_binding_0_fs.tint;
-        vec3 _e47 = white_balance(_e40, _e43, _e46);
-        color = _e47;
+    bool _e40 = local;
+    if (_e40) {
+        vec3 _e41 = color;
+        float _e44 = _group_0_binding_0_fs.temperature;
+        float _e47 = _group_0_binding_0_fs.tint;
+        vec3 _e48 = white_balance(_e41, _e44, _e47);
+        color = _e48;
     }
-    float _e50 = _group_0_binding_0_fs.highlights;
-    if (!((_e50 != 0.0))) {
-        float _e58 = _group_0_binding_0_fs.shadows;
-        local_1 = (_e58 != 0.0);
+    float _e51 = _group_0_binding_0_fs.highlights;
+    if (!((_e51 != 0.0))) {
+        float _e59 = _group_0_binding_0_fs.shadows;
+        local_1 = (_e59 != 0.0);
     } else {
         local_1 = true;
     }
-    bool _e62 = local_1;
-    if (_e62) {
-        float _e65 = _group_0_binding_0_fs.tile_x;
-        float _e68 = _group_0_binding_0_fs.tile_y;
+    bool _e63 = local_1;
+    if (_e63) {
+        float _e66 = _group_0_binding_0_fs.tile_x;
+        float _e69 = _group_0_binding_0_fs.tile_y;
         float _e73 = _group_0_binding_0_fs.tile_width;
         float _e76 = _group_0_binding_0_fs.tile_height;
-        vec2 at_2 = (vec2(_e65, _e68) + (in_.uv * vec2(_e73, _e76)));
+        vec2 at_2 = (vec2(_e66, _e69) + (_e9 * vec2(_e73, _e76)));
         vec4 _e83 = textureLod(_group_0_binding_3_fs, vec2(at_2), 0.0);
         vec2 ab = _e83.xy;
         vec3 _e85 = color;

@@ -197,12 +197,13 @@ fn guide_pass(position: vec4<f32>) -> vec4<f32> {
 // format's canonical order (seura-render's `Settings`). An operation whose
 // parameters are neutral is skipped: the branch is on a uniform, so it costs
 // nothing, and there are no separate flags to keep in step. Operations arrive
-// one by one in M4; so far exposure, white balance, highlights, shadows,
-// contrast and saturation are rendered.
+// one by one in M4; so far orient, exposure, white balance, highlights,
+// shadows, contrast and saturation are rendered.
 struct Params {
     // 0: Display P3, for the preview. 1: sRGB, for export (EXP-5).
     output_srgb: u32,
-    // seura.orient: 0, 90, 180, or 270 degrees clockwise; flips are 0 or 1.
+    // seura.orient: 0, 90, 180, or 270 degrees clockwise, then flips (0 or
+    // 1) as the turned photo is seen.
     rotate: u32,
     flip_h: u32,
     flip_v: u32,
@@ -233,8 +234,8 @@ struct Params {
     // Which pass this draw is: 0 draws the photo; 1 to 4 build the luminance
     // guide (guide.wgsl).
     draw_pass: u32,
-    // The part of the photo this draw covers, as fractions of it; 0, 0, 1, 1
-    // is all of it. Export draws large photos in tiles.
+    // The part of the upright photo this draw covers, as fractions of it;
+    // 0, 0, 1, 1 is all of it. Export draws large photos in tiles.
     tile_x: f32,
     tile_y: f32,
     tile_width: f32,
@@ -268,12 +269,43 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
     return out;
 }
 
+// Geometry is a coordinate transform when sampling (technical design,
+// "Pipeline"): where a point of the drawn photo, as fractions of it, is in
+// the upright photo. seura.orient turns the photo clockwise, then flips it
+// as it's then seen, so this undoes the flips, then the turn. A part of the
+// photo maps the same way within itself, since its part of the upright
+// photo is a rectangle too.
+fn upright_position(uv: vec2<f32>) -> vec2<f32> {
+    var p = uv;
+    if params.flip_h == 1u {
+        p.x = 1.0 - p.x;
+    }
+    if params.flip_v == 1u {
+        p.y = 1.0 - p.y;
+    }
+    switch params.rotate {
+        case 90u: {
+            return vec2<f32>(p.y, 1.0 - p.x);
+        }
+        case 180u: {
+            return vec2<f32>(1.0 - p.x, 1.0 - p.y);
+        }
+        case 270u: {
+            return vec2<f32>(1.0 - p.y, p.x);
+        }
+        default: {
+            return p;
+        }
+    }
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if params.draw_pass != 0u {
         return guide_pass(in.position);
     }
-    let sample = textureSampleLevel(photo, photo_sampler, in.uv, 0.0);
+    let position = upright_position(in.uv);
+    let sample = textureSampleLevel(photo, photo_sampler, position, 0.0);
     var color = sample.rgb;
     if params.exposure_ev != 0.0 {
         color = exposure(color, params.exposure_ev);
@@ -284,7 +316,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if params.highlights != 0.0 || params.shadows != 0.0 {
         // Where this pixel is in the whole photo, which the guide covers.
         let at = vec2<f32>(params.tile_x, params.tile_y)
-            + in.uv * vec2<f32>(params.tile_width, params.tile_height);
+            + position * vec2<f32>(params.tile_width, params.tile_height);
         let ab = textureSampleLevel(guide, guide_sampler, at, 0.0).xy;
         // The guide was built without exposure, which adds ev to every log
         // luminance.

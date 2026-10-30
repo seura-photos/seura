@@ -53,7 +53,9 @@ pub fn apply_edits(photo: &Path, image: Rgba8) -> Rgba8 {
 mod tests {
     use std::fs;
 
-    use seura_edit::{Action, CoreOperation, Edit, EditDocument, Exposure, PhotoIdentity, Writer};
+    use seura_edit::{
+        Action, CoreOperation, Edit, EditDocument, Exposure, Orient, PhotoIdentity, Writer,
+    };
     use time::OffsetDateTime;
 
     use super::*;
@@ -69,11 +71,8 @@ mod tests {
         assert_eq!(apply_edits(&photo, gray()), gray());
     }
 
-    #[test]
-    fn an_edited_photo_s_thumbnail_shows_its_exposure() {
-        let folder = tempfile::tempdir().unwrap();
-        let photo = folder.path().join("a.jpg");
-        fs::write(&photo, b"stand-in").unwrap();
+    /// Saves an edit file with `operations` beside `photo`.
+    fn save(photo: &Path, operations: Vec<CoreOperation>) {
         let identity = PhotoIdentity {
             file: "a.jpg".into(),
             size: 8,
@@ -82,12 +81,12 @@ mod tests {
             height: None,
         };
         let mut file = EditFile::create(
-            &edit_file_path(&photo),
+            &edit_file_path(photo),
             EditDocument::new_for_photo(&identity),
         );
         let action = Action {
-            label: "Exposure".into(),
-            edits: vec![Edit::Set(CoreOperation::Exposure(Exposure { ev: 1.0 }))],
+            label: "Edit".into(),
+            edits: operations.into_iter().map(Edit::Set).collect(),
         };
         file.document
             .apply(&action, OffsetDateTime::now_utc())
@@ -100,11 +99,44 @@ mod tests {
             OffsetDateTime::now_utc(),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn an_edited_photo_s_thumbnail_shows_its_exposure() {
+        let folder = tempfile::tempdir().unwrap();
+        let photo = folder.path().join("a.jpg");
+        fs::write(&photo, b"stand-in").unwrap();
+        save(&photo, vec![CoreOperation::Exposure(Exposure { ev: 1.0 })]);
 
         let rendered = apply_edits(&photo, gray());
 
         // sRGB 90, one stop brighter, is 125 (as in export's test).
         let pixel = &rendered.pixels[..3];
         assert!(pixel.iter().all(|v| v.abs_diff(125) <= 1), "{pixel:?}");
+    }
+
+    #[test]
+    fn a_turned_photo_s_thumbnail_is_turned_edt_4() {
+        let folder = tempfile::tempdir().unwrap();
+        let photo = folder.path().join("a.jpg");
+        fs::write(&photo, b"stand-in").unwrap();
+        save(
+            &photo,
+            vec![CoreOperation::Orient(Orient {
+                rotate: 90,
+                flip_h: false,
+                flip_v: false,
+            })],
+        );
+        // Black at the top left of a wide image.
+        let mut pixels = [200, 200, 200, 255].repeat(8);
+        pixels[..4].copy_from_slice(&[0, 0, 0, 255]);
+
+        let rendered = apply_edits(&photo, Rgba8::new(4, 2, pixels));
+
+        // Turned clockwise: tall, and the black is at the top right.
+        assert_eq!((rendered.width, rendered.height), (2, 4));
+        assert!(rendered.pixels[4..7].iter().all(|v| *v < 10));
+        assert!(rendered.pixels[..3].iter().all(|v| *v > 150));
     }
 }
