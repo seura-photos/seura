@@ -244,11 +244,8 @@ button {
   border-radius: var(--radius-control);
   background: none;
   color: var(--color-accent-text);
-  cursor: pointer;
 }
 
-.section-add:hover:not(:disabled),
-.more-button:hover,
 .more-button[aria-expanded="true"] {
   background: var(--color-accent-subtle);
 }
@@ -514,7 +511,6 @@ button {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background: var(--color-surface);
-  cursor: pointer;
 }
 
 .button.primary {
@@ -530,6 +526,44 @@ button {
 .icon-button:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+/* Hover and pressed (visual design, "Hover and pressed states"; #184): an
+   overlay on the button's own background, so it works on surface, panel,
+   or none; the primary and danger buttons take their own colors. Disabled
+   buttons show neither, and the change is immediate. */
+.button:hover:not(:disabled),
+.icon-button:hover:not(:disabled),
+.section-add:hover:not(:disabled),
+.more-button:hover,
+.zoom-group button:hover:not(:disabled) {
+  background-image: linear-gradient(var(--color-hover-overlay), var(--color-hover-overlay));
+}
+
+.button:active:not(:disabled),
+.icon-button:active:not(:disabled),
+.section-add:active:not(:disabled),
+.more-button:active,
+.zoom-group button:active:not(:disabled) {
+  background-image: linear-gradient(var(--color-pressed-overlay), var(--color-pressed-overlay));
+}
+
+.button.primary:hover:not(:disabled) {
+  border-color: var(--color-accent-hover);
+  background: var(--color-accent-hover);
+}
+
+.button.primary:active:not(:disabled) {
+  border-color: var(--color-accent-pressed);
+  background: var(--color-accent-pressed);
+}
+
+.button.danger:hover:not(:disabled) {
+  background: var(--color-danger-subtle-hover);
+}
+
+.button.danger:active:not(:disabled) {
+  background: var(--color-danger-subtle-pressed);
 }
 
 .inline-link {
@@ -576,7 +610,6 @@ button {
   border-radius: var(--radius-control);
   background: none;
   text-align: left;
-  cursor: pointer;
 }
 
 .menu-item:hover,
@@ -912,7 +945,6 @@ button {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background: var(--color-surface);
-  cursor: pointer;
 }
 
 .grid {
@@ -1114,7 +1146,6 @@ button {
   border-radius: var(--radius-thumbnail);
   background: var(--color-border);
   overflow: hidden;
-  cursor: pointer;
 }
 
 .filmstrip-cell img {
@@ -1508,7 +1539,6 @@ button {
   border-radius: 50%;
   background: var(--color-toolbar-on-photo);
   color: #fff;
-  cursor: pointer;
 }
 
 .red-eye-remove .icon {
@@ -1547,7 +1577,6 @@ button {
   border: 0;
   border-left: 1px solid var(--color-border);
   background: var(--color-surface);
-  cursor: pointer;
 }
 
 .zoom-group button:first-child {
@@ -1616,7 +1645,6 @@ button {
   border-radius: 50%;
   background: var(--color-toolbar-on-photo);
   color: #fff;
-  cursor: pointer;
 }
 
 .viewer-nav:disabled {
@@ -1736,7 +1764,6 @@ button {
   border: none;
   border-radius: var(--radius-control);
   background: none;
-  cursor: pointer;
 }
 
 .star-button:hover:not(:disabled) .star:not(.on) {
@@ -1805,7 +1832,6 @@ button {
   border-radius: var(--radius-chip);
   background: none;
   color: var(--color-text-secondary);
-  cursor: pointer;
 }
 
 .chip-remove:hover {
@@ -1923,7 +1949,6 @@ button {
   min-height: var(--size-tier1-target);
   padding: 0 0.75rem;
   border-radius: var(--radius-control);
-  cursor: pointer;
 }
 
 .tag-option.highlighted {
@@ -1994,7 +2019,6 @@ button {
   border-radius: 999px;
   background: var(--color-on-photo);
   color: #fff;
-  cursor: pointer;
 }
 
 .cell-action:hover {
