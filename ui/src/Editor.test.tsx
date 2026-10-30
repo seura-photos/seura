@@ -270,6 +270,26 @@ describe("Editor", () => {
     );
   });
 
+  it("scrolls a newly opened effect's sliders into view, only as far as needed", async () => {
+    const scrolled = vi.fn();
+    const own = Object.getOwnPropertyDescriptor(Element.prototype, "scrollIntoView");
+    Element.prototype.scrollIntoView = scrolled;
+    try {
+      edit();
+      await brightness();
+      fireEvent.click(effect("Vignette"));
+      await waitFor(() => expect(scrolled).toHaveBeenCalledTimes(1));
+      expect(scrolled.mock.instances[0]).toBe(screen.getByRole("group", { name: "Vignette" }));
+      expect(scrolled).toHaveBeenCalledWith(expect.objectContaining({ block: "nearest" }));
+      // Turning it off doesn't scroll.
+      fireEvent.click(effect("Vignette"));
+      expect(scrolled).toHaveBeenCalledTimes(1);
+    } finally {
+      if (own) Object.defineProperty(Element.prototype, "scrollIntoView", own);
+      else delete (Element.prototype as Partial<Element>).scrollIntoView;
+    }
+  });
+
   it("brings an effect back as it was when turned on again", async () => {
     edit();
     await brightness();
