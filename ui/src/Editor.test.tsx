@@ -416,6 +416,17 @@ describe("Editor", () => {
     expect(mocks.editPhoto).not.toHaveBeenCalled();
   });
 
+  it("shrinks the box from a corner with the keyboard, keeping the ratio", async () => {
+    await crop();
+    // Original, the photo's own 4:3.
+    const corner = screen.getByRole("button", { name: "Bottom-right corner" });
+    fireEvent.keyDown(corner, { key: "ArrowLeft", shiftKey: true });
+    const label = screen.getByText(/^4:3 · /).textContent ?? "";
+    expect(label).not.toBe("4:3 · 4,032 × 3,024");
+    fireEvent.keyDown(corner, { key: "ArrowUp", shiftKey: true });
+    expect(screen.getByText(/^4:3 · /).textContent).not.toBe(label);
+  });
+
   it("moves the box and its corners from the keyboard, a screen pixel at a time", async () => {
     const box = await crop();
     fireEvent.click(screen.getByRole("button", { name: "Freeform" }));

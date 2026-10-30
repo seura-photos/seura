@@ -65,6 +65,32 @@ describe("crop mode's box", () => {
     expect(slid.left).toBeGreaterThan(tilted.left);
   });
 
+  it("shrinks a box with a ratio from a corner, one direction at a time, as keys move it", () => {
+    const box = { left: 1000, top: 1000, right: 4000, bottom: 3000 };
+    for (const [dx, dy] of [
+      [-100, 0],
+      [0, -100],
+    ] as const) {
+      const smaller = resizeBox(box, "bottom-right", dx, dy, 1.5, frame, 0, 16);
+      expect(smaller.right - smaller.left).toBeLessThan(3000);
+      expect((smaller.right - smaller.left) / (smaller.bottom - smaller.top)).toBeCloseTo(1.5, 6);
+    }
+    const shrunk = resizeBox(box, "top-left", 100, 0, 1.5, frame, 0, 16);
+    expect(shrunk.right - shrunk.left).toBeCloseTo(2900, 6);
+  });
+
+  it("slides to where a straightened photo's slanted edges stop it", () => {
+    const angle = 10;
+    const box = { left: 2750, top: 1750, right: 3250, bottom: 2250 };
+    const moved = moveBox(box, 5000, 5000, frame, angle);
+    expect(fits(moved, frame, angle)).toBe(true);
+    // In the corner: no further across or down.
+    const across = moveBox(moved, 2, 0, frame, angle);
+    const down = moveBox(moved, 0, 2, frame, angle);
+    expect(across.left - moved.left).toBeLessThan(0.01);
+    expect(down.top - moved.top).toBeLessThan(0.01);
+  });
+
   it("keeps a ratio from a corner, and its smallest size", () => {
     const box = { left: 1000, top: 1000, right: 4000, bottom: 3000 };
     const larger = resizeBox(box, "bottom-right", 600, 0, 1.5, frame, 0, 16);

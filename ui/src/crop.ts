@@ -214,8 +214,15 @@ export function resizeBox(
 
   let next: Edges;
   if (moves.length === 2) {
-    // The larger of the two directions sets the size.
-    const across = Math.max(width(wanted), height(wanted) * ratio, minimum, minimum * ratio);
+    // The direction that moved more sets the size, so a corner can shrink
+    // the box as well as grow it, from the keyboard one direction at a time.
+    const widthChange = Math.abs(width(wanted) - width(box));
+    const heightChange = Math.abs(height(wanted) - height(box)) * ratio;
+    const across = Math.max(
+      widthChange >= heightChange ? width(wanted) : height(wanted) * ratio,
+      minimum,
+      minimum * ratio,
+    );
     const down = across / ratio;
     next = {
       left: moves.includes("left") ? box.right - across : box.left,
