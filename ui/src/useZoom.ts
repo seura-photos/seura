@@ -57,6 +57,10 @@ type Options = {
   /** Shows the whole photo, and keeps the zoom and position to return
    * to: crop mode (EDT-1). */
   suspended?: boolean;
+  /** A tool uses the drag: red-eye mode (EDT-1). Dragging then pans only
+   * while Space is held, the wheel and trackpad pan, and Ctrl with the
+   * wheel, or a pinch, zooms. */
+  tool?: boolean;
 };
 
 /**
@@ -78,6 +82,7 @@ export function useZoom({
   show,
   version,
   suspended = false,
+  tool = false,
 }: Options) {
   const scale = window.devicePixelRatio;
   const stageSize: Size = { width: area.width * scale, height: area.height * scale };
@@ -91,6 +96,8 @@ export function useZoom({
   // how that photo was turned.
   const [detail, setDetail] = useState<{ id: number; region: Region; turned: string } | null>(null);
   const drag = useRef<{ pointer: number; x: number; y: number } | null>(null);
+  // Space held while a tool uses the drag, so the drag pans (EDT-1).
+  const [space, setSpace] = useState(false);
 
   const fitted = photo ? fitView(photo.full, stageSize) : null;
   const current =
@@ -186,6 +193,14 @@ export function useZoom({
     event.preventDefault();
     if (!current || suspended) return;
     const lines = event.deltaMode === 1 ? 16 : 1;
+    if (tool && !event.ctrlKey) {
+      // The wheel and a trackpad's two-finger scroll pan.
+      if (!photo) return;
+      const dx = (event.deltaX * lines * scale) / current.zoom;
+      const dy = (event.deltaY * lines * scale) / current.zoom;
+      setZoomed({ id: photo.id, view: { ...current, x: current.x + dx, y: current.y + dy } });
+      return;
+    }
     const factor = Math.exp(-event.deltaY * lines * (event.ctrlKey ? 0.01 : 0.002));
     zoomTo(current.zoom * factor, pointFrom(event.clientX, event.clientY));
   });
@@ -211,10 +226,36 @@ export function useZoom({
     };
   }, [stage]);
 
-  // Dragging pans while zoomed in.
+  // While a tool uses the drag, Space held makes it pan instead.
+  const onSpace = useEffectEvent((event: KeyboardEvent, down: boolean) => {
+    if (event.key !== " " || !tool) return;
+    // Space still presses a button or types; a focused correction pans.
+    const target = event.target;
+    if (target instanceof Element && target.closest("input, textarea, select, button")) return;
+    event.preventDefault();
+    setSpace(down);
+  });
+  useEffect(() => {
+    if (!tool) return;
+    const down = (event: KeyboardEvent) => onSpace(event, true);
+    const up = (event: KeyboardEvent) => onSpace(event, false);
+    const lost = () => setSpace(false);
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", lost);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", lost);
+      setSpace(false);
+    };
+  }, [tool]);
+
+  // Dragging pans while zoomed in, unless a tool uses the drag and Space
+  // isn't held.
   const pointer = {
     onPointerDown(event: PointerEvent) {
-      if (!isZoomed || event.button !== 0) return;
+      if (!isZoomed || event.button !== 0 || (tool && !space)) return;
       if ((event.target as HTMLElement).closest("button")) return;
       event.currentTarget.setPointerCapture(event.pointerId);
       drag.current = { pointer: event.pointerId, x: event.clientX, y: event.clientY };
@@ -261,6 +302,8 @@ export function useZoom({
     zoomStep,
     fit,
     pointer,
+    /** Space is held while a tool uses the drag: the drag pans. */
+    panning: tool && space,
   };
 }
 

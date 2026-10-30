@@ -60,6 +60,17 @@ import {
   type LinearImage,
 } from "./preview";
 import { Effects } from "./Effects";
+import { RedEyeOverlay } from "./RedEyeOverlay";
+import { RedEyePanel } from "./RedEyePanel";
+import {
+  brushMemory,
+  type Circle,
+  circlesOf,
+  countCorrections,
+  countText,
+  MAX_CORRECTIONS,
+  stepped,
+} from "./redeye";
 import { ScrollArea } from "./ScrollArea";
 import { Slider } from "./Slider";
 import { useStore } from "./store";
@@ -167,6 +178,21 @@ export function Editor({ id, forceWebgl2 }: Props) {
     start: CropState;
     moving: CropState | null;
   } | null>(null);
+  // Red-eye mode (EDT-7), on photo `id`: the circles shown, its own undo
+  // and redo, the circles it opened with, and those before a drag.
+  /** The red-eye mode state last applied, so it's saved once. */
+  const appliedRedEye = useRef<object | null>(null);
+  const [redEye, setRedEye] = useState<{
+    id: number;
+    now: Circle[];
+    past: Circle[][];
+    future: Circle[][];
+    start: Circle[];
+    moving: Circle[] | null;
+  } | null>(null);
+  const [selectedCircle, setSelectedCircle] = useState<number | null>(null);
+  // A click's circle, in CSS pixels across ([ and ]).
+  const [brush, setBrush] = useState(brushMemory.across);
   const [exporting, setExporting] = useState(false);
   // A finished change waiting to be saved, and the saves in progress.
   const pending = useRef<{ timer: number; id: number; edit: PhotoEdit } | null>(null);
@@ -403,16 +429,21 @@ export function Editor({ id, forceWebgl2 }: Props) {
   // position (EDT-1).
   const croppingNow = cropping?.id === id ? cropping : null;
   const cropAngle = croppingNow?.now.angle ?? null;
+  const redEyeNow = redEye?.id === id ? redEye : null;
+  const redEyeCircles = redEyeNow?.now ?? null;
   const drawnSettings = useMemo(
     () =>
       settings &&
       (cropAngle !== null
         ? // Crop mode shows the whole frame, the photo turned in it.
           { ...settings, straighten: cropAngle, cropX: 0, cropY: 0, cropWidth: 1, cropHeight: 1 }
-        : comparing
-          ? { ...NEUTRAL_SETTINGS, redEye: [], ...geometryOf(settings) }
-          : settings),
-    [settings, comparing, cropAngle],
+        : redEyeCircles !== null
+          ? // Red-eye mode shows its circles as they're made.
+            { ...settings, redEye: redEyeCircles }
+          : comparing
+            ? { ...NEUTRAL_SETTINGS, redEye: [], ...geometryOf(settings) }
+            : settings),
+    [settings, comparing, cropAngle, redEyeCircles],
   );
   // The preview's upright size, for sizing the canvas as it's turned.
   const previewWidth = shown?.width ?? 0;
@@ -442,6 +473,8 @@ export function Editor({ id, forceWebgl2 }: Props) {
   const zoom = useZoom({
     // Crop and straighten show the whole photo; the zoom returns after (EDT-1).
     suspended: croppingNow !== null,
+    // Red-eye uses the drag; Space-drag and the wheel pan (EDT-1).
+    tool: redEyeNow !== null,
     stage,
     area,
     inset,
@@ -648,9 +681,84 @@ export function Editor({ id, forceWebgl2 }: Props) {
     });
   }
 
+  /** Opens red-eye mode (R, or Fix red-eye…): the photo as edited, at the
+   * zoom it has, with its corrections (EDT-7). */
+  function openRedEye() {
+    if (!shown || !editable || croppingNow || redEyeNow) return;
+    void flush();
+    setComparing(false);
+    const circles = circlesOf(shown.settings.redEye);
+    setSelectedCircle(null);
+    setRedEye({ id, now: circles, past: [], future: [], start: circles, moving: null });
+  }
+
+  /** A change in red-eye mode: shown at once; `done` makes it a step of the
+   * mode's own undo (a drag released, a key, a button). */
+  function changeRedEye(circles: Circle[], done: boolean) {
+    setRedEye((mode) => {
+      if (!mode) return mode;
+      const before = mode.moving ?? mode.now;
+      if (!done) return { ...mode, now: circles, moving: before };
+      const same = JSON.stringify(before) === JSON.stringify(circles);
+      return {
+        ...mode,
+        now: circles,
+        moving: null,
+        past: same ? mode.past : [...mode.past, before],
+        future: same ? mode.future : [],
+      };
+    });
+  }
+
+  /** Red-eye mode's own undo and redo (Ctrl+Z, Shift+Ctrl+Z). */
+  function stepRedEye(undo: boolean) {
+    setSelectedCircle(null);
+    setRedEye((mode) => {
+      if (!mode) return mode;
+      const from = undo ? mode.past : mode.future;
+      const to = from[from.length - 1];
+      if (!to) return mode;
+      return {
+        ...mode,
+        now: to,
+        moving: null,
+        past: undo ? mode.past.slice(0, -1) : [...mode.past, mode.now],
+        future: undo ? [...mode.future, mode.now] : mode.future.slice(0, -1),
+      };
+    });
+  }
+
+  /** Done (or Enter, or leaving the photo): saves the circles as one
+   * record, "Red-eye", if they changed. */
+  function applyRedEye(mode = redEyeNow) {
+    // Each red-eye mode session is saved once, however it ends.
+    if (!mode || appliedRedEye.current === mode) return;
+    appliedRedEye.current = mode;
+    setRedEye(null);
+    setSelectedCircle(null);
+    if (JSON.stringify(mode.now) === JSON.stringify(mode.start)) return;
+    if (mode.id === id) adjust({ redEye: mode.now });
+    void save(mode.id, { kind: "redEye", regions: mode.now });
+  }
+
+  // Leaving the photo or the Editor any other way while red-eye mode is
+  // open counts as Done (wireframes, "Red-eye mode").
+  const leaveRedEye = useEffectEvent(() => {
+    if (redEye) applyRedEye(redEye);
+  });
+  useEffect(() => () => leaveRedEye(), [id]);
+
+  /** `[` or `]`: a click's next circle smaller or larger, for the session. */
+  function stepBrush(steps: number) {
+    const across = stepped(brush, steps);
+    brushMemory.across = across;
+    setBrush(across);
+  }
+
   function done() {
-    // Leaving while cropping keeps the crop.
+    // Leaving while cropping keeps the crop, and red-eye its corrections.
     applyCrop();
+    applyRedEye();
     void flush();
     leaving();
     closeEditor();
@@ -745,7 +853,9 @@ export function Editor({ id, forceWebgl2 }: Props) {
   }, []);
 
   // The Edit menu's Undo and Redo come here while the Editor is open (macOS).
-  const fromMenu = useEffectEvent((undo: boolean) => (croppingNow ? stepCrop(undo) : step(undo)));
+  const fromMenu = useEffectEvent((undo: boolean) =>
+    croppingNow ? stepCrop(undo) : redEyeNow ? stepRedEye(undo) : step(undo),
+  );
   useEffect(() => {
     useStore.setState({ editorStep: (undo) => fromMenu(undo) });
     return () => useStore.setState({ editorStep: null });
@@ -754,6 +864,7 @@ export function Editor({ id, forceWebgl2 }: Props) {
   function move(to: number | undefined) {
     if (to === undefined) return;
     applyCrop();
+    applyRedEye();
     void flush();
     leaving();
     // Each photo opens fitted.
@@ -765,6 +876,10 @@ export function Editor({ id, forceWebgl2 }: Props) {
   const onKey = useEffectEvent((event: KeyboardEvent) => {
     if (croppingNow) {
       cropKey(event);
+      return;
+    }
+    if (redEyeNow) {
+      redEyeKey(event);
       return;
     }
     if (event.key === "Escape") {
@@ -807,6 +922,11 @@ export function Editor({ id, forceWebgl2 }: Props) {
     if (event.key === "c" || event.key === "C") {
       event.preventDefault();
       void openCrop();
+      return;
+    }
+    if (event.key === "r" || event.key === "R") {
+      event.preventDefault();
+      openRedEye();
       return;
     }
     // Arrow keys on a slider move the slider, not the photo.
@@ -861,6 +981,55 @@ export function Editor({ id, forceWebgl2 }: Props) {
     }
   }
 
+  /** Red-eye mode's keys: Enter applies and Esc cancels; its own undo and
+   * redo; [ and ] the next circle's size (a focused circle takes them
+   * itself); Delete the selected circle; + and − zoom, as everywhere.
+   * Compare isn't available (EDT-1), and the arrow keys belong to the
+   * circles, not the next photo. */
+  function redEyeKey(event: KeyboardEvent) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setRedEye(null);
+      setSelectedCircle(null);
+      return;
+    }
+    const history = historyKey(event);
+    if (history !== null) {
+      event.preventDefault();
+      stepRedEye(history === "undo");
+      return;
+    }
+    if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return;
+    // Enter on a button presses the button.
+    if (event.key === "Enter" && !(event.target instanceof HTMLButtonElement)) {
+      event.preventDefault();
+      applyRedEye();
+      return;
+    }
+    if (event.key === "[" || event.key === "]") {
+      event.preventDefault();
+      stepBrush(event.key === "[" ? -1 : 1);
+      return;
+    }
+    if ((event.key === "Delete" || event.key === "Backspace") && selectedCircle !== null) {
+      event.preventDefault();
+      const circles = redEyeNow?.now ?? [];
+      setSelectedCircle(null);
+      changeRedEye(
+        circles.filter((_, i) => i !== selectedCircle),
+        true,
+      );
+      return;
+    }
+    if (event.key === "+" || event.key === "=") {
+      event.preventDefault();
+      zoom.zoomStep(1);
+    } else if (event.key === "-") {
+      event.preventDefault();
+      zoom.zoomStep(-1);
+    }
+  }
+
   function holdCompare(event: PointerEvent<HTMLButtonElement>) {
     if (event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -910,9 +1079,25 @@ export function Editor({ id, forceWebgl2 }: Props) {
     ? t("editor-redo-change", { change: shown.steps.redo })
     : t("editor-redo");
 
+  // Red-eye's corrections, and how many the crop hides.
+  const corrections =
+    shown &&
+    countCorrections(
+      geometryOf(shown.settings),
+      shown.full,
+      redEyeNow?.now ?? circlesOf(shown.settings.redEye),
+    );
+
   return (
     <div ref={root} className="editor" tabIndex={-1} aria-label={photo.name}>
-      {croppingNow ? (
+      {redEyeNow ? (
+        <header className="editor-bar crop-bar">
+          <span className="editor-name">{t("red-eye-title")}</span>
+          <span className="meta">{photo.name}</span>
+          <ZoomControls zoom={zoom} shown={shown !== null} />
+          <span className="meta crop-hint">{t("red-eye-hint")}</span>
+        </header>
+      ) : croppingNow ? (
         <header className="editor-bar crop-bar">
           <span className="editor-name">{t("crop-title")}</span>
           <span className="meta">{photo.name}</span>
@@ -979,7 +1164,14 @@ export function Editor({ id, forceWebgl2 }: Props) {
           <NoticeBar ids={[photo.id]} photos={photos} />
           <div
             ref={stage}
-            className={zoom.isZoomed ? "editor-stage zoomed" : "editor-stage"}
+            className={[
+              "editor-stage",
+              zoom.isZoomed && "zoomed",
+              redEyeNow && "red-eye",
+              zoom.panning && "panning",
+            ]
+              .filter(Boolean)
+              .join(" ")}
             {...zoom.pointer}
           >
             <canvas
@@ -1010,6 +1202,19 @@ export function Editor({ id, forceWebgl2 }: Props) {
                 onChange={(box, finished) => changeCrop((now) => ({ ...now, box }), finished)}
               />
             )}
+            {redEyeNow && shown && zoom.whole && !inCloud && message === null && (
+              <RedEyeOverlay
+                place={zoom.whole}
+                geometry={geometryOf(shown.settings)}
+                full={shown.full}
+                circles={redEyeNow.now}
+                brush={brush}
+                selected={selectedCircle}
+                panning={zoom.panning}
+                onChange={changeRedEye}
+                onSelect={setSelectedCircle}
+              />
+            )}
             {current && (current.kind === "downloading" || current.kind === "downloadFailed") && (
               <CloudPhoto
                 id={photo.id}
@@ -1025,11 +1230,29 @@ export function Editor({ id, forceWebgl2 }: Props) {
           </div>
           <Message since={openedAt} />
         </div>
-        {!croppingNow && <Filmstrip photos={photos} current={photo.id} onChoose={move} />}
+        {!croppingNow && !redEyeNow && (
+          <Filmstrip photos={photos} current={photo.id} onChoose={move} />
+        )}
       </div>
 
       <aside className="editor-panel" aria-label={t("editor-tools")}>
-        {croppingNow ? (
+        {redEyeNow && corrections ? (
+          <ScrollArea>
+            <RedEyePanel
+              count={corrections}
+              full={redEyeNow.now.length >= MAX_CORRECTIONS}
+              onRemoveAll={() => {
+                setSelectedCircle(null);
+                changeRedEye([], true);
+              }}
+              onCancel={() => {
+                setRedEye(null);
+                setSelectedCircle(null);
+              }}
+              onDone={() => applyRedEye()}
+            />
+          </ScrollArea>
+        ) : croppingNow ? (
           <ScrollArea>
             <CropPanel
               choice={croppingNow.now.choice}
@@ -1229,6 +1452,26 @@ export function Editor({ id, forceWebgl2 }: Props) {
                 onInput={adjust}
                 onCommit={commit}
               />
+
+              <section className="editor-section" aria-label={t("editor-red-eye")}>
+                <h2 className="section-label" aria-hidden>
+                  {t("editor-red-eye")}
+                </h2>
+                <div className="red-eye-entry">
+                  <button
+                    type="button"
+                    className="button"
+                    aria-keyshortcuts="R"
+                    disabled={!editable}
+                    onClick={openRedEye}
+                  >
+                    {t("editor-fix-red-eye")}
+                  </button>
+                  {corrections && corrections.total > 0 && (
+                    <span className="meta">{countText(corrections)}</span>
+                  )}
+                </div>
+              </section>
 
               {problem !== null && (
                 <p className="editor-note" role="note">

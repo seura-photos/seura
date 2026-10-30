@@ -1240,7 +1240,7 @@ pub struct RenderSettings {
 
 /// One of `seura.redEye`'s circles: x and y as fractions of the upright
 /// photo, the radius as a fraction of its shorter side.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Type)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Type)]
 pub struct RedEyeCircle {
     pub x: f32,
     pub y: f32,
@@ -1619,6 +1619,8 @@ pub enum PhotoEdit {
     Turn { turn: crate::editor::Turn },
     /// Crop mode's Done (EDT-2, EDT-3).
     Crop { crop: crate::editor::CropEdit },
+    /// Red-eye mode's Done (EDT-7): every circle, none to remove them all.
+    RedEye { regions: Vec<RedEyeCircle> },
 }
 
 /// What saving an Editor change did.
@@ -1653,6 +1655,16 @@ pub async fn edit_photo(app: AppHandle, id: u32, edit: PhotoEdit) -> Result<Edit
         let change = match edit {
             PhotoEdit::Turn { turn } => crate::editor::Change::Turn(turn),
             PhotoEdit::Crop { crop } => crate::editor::Change::Crop(crop),
+            PhotoEdit::RedEye { regions } => change(crate::editor::red_eye_action(
+                &regions
+                    .iter()
+                    .map(|circle| seura_edit::RedEyeRegion {
+                        x: f64::from(circle.x),
+                        y: f64::from(circle.y),
+                        radius: f64::from(circle.radius),
+                    })
+                    .collect::<Vec<_>>(),
+            )),
             PhotoEdit::Brightness { ev } => change(crate::editor::exposure_action(ev)),
             PhotoEdit::Contrast { amount } => change(crate::editor::slider_action(
                 "Contrast",
