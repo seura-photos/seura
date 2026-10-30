@@ -139,7 +139,7 @@ The basis of the design test: fix a crooked, dark photo in under five minutes.
 3. Sliders update the photo live; double-click resets one.
 4. Crop mode shows the whole photo with the crop box, ratio choices, and a straighten slider. Done or Enter applies; Esc cancels.
 5. Red-eye mode: click each eye; corrections can be dragged or removed.
-6. Hold `\` or Compare to see the original.
+6. Hold `\` or Compare to see the original. Zoom works as in the Viewer; while red-eye is active, hold Space and drag to pan.
 7. Undo and redo work as usual, including across restarts (EDT-9). Revert to original confirms first and keeps tags and rating.
 8. The filmstrip moves to the next photo without leaving the Editor.
 9. Done or Esc returns to where the user came from: Viewer, Library, or Review.
