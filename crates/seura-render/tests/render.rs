@@ -1,6 +1,7 @@
 //! The shaders, run with wgpu, against the edit format's definitions
 //! computed here on the CPU, as its formulas appendix gives them: the photo
-//! turned, flipped, straightened and cropped, sampled with Catmull-Rom, each
+//! turned, flipped, straightened and cropped, sampled with Catmull-Rom, red
+//! eyes corrected, each
 //! tone and color operation in the canonical order, then the result encoded
 //! for Display P3 or sRGB (EXP-5), after the effects. The definitions are checked against the
 //! appendix's own test vectors, and the shaders are run on those too.
@@ -13,7 +14,7 @@ use std::path::PathBuf;
 use half::f16;
 use seura_image::LinearImage;
 use seura_render::check::ramps;
-use seura_render::{Output, Renderer, Settings};
+use seura_render::{Output, RedEyeRegions, Renderer, Settings};
 
 /// Linear Display P3 to linear sRGB, rows, from the two spaces' primaries.
 const P3_TO_SRGB: [[f64; 3]; 3] = [
@@ -66,6 +67,35 @@ fn saturation(c: [f64; 3], amount: f64) -> [f64; 3] {
     let y = luminance(c);
     let s = 1.0 + amount / 100.0;
     c.map(|v| y + (v - y) * s)
+}
+
+/// t² (3 − 2t) of how far `x` is from `a` to `b`, clamped.
+fn smoothstep(a: f64, b: f64, x: f64) -> f64 {
+    let t = ((x - a) / (b - a)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// `seura.redEye` at `at`, in pixels of the upright photo of `size`: in
+/// each circle, softly over its outer fifth, the largest weight where they
+/// overlap, red comes down toward the larger of green and blue, by how red
+/// the pixel is.
+fn red_eye(c: [f64; 3], regions: &RedEyeRegions, at: [f64; 2], size: [f64; 2]) -> [f64; 3] {
+    let shorter = size[0].min(size[1]);
+    let weight = regions
+        .as_slice()
+        .iter()
+        .filter(|[_, _, radius]| *radius > 0.0)
+        .map(|&[x, y, radius]| {
+            let d = (at[0] - f64::from(x) * size[0]).hypot(at[1] - f64::from(y) * size[1]);
+            1.0 - smoothstep(0.8, 1.0, d / (f64::from(radius) * shorter))
+        })
+        .fold(0.0, f64::max);
+    let m = c[1].max(c[2]);
+    if weight == 0.0 || c[0] <= 0.0 || c[0] <= m {
+        return c;
+    }
+    let k = smoothstep(0.7, 0.9, (c[0] - m) / c[0]);
+    [c[0] + (m - c[0]) * weight * k, c[1], c[2]]
 }
 
 /// `seura.blackAndWhite`: toward luminance by strength/100.
@@ -375,11 +405,17 @@ fn assert_matches(image: &LinearImage, settings: &Settings, output: Output, rend
     let want = |i: usize| {
         let (x, y) = positions[i];
         let ab = guide.sample(x / width as f64, y / height as f64);
+        let color = red_eye(
+            catmull_rom(image, x, y),
+            &settings.red_eye,
+            [x, y],
+            [width as f64, height as f64],
+        );
         let at = [
             ((i % across) as f64 + 0.5) / across as f64,
             ((i / across) as f64 + 0.5) / down as f64,
         ];
-        expected(catmull_rom(image, x, y), settings, output, ab, at)
+        expected(color, settings, output, ab, at)
     };
     let mut worst = (0, 0);
     for (i, found) in rendered.pixels.chunks(4).enumerate() {
@@ -699,6 +735,136 @@ fn effects_match_the_definitions() {
     );
 }
 
+/// Red eyes corrected on the photo before geometry (EDT-7): circles over
+/// the ramps' reddest part and elsewhere, overlapping and of radius 0, on
+/// the photo as it is, turned, straightened and cropped, with tone and
+/// effects after, and in tiles.
+#[test]
+fn red_eye_matches_the_definition() {
+    let renderer = renderer();
+    let image = ramps(97, 64);
+    let regions = RedEyeRegions::new([
+        // The top right: red near 1, green and blue near 0 at (88, 9).
+        [0.85, 0.15, 0.12],
+        [0.92, 0.2, 0.08],
+        [0.4, 0.6, 0.2],
+        [0.1, 0.1, 0.0],
+    ]);
+    let alone = Settings {
+        red_eye: regions,
+        ..Settings::NEUTRAL
+    };
+    let turned = Settings {
+        rotate: 90,
+        flip_h: true,
+        straighten: 4.5,
+        crop_x: 0.05,
+        crop_y: 0.1,
+        crop_width: 0.85,
+        crop_height: 0.8,
+        exposure_ev: 0.3,
+        highlights: -30.0,
+        shadows: 25.0,
+        saturation: 20.0,
+        vignette_amount: -30.0,
+        vignette_size: 50.0,
+        ..alone
+    };
+    for settings in [alone, turned] {
+        for output in [Output::Srgb, Output::DisplayP3] {
+            assert_matches(&image, &settings, output, &renderer);
+        }
+    }
+    // It changes the pixels it should: the reddest corner, not the rest.
+    let plain = renderer
+        .render(
+            &image,
+            &image.guide_image(),
+            &Settings::NEUTRAL,
+            Output::DisplayP3,
+        )
+        .unwrap();
+    let fixed = renderer
+        .render(&image, &image.guide_image(), &alone, Output::DisplayP3)
+        .unwrap();
+    let red = |pixels: &[u8], x: usize, y: usize| i32::from(pixels[(y * 97 + x) * 4]);
+    assert!(red(&fixed.pixels, 88, 9) + 40 < red(&plain.pixels, 88, 9));
+    assert_eq!(red(&fixed.pixels, 40, 50), red(&plain.pixels, 40, 50));
+    // The render check's circles change pixels, so the check covers them.
+    let check = seura_render::check::CHECK_SETTINGS;
+    let check_image = seura_render::check::check_image();
+    let draw = |settings: &Settings| {
+        renderer
+            .render(
+                &check_image,
+                &check_image.guide_image(),
+                settings,
+                Output::Srgb,
+            )
+            .unwrap()
+            .pixels
+    };
+    let changed = draw(&check)
+        .chunks(4)
+        .zip(
+            draw(&Settings {
+                red_eye: RedEyeRegions::NONE,
+                ..check
+            })
+            .chunks(4),
+        )
+        .filter(|(a, b)| a != b)
+        .count();
+    assert!(
+        changed > 100,
+        "the check's red-eye changes {changed} pixels"
+    );
+    // In tiles, each tile finds the circles by the pixel's place in the
+    // whole photo.
+    let large = ramps(2300, 1700);
+    assert_matches(
+        &large,
+        &Settings {
+            red_eye: RedEyeRegions::new([[0.9, 0.1, 0.05], [0.62, 0.3, 0.1]]),
+            ..Settings::NEUTRAL
+        },
+        Output::Srgb,
+        &renderer,
+    );
+}
+
+/// What red-eye promises: only red pixels in a circle change, a pupil's red
+/// comes down to its green and blue, the edge is soft, and overlapping
+/// circles don't correct twice.
+#[test]
+fn red_eye_keeps_what_it_promises() {
+    let size = [400.0, 300.0];
+    let one = RedEyeRegions::new([[0.25, 0.5, 0.05]]);
+    let pupil = [0.5, 0.0234375, 0.03125];
+    assert_eq!(
+        red_eye(pupil, &one, [100.0, 150.0], size),
+        [0.03125, 0.0234375, 0.03125]
+    );
+    // Outside the circle, skin and irises, and white: as they were.
+    assert_eq!(red_eye(pupil, &one, [130.0, 150.0], size), pupil);
+    for kept in [
+        [0.125, 0.046875, 0.0234375],
+        [0.9, 0.9, 0.9],
+        [0.1, 0.4, 0.3],
+    ] {
+        assert_eq!(red_eye(kept, &one, [100.0, 150.0], size), kept);
+    }
+    // Halfway through the edge, half the correction (the radius is held
+    // in 32 bits).
+    let half = red_eye(pupil, &one, [113.5, 150.0], size);
+    assert!((half[0] - (0.5 + 0.03125) / 2.0).abs() < 1e-6);
+    let twice = RedEyeRegions::new([[0.25, 0.5, 0.05], [0.25, 0.5, 0.05]]);
+    assert_eq!(
+        red_eye(pupil, &twice, [113.5, 150.0], size),
+        red_eye(pupil, &one, [113.5, 150.0], size)
+    );
+}
+
 /// What the effects promise: black and white and sepia keep luminance,
 /// sepia at 100 depends only on it, and the vignette leaves the center as
 /// it is and reaches black or white at the very corners.
@@ -795,6 +961,9 @@ struct Vector {
     /// For an operation measured on the cropped frame, where the pixel is
     /// in it, as fractions.
     position: Option<[f64; 2]>,
+    /// For red-eye, the upright photo's size and where the pixel is in it,
+    /// in its pixels.
+    upright: Option<([f64; 2], [f64; 2])>,
     input: [f64; 3],
     output: [f64; 3],
 }
@@ -819,6 +988,10 @@ fn appendix_vectors() -> Vec<(String, Vec<Vector>)> {
             let file: serde_json::Value =
                 serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
             let operation = file["operation"].as_str().unwrap().to_string();
+            let pair = |value: &serde_json::Value| -> Option<[f64; 2]> {
+                let values = value.as_array()?;
+                Some([values[0].as_f64()?, values[1].as_f64()?])
+            };
             let color = |value: &serde_json::Value| -> [f64; 3] {
                 let values: Vec<f64> = value
                     .as_array()
@@ -874,14 +1047,32 @@ fn appendix_vectors() -> Vec<(String, Vec<Vector>)> {
                             vignette_size: param("size"),
                             ..neutral
                         },
+                        "seura.redEye" => Settings {
+                            red_eye: RedEyeRegions::new(
+                                case["params"]["regions"].as_array().unwrap().iter().map(
+                                    |region| {
+                                        ["x", "y", "radius"]
+                                            .map(|name| region[name].as_f64().unwrap() as f32)
+                                    },
+                                ),
+                            ),
+                            ..neutral
+                        },
                         other => panic!("{other} has test vectors, but no test here yet"),
                     };
                     Vector {
                         settings,
                         base: case["base"].as_f64(),
-                        position: case["position"]
-                            .as_array()
-                            .map(|at| [at[0].as_f64().unwrap(), at[1].as_f64().unwrap()]),
+                        position: case["size"]
+                            .is_null()
+                            .then(|| pair(&case["position"]))
+                            .flatten(),
+                        upright: case["size"].as_array().map(|_| {
+                            (
+                                pair(&case["size"]).unwrap(),
+                                pair(&case["position"]).unwrap(),
+                            )
+                        }),
                         input: color(&case["input"]),
                         output: color(&case["output"]),
                     }
@@ -898,15 +1089,19 @@ fn appendix_vectors() -> Vec<(String, Vec<Vector>)> {
 fn the_definitions_match_the_appendix_vectors() {
     let all = appendix_vectors();
     assert!(
-        all.len() >= 9,
-        "exposure, white balance, highlights, shadows, contrast, saturation, \
+        all.len() >= 10,
+        "red-eye, exposure, white balance, highlights, shadows, contrast, saturation, \
          black and white, sepia and the vignette"
     );
     for (operation, vectors) in &all {
         for vector in vectors {
             // A guide with a = 0 and b = the base gives every pixel that base.
+            let input = match vector.upright {
+                Some((size, at)) => red_eye(vector.input, &vector.settings.red_eye, at, size),
+                None => vector.input,
+            };
             let found = defined(
-                vector.input,
+                input,
                 &vector.settings,
                 [0.0, vector.base.unwrap_or(0.0)],
                 vector.position.unwrap_or([0.5; 2]),
@@ -931,13 +1126,12 @@ fn the_shaders_match_the_appendix_vectors() {
     let renderer = renderer();
     for (operation, vectors) in appendix_vectors() {
         // A neighborhood operation's base comes from the photo, and the
-        // vignette's position from the pixel's place, so a vector's can't
-        // be given to the shaders; the tests above compare them with the
-        // definitions instead.
-        for vector in vectors
-            .iter()
-            .filter(|vector| vector.base.is_none() && vector.position.is_none())
-        {
+        // vignette's and red-eye's positions from the pixel's place, so a
+        // vector's can't be given to the shaders; the tests above compare
+        // them with the definitions instead.
+        for vector in vectors.iter().filter(|vector| {
+            vector.base.is_none() && vector.position.is_none() && vector.upright.is_none()
+        }) {
             let pixel = [vector.input[0], vector.input[1], vector.input[2], 1.0].map(f16::from_f64);
             assert_eq!(pixel.map(|v| v.to_f64())[..3], vector.input, "exact in f16");
             let image = LinearImage {

@@ -5,7 +5,7 @@
 use half::f16;
 use seura_image::{LinearImage, Rgba8};
 
-use crate::Settings;
+use crate::{RedEyeRegions, Settings};
 
 /// The settings the check renders with: every operation built so far, at
 /// values that aren't round, so a difference in any would show. Contrast is
@@ -13,7 +13,9 @@ use crate::Settings;
 /// photo is turned on its side, flipped, straightened and cropped, so a
 /// preview that placed it any other way, or sampled it any other way, would
 /// fail. Black and white and sepia are partial, so the colors before them
-/// still count, and the vignette is measured on the cropped frame.
+/// still count, and the vignette is measured on the cropped frame. Red-eye
+/// circles cover the ramps' reddest corner, where it changes pixels, and
+/// overlap there.
 pub const CHECK_SETTINGS: Settings = Settings {
     rotate: 90,
     flip_h: true,
@@ -33,6 +35,7 @@ pub const CHECK_SETTINGS: Settings = Settings {
     sepia: 41.0,
     vignette_amount: -47.0,
     vignette_size: 63.0,
+    red_eye: RedEyeRegions::CHECK,
     ..Settings::NEUTRAL
 };
 
@@ -62,7 +65,27 @@ pub fn ramps(width: u32, height: u32) -> LinearImage {
 
 /// The check's image.
 pub fn check_image() -> LinearImage {
-    ramps(97, 64)
+    let mut image = ramps(97, 64);
+    // A red pupil, for red-eye: the ramps' own reds are bright enough that
+    // the check's exposure clips them either way. Shaded, so the correction
+    // varies across it.
+    let (cx, cy, radius) = (30.5f32, 30.5f32, 7.0f32);
+    for y in 0..image.height {
+        for x in 0..image.width {
+            let (dx, dy) = (
+                (x as f32 + 0.5 - cx) / radius,
+                (y as f32 + 0.5 - cy) / radius,
+            );
+            if dx * dx + dy * dy <= 1.0 {
+                let i = ((y * image.width + x) * 4) as usize;
+                let pupil = [0.3 + 0.12 * dx, 0.02, 0.03 + 0.02 * dy, 1.0];
+                for (k, value) in pupil.into_iter().enumerate() {
+                    image.pixels[i + k] = f16::from_f32(value);
+                }
+            }
+        }
+    }
+    image
 }
 
 /// The largest difference between two renders' color channels, and the

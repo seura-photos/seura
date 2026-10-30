@@ -31,11 +31,11 @@ const mocks = vi.hoisted(() => ({
     height: 3,
     fullWidth: 4032,
     fullHeight: 3024,
-    settings: { exposureEv: 0.4, contrast: 20 } as Record<string, number>,
+    settings: { exposureEv: 0.4, contrast: 20 } as Record<string, unknown>,
     steps: { undo: null as string | null, redo: null as string | null },
     problem: null as string | null,
   },
-  neutral: { exposureEv: 0, contrast: 0 },
+  neutral: { exposureEv: 0, contrast: 0, redEye: [] },
 }));
 
 vi.mock("./bindings", () => ({
@@ -879,6 +879,17 @@ describe("Editor", () => {
     expect(scroller?.contains(screen.getByRole("button", { name: "Crop and straighten" }))).toBe(
       true,
     );
+  });
+
+  it("counts red-eye as an edit to revert, and draws it (EDT-7, EDT-10)", async () => {
+    const redEye = [{ x: 0.3, y: 0.4, radius: 0.02 }];
+    mocks.opened.settings = { exposureEv: 0, contrast: 0, redEye };
+    edit();
+    await brightness();
+    expect(
+      screen.getByRole("button", { name: "Revert to original…" }).hasAttribute("disabled"),
+    ).toBe(false);
+    expect(mocks.draw).toHaveBeenLastCalledWith(expect.objectContaining({ redEye }));
   });
 
   it("says other apps' edits are kept when reverting a photo that has them (EDT-10)", async () => {

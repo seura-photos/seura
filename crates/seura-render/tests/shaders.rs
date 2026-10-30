@@ -107,19 +107,35 @@ fn params_layout(module: &naga::Module) -> String {
     let fields: Vec<String> = members
         .iter()
         .map(|member| {
+            let f32 = naga::Scalar {
+                kind: naga::ScalarKind::Float,
+                width: 4,
+            };
+            let u32 = naga::Scalar {
+                kind: naga::ScalarKind::Uint,
+                width: 4,
+            };
+            // An array of vec4<f32>, such as red-eye's circles, also gives
+            // its length and stride.
             let kind = match module.types[member.ty].inner {
-                naga::TypeInner::Scalar(naga::Scalar {
-                    kind: naga::ScalarKind::Float,
-                    width: 4,
-                }) => "f32",
-                naga::TypeInner::Scalar(naga::Scalar {
-                    kind: naga::ScalarKind::Uint,
-                    width: 4,
-                }) => "u32",
-                ref other => panic!("Params holds only f32 and u32, not {other:?}"),
+                naga::TypeInner::Scalar(scalar) if scalar == f32 => "\"f32\"".to_string(),
+                naga::TypeInner::Scalar(scalar) if scalar == u32 => "\"u32\"".to_string(),
+                naga::TypeInner::Array {
+                    base,
+                    size: naga::ArraySize::Constant(count),
+                    stride,
+                } if module.types[base].inner
+                    == (naga::TypeInner::Vector {
+                        size: naga::VectorSize::Quad,
+                        scalar: f32,
+                    }) =>
+                {
+                    format!("\"vec4f\", \"count\": {count}, \"stride\": {stride}")
+                }
+                ref other => panic!("Params holds f32, u32 and vec4<f32> arrays, not {other:?}"),
             };
             format!(
-                "    {{ \"name\": \"{}\", \"offset\": {}, \"type\": \"{kind}\" }}",
+                "    {{ \"name\": \"{}\", \"offset\": {}, \"type\": {kind} }}",
                 member.name.as_deref().expect("a named field"),
                 member.offset
             )

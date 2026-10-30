@@ -40,6 +40,8 @@ struct Params {
     float crop_top;
     float crop_pixels_width;
     float crop_pixels_height;
+    uint red_eye_count;
+    vec4 red_eye[64];
 };
 struct VertexOutput {
     vec4 position;
@@ -64,26 +66,26 @@ vec3 encode_transfer(vec3 linear) {
     return (sign(linear) * mix(high, low, lessThanEqual(v, vec3(0.0031308))));
 }
 
-vec3 exposure(vec3 color_1, float ev) {
-    return (color_1 * exp2(ev));
+vec3 exposure(vec3 color_2, float ev) {
+    return (color_2 * exp2(ev));
 }
 
-vec3 white_balance(vec3 color_2, float temperature, float tint) {
+vec3 white_balance(vec3 color_3, float temperature, float tint) {
     float t_1 = (temperature / 100.0);
     float n_1 = (tint / 100.0);
     vec3 gains = exp2(vec3((t_1 / 2.0), (-(n_1) / 2.0), (-(t_1) / 2.0)));
-    return (color_2 * (gains / vec3(dot(P3_LUMINANCE, gains))));
+    return (color_3 * (gains / vec3(dot(P3_LUMINANCE, gains))));
 }
 
-vec3 contrast(vec3 color_3, float amount) {
+vec3 contrast(vec3 color_4, float amount) {
     float curved = 0.0;
-    float y = dot(P3_LUMINANCE, color_3);
+    float y = dot(P3_LUMINANCE, color_4);
     if ((y <= 0.0)) {
-        return color_3;
+        return color_4;
     }
     float x = pow(y, 0.45454544);
     if ((x >= 1.0)) {
-        return color_3;
+        return color_4;
     }
     float g = exp2((amount / 100.0));
     if ((x < 0.45865646)) {
@@ -92,7 +94,7 @@ vec3 contrast(vec3 color_3, float amount) {
         curved = (1.0 - ((1.0 - 0.45865646) * pow(((1.0 - x) / (1.0 - 0.45865646)), g)));
     }
     float _e30 = curved;
-    return (color_3 * (pow(_e30, PERCEPTUAL) / y));
+    return (color_4 * (pow(_e30, PERCEPTUAL) / y));
 }
 
 float tone_position(float base_1) {
@@ -110,35 +112,35 @@ float shadows_gain(float base_3, float amount_2) {
     return (((((amount_2 / 100.0) * HIGHLIGHTS_SHADOWS_STOPS) * x_1) * x_1) * x_1);
 }
 
-vec3 saturation(vec3 color_4, float amount_3) {
-    float y_1 = dot(P3_LUMINANCE, color_4);
+vec3 saturation(vec3 color_5, float amount_3) {
+    float y_1 = dot(P3_LUMINANCE, color_5);
     float s = (1.0 + (amount_3 / 100.0));
-    return (vec3(y_1) + ((color_4 - vec3(y_1)) * s));
+    return (vec3(y_1) + ((color_5 - vec3(y_1)) * s));
 }
 
-vec3 black_and_white(vec3 color_5, float strength) {
-    float y_2 = dot(P3_LUMINANCE, color_5);
-    return (color_5 + ((vec3(y_2) - color_5) * (strength / 100.0)));
+vec3 black_and_white(vec3 color_6, float strength) {
+    float y_2 = dot(P3_LUMINANCE, color_6);
+    return (color_6 + ((vec3(y_2) - color_6) * (strength / 100.0)));
 }
 
-vec3 sepia(vec3 color_6, float strength_1) {
-    float y_3 = dot(P3_LUMINANCE, color_6);
-    return (color_6 + (((y_3 * SEPIA_TONE) - color_6) * (strength_1 / 100.0)));
+vec3 sepia(vec3 color_7, float strength_1) {
+    float y_3 = dot(P3_LUMINANCE, color_7);
+    return (color_7 + (((y_3 * SEPIA_TONE) - color_7) * (strength_1 / 100.0)));
 }
 
-vec3 vignette(vec3 color_7, float amount_4, float size, vec2 at) {
+vec3 vignette(vec3 color_8, float amount_4, float size, vec2 at) {
     float r = length(((at * 2.0) - vec2(1.0)));
     float start = (1.0 - (size / 100.0));
     float t_2 = clamp(((r - start) / (1.4142135 - start)), 0.0, 1.0);
     float m_1 = ((((amount_4 / 100.0) * t_2) * t_2) * (3.0 - (2.0 * t_2)));
     if ((m_1 < 0.0)) {
-        return (color_7 * (1.0 + m_1));
+        return (color_8 * (1.0 + m_1));
     }
-    return (color_7 + ((vec3(1.0) - color_7) * m_1));
+    return (color_8 + ((vec3(1.0) - color_8) * m_1));
 }
 
-float log_luminance(vec3 color_8) {
-    return log2(max(dot(P3_LUMINANCE, color_8), GUIDE_FLOOR));
+float log_luminance(vec3 color_9) {
+    return log2(max(dot(P3_LUMINANCE, color_9), GUIDE_FLOOR));
 }
 
 vec4 catmull_rom_weights(float t) {

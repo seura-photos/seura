@@ -14,13 +14,15 @@ mod settings;
 
 pub use export::{ExportError, export_jpeg};
 pub use renderer::{Output, RenderError, Renderer};
-pub use settings::Settings;
+pub use settings::{MAX_RED_EYE, RedEyeRegions, Settings};
 
 /// The shader source: shared color functions, then each stage's
 /// operations, then the luminance guide, then the render pass. WGSL has no includes, so the files
 /// are joined in this order, here and in the generated files.
 pub const SHADER: &str = concat!(
     include_str!("../shaders/color.wgsl"),
+    "\n",
+    include_str!("../shaders/retouch.wgsl"),
     "\n",
     include_str!("../shaders/tone.wgsl"),
     "\n",

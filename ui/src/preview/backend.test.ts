@@ -28,6 +28,10 @@ const settings: RenderSettings = {
   sepia: 50,
   vignetteAmount: -20,
   vignetteSize: 70,
+  redEye: [
+    { x: 0.25, y: 0.5, radius: 0.0625 },
+    { x: 0.75, y: 0.375, radius: 0.03125 },
+  ],
 };
 
 describe("the shaders' uniform block", () => {
@@ -50,6 +54,7 @@ describe("the shaders' uniform block", () => {
       "crop_top",
       "crop_pixels_width",
       "crop_pixels_height",
+      "red_eye_count",
     ];
     const names = layout.fields
       .map((field) => field.name)
@@ -83,12 +88,26 @@ describe("the shaders' uniform block", () => {
       crop_top: 10,
       crop_pixels_width: 16,
       crop_pixels_height: 25,
+      red_eye_count: 2,
     };
     for (const field of layout.fields) {
+      if (field.type === "vec4f") {
+        // Each circle's x, y and radius, then 0, a row at a time; the rest
+        // left at 0.
+        const rows = Array.from({ length: 3 }, (_, i) =>
+          [0, 1, 2, 3].map((k) => view.getFloat32(field.offset + i * 16 + k * 4, true)),
+        );
+        expect(rows).toEqual([
+          [0.25, 0.5, 0.0625, 0],
+          [0.75, 0.375, 0.03125, 0],
+          [0, 0, 0, 0],
+        ]);
+        continue;
+      }
       const value =
         field.name in drawing
           ? drawing[field.name]
-          : settings[settingName(field.name) as keyof RenderSettings];
+          : (settings[settingName(field.name) as keyof RenderSettings] as number | boolean);
       const read =
         field.type === "u32"
           ? view.getUint32(field.offset, true)

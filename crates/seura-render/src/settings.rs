@@ -1,17 +1,17 @@
 //! The settings a render uses, taken from an edit file, and the uniform
 //! block that carries them to the shaders.
 
+use std::fmt;
+
 use bytemuck::{Pod, Zeroable};
 use seura_edit::{CoreOperation, EditDocument, Operation};
 
 use crate::Output;
 use crate::geometry::Geometry;
 
-/// Every core operation's parameters but red-eye's regions, each neutral by
-/// default (technical design, section 6). The shaders skip an operation
-/// whose parameters are neutral, so an operation missing from the edit file
-/// costs nothing. Red-eye's regions are a list, which slice 7 of M4 gives a
-/// buffer of its own.
+/// Every core operation's parameters, each neutral by default (technical
+/// design, section 6). The shaders skip an operation whose parameters are
+/// neutral, so an operation missing from the edit file costs nothing.
 ///
 /// Operations arrive with the Editor's tools in M4, each as one function in
 /// the shaders.
@@ -46,6 +46,61 @@ pub struct Settings {
     /// `seura.vignette`: amount −100 to 100, size 0 to 100.
     pub vignette_amount: f32,
     pub vignette_size: f32,
+    /// `seura.redEye`'s circles.
+    pub red_eye: RedEyeRegions,
+}
+
+/// The most red-eye corrections a render takes: the shaders hold them in
+/// the uniform block, at a fixed size, the same on WebGPU and WebGL2.
+pub const MAX_RED_EYE: usize = 64;
+
+/// `seura.redEye`'s circles, as the file has them: x and y as fractions of
+/// the upright photo, the radius as a fraction of its shorter side. Up to
+/// `MAX_RED_EYE`; a file with more keeps its first ones.
+#[derive(Clone, Copy, PartialEq)]
+pub struct RedEyeRegions {
+    count: usize,
+    regions: [[f32; 3]; MAX_RED_EYE],
+}
+
+impl RedEyeRegions {
+    pub const NONE: RedEyeRegions = RedEyeRegions {
+        count: 0,
+        regions: [[0.0; 3]; MAX_RED_EYE],
+    };
+
+    /// The render check's circles (`check::CHECK_SETTINGS`): one over the
+    /// check image's red pupil, its soft edge just past it; one over the
+    /// ramps' red band near the top right; and one where nothing is red.
+    pub(crate) const CHECK: RedEyeRegions = {
+        let mut regions = RedEyeRegions::NONE;
+        regions.regions[0] = [0.3144, 0.4766, 0.125];
+        regions.regions[1] = [0.86, 0.22, 0.14];
+        regions.regions[2] = [0.37, 0.55, 0.13];
+        regions.count = 3;
+        regions
+    };
+
+    /// The first `MAX_RED_EYE` of these circles, each x, y and radius.
+    pub fn new(circles: impl IntoIterator<Item = [f32; 3]>) -> RedEyeRegions {
+        let mut regions = RedEyeRegions::NONE;
+        for circle in circles.into_iter().take(MAX_RED_EYE) {
+            regions.regions[regions.count] = circle;
+            regions.count += 1;
+        }
+        regions
+    }
+
+    /// Each circle's x, y and radius.
+    pub fn as_slice(&self) -> &[[f32; 3]] {
+        &self.regions[..self.count]
+    }
+}
+
+impl fmt::Debug for RedEyeRegions {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.as_slice()).finish()
+    }
 }
 
 impl Settings {
@@ -71,6 +126,7 @@ impl Settings {
         // Without an amount, the size changes nothing.
         vignette_amount: 0.0,
         vignette_size: 0.0,
+        red_eye: RedEyeRegions::NONE,
     };
 
     /// Disabled operations are skipped, as are ones Seura can't render
@@ -106,8 +162,12 @@ impl Settings {
                     settings.crop_width = crop.width;
                     settings.crop_height = crop.height;
                 }
-                // Its regions arrive with red-eye, in M4 slice 7.
-                CoreOperation::RedEye(_) => {}
+                CoreOperation::RedEye(red_eye) => {
+                    settings.red_eye =
+                        RedEyeRegions::new(red_eye.regions.iter().map(|region| {
+                            [region.x as f32, region.y as f32, region.radius as f32]
+                        }));
+                }
                 CoreOperation::Exposure(exposure) => settings.exposure_ev = exposure.ev as f32,
                 CoreOperation::WhiteBalance(balance) => {
                     settings.temperature = balance.temperature as f32;
@@ -194,6 +254,11 @@ impl Settings {
             crop_top: crop.top as f32,
             crop_pixels_width: crop.width as f32,
             crop_pixels_height: crop.height as f32,
+            red_eye_count: self.red_eye.count as u32,
+            red_eye: std::array::from_fn(|i| {
+                let [x, y, radius] = self.red_eye.regions[i];
+                [x, y, radius, 0.0]
+            }),
         }
     }
 }
@@ -269,6 +334,8 @@ pub(crate) struct Params {
     pub crop_top: f32,
     pub crop_pixels_width: f32,
     pub crop_pixels_height: f32,
+    pub red_eye_count: u32,
+    pub red_eye: [[f32; 4]; MAX_RED_EYE],
 }
 
 /// What a draw does (`Params`' `draw_pass`): draw the photo, or one of the
@@ -307,6 +374,7 @@ mod tests {
             {"id": "seura.orient", "version": 1, "params": {"rotate": 90, "flipH": true, "flipV": false}},
             {"id": "seura.straighten", "version": 1, "params": {"angle": -2.5}},
             {"id": "seura.crop", "version": 1, "params": {"x": 0.1, "y": 0.2, "width": 0.5, "height": 0.6, "aspect": "4:3"}},
+            {"id": "seura.redEye", "version": 1, "params": {"regions": [{"x": 0.3, "y": 0.4, "radius": 0.02}]}},
             {"id": "seura.exposure", "version": 1, "params": {"ev": 0.5}},
             {"id": "seura.whiteBalance", "version": 1, "params": {"temperature": 10, "tint": -5}},
             {"id": "seura.highlights", "version": 1, "params": {"amount": -30}},
@@ -340,6 +408,7 @@ mod tests {
                 sepia: 50.0,
                 vignette_amount: -20.0,
                 vignette_size: 70.0,
+                red_eye: RedEyeRegions::new([[0.3, 0.4, 0.02]]),
             }
         );
     }
@@ -433,7 +502,9 @@ mod tests {
             crop_left,
             crop_top,
             crop_pixels_width,
-            crop_pixels_height
+            crop_pixels_height,
+            red_eye_count,
+            red_eye
         );
         let theirs: Vec<(&str, u32)> = members
             .iter()
@@ -441,6 +512,21 @@ mod tests {
             .collect();
         assert_eq!(ours, theirs);
         assert_eq!(size_of::<Params>() as u32, span);
+    }
+
+    #[test]
+    fn red_eye_takes_the_first_regions_up_to_the_limit() {
+        let many = (0..MAX_RED_EYE + 5).map(|i| [i as f32, 0.5, 0.01]);
+        let regions = RedEyeRegions::new(many);
+        assert_eq!(regions.as_slice().len(), MAX_RED_EYE);
+        assert_eq!(regions.as_slice()[3], [3.0, 0.5, 0.01]);
+        let settings = Settings {
+            red_eye: RedEyeRegions::new([[0.25, 0.5, 0.05]]),
+            ..Settings::NEUTRAL
+        };
+        let params = settings.uniforms(Output::DisplayP3, Pass::Draw, &Draw::whole((4, 3)));
+        assert_eq!(params.red_eye_count, 1);
+        assert_eq!(params.red_eye[0], [0.25, 0.5, 0.05, 0.0]);
     }
 
     #[test]

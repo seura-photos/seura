@@ -1,13 +1,12 @@
 // The render pass: draws the photo with its edits, in the canonical order
 // (decision 0003), then encodes it for the preview or for export.
 
-// Every core operation's parameters but red-eye's regions, in the edit
-// format's canonical order (seura-render's `Settings`). An operation whose
+// Every core operation's parameters, in the edit format's canonical order
+// (seura-render's `Settings`), then what each draw covers, then red-eye's
+// circles, which need the block's 16-byte alignment. An operation whose
 // parameters are neutral is skipped: the branch is on a uniform, so it costs
-// nothing, and there are no separate flags to keep in step. Operations arrive
-// one by one in M4; so far geometry (orient, straighten, crop), exposure,
-// white balance, highlights, shadows, contrast, saturation, black and white,
-// sepia and the vignette are rendered.
+// nothing, and there are no separate flags to keep in step. Every core
+// operation is rendered.
 struct Params {
     // 0: Display P3, for the preview. 1: sRGB, for export (EXP-5).
     output_srgb: u32,
@@ -66,6 +65,11 @@ struct Params {
     crop_top: f32,
     crop_pixels_width: f32,
     crop_pixels_height: f32,
+    // seura.redEye: how many circles, then each x, y and radius as the file
+    // has them (fractions of the upright photo; the radius of its shorter
+    // side), up to 64 (seura-render's MAX_RED_EYE).
+    red_eye_count: u32,
+    red_eye: array<vec4<f32>, 64>,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -198,6 +202,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let result = result_position(in.uv);
     let position = upright_position(result);
     var color = sample_photo(position);
+    if params.red_eye_count != 0u {
+        color = red_eye(color, position);
+    }
     if params.exposure_ev != 0.0 {
         color = exposure(color, params.exposure_ev);
     }

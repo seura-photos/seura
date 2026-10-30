@@ -1212,7 +1212,7 @@ pub fn show_thumbnails(library: State<'_, Library>, ids: Vec<u32>) {
 /// A photo's edits as the preview renders them: every core operation's
 /// parameters (seura-render's `Settings`), neutral where the edit file has
 /// none. The preview writes them into the shaders' uniform block.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Type)]
+#[derive(Clone, Debug, PartialEq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RenderSettings {
     pub rotate: u16,
@@ -1234,6 +1234,17 @@ pub struct RenderSettings {
     pub sepia: f32,
     pub vignette_amount: f32,
     pub vignette_size: f32,
+    /// `seura.redEye`'s circles (EDT-7).
+    pub red_eye: Vec<RedEyeCircle>,
+}
+
+/// One of `seura.redEye`'s circles: x and y as fractions of the upright
+/// photo, the radius as a fraction of its shorter side.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Type)]
+pub struct RedEyeCircle {
+    pub x: f32,
+    pub y: f32,
+    pub radius: f32,
 }
 
 impl From<seura_render::Settings> for RenderSettings {
@@ -1258,6 +1269,7 @@ impl From<seura_render::Settings> for RenderSettings {
             sepia,
             vignette_amount,
             vignette_size,
+            red_eye,
         } = settings;
         RenderSettings {
             rotate,
@@ -1279,6 +1291,11 @@ impl From<seura_render::Settings> for RenderSettings {
             sepia,
             vignette_amount,
             vignette_size,
+            red_eye: red_eye
+                .as_slice()
+                .iter()
+                .map(|&[x, y, radius]| RedEyeCircle { x, y, radius })
+                .collect(),
         }
     }
 }
