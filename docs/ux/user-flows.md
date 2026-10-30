@@ -213,6 +213,8 @@ Ctrl on Windows, Cmd on macOS. Single-letter keys work in every view except whil
 | Mark for deletion (in Review) | X |
 | Compare with original | Hold `\` |
 | Sidebar width (divider focused) | ← →, Home, End; Enter resets |
+| Red-eye: next circle or focused circle smaller, larger | `[` `]` (in red-eye mode) |
+| Fix red-eye (in Editor) | R |
 | Undo, redo | Ctrl+Z, Shift+Ctrl+Z (in the Library, the last action, BRW-11; in the Editor, the photo's history, EDT-9) |
 | Copy edits, paste edits | Shift+Ctrl+C, Shift+Ctrl+V |
 | Export | Ctrl+E |
