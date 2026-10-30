@@ -24,6 +24,8 @@ pub const SHADER: &str = concat!(
     "\n",
     include_str!("../shaders/tone.wgsl"),
     "\n",
+    include_str!("../shaders/effects.wgsl"),
+    "\n",
     include_str!("../shaders/guide.wgsl"),
     "\n",
     include_str!("../shaders/main.wgsl"),

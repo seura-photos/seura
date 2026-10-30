@@ -602,6 +602,20 @@ editor-cool = Cool
 editor-warm = Warm
 editor-green = Green
 editor-magenta = Magenta
+# The Editor's effects (EDT-6): each turned on and off by its button, which
+# shows On or Off, and its sliders shown beneath once it's on.
+editor-effects = Effects
+editor-black-and-white = Black and white
+editor-sepia = Sepia
+editor-vignette = Vignette
+editor-effect-on = On
+editor-effect-off = Off
+editor-strength = Strength
+editor-vignette-amount = Amount
+editor-vignette-size = Size
+# The ends of the vignette's Amount slider.
+editor-darker = Darker
+editor-lighter = Lighter
 editor-filmstrip = Filmstrip
 editor-export = Export…
 editor-exporting = Exporting…

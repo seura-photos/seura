@@ -2,7 +2,7 @@
 //! computed here on the CPU, as its formulas appendix gives them: the photo
 //! turned, flipped, straightened and cropped, sampled with Catmull-Rom, each
 //! tone and color operation in the canonical order, then the result encoded
-//! for Display P3 or sRGB (EXP-5). The definitions are checked against the
+//! for Display P3 or sRGB (EXP-5), after the effects. The definitions are checked against the
 //! appendix's own test vectors, and the shaders are run on those too.
 //!
 //! The images are generated: ramps through every channel, including Display
@@ -66,6 +66,36 @@ fn saturation(c: [f64; 3], amount: f64) -> [f64; 3] {
     let y = luminance(c);
     let s = 1.0 + amount / 100.0;
     c.map(|v| y + (v - y) * s)
+}
+
+/// `seura.blackAndWhite`: toward luminance by strength/100.
+fn black_and_white(c: [f64; 3], strength: f64) -> [f64; 3] {
+    let y = luminance(c);
+    c.map(|v| v + (y - v) * strength / 100.0)
+}
+
+/// `seura.sepia`: toward luminance in sepia's tone, (1.25, 0.97, 0.56)
+/// scaled to luminance 1, by strength/100.
+fn sepia(c: [f64; 3], strength: f64) -> [f64; 3] {
+    let t = [1.25, 0.97, 0.56];
+    let tone = t.map(|v| v / luminance(t));
+    let y = luminance(c);
+    [0, 1, 2].map(|i| c[i] + (y * tone[i] - c[i]) * strength / 100.0)
+}
+
+/// `seura.vignette` at `at`, fractions of the cropped frame: from
+/// r = 1 - size/100 of an ellipse fitted to the frame out to its corners,
+/// toward black or white.
+fn vignette(c: [f64; 3], amount: f64, size: f64, at: [f64; 2]) -> [f64; 3] {
+    let r = (2.0 * at[0] - 1.0).hypot(2.0 * at[1] - 1.0);
+    let start = 1.0 - size / 100.0;
+    let t = ((r - start) / (2f64.sqrt() - start)).clamp(0.0, 1.0);
+    let m = amount / 100.0 * t * t * (3.0 - 2.0 * t);
+    if m < 0.0 {
+        c.map(|v| v * (1.0 + m))
+    } else {
+        c.map(|v| v + (1.0 - v) * m)
+    }
 }
 
 fn encode(linear: f64) -> f64 {
@@ -183,10 +213,11 @@ fn shadows_gain(base: f64, amount: f64) -> f64 {
     amount / 100.0 * 2.0 * (1.0 - tone_position(base)).powi(3)
 }
 
-/// The tone and color operations on a linear Display P3 color, in the
-/// canonical order; `ab` is the guide where the pixel is, for highlights
-/// and shadows.
-fn defined(color: [f64; 3], settings: &Settings, ab: [f64; 2]) -> [f64; 3] {
+/// The tone and color operations, then the effects, on a linear Display P3
+/// color, in the canonical order; `ab` is the guide where the pixel is, for
+/// highlights and shadows, and `at` where it is in the cropped frame, as
+/// fractions of it, for the vignette.
+fn defined(color: [f64; 3], settings: &Settings, ab: [f64; 2], at: [f64; 2]) -> [f64; 3] {
     let ev = f64::from(settings.exposure_ev);
     let scale = ev.exp2();
     let mut p3 = color.map(|v| v * scale);
@@ -211,13 +242,33 @@ fn defined(color: [f64; 3], settings: &Settings, ab: [f64; 2]) -> [f64; 3] {
     if settings.saturation != 0.0 {
         p3 = saturation(p3, settings.saturation.into());
     }
+    if settings.black_and_white != 0.0 {
+        p3 = black_and_white(p3, settings.black_and_white.into());
+    }
+    if settings.sepia != 0.0 {
+        p3 = sepia(p3, settings.sepia.into());
+    }
+    if settings.vignette_amount != 0.0 {
+        p3 = vignette(
+            p3,
+            settings.vignette_amount.into(),
+            settings.vignette_size.into(),
+            at,
+        );
+    }
     p3
 }
 
-/// What a pixel must come out as, given the photo's color and the guide
-/// where it is.
-fn expected(color: [f64; 3], settings: &Settings, output: Output, ab: [f64; 2]) -> [u8; 3] {
-    let p3 = defined(color, settings, ab);
+/// What a pixel must come out as, given the photo's color, the guide
+/// where it is, and where it is in the cropped frame.
+fn expected(
+    color: [f64; 3],
+    settings: &Settings,
+    output: Output,
+    ab: [f64; 2],
+    at: [f64; 2],
+) -> [u8; 3] {
+    let p3 = defined(color, settings, ab, at);
     let linear = match output {
         Output::DisplayP3 => p3,
         Output::Srgb => P3_TO_SRGB.map(|row| row.iter().zip(p3).map(|(m, v)| m * v).sum()),
@@ -324,7 +375,11 @@ fn assert_matches(image: &LinearImage, settings: &Settings, output: Output, rend
     let want = |i: usize| {
         let (x, y) = positions[i];
         let ab = guide.sample(x / width as f64, y / height as f64);
-        expected(catmull_rom(image, x, y), settings, output, ab)
+        let at = [
+            ((i % across) as f64 + 0.5) / across as f64,
+            ((i / across) as f64 + 0.5) / down as f64,
+        ];
+        expected(catmull_rom(image, x, y), settings, output, ab, at)
     };
     let mut worst = (0, 0);
     for (i, found) in rendered.pixels.chunks(4).enumerate() {
@@ -577,6 +632,108 @@ fn light_and_color_match_the_definitions() {
     }
 }
 
+/// Each effect alone, then together with light and color, and the
+/// vignette on a cropped, straightened, turned photo, where it's measured
+/// on the cropped frame, and in tiles (EDT-6).
+#[test]
+fn effects_match_the_definitions() {
+    let renderer = renderer();
+    let image = ramps(97, 64);
+    let neutral = Settings::NEUTRAL;
+    let mut cases = Vec::new();
+    for strength in [30.0, 100.0] {
+        cases.push(Settings {
+            black_and_white: strength,
+            ..neutral
+        });
+        cases.push(Settings {
+            sepia: strength,
+            ..neutral
+        });
+    }
+    for (amount, size) in [(-100.0, 0.0), (-35.0, 60.0), (45.0, 25.0), (100.0, 100.0)] {
+        cases.push(Settings {
+            vignette_amount: amount,
+            vignette_size: size,
+            ..neutral
+        });
+    }
+    let together = Settings {
+        exposure_ev: 0.4,
+        contrast: 30.0,
+        saturation: 25.0,
+        black_and_white: 40.0,
+        sepia: 70.0,
+        vignette_amount: -50.0,
+        vignette_size: 45.0,
+        ..neutral
+    };
+    cases.push(together);
+    cases.push(Settings {
+        rotate: 90,
+        straighten: 6.0,
+        crop_x: 0.2,
+        crop_y: 0.15,
+        crop_width: 0.55,
+        crop_height: 0.6,
+        ..together
+    });
+    for settings in &cases {
+        for output in [Output::Srgb, Output::DisplayP3] {
+            assert_matches(&image, settings, output, &renderer);
+        }
+    }
+    // In tiles, each tile places the vignette by where it is in the result.
+    let large = ramps(2300, 1700);
+    assert_matches(
+        &large,
+        &Settings {
+            vignette_amount: -80.0,
+            vignette_size: 70.0,
+            crop_x: 0.1,
+            crop_width: 0.85,
+            ..neutral
+        },
+        Output::Srgb,
+        &renderer,
+    );
+}
+
+/// What the effects promise: black and white and sepia keep luminance,
+/// sepia at 100 depends only on it, and the vignette leaves the center as
+/// it is and reaches black or white at the very corners.
+#[test]
+fn effects_keep_what_they_promise() {
+    let color = [0.6, 0.3, 0.1];
+    let y = luminance(color);
+    assert!((luminance(black_and_white(color, 70.0)) - y).abs() < 1e-12);
+    assert!((luminance(sepia(color, 45.0)) - y).abs() < 1e-12);
+    let gray = [y; 3];
+    let toned = sepia(gray, 100.0);
+    assert_eq!(sepia(color, 100.0), toned);
+    assert!(
+        toned[0] > toned[1] && toned[1] > toned[2],
+        "warm: {toned:?}"
+    );
+    for size in [0.0, 50.0, 100.0] {
+        assert_eq!(vignette(color, -100.0, size, [0.5, 0.5]), color);
+        assert!(
+            vignette(color, -100.0, size, [0.0, 0.0])
+                .iter()
+                .all(|v| v.abs() < 1e-12)
+        );
+        assert!(
+            vignette(color, 100.0, size, [1.0, 1.0])
+                .iter()
+                .all(|v| (v - 1.0).abs() < 1e-12)
+        );
+    }
+    // A larger size reaches further in.
+    let edge = [0.9, 0.5];
+    assert_eq!(vignette(color, -60.0, 0.0, edge), color);
+    assert!(vignette(color, -60.0, 80.0, edge)[0] < color[0]);
+}
+
 /// What the formulas promise, on single pixels: gray keeps its luminance
 /// through white balance, contrast keeps black, middle gray and white where
 /// they are, and saturation −100 leaves gray.
@@ -630,10 +787,14 @@ fn light_and_color_keep_what_they_promise() {
 
 /// One of the formulas appendix's test vectors: an operation's params, an
 /// input color, and what it must come out as; for a neighborhood operation,
-/// also the pixel's base, from the luminance guide.
+/// also the pixel's base, from the luminance guide, and for the vignette,
+/// where the pixel is.
 struct Vector {
     settings: Settings,
     base: Option<f64>,
+    /// For an operation measured on the cropped frame, where the pixel is
+    /// in it, as fractions.
+    position: Option<[f64; 2]>,
     input: [f64; 3],
     output: [f64; 3],
 }
@@ -700,11 +861,27 @@ fn appendix_vectors() -> Vec<(String, Vec<Vector>)> {
                             shadows: param("amount"),
                             ..neutral
                         },
+                        "seura.blackAndWhite" => Settings {
+                            black_and_white: param("strength"),
+                            ..neutral
+                        },
+                        "seura.sepia" => Settings {
+                            sepia: param("strength"),
+                            ..neutral
+                        },
+                        "seura.vignette" => Settings {
+                            vignette_amount: param("amount"),
+                            vignette_size: param("size"),
+                            ..neutral
+                        },
                         other => panic!("{other} has test vectors, but no test here yet"),
                     };
                     Vector {
                         settings,
                         base: case["base"].as_f64(),
+                        position: case["position"]
+                            .as_array()
+                            .map(|at| [at[0].as_f64().unwrap(), at[1].as_f64().unwrap()]),
                         input: color(&case["input"]),
                         output: color(&case["output"]),
                     }
@@ -721,8 +898,9 @@ fn appendix_vectors() -> Vec<(String, Vec<Vector>)> {
 fn the_definitions_match_the_appendix_vectors() {
     let all = appendix_vectors();
     assert!(
-        all.len() >= 6,
-        "exposure, white balance, highlights, shadows, contrast and saturation"
+        all.len() >= 9,
+        "exposure, white balance, highlights, shadows, contrast, saturation, \
+         black and white, sepia and the vignette"
     );
     for (operation, vectors) in &all {
         for vector in vectors {
@@ -731,6 +909,7 @@ fn the_definitions_match_the_appendix_vectors() {
                 vector.input,
                 &vector.settings,
                 [0.0, vector.base.unwrap_or(0.0)],
+                vector.position.unwrap_or([0.5; 2]),
             );
             for (found, want) in found.iter().zip(vector.output) {
                 assert!(
@@ -751,10 +930,14 @@ fn the_definitions_match_the_appendix_vectors() {
 fn the_shaders_match_the_appendix_vectors() {
     let renderer = renderer();
     for (operation, vectors) in appendix_vectors() {
-        // A neighborhood operation's base comes from the photo, so a vector's
-        // can't be given to the shaders; the tests above compare them with
-        // the definitions instead.
-        for vector in vectors.iter().filter(|vector| vector.base.is_none()) {
+        // A neighborhood operation's base comes from the photo, and the
+        // vignette's position from the pixel's place, so a vector's can't
+        // be given to the shaders; the tests above compare them with the
+        // definitions instead.
+        for vector in vectors
+            .iter()
+            .filter(|vector| vector.base.is_none() && vector.position.is_none())
+        {
             let pixel = [vector.input[0], vector.input[1], vector.input[2], 1.0].map(f16::from_f64);
             assert_eq!(pixel.map(|v| v.to_f64())[..3], vector.input, "exact in f16");
             let image = LinearImage {
@@ -856,7 +1039,7 @@ fn highlights_and_shadows_keep_edges_without_halos() {
                     (x as f64 + 0.5) / width as f64,
                     (y as f64 + 0.5) / height as f64,
                 );
-                log_luminance(defined(c, &settings, ab)) - log_luminance(c)
+                log_luminance(defined(c, &settings, ab, [0.5; 2])) - log_luminance(c)
             })
             .sum::<f64>()
             / height as f64

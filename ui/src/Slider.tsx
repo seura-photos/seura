@@ -13,6 +13,8 @@ type Props = {
   range?: { min: number; max: number; step: number; shiftStep: number };
   /** The value as shown; a signed whole number by default (EDT-5). */
   format?: (value: number) => string;
+  /** What double-click sets it to: neutral, 0, by default. */
+  reset?: number;
   disabled: boolean;
   /** Each movement, for the live preview. */
   onInput: (value: number) => void;
@@ -32,6 +34,7 @@ export function Slider({
   value,
   range = { min: -100, max: 100, step: 1, shiftStep: 10 },
   format = formatSigned,
+  reset = 0,
   disabled,
   onInput,
   onCommit,
@@ -86,8 +89,8 @@ export function Slider({
           onCommit(next);
         }}
         onDoubleClick={() => {
-          onInput(0);
-          onCommit(0);
+          onInput(reset);
+          onCommit(reset);
         }}
       />
       {ends && (

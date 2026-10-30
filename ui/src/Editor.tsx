@@ -59,6 +59,7 @@ import {
   geometryOf,
   type LinearImage,
 } from "./preview";
+import { Effects } from "./Effects";
 import { Slider } from "./Slider";
 import { useStore } from "./store";
 import { orientedSize, type Size } from "./preview/geometry";
@@ -184,6 +185,9 @@ export function Editor({ id, forceWebgl2 }: Props) {
   const [confirming, setConfirming] = useState<number | null>(null);
   const confirmingNow = confirming === id;
   const cancelRevert = useRef<HTMLButtonElement>(null);
+  // How many times the shown edits have been replaced as a whole, by undo,
+  // redo, revert, or choosing after an outside change.
+  const [replaced, setReplaced] = useState(0);
   const revertButton = useRef<HTMLButtonElement>(null);
   // The safe choice has the focus, so Enter is safe (INT-5).
   useEffect(() => {
@@ -670,6 +674,7 @@ export function Editor({ id, forceWebgl2 }: Props) {
       const data = result.data;
       if (data.kind === "done" || data.kind === "discarded") {
         saved(photoId, data.steps, data.settings);
+        setReplaced((count) => count + 1);
       }
       if (data.kind === "done") say(done(data.label, data.detail));
       else if (data.kind === "discarded") say(t("editor-history-discarded"));
@@ -1188,6 +1193,19 @@ export function Editor({ id, forceWebgl2 }: Props) {
                 onCommit={(to) => commit({ kind: "saturation", amount: to })}
               />
             </section>
+
+            <Effects
+              values={{
+                blackAndWhite: shown?.settings.blackAndWhite ?? 0,
+                sepia: shown?.settings.sepia ?? 0,
+                vignetteAmount: shown?.settings.vignetteAmount ?? 0,
+                vignetteSize: shown?.settings.vignetteSize ?? 0,
+              }}
+              disabled={!editable}
+              reset={`${id}:${replaced}`}
+              onInput={adjust}
+              onCommit={commit}
+            />
 
             {problem !== null && (
               <p className="editor-note" role="note">

@@ -17,7 +17,7 @@ use crate::editor::{ChangeDetail, EditSteps, Editor};
 use crate::library::{AppSettings, Library, LibraryChanged};
 use crate::viewer::{Viewer, Wanted};
 use crate::welcome;
-use seura_edit::{Amount, CoreOperation, WhiteBalance};
+use seura_edit::{Amount, CoreOperation, Strength, Vignette, WhiteBalance};
 
 /// The app's version, from `Cargo.toml`.
 #[tauri::command]
@@ -1591,6 +1591,13 @@ pub enum PhotoEdit {
     Tint { temperature: f64, tint: f64 },
     /// `seura.saturation`, −100 to 100.
     Saturation { amount: f64 },
+    /// `seura.blackAndWhite`, 0 to 100; 0 turns it off (EDT-6).
+    BlackAndWhite { strength: f64 },
+    /// `seura.sepia`, 0 to 100; 0 turns it off.
+    Sepia { strength: f64 },
+    /// `seura.vignette`: amount −100 to 100, 0 turning it off, and size 0
+    /// to 100.
+    Vignette { amount: f64, size: f64 },
     /// Rotate or flip (EDT-4), from what the Editor shows.
     Turn { turn: crate::editor::Turn },
     /// Crop mode's Done (EDT-2, EDT-3).
@@ -1653,6 +1660,18 @@ pub async fn edit_photo(app: AppHandle, id: u32, edit: PhotoEdit) -> Result<Edit
             PhotoEdit::Saturation { amount } => change(crate::editor::slider_action(
                 "Saturation",
                 CoreOperation::Saturation(Amount { amount }),
+            )),
+            PhotoEdit::BlackAndWhite { strength } => change(crate::editor::slider_action(
+                "Black and white",
+                CoreOperation::BlackAndWhite(Strength { strength }),
+            )),
+            PhotoEdit::Sepia { strength } => change(crate::editor::slider_action(
+                "Sepia",
+                CoreOperation::Sepia(Strength { strength }),
+            )),
+            PhotoEdit::Vignette { amount, size } => change(crate::editor::slider_action(
+                "Vignette",
+                CoreOperation::Vignette(Vignette { amount, size }),
             )),
         };
         let library = app.state::<Library>();
