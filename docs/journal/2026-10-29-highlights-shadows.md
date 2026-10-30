@@ -42,6 +42,15 @@ Nevada asked the Mac session to measure, on the MacBook (M1 Max, macOS 26.6.2, a
 - **WebGL2 on the Mac has the extension the guide needs** (`EXT_color_buffer_float`), and the render check matches export with difference 0 on WebGPU and WebGL2.
 - Claude Code's request gave the Mac session a contradictory build command (`--no-bundle --bundles app`); on macOS, `--bundles app` replaces `--no-bundle`, as CLAUDE.md says.
 
+## Nevada's photos
+
+Nevada tried both sliders on their own photos: "As far as I can tell, it looks good. They don't *feel* too strong or too weak or too wide." Nevada asked whether the strengths fit generally accepted practice. Claude Code's answer:
+- The method is the one established editors use: an edge-keeping brightness map, with a gain that works mainly at one end.
+- Up to 2 stops at the extremes and about 1 on a typical backlit face is within the usual range, a little gentler than Lightroom's Shadows at +100, which also keeps noise down.
+- No editor can recover a sky that's pure white in a JPEG.
+
+The first-choice constants stay.
+
 ## Caught along the way
 
 - **WebGL2 drew nothing at first.** The render check in the real web view passed on WebGPU and failed on WebGL2 by a full 255 levels. The uniform block had grown from 80 to 100 bytes, and GLSL's block layout rounds a struct up to a multiple of 16, so WebGL2 wanted 112 and refused to draw from a 100-byte buffer. WebGPU accepts 100. The preview now rounds the buffer up, with a test. It had never shown because 80 is a multiple of 16.
