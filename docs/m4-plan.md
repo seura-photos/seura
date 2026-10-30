@@ -103,6 +103,10 @@ Added 2026-10-29: Nevada noticed the Editor couldn't zoom, which the design had 
 - **Geometry is a coordinate transform when sampling** (technical design, "Pipeline"), never a separate pass. Rotating or flipping a cropped photo moves the crop with it (question 3).
 - **Crop mode always shows the whole photo** (Fit); the zoom and position from before come back when it closes (EDT-1).
 - **Done when:** Nevada fixes a crooked photo in under five minutes (user flows, flow 4's design test), the render check matches with geometry and tone together, and edited thumbnails show the rotation and crop.
+- **Built in three parts** (added 2026-10-29, Claude Code's split, which Nevada agreed):
+  - **5a, rotate and flip, end to end:** drawn by the shader as it samples, in export, edited thumbnails, the Viewer and the Editor; zoom on a turned photo; the four buttons in the panel and `[` `]`. A turn moves a crop and straighten already in the file with the photo.
+  - **5b, straighten and crop in the renderer**, once the design session has answered what the crop's numbers measure on a straightened photo, where the guide is built, and how a tilted photo is sampled (journal, `2026-10-29-rotate-flip.md`).
+  - **5c, crop mode**, as above.
 
 ### 6. Effects (EDT-6)
 

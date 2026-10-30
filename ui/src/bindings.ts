@@ -146,12 +146,12 @@ export const commands = {
 	photoDetails: (id: number) => typedError<PhotoDetails, string>(__TAURI_INVOKE("photo_details", { id })),
 	selectionSummary: (ids: number[]) => __TAURI_INVOKE<SelectionSummary>("selection_summary", { ids }),
 	/**
-	 *  Opens a photo in the Editor, with a preview `longEdge` pixels on its long
-	 *  side (the canvas size Ã— the device pixel ratio, DSP-1). A cloud-only
-	 *  photo is read, downloading it, only with `download`, and waited for as
-	 *  the Viewer waits (LIB-9).
+	 *  Opens a photo in the Editor, with a preview that fits an area of `width`
+	 *  × `height` device pixels (the stage's size × the device pixel ratio,
+	 *  DSP-1) as its edits turn it. A cloud-only photo is read, downloading it,
+	 *  only with `download`, and waited for as the Viewer waits (LIB-9).
 	 */
-	openPhoto: (id: number, longEdge: number, download: boolean) => typedError<OpenedPhoto, string>(__TAURI_INVOKE("open_photo", { id, longEdge, download })),
+	openPhoto: (id: number, width: number, height: number, download: boolean) => typedError<OpenedPhoto, string>(__TAURI_INVOKE("open_photo", { id, width, height, download })),
 	/**  The Editor let photo `id` go: closed, or moved on to another. */
 	closePhoto: (id: number) => __TAURI_INVOKE<void>("close_photo", { id }),
 	/**
@@ -423,9 +423,10 @@ export type EditFileChanged = {
 export type EditSaved = 
 /**
  *  Written, or already as asked; with what Undo and Redo would do now,
- *  if the photo is still open.
+ *  and the settings the Editor shows, if the photo is still open: a
+ *  turn's are the core's to work out.
  */
-{ kind: "saved"; steps: EditSteps | null } | 
+{ kind: "saved"; steps: EditSteps | null; settings: RenderSettings | null } | 
 /**  In a read-only folder (TAG-7). */
 { kind: "readOnly" } | 
 /**  Its edit file can't be read, so it's left alone (FIL-4). */
@@ -640,7 +641,9 @@ export type PhotoEdit =
 /**  The same, from the Tint slider. */
 { kind: "tint"; temperature: number | null; tint: number | null } | 
 /**  `seura.saturation`, −100 to 100. */
-{ kind: "saturation"; amount: number | null };
+{ kind: "saturation"; amount: number | null } | 
+/**  Rotate or flip (EDT-4), from what the Editor shows. */
+{ kind: "turn"; turn: Turn };
 
 /**  What the grid is narrowed to (FND-1), applied to whatever it shows. */
 export type PhotoFilter = {
@@ -838,6 +841,12 @@ export type ThumbnailReady = {
 
 /**  Thumbnails finished, or that can't be made, since the last of these. */
 export type ThumbnailsReady = ThumbnailReady[];
+
+/**
+ *  Rotate left or right, flip horizontally or vertically (EDT-4), as the
+ *  photo is seen.
+ */
+export type Turn = "left" | "right" | "horizontal" | "vertical";
 
 /**  The grid's order and size (BRW-2, BRW-3), from the settings. */
 export type ViewSettings = {

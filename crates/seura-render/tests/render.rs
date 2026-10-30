@@ -1,7 +1,7 @@
 //! The shaders, run with wgpu, against the edit format's definitions
-//! computed here on the CPU, as its formulas appendix gives them: each tone
-//! and color operation in the canonical order, then the result encoded for
-//! Display P3 or sRGB (EXP-5). The definitions are checked against the
+//! computed here on the CPU, as its formulas appendix gives them: the photo
+//! turned and flipped, each tone and color operation in the canonical
+//! order, then the result encoded for Display P3 or sRGB (EXP-5). The definitions are checked against the
 //! appendix's own test vectors, and the shaders are run on those too.
 //!
 //! The images are generated: ramps through every channel, including Display
@@ -235,30 +235,61 @@ fn renderer() -> Renderer {
 
 /// Every pixel within one level of the definition: GPU arithmetic isn't
 /// bit-exact, but it's far closer than the 8-bit output can show.
+/// `seura.orient` as the edit format defines it: where each pixel of the
+/// upright photo lands, by index, turned clockwise and then flipped as it's
+/// then seen. Returns, for each drawn pixel, the upright pixel drawn there,
+/// and the drawn size.
+fn oriented(settings: &Settings, width: usize, height: usize) -> (Vec<usize>, usize, usize) {
+    let sideways = settings.rotate % 180 == 90;
+    let (across, down) = if sideways {
+        (height, width)
+    } else {
+        (width, height)
+    };
+    let mut from = vec![usize::MAX; width * height];
+    for y in 0..height {
+        for x in 0..width {
+            let (u, v) = match settings.rotate {
+                90 => (height - 1 - y, x),
+                180 => (width - 1 - x, height - 1 - y),
+                270 => (y, width - 1 - x),
+                _ => (x, y),
+            };
+            let u = if settings.flip_h { across - 1 - u } else { u };
+            let v = if settings.flip_v { down - 1 - v } else { v };
+            from[v * across + u] = y * width + x;
+        }
+    }
+    (from, across, down)
+}
+
 fn assert_matches(image: &LinearImage, settings: &Settings, output: Output, renderer: &Renderer) {
     let rendered = renderer
         .render(image, &image.guide_image(), settings, output)
         .unwrap();
+    let (width, height) = (image.width as usize, image.height as usize);
+    let (from, across, down) = oriented(settings, width, height);
     assert_eq!(
-        (rendered.width, rendered.height),
-        (image.width, image.height)
+        (rendered.width as usize, rendered.height as usize),
+        (across, down)
     );
     let guide = Guide::new(&image.guide_image(), settings);
-    let (width, height) = (image.width as usize, image.height as usize);
+    // The guide is sampled where the pixel is in the upright photo.
     let ab = |i: usize| {
+        let j = from[i];
         guide.sample(
-            ((i % width) as f64 + 0.5) / width as f64,
-            ((i / width) as f64 + 0.5) / height as f64,
+            ((j % width) as f64 + 0.5) / width as f64,
+            ((j / width) as f64 + 0.5) / height as f64,
         )
     };
+    let source = |i: usize| -> [f16; 4] {
+        image.pixels[from[i] * 4..from[i] * 4 + 4]
+            .try_into()
+            .unwrap()
+    };
     let mut worst = (0, 0);
-    for (i, (found, source)) in rendered
-        .pixels
-        .chunks(4)
-        .zip(image.pixels.chunks(4))
-        .enumerate()
-    {
-        let want = expected(source.try_into().unwrap(), settings, output, ab(i));
+    for (i, found) in rendered.pixels.chunks(4).enumerate() {
+        let want = expected(source(i), settings, output, ab(i));
         let off = found[..3]
             .iter()
             .zip(want)
@@ -274,13 +305,29 @@ fn assert_matches(image: &LinearImage, settings: &Settings, output: Output, rend
         off <= 1,
         "{settings:?}, {output:?}: pixel {i} is off by {off}: found {:?}, expected {:?}",
         &rendered.pixels[i * 4..i * 4 + 3],
-        expected(
-            image.pixels[i * 4..i * 4 + 4].try_into().unwrap(),
-            settings,
-            output,
-            ab(i)
-        ),
+        expected(source(i), settings, output, ab(i)),
     );
+}
+
+/// Every turn and flip (EDT-4), on a photo that isn't square, with
+/// highlights and shadows, whose guide covers the upright photo.
+#[test]
+fn turned_and_flipped_photos_match_the_definition() {
+    let renderer = renderer();
+    let image = ramps(37, 23);
+    for rotate in [0, 90, 180, 270] {
+        for (flip_h, flip_v) in [(false, false), (true, false), (false, true), (true, true)] {
+            let settings = Settings {
+                rotate,
+                flip_h,
+                flip_v,
+                highlights: -40.0,
+                shadows: 35.0,
+                ..Settings::NEUTRAL
+            };
+            assert_matches(&image, &settings, Output::DisplayP3, &renderer);
+        }
+    }
 }
 
 #[test]
@@ -573,6 +620,14 @@ fn large_photos_are_rendered_in_tiles_seamlessly() {
         ..Settings::NEUTRAL
     };
     assert_matches(&image, &settings, Output::Srgb, &renderer);
+    // Turned, each tile of the drawn photo comes from a different part of
+    // the upright one.
+    let turned = Settings {
+        rotate: 90,
+        flip_v: true,
+        ..settings
+    };
+    assert_matches(&image, &turned, Output::Srgb, &renderer);
 }
 
 /// A dark half beside a bright one, each with fine texture: shadows lifts

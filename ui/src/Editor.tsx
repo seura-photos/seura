@@ -1,5 +1,21 @@
-import { Redo2, TriangleAlert, Undo2 } from "lucide-react";
-import { type PointerEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  FlipHorizontal2,
+  FlipVertical2,
+  Redo2,
+  RotateCcwSquare,
+  RotateCwSquare,
+  TriangleAlert,
+  Undo2,
+} from "lucide-react";
+import {
+  type PointerEvent,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   type ChangeDetail,
   commands,
@@ -8,6 +24,7 @@ import {
   NEUTRAL_SETTINGS,
   type PhotoEdit,
   type RenderSettings,
+  type Turn,
 } from "./bindings";
 import { CloudPhoto } from "./CloudPhoto";
 import { Filmstrip } from "./Filmstrip";
@@ -17,7 +34,13 @@ import { t } from "./messages";
 import { SHOWN_EVENT } from "./measure";
 import { MoreButton } from "./MoreButton";
 import { NoticeBar } from "./NoticeBar";
-import { type Backend, createPreview, fetchLinear, type LinearImage } from "./preview";
+import {
+  type Backend,
+  createPreview,
+  fetchLinear,
+  type LinearImage,
+  orientedSize,
+} from "./preview";
 import { Slider } from "./Slider";
 import { useStore } from "./store";
 import { useZoom } from "./useZoom";
@@ -213,7 +236,10 @@ export function Editor({ id, forceWebgl2 }: Props) {
         const result = await commands.editPhoto(photoId, edit);
         if (result.status === "error") say(t("editor-save-failed", { reason: result.error }));
         else if (result.data.kind === "saved") {
-          if (result.data.steps) saved(photoId, result.data.steps);
+          // A turn is the core's to work out, so the Editor shows what it
+          // made; a slider's setting is already shown.
+          const settings = edit.kind === "turn" ? result.data.settings : null;
+          if (result.data.steps) saved(photoId, result.data.steps, settings ?? undefined);
         } else if (result.data.kind === "readOnly") say(t("editor-save-read-only"));
         else if (result.data.kind === "unreadable") say(t("editor-save-unreadable"));
         else if (result.data.kind === "failed")
@@ -256,15 +282,15 @@ export function Editor({ id, forceWebgl2 }: Props) {
     if (!measured) return;
     let live = true;
     const scale = window.devicePixelRatio;
-    const info = useStore.getState().photos.find((photo) => photo.id === id);
     const { width, height } = sized.current;
-    const fit = info?.width && info.height ? Math.min(width / info.width, height / info.height) : 1;
-    const longEdge =
-      info?.width && info.height
-        ? Math.max(info.width, info.height) * fit * scale
-        : Math.max(width, height) * scale;
+    // The core fits the preview to the stage as the photo's edits turn it.
     const ask = (download: boolean) =>
-      commands.openPhoto(id, Math.max(1, Math.round(longEdge)), download);
+      commands.openPhoto(
+        id,
+        Math.max(1, Math.round(width * scale)),
+        Math.max(1, Math.round(height * scale)),
+        download,
+      );
     const show = async () => {
       if (!live) return;
       let result = await ask(false);
@@ -291,8 +317,9 @@ export function Editor({ id, forceWebgl2 }: Props) {
       const renderer = await backend.current;
       const element = canvas.current;
       if (!live || !renderer || !element) return;
-      element.width = image.width;
-      element.height = image.height;
+      const drawn = orientedSize(image, data.settings);
+      element.width = drawn.width;
+      element.height = drawn.height;
       renderer.upload(image, guide);
       renderer.draw(data.settings);
       shownGuide.current = { id, guide };
@@ -321,23 +348,48 @@ export function Editor({ id, forceWebgl2 }: Props) {
   // Every change of a setting, or holding compare, redraws the photo, and
   // the sharp part over it while zoomed in: compare keeps the zoom.
   const settings = shown?.settings ?? null;
-  const drawnSettings = settings && (comparing ? NEUTRAL_SETTINGS : settings);
+  // Compare shows the original as the photo is turned, so it lines up with
+  // the edited photo, at the same zoom and position (EDT-1).
+  const drawnSettings = useMemo(
+    () =>
+      settings &&
+      (comparing
+        ? {
+            ...NEUTRAL_SETTINGS,
+            rotate: settings.rotate,
+            flipH: settings.flipH,
+            flipV: settings.flipV,
+          }
+        : settings),
+    [settings, comparing],
+  );
+  // The preview's upright size, for sizing the canvas as it's turned.
+  const previewWidth = shown?.width ?? 0;
+  const previewHeight = shown?.height ?? 0;
   // For a sharp part that arrives after a change.
   const drawnNow = useRef(drawnSettings);
   useEffect(() => {
     drawnNow.current = drawnSettings;
     if (!drawnSettings) return;
+    // A turn changes the canvas's shape.
+    const element = canvas.current;
+    if (element && previewWidth > 0) {
+      const drawn = orientedSize({ width: previewWidth, height: previewHeight }, drawnSettings);
+      if (element.width !== drawn.width) element.width = drawn.width;
+      if (element.height !== drawn.height) element.height = drawn.height;
+    }
     void backend.current?.then((renderer) => renderer?.draw(drawnSettings));
     if (detailUploaded.current) {
       void detailBackend.current?.then((renderer) => renderer?.draw(drawnSettings));
     }
-  }, [drawnSettings]);
+  }, [drawnSettings, previewWidth, previewHeight]);
 
   const zoom = useZoom({
     stage,
     area,
     inset,
     photo: shown && { id: shown.id, full: shown.full },
+    orient: drawnSettings,
     cut: async (photoId, region, width, height) => {
       const result = await commands.editorRegion(
         photoId,
@@ -361,8 +413,9 @@ export function Editor({ id, forceWebgl2 }: Props) {
       const guide = shownGuide.current;
       const drawn = drawnNow.current;
       if (!renderer || !element || !drawn || guide?.id !== idNow.current) return false;
-      element.width = image.width;
-      element.height = image.height;
+      const size = orientedSize(image, drawn);
+      element.width = size.width;
+      element.height = size.height;
       renderer.upload(image, guide.guide, at);
       renderer.draw(drawn);
       detailUploaded.current = true;
@@ -377,6 +430,16 @@ export function Editor({ id, forceWebgl2 }: Props) {
         ? { ...status, settings: { ...status.settings, ...change } }
         : status,
     );
+  }
+
+  /** Rotates or flips the photo (EDT-4), after saving what's waiting: the
+   * core turns what the Editor shows, crop and straighten with it, and the
+   * Editor then shows that. The turned photo is shown whole. */
+  function turnPhoto(turn: Turn) {
+    if (!editable) return;
+    void flush();
+    zoom.fit();
+    void save(id, { kind: "turn", turn });
   }
 
   function done() {
@@ -520,6 +583,11 @@ export function Editor({ id, forceWebgl2 }: Props) {
     if (event.key === "-") {
       event.preventDefault();
       zoom.zoomStep(-1);
+      return;
+    }
+    if (event.key === "[" || event.key === "]") {
+      event.preventDefault();
+      turnPhoto(event.key === "[" ? "left" : "right");
       return;
     }
     // Arrow keys on a slider move the slider, not the photo.
@@ -717,6 +785,51 @@ export function Editor({ id, forceWebgl2 }: Props) {
           </button>
           <button type="button" className="button primary" onClick={done}>
             {t("editor-done")}
+          </button>
+        </div>
+
+        <div className="editor-section editor-turns" role="group" aria-label={t("editor-turn")}>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={t("editor-rotate-left")}
+            aria-keyshortcuts="["
+            title={t("editor-rotate-left")}
+            disabled={!editable}
+            onClick={() => turnPhoto("left")}
+          >
+            <RotateCcwSquare className="icon" aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={t("editor-rotate-right")}
+            aria-keyshortcuts="]"
+            title={t("editor-rotate-right")}
+            disabled={!editable}
+            onClick={() => turnPhoto("right")}
+          >
+            <RotateCwSquare className="icon" aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={t("editor-flip-horizontal")}
+            title={t("editor-flip-horizontal")}
+            disabled={!editable}
+            onClick={() => turnPhoto("horizontal")}
+          >
+            <FlipHorizontal2 className="icon" aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={t("editor-flip-vertical")}
+            title={t("editor-flip-vertical")}
+            disabled={!editable}
+            onClick={() => turnPhoto("vertical")}
+          >
+            <FlipVertical2 className="icon" aria-hidden />
           </button>
         </div>
 

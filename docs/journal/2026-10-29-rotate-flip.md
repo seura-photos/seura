@@ -1,0 +1,31 @@
+# Rotate and flip (slice 5a), and the questions geometry raised
+
+- **Slice 5 is split in three.** It's the first slice that changes the photo's shape, so it reaches everything that draws one: export, edited thumbnails, the Viewer, the Editor, zoom, and the highlights and shadows guide. Claude Code proposed the split and Nevada agreed:
+  - 5a, rotate and flip, end to end;
+  - 5b, straighten and crop in the renderer;
+  - 5c, crop mode.
+- **Planning it showed gaps in the edit format.** Claude Code wrote four questions for the design session, and Nevada is taking them there:
+  - What the crop's numbers measure once a photo is straightened. The format says "a rectangle on the oriented, straightened photo" but not how big that photo is. Its decisions log also says the crop frame is "to be confirmed by a prototype".
+  - Where the guide is built. Edit-format #9 says it's built from the photo "as oriented and straightened". Claude Code suggests building it from the photo before any geometry, which gives the same result for turns and flips, and is simpler for any app.
+  - How a tilted photo is blended between pixels: bilinear or bicubic.
+  - Whether `seura.orient`'s flips come before or after its turn. The format doesn't say, and the two give different photos.
+- **The first plan didn't work as stated.** Claude Code first offered to build the Rotate and Flip buttons while the questions were out, since none of them affected the buttons. But buttons that save a turn the screen doesn't show are no use. So 5a draws the turn too. Turns and flips move whole pixels, which none of the questions affect, apart from the order of flips, which 5a builds on the reading Seura's code already stated.
+- **What 5a does:**
+  - The shader turns and flips as it samples: each pixel works out where it comes from in the upright photo.
+  - Export draws a large photo in tiles across the turned photo, each from its own part of the upright one.
+  - Edited thumbnails and the Viewer show the turn.
+  - The Editor has the four buttons in its panel, and `[` and `]`.
+  - Zoom works on the photo as it's shown, and asks the core for the matching part of the upright photo.
+- **A turn is worked out in the core**, from the edits the Editor shows, so a crop or straighten already in the file follows the photo, as EDT-4 asks:
+  - a quarter turn moves the crop, and turns a 3:2 ratio lock into 2:3;
+  - a flip mirrors the crop and the straighten angle;
+  - a flip followed by a quarter turn is the quarter turn followed by the other flip, so a turn trades the two flips.
+- **Two choices made where the documents were silent**, which the design session is asked to confirm:
+  - Holding Compare shows the original turned as the photo is, so it lines up at the same zoom and position, which EDT-1 asks for.
+  - Rotating or flipping returns to Fit.
+- **Caught while building:**
+  - Found while planning, before anything was built: the Editor worked out the preview's size from the photo's upright shape, so a portrait photo turned on its side, in a wide window, would have come out smaller than the window. The Editor now asks the core to fit the window, and the core, which reads the edits, fits the photo as it's turned. The Viewer does the same.
+  - Compare's settings became a new object on every redraw, which would have redrawn the photo continuously while Compare was held. Caught in review before any test ran.
+- **Tests:**
+  - The GPU renders every turn and flip exactly as the format defines them, with highlights and shadows, and across tile seams.
+  - The render check now turns and flips its image too, and still matches export exactly on WebGPU and WebGL2 on Windows (difference 0).

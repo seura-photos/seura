@@ -6,10 +6,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use seura_edit::{
-    Action, Amount, CoreOpId, CoreOperation, Edit, EditDocument, EditFile, Exposure, Step,
-    WhiteBalance, Writer, edit_file_path,
+    Action, Amount, CoreOpId, CoreOperation, Crop, Edit, EditDocument, EditFile, Exposure, Orient,
+    Step, Straighten, WhiteBalance, Writer, edit_file_path,
 };
 use seura_image::{LinearImage, Rgba8};
 use seura_library::{PhotoId, Problem};
@@ -63,7 +63,7 @@ struct Session {
 /// order: what "Keep yours" writes back when the edit file changes outside
 /// Seura (FIL-3).
 #[derive(Clone, Debug, Default, PartialEq)]
-struct Mine(Vec<Option<CoreOperation>>);
+pub struct Mine(Vec<Option<CoreOperation>>);
 
 impl Mine {
     fn of(document: Option<&EditDocument>) -> Mine {
@@ -99,6 +99,11 @@ impl Mine {
                 self.0[at] = operation;
             }
         }
+    }
+
+    /// The settings these draw with.
+    fn settings(&self) -> Settings {
+        Settings::from_operations(self.0.iter().flatten())
     }
 
     /// The one change that makes `theirs` show these again. Tags, rating,
@@ -245,18 +250,26 @@ pub struct Opened {
 }
 
 impl Editor {
-    /// Opens photo `id` of the index, at `photo`: decodes its preview at
-    /// `long_edge` and reads its edit file, if any. Only reads (CLAUDE.md
-    /// rule 1).
-    pub fn open(&self, id: u32, photo: PathBuf, long_edge: u32) -> Result<Opened, String> {
-        let decoded = seura_image::decode_linear(&photo, Some(long_edge.clamp(1, MAX_PREVIEW)))
-            .map_err(|error| error.to_string())?;
-        let preview = decoded.image;
-        let photo_path = photo.clone();
+    /// Opens photo `id` of the index, at `photo`: reads its edit file, if
+    /// any, and decodes its preview to fit `area` (device pixels) as its
+    /// edits turn it, from its upright `dimensions` if the index has them.
+    /// Only reads (CLAUDE.md rule 1).
+    pub fn open(
+        &self,
+        id: u32,
+        photo: PathBuf,
+        area: (u32, u32),
+        dimensions: Option<(u32, u32)>,
+    ) -> Result<Opened, String> {
         let ((settings, steps), problem) = match saved(&photo, None) {
             Ok(saved) => (saved, None),
             Err(problem) => ((Settings::default(), EditSteps::default()), Some(problem)),
         };
+        let long_edge = preview_edge(area, dimensions, &settings);
+        let decoded = seura_image::decode_linear(&photo, Some(long_edge.clamp(1, MAX_PREVIEW)))
+            .map_err(|error| error.to_string())?;
+        let preview = decoded.image;
+        let photo_path = photo.clone();
         *self.session.lock().expect("editor lock") = Some(Session {
             id,
             photo,
@@ -326,23 +339,28 @@ impl Editor {
         app: &AppHandle<R>,
         library: &crate::library::Library,
         id: u32,
-        action: &Action,
-    ) -> Result<EditSteps, Problem> {
+        change: &Change,
+    ) -> Result<(EditSteps, Settings), Problem> {
         let mut session = self.session.lock().expect("editor lock");
         let session = session
             .as_mut()
             .filter(|session| session.id == id)
             .ok_or_else(|| Problem::Failed("that photo isn't open".into()))?;
+        // A turn starts from what the Editor shows.
+        let action = match change {
+            Change::Set(action) => action.clone(),
+            Change::Turn(turn) => turn_action(&session.mine, *turn),
+        };
         library.edit_with(app, PhotoId::new(id), &mut session.kept, |_| action.clone())?;
         let document = current(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
         // While the user hasn't chosen, theirs is the change on top of the
         // other edits; their own stay as the Editor shows them.
         if session.outside {
-            session.mine.apply(action);
+            session.mine.apply(&action);
         } else {
             session.mine = Mine::of(document.as_ref());
         }
-        Ok(EditSteps::of(document.as_ref()))
+        Ok((EditSteps::of(document.as_ref()), session.mine.settings()))
     }
 
     /// The watcher read these photos' edit files again (FIL-3): if one is
@@ -575,6 +593,116 @@ fn current(photo: &Path, kept: Option<&EditDocument>) -> Result<Option<EditDocum
     Ok(file.map(|file| file.document).or_else(|| kept.cloned()))
 }
 
+/// The long edge to decode a preview at, to fit `area` once the photo's
+/// edits have turned it: from its upright `dimensions`, or without them,
+/// the area's long edge.
+fn preview_edge(area: (u32, u32), dimensions: Option<(u32, u32)>, settings: &Settings) -> u32 {
+    let Some((width, height)) = dimensions.filter(|(width, height)| *width > 0 && *height > 0)
+    else {
+        return area.0.max(area.1);
+    };
+    let (across, down) = settings.output_size(width, height);
+    let fit = (f64::from(area.0) / f64::from(across)).min(f64::from(area.1) / f64::from(down));
+    (f64::from(width.max(height)) * fit).round() as u32
+}
+
+/// A change from the Editor: settings made there, or a turn of the photo.
+pub enum Change {
+    Set(Action),
+    Turn(Turn),
+}
+
+/// Rotate left or right, flip horizontally or vertically (EDT-4), as the
+/// photo is seen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum Turn {
+    Left,
+    Right,
+    Horizontal,
+    Vertical,
+}
+
+/// A turn of the photo shown with `mine`, as one record in its history.
+/// `seura.orient` turns, then flips as the turned photo is seen; a flip
+/// after a quarter turn is the other flip before it, so a quarter turn
+/// trades the flips. The crop follows the photo, so the same part stays in
+/// it, and a ratio lock turns with it: 3:2 becomes 2:3 (EDT-4). A flip
+/// mirrors the straighten angle too.
+pub fn turn_action(mine: &Mine, turn: Turn) -> Action {
+    let orient = match mine.get(CoreOpId::Orient) {
+        Some(CoreOperation::Orient(orient)) => orient.clone(),
+        _ => Orient {
+            rotate: 0,
+            flip_h: false,
+            flip_v: false,
+        },
+    };
+    let orient = match turn {
+        Turn::Left | Turn::Right => Orient {
+            rotate: (orient.rotate + if turn == Turn::Right { 90 } else { 270 }) % 360,
+            flip_h: orient.flip_v,
+            flip_v: orient.flip_h,
+        },
+        Turn::Horizontal => Orient {
+            flip_h: !orient.flip_h,
+            ..orient
+        },
+        Turn::Vertical => Orient {
+            flip_v: !orient.flip_v,
+            ..orient
+        },
+    };
+    let mut edits = vec![Edit::Set(CoreOperation::Orient(orient))];
+    if let Some(CoreOperation::Straighten(straighten)) = mine.get(CoreOpId::Straighten)
+        && matches!(turn, Turn::Horizontal | Turn::Vertical)
+    {
+        edits.push(Edit::Set(CoreOperation::Straighten(Straighten {
+            angle: -straighten.angle,
+        })));
+    }
+    if let Some(CoreOperation::Crop(crop)) = mine.get(CoreOpId::Crop) {
+        let Crop {
+            x,
+            y,
+            width,
+            height,
+            ..
+        } = *crop;
+        let (x, y, width, height) = match turn {
+            Turn::Right => (1.0 - y - height, x, height, width),
+            Turn::Left => (y, 1.0 - x - width, height, width),
+            Turn::Horizontal => (1.0 - x - width, y, width, height),
+            Turn::Vertical => (x, 1.0 - y - height, width, height),
+        };
+        let aspect = match turn {
+            Turn::Left | Turn::Right => crop.aspect.as_deref().map(|aspect| {
+                aspect
+                    .split_once(':')
+                    .map_or_else(|| aspect.to_string(), |(a, b)| format!("{b}:{a}"))
+            }),
+            Turn::Horizontal | Turn::Vertical => crop.aspect.clone(),
+        };
+        edits.push(Edit::Set(CoreOperation::Crop(Crop {
+            x,
+            y,
+            width,
+            height,
+            aspect,
+        })));
+    }
+    let label = match turn {
+        Turn::Left => "Rotate left",
+        Turn::Right => "Rotate right",
+        Turn::Horizontal => "Flip horizontal",
+        Turn::Vertical => "Flip vertical",
+    };
+    Action {
+        label: label.into(),
+        edits,
+    }
+}
+
 /// The action for a brightness setting (EDT-5): one record in the photo's
 /// history; a neutral setting removes the operation.
 pub fn exposure_action(ev: f64) -> Action {
@@ -768,7 +896,7 @@ mod tests {
     fn opening_a_photo_writes_nothing() {
         let (folder, photo) = photo();
         let editor = Editor::default();
-        let opened = editor.open(1, photo, 16).unwrap();
+        let opened = editor.open(1, photo, (16, 16), None).unwrap();
         assert_eq!((opened.width, opened.height), (16, 12));
         assert_eq!(opened.settings, Settings::NEUTRAL);
         assert_eq!(opened.problem, None);
@@ -781,7 +909,7 @@ mod tests {
     fn zooming_in_cuts_parts_of_the_open_photo() {
         let (_folder, photo) = photo();
         let editor = Editor::default();
-        let opened = editor.open(1, photo, 8).unwrap();
+        let opened = editor.open(1, photo, (8, 8), None).unwrap();
         assert_eq!((opened.full_width, opened.full_height), (32, 24));
         let part = seura_image::Region {
             x: 4,
@@ -802,7 +930,7 @@ mod tests {
     fn reopened_a_photo_shows_what_was_saved_edt_8() {
         let (_folder, photo) = photo();
         save_exposure(&photo, 1.25);
-        let opened = Editor::default().open(1, photo, 16).unwrap();
+        let opened = Editor::default().open(1, photo, (16, 16), None).unwrap();
         assert_eq!(opened.settings.exposure_ev, 1.25);
     }
 
@@ -889,7 +1017,7 @@ mod tests {
         let edit_file = edit_file_path(&photo);
         fs::write(&edit_file, b"{ not json").unwrap();
 
-        let opened = Editor::default().open(1, photo, 16).unwrap();
+        let opened = Editor::default().open(1, photo, (16, 16), None).unwrap();
         assert!(opened.problem.is_some());
         assert_eq!(fs::read(&edit_file).unwrap(), b"{ not json");
     }
@@ -898,8 +1026,8 @@ mod tests {
     fn closing_an_earlier_photo_keeps_the_one_open_now() {
         let (_folder, photo) = photo();
         let editor = Editor::default();
-        editor.open(1, photo.clone(), 16).unwrap();
-        editor.open(2, photo, 16).unwrap();
+        editor.open(1, photo.clone(), (16, 16), None).unwrap();
+        editor.open(2, photo, (16, 16), None).unwrap();
         editor.close(1);
         assert!(editor.preview().is_some());
         editor.close(2);
@@ -911,7 +1039,7 @@ mod tests {
         let (folder, photo) = photo();
         save_exposure(&photo, 1.0);
         let editor = Editor::default();
-        editor.open(1, photo, 16).unwrap();
+        editor.open(1, photo, (16, 16), None).unwrap();
         let out = tempfile::tempdir().unwrap();
 
         let exported = editor.export(1, out.path()).unwrap();
@@ -938,5 +1066,147 @@ mod tests {
         assert_eq!(bytes.len(), 8 + 8 * 2);
         // 1.0 as a half float is 0x3c00.
         assert_eq!(&bytes[8..10], &[0x00, 0x3c]);
+    }
+
+    /// The Editor's operations after these turns, from `start`.
+    fn turned(start: &[CoreOperation], turns: &[Turn]) -> Mine {
+        let mut mine = Mine::of(None);
+        mine.apply(&Action {
+            label: "Start".into(),
+            edits: start.iter().cloned().map(Edit::Set).collect(),
+        });
+        for turn in turns {
+            let action = turn_action(&mine, *turn);
+            mine.apply(&action);
+        }
+        mine
+    }
+
+    fn orient(mine: &Mine) -> Option<(u16, bool, bool)> {
+        match mine.get(CoreOpId::Orient) {
+            Some(CoreOperation::Orient(orient)) => {
+                Some((orient.rotate, orient.flip_h, orient.flip_v))
+            }
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn turning_back_leaves_nothing_to_store() {
+        assert_eq!(
+            orient(&turned(&[], &[Turn::Right])),
+            Some((90, false, false))
+        );
+        assert_eq!(
+            orient(&turned(&[], &[Turn::Left])),
+            Some((270, false, false))
+        );
+        assert_eq!(orient(&turned(&[], &[Turn::Right, Turn::Left])), None);
+        assert_eq!(orient(&turned(&[], &[Turn::Right; 4])), None);
+        assert_eq!(
+            orient(&turned(&[], &[Turn::Horizontal, Turn::Horizontal])),
+            None
+        );
+        assert_eq!(
+            turn_action(&Mine::of(None), Turn::Left).label,
+            "Rotate left"
+        );
+    }
+
+    #[test]
+    fn a_flip_stays_as_seen_when_the_photo_turns() {
+        // Flipped left to right, then turned on its side: the flip is now
+        // top to bottom as the turned photo is seen.
+        assert_eq!(
+            orient(&turned(&[], &[Turn::Horizontal, Turn::Right])),
+            Some((90, false, true))
+        );
+        assert_eq!(
+            orient(&turned(&[], &[Turn::Right, Turn::Horizontal])),
+            Some((90, true, false))
+        );
+        // Both flips are a half turn.
+        assert_eq!(
+            Settings::from_operations(
+                turned(&[], &[Turn::Horizontal, Turn::Vertical])
+                    .0
+                    .iter()
+                    .flatten()
+            )
+            .output_size(4, 3),
+            (4, 3)
+        );
+    }
+
+    #[test]
+    fn the_crop_and_its_ratio_turn_with_the_photo() {
+        let crop = CoreOperation::Crop(Crop {
+            x: 0.125,
+            y: 0.25,
+            width: 0.5,
+            height: 0.375,
+            aspect: Some("3:2".into()),
+        });
+        let crop_of = |mine: &Mine| match mine.get(CoreOpId::Crop) {
+            Some(CoreOperation::Crop(crop)) => {
+                (crop.x, crop.y, crop.width, crop.height, crop.aspect.clone())
+            }
+            _ => panic!("no crop"),
+        };
+        // Turned right, the part that was 0.25 from the top is 0.25 from the
+        // right.
+        assert_eq!(
+            crop_of(&turned(std::slice::from_ref(&crop), &[Turn::Right])),
+            (0.375, 0.125, 0.375, 0.5, Some("2:3".into()))
+        );
+        assert_eq!(
+            crop_of(&turned(std::slice::from_ref(&crop), &[Turn::Left])),
+            (0.25, 0.375, 0.375, 0.5, Some("2:3".into()))
+        );
+        assert_eq!(
+            crop_of(&turned(std::slice::from_ref(&crop), &[Turn::Horizontal])),
+            (0.375, 0.25, 0.5, 0.375, Some("3:2".into()))
+        );
+        assert_eq!(
+            crop_of(&turned(std::slice::from_ref(&crop), &[Turn::Vertical])),
+            (0.125, 0.375, 0.5, 0.375, Some("3:2".into()))
+        );
+        assert_eq!(
+            crop_of(&turned(std::slice::from_ref(&crop), &[Turn::Right; 4])),
+            crop_of(&turned(std::slice::from_ref(&crop), &[]))
+        );
+    }
+
+    #[test]
+    fn a_flip_mirrors_the_straighten_angle() {
+        let tilted = [CoreOperation::Straighten(Straighten { angle: 2.5 })];
+        let angle = |mine: &Mine| match mine.get(CoreOpId::Straighten) {
+            Some(CoreOperation::Straighten(straighten)) => straighten.angle,
+            _ => panic!("no angle"),
+        };
+        assert_eq!(angle(&turned(&tilted, &[Turn::Right])), 2.5);
+        assert_eq!(angle(&turned(&tilted, &[Turn::Horizontal])), -2.5);
+        assert_eq!(angle(&turned(&tilted, &[Turn::Vertical])), -2.5);
+    }
+
+    #[test]
+    fn a_photo_on_its_side_is_decoded_to_fit_as_it_s_shown() {
+        let upright = Settings::NEUTRAL;
+        let sideways = Settings {
+            rotate: 90,
+            ..Settings::NEUTRAL
+        };
+        // A landscape photo in a landscape area fills its width...
+        assert_eq!(
+            preview_edge((1500, 1000), Some((6000, 4000)), &upright),
+            1500
+        );
+        // ...and on its side, its long edge meets the area's height.
+        assert_eq!(
+            preview_edge((1500, 1000), Some((6000, 4000)), &sideways),
+            1000
+        );
+        // Without its size, the area's long edge.
+        assert_eq!(preview_edge((1500, 1000), None, &sideways), 1500);
     }
 }

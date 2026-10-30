@@ -40,7 +40,10 @@ vi.mock("@tauri-apps/api/core", () => ({
   convertFileSrc: (path: string) => `seura://localhost/${path}`,
 }));
 
-vi.mock("./preview", () => ({
+vi.mock("./preview", async () => ({
+  // The real geometry: it's arithmetic, not the GPU.
+  orientedSize: (await vi.importActual<typeof import("./preview")>("./preview")).orientedSize,
+  uprightRegion: (await vi.importActual<typeof import("./preview")>("./preview")).uprightRegion,
   createPreview: vi.fn(() => Promise.resolve(mocks.backend)),
   fetchLinear: mocks.fetchLinear,
 }));

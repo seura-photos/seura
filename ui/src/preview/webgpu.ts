@@ -8,6 +8,7 @@ import {
   WHOLE,
   guideKey,
   needsGuide,
+  orientedSize,
   params,
 } from "./backend";
 import shader from "./generated/shader.wgsl?raw";
@@ -210,26 +211,27 @@ export async function createWebGpu(canvas: HTMLCanvasElement | null): Promise<Ba
       if (encoder) device.queue.submit([encoder.finish()]);
     },
     async read(settings: RenderSettings) {
+      const drawn = orientedSize(size, settings);
       const target = device.createTexture({
-        size,
+        size: drawn,
         format: "rgba8unorm",
         usage: TEXTURE.RENDER_ATTACHMENT | TEXTURE.COPY_SRC,
       });
       const encoder = render(target, "rgba8unorm", nearest, settings, true);
       if (!encoder) throw new Error("no photo uploaded");
       // Rows in a copy to a buffer are padded to 256 bytes.
-      const row = size.width * 4;
+      const row = drawn.width * 4;
       const padded = Math.ceil(row / 256) * 256;
       const buffer = device.createBuffer({
-        size: padded * size.height,
+        size: padded * drawn.height,
         usage: BUFFER.COPY_DST | BUFFER.MAP_READ,
       });
-      encoder.copyTextureToBuffer({ texture: target }, { buffer, bytesPerRow: padded }, size);
+      encoder.copyTextureToBuffer({ texture: target }, { buffer, bytesPerRow: padded }, drawn);
       device.queue.submit([encoder.finish()]);
       await buffer.mapAsync(MAP_READ);
       const mapped = new Uint8Array(buffer.getMappedRange());
-      const pixels = new Uint8Array(row * size.height);
-      for (let y = 0; y < size.height; y++) {
+      const pixels = new Uint8Array(row * drawn.height);
+      for (let y = 0; y < drawn.height; y++) {
         pixels.set(mapped.subarray(y * padded, y * padded + row), y * row);
       }
       buffer.unmap();

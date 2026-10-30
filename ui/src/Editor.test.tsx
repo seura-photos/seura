@@ -18,7 +18,8 @@ const mocks = vi.hoisted(() => ({
   resolveOutsideChange: vi.fn<(id: number, keep: boolean) => Promise<unknown>>(),
   // The Editor's listener for its photo's edit file changing outside Seura.
   fileChanged: null as ((event: { payload: unknown }) => void) | null,
-  openPhoto: vi.fn<(id: number, longEdge: number, download: boolean) => Promise<unknown>>(),
+  openPhoto:
+    vi.fn<(id: number, width: number, height: number, download: boolean) => Promise<unknown>>(),
   closePhoto: vi.fn(() => Promise.resolve(null)),
   editorRegion: vi.fn(() => Promise.resolve({ status: "ok", data: { width: 4, height: 3 } })),
   draw: vi.fn(),
@@ -67,7 +68,10 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 // jsdom has neither WebGPU nor WebGL2; the renderers are tested by the
 // render check in the real web views.
-vi.mock("./preview", () => ({
+vi.mock("./preview", async () => ({
+  // The real geometry: it's arithmetic, not the GPU.
+  orientedSize: (await vi.importActual<typeof import("./preview")>("./preview")).orientedSize,
+  uprightRegion: (await vi.importActual<typeof import("./preview")>("./preview")).uprightRegion,
   fetchLinear: vi.fn(() =>
     Promise.resolve({ width: 4, height: 3, data: new Uint16Array(4 * 3 * 4) }),
   ),
@@ -136,6 +140,12 @@ describe("Editor", () => {
     mocks.opened.settings = { exposureEv: 0.4, contrast: 20 };
     mocks.opened.steps = { undo: null, redo: null };
     mocks.openPhoto.mockImplementation(() => Promise.resolve({ status: "ok", data: mocks.opened }));
+    mocks.editPhoto.mockImplementation(() =>
+      Promise.resolve({
+        status: "ok",
+        data: { kind: "saved", steps: { undo: "Brightness", redo: null }, settings: null },
+      }),
+    );
   });
 
   afterEach(() => {
@@ -254,6 +264,70 @@ describe("Editor", () => {
     await waitFor(() =>
       expect(mocks.draw).toHaveBeenLastCalledWith({ exposureEv: 0.4, contrast: 20 }),
     );
+  });
+
+  it("rotates and flips from the panel and with [ and ], showing what the core made (EDT-4)", async () => {
+    const turned = { exposureEv: 0.4, contrast: 20, rotate: 90, flipH: false, flipV: false };
+    mocks.editPhoto.mockImplementation(() =>
+      Promise.resolve({
+        status: "ok",
+        data: { kind: "saved", steps: { undo: "Rotate right", redo: null }, settings: turned },
+      }),
+    );
+    edit();
+    await brightness();
+    const canvas = screen.getByLabelText("IMG_7.jpg, edited") as HTMLCanvasElement;
+    expect([canvas.width, canvas.height]).toEqual([4, 3]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Rotate right" }));
+
+    // Saved at once, as one change; the photo is then drawn on its side.
+    await waitFor(() =>
+      expect(mocks.editPhoto).toHaveBeenCalledWith(7, { kind: "turn", turn: "right" }),
+    );
+    await waitFor(() => expect(mocks.draw).toHaveBeenLastCalledWith(turned));
+    expect([canvas.width, canvas.height]).toEqual([3, 4]);
+    expect(screen.getByRole("button", { name: "Undo Rotate right" })).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: "[" });
+    await waitFor(() =>
+      expect(mocks.editPhoto).toHaveBeenLastCalledWith(7, { kind: "turn", turn: "left" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Flip horizontal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Flip vertical" }));
+    await waitFor(() =>
+      expect(mocks.editPhoto).toHaveBeenLastCalledWith(7, { kind: "turn", turn: "vertical" }),
+    );
+    expect(mocks.editPhoto).toHaveBeenCalledWith(7, { kind: "turn", turn: "horizontal" });
+  });
+
+  it("compares with the original turned as the photo is, so they line up (EDT-1)", async () => {
+    mocks.opened.settings = { exposureEv: 0.4, contrast: 20, rotate: 270, flipH: 1, flipV: 0 };
+    edit();
+    await brightness();
+    const canvas = screen.getByLabelText("IMG_7.jpg, edited") as HTMLCanvasElement;
+    expect([canvas.width, canvas.height]).toEqual([3, 4]);
+    fireEvent.keyDown(window, { key: "\\" });
+    await waitFor(() =>
+      expect(mocks.draw).toHaveBeenLastCalledWith({
+        ...mocks.neutral,
+        rotate: 270,
+        flipH: 1,
+        flipV: 0,
+      }),
+    );
+    expect([canvas.width, canvas.height]).toEqual([3, 4]);
+    fireEvent.keyUp(window, { key: "\\" });
+  });
+
+  it("won't turn a photo whose edit file can't be read (FIL-4)", async () => {
+    mocks.opened.problem = "its edit file can't be read";
+    edit();
+    const rotate = await screen.findByRole("button", { name: "Rotate right" });
+    expect((rotate as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(window, { key: "]" });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(mocks.editPhoto).not.toHaveBeenCalled();
   });
 
   it("zooms as the Viewer does, and compare keeps the zoom (EDT-1)", async () => {
@@ -599,7 +673,7 @@ describe("Editor", () => {
 
   it("shows a cloud-only photo downloading, then opens it (LIB-9)", async () => {
     let finish: (value: unknown) => void = () => {};
-    mocks.openPhoto.mockImplementation((_id, _edge, download) =>
+    mocks.openPhoto.mockImplementation((_id, _width, _height, download) =>
       download
         ? new Promise((resolve) => {
             finish = resolve;

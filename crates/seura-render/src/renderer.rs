@@ -57,11 +57,62 @@ pub struct Renderer {
     adapter: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Tile {
     left: u32,
     top: u32,
     width: u32,
     height: u32,
+}
+
+impl Tile {
+    /// The part of the upright photo, `width` × `height`, that this tile of
+    /// the drawn photo shows, turned and flipped by `settings` (`seura.orient`:
+    /// the rotation, then the flips as the turned photo is seen). Whole
+    /// pixels move, so it's a rectangle of whole pixels too, drawn into the
+    /// tile by the shader's `upright_position`.
+    fn upright(self, settings: &Settings, width: u32, height: u32) -> Tile {
+        let (across, down) = settings.output_size(width, height);
+        // Undo the flips, in the drawn photo.
+        let left = if settings.flip_h {
+            across - self.left - self.width
+        } else {
+            self.left
+        };
+        let top = if settings.flip_v {
+            down - self.top - self.height
+        } else {
+            self.top
+        };
+        // Then the rotation.
+        let (w, h) = (self.width, self.height);
+        match settings.rotate {
+            90 => Tile {
+                left: top,
+                top: across - left - w,
+                width: h,
+                height: w,
+            },
+            180 => Tile {
+                left: across - left - w,
+                top: down - top - h,
+                width: w,
+                height: h,
+            },
+            270 => Tile {
+                left: down - top - h,
+                top: left,
+                width: h,
+                height: w,
+            },
+            _ => Tile {
+                left,
+                top,
+                width: w,
+                height: h,
+            },
+        }
+    }
 }
 
 impl Renderer {
@@ -230,10 +281,10 @@ impl Renderer {
         &self.adapter
     }
 
-    /// Renders a photo with its settings, at its own size, as 8-bit RGBA
-    /// encoded for `output`. `guide` is the image its luminance guide is
-    /// built from ([`seura_image::Linear`]), used only with highlights or
-    /// shadows.
+    /// Renders a photo with its settings, at its own size turned as they
+    /// say, as 8-bit RGBA encoded for `output`. `guide` is the image its
+    /// luminance guide is built from ([`seura_image::Linear`]), used only
+    /// with highlights or shadows; it's upright, like `image`.
     pub fn render(
         &self,
         image: &LinearImage,
@@ -246,7 +297,7 @@ impl Renderer {
         let guide_view = guide
             .as_ref()
             .map(|guide| guide.create_view(&Default::default()));
-        let (width, height) = (image.width, image.height);
+        let (width, height) = settings.output_size(image.width, image.height);
         let mut pixels = vec![0; width as usize * height as usize * 4];
         for top in (0..height).step_by(TILE as usize) {
             for left in (0..width).step_by(TILE as usize) {
@@ -256,20 +307,27 @@ impl Renderer {
                     width: TILE.min(width - left),
                     height: TILE.min(height - top),
                 };
+                // The guide covers the upright photo, so the shader is told
+                // where in it the tile's part is.
+                let source = tile.upright(settings, image.width, image.height);
                 let params = settings.uniforms(
                     output,
                     Pass::Draw,
                     [
-                        left as f32 / width as f32,
-                        top as f32 / height as f32,
-                        tile.width as f32 / width as f32,
-                        tile.height as f32 / height as f32,
+                        source.left as f32 / image.width as f32,
+                        source.top as f32 / image.height as f32,
+                        source.width as f32 / image.width as f32,
+                        source.height as f32 / image.height as f32,
                     ],
                 );
                 self.queue
                     .write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
-                let rendered =
-                    self.render_tile(image, &tile, guide_view.as_ref().unwrap_or(&self.empty))?;
+                let rendered = self.render_tile(
+                    image,
+                    &source,
+                    &tile,
+                    guide_view.as_ref().unwrap_or(&self.empty),
+                )?;
                 let row = tile.width as usize * 4;
                 for (y, line) in rendered.chunks(row).enumerate() {
                     let start = ((tile.top as usize + y) * width as usize + tile.left as usize) * 4;
@@ -411,13 +469,20 @@ impl Renderer {
         pass.draw(0..3, 0..1);
     }
 
-    /// One tile's 8-bit RGBA, rows packed.
+    /// One tile's 8-bit RGBA, rows packed, drawn from `part` of
+    /// the upright photo.
     fn render_tile(
         &self,
         image: &LinearImage,
+        part: &Tile,
         tile: &Tile,
         guide: &wgpu::TextureView,
     ) -> Result<Vec<u8>, RenderError> {
+        let source_size = wgpu::Extent3d {
+            width: part.width,
+            height: part.height,
+            depth_or_array_layers: 1,
+        };
         let size = wgpu::Extent3d {
             width: tile.width,
             height: tile.height,
@@ -425,7 +490,7 @@ impl Renderer {
         };
         let source = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("Seura photo tile"),
-            size,
+            size: source_size,
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -433,10 +498,10 @@ impl Renderer {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
-        let mut data: Vec<f16> = Vec::with_capacity(tile.width as usize * tile.height as usize * 4);
-        for y in tile.top..tile.top + tile.height {
-            let start = (y as usize * image.width as usize + tile.left as usize) * 4;
-            data.extend_from_slice(&image.pixels[start..start + tile.width as usize * 4]);
+        let mut data: Vec<f16> = Vec::with_capacity(part.width as usize * part.height as usize * 4);
+        for y in part.top..part.top + part.height {
+            let start = (y as usize * image.width as usize + part.left as usize) * 4;
+            data.extend_from_slice(&image.pixels[start..start + part.width as usize * 4]);
         }
         self.queue.write_texture(
             wgpu::TexelCopyTextureInfo {
@@ -448,10 +513,10 @@ impl Renderer {
             bytemuck::cast_slice(&data),
             wgpu::TexelCopyBufferLayout {
                 offset: 0,
-                bytes_per_row: Some(tile.width * 8),
-                rows_per_image: Some(tile.height),
+                bytes_per_row: Some(part.width * 8),
+                rows_per_image: Some(part.height),
             },
-            size,
+            source_size,
         );
 
         let target = self.device.create_texture(&wgpu::TextureDescriptor {
@@ -522,5 +587,63 @@ impl Renderer {
         }
         readback.unmap();
         Ok(pixels)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Where upright pixel `x`, `y` of a `width` × `height` photo lands, as
+    /// the edit format defines `seura.orient`: turned clockwise, then
+    /// flipped as it's then seen.
+    fn drawn_pixel(settings: &Settings, x: u32, y: u32, width: u32, height: u32) -> (u32, u32) {
+        let (x, y) = match settings.rotate {
+            90 => (height - 1 - y, x),
+            180 => (width - 1 - x, height - 1 - y),
+            270 => (y, width - 1 - x),
+            _ => (x, y),
+        };
+        let (across, down) = settings.output_size(width, height);
+        (
+            if settings.flip_h { across - 1 - x } else { x },
+            if settings.flip_v { down - 1 - y } else { y },
+        )
+    }
+
+    #[test]
+    fn each_tile_is_drawn_from_the_upright_pixels_that_land_in_it() {
+        let (width, height) = (7, 4);
+        for rotate in [0, 90, 180, 270] {
+            for (flip_h, flip_v) in [(false, false), (true, false), (false, true), (true, true)] {
+                let settings = Settings {
+                    rotate,
+                    flip_h,
+                    flip_v,
+                    ..Settings::NEUTRAL
+                };
+                let (across, down) = settings.output_size(width, height);
+                let tile = Tile {
+                    left: 1,
+                    top: 2,
+                    width: across.min(3),
+                    height: down.min(2).min(down - 2),
+                };
+                let source = tile.upright(&settings, width, height);
+                let mut landed = 0;
+                for y in 0..height {
+                    for x in 0..width {
+                        let (u, v) = drawn_pixel(&settings, x, y, width, height);
+                        let in_tile = (tile.left..tile.left + tile.width).contains(&u)
+                            && (tile.top..tile.top + tile.height).contains(&v);
+                        let in_source = (source.left..source.left + source.width).contains(&x)
+                            && (source.top..source.top + source.height).contains(&y);
+                        assert_eq!(in_tile, in_source, "{settings:?} at {x}, {y}");
+                        landed += u32::from(in_tile);
+                    }
+                }
+                assert_eq!(landed, tile.width * tile.height);
+            }
+        }
     }
 }

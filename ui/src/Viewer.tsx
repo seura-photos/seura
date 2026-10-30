@@ -18,7 +18,13 @@ import {
 } from "./keys";
 import { SHOWN_EVENT } from "./measure";
 import { PhotoMenu } from "./PhotoMenu";
-import { type Backend, createPreview, fetchLinear, type LinearImage } from "./preview";
+import {
+  type Backend,
+  createPreview,
+  fetchLinear,
+  type LinearImage,
+  orientedSize,
+} from "./preview";
 import { anchorOf, useStore } from "./store";
 import { useZoom } from "./useZoom";
 import type { Size } from "./zoom";
@@ -94,6 +100,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     stage,
     area,
     photo: shown,
+    orient: shown?.settings ?? null,
     cut: async (id, region, width, height) => {
       const result = await commands.viewRegion(
         id,
@@ -116,8 +123,9 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
       const element = detailCanvas.current;
       const guide = shownGuide.current;
       if (!renderer || !element || !shown || guide?.id !== shown.id) return false;
-      element.width = image.width;
-      element.height = image.height;
+      const drawn = orientedSize(image, shown.settings);
+      element.width = drawn.width;
+      element.height = drawn.height;
       renderer.upload(image, guide.guide, at);
       renderer.draw(shown.settings);
       return true;
@@ -223,8 +231,10 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
       const renderer = await backend.current;
       const element = canvas.current;
       if (!live || !renderer || !element) return;
-      element.width = image.width;
-      element.height = image.height;
+      // Drawn as its edits turn it.
+      const drawn = orientedSize(image, data.settings);
+      element.width = drawn.width;
+      element.height = drawn.height;
       renderer.upload(image, guide);
       shownGuide.current = { id: viewing, guide };
       renderer.draw(data.settings);

@@ -1462,16 +1462,17 @@ pub fn close_viewer(viewer: State<'_, Viewer>) {
     viewer.close();
 }
 
-/// Opens a photo in the Editor, with a preview `longEdge` pixels on its long
-/// side (the canvas size Ã— the device pixel ratio, DSP-1). A cloud-only
-/// photo is read, downloading it, only with `download`, and waited for as
-/// the Viewer waits (LIB-9).
+/// Opens a photo in the Editor, with a preview that fits an area of `width`
+/// × `height` device pixels (the stage's size × the device pixel ratio,
+/// DSP-1) as its edits turn it. A cloud-only photo is read, downloading it,
+/// only with `download`, and waited for as the Viewer waits (LIB-9).
 #[tauri::command]
 #[specta::specta]
 pub async fn open_photo(
     app: AppHandle,
     id: u32,
-    long_edge: u32,
+    width: u32,
+    height: u32,
     download: bool,
 ) -> Result<OpenedPhoto, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -1480,9 +1481,16 @@ pub async fn open_photo(
         if cloud_only && !download {
             return Ok(OpenedPhoto::CloudOnly { size: size as f64 });
         }
+        let dimensions = {
+            let library = app.state::<Library>();
+            let index = library.index.read().expect("index lock");
+            index
+                .photo(PhotoId::new(id))
+                .and_then(|photo| photo.dimensions)
+        };
         let open = move |app: &AppHandle| {
             app.state::<Editor>()
-                .open(wanted.id, wanted.path, long_edge)
+                .open(wanted.id, wanted.path, (width, height), dimensions)
         };
         let opened = if cloud_only {
             // On a thread of its own, as in the Viewer, so a download that
@@ -1575,6 +1583,8 @@ pub enum PhotoEdit {
     Tint { temperature: f64, tint: f64 },
     /// `seura.saturation`, −100 to 100.
     Saturation { amount: f64 },
+    /// Rotate or flip (EDT-4), from what the Editor shows.
+    Turn { turn: crate::editor::Turn },
 }
 
 /// What saving an Editor change did.
@@ -1582,8 +1592,12 @@ pub enum PhotoEdit {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum EditSaved {
     /// Written, or already as asked; with what Undo and Redo would do now,
-    /// if the photo is still open.
-    Saved { steps: Option<EditSteps> },
+    /// and the settings the Editor shows, if the photo is still open: a
+    /// turn's are the core's to work out.
+    Saved {
+        steps: Option<EditSteps>,
+        settings: Option<RenderSettings>,
+    },
     /// In a read-only folder (TAG-7).
     ReadOnly,
     /// Its edit file can't be read, so it's left alone (FIL-4).
@@ -1601,36 +1615,43 @@ pub enum EditSaved {
 #[specta::specta]
 pub async fn edit_photo(app: AppHandle, id: u32, edit: PhotoEdit) -> Result<EditSaved, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let action = match edit {
-            PhotoEdit::Brightness { ev } => crate::editor::exposure_action(ev),
-            PhotoEdit::Contrast { amount } => {
-                crate::editor::slider_action("Contrast", CoreOperation::Contrast(Amount { amount }))
-            }
-            PhotoEdit::Highlights { amount } => crate::editor::slider_action(
+        let change = |action| crate::editor::Change::Set(action);
+        let change = match edit {
+            PhotoEdit::Turn { turn } => crate::editor::Change::Turn(turn),
+            PhotoEdit::Brightness { ev } => change(crate::editor::exposure_action(ev)),
+            PhotoEdit::Contrast { amount } => change(crate::editor::slider_action(
+                "Contrast",
+                CoreOperation::Contrast(Amount { amount }),
+            )),
+            PhotoEdit::Highlights { amount } => change(crate::editor::slider_action(
                 "Highlights",
                 CoreOperation::Highlights(Amount { amount }),
-            ),
-            PhotoEdit::Shadows { amount } => {
-                crate::editor::slider_action("Shadows", CoreOperation::Shadows(Amount { amount }))
-            }
-            PhotoEdit::Temperature { temperature, tint } => crate::editor::slider_action(
+            )),
+            PhotoEdit::Shadows { amount } => change(crate::editor::slider_action(
+                "Shadows",
+                CoreOperation::Shadows(Amount { amount }),
+            )),
+            PhotoEdit::Temperature { temperature, tint } => change(crate::editor::slider_action(
                 "Temperature",
                 CoreOperation::WhiteBalance(WhiteBalance { temperature, tint }),
-            ),
-            PhotoEdit::Tint { temperature, tint } => crate::editor::slider_action(
+            )),
+            PhotoEdit::Tint { temperature, tint } => change(crate::editor::slider_action(
                 "Tint",
                 CoreOperation::WhiteBalance(WhiteBalance { temperature, tint }),
-            ),
-            PhotoEdit::Saturation { amount } => crate::editor::slider_action(
+            )),
+            PhotoEdit::Saturation { amount } => change(crate::editor::slider_action(
                 "Saturation",
                 CoreOperation::Saturation(Amount { amount }),
-            ),
+            )),
         };
         let library = app.state::<Library>();
-        match app.state::<Editor>().edit(&app, &library, id, &action) {
-            Ok(steps) => {
+        match app.state::<Editor>().edit(&app, &library, id, &change) {
+            Ok((steps, settings)) => {
                 crate::menu::edit_steps_changed(&app, &steps);
-                EditSaved::Saved { steps: Some(steps) }
+                EditSaved::Saved {
+                    steps: Some(steps),
+                    settings: Some(settings.into()),
+                }
             }
             Err(Problem::ReadOnly) => EditSaved::ReadOnly,
             Err(Problem::Unreadable) => EditSaved::Unreadable,

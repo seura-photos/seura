@@ -1163,6 +1163,13 @@ button {
   border-top: 1px solid var(--color-border);
 }
 
+/* Rotate left and right, flip horizontally and vertically (wireframes,
+   "Editor", item 4), in one row. */
+.editor-turns {
+  flex-direction: row;
+  gap: 0.5rem;
+}
+
 /* Revert to original, last and cautionary (wireframes); confirming shows
    Cancel in its place, then the question and the destructive choice. */
 .editor-revert .button {

@@ -558,6 +558,12 @@ editor-original = { $name }, original
 editor-tools = Tools
 editor-compare = Hold to compare
 editor-done = Done
+# The Editor's rotate and flip buttons (EDT-4).
+editor-turn = Rotate and flip
+editor-rotate-left = Rotate left
+editor-rotate-right = Rotate right
+editor-flip-horizontal = Flip horizontal
+editor-flip-vertical = Flip vertical
 editor-light = Light
 editor-brightness = Brightness
 editor-contrast = Contrast

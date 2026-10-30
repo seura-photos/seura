@@ -200,7 +200,14 @@ impl Inner {
         let slot = match seura_image::decode_upright(&photo.path) {
             Ok(upright) => {
                 let full = (upright.width(), upright.height());
-                let size = fitted(full, area);
+                // Fitted as its edits turn it: on its side, its height
+                // meets the area's width.
+                let size = if edits(photo).sideways() {
+                    let (height, width) = fitted((full.1, full.0), area);
+                    (width, height)
+                } else {
+                    fitted(full, area)
+                };
                 let whole = Region {
                     x: 0,
                     y: 0,
