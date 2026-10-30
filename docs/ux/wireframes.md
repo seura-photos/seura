@@ -50,7 +50,7 @@ A single centered card: title; two sentences (what the app does; originals are n
 
 ## 5. Editor (EDT-*, PRE-*)
 
-- **Toolbar:** file name, "Edits saved automatically," undo, redo, Copy edits, Export. No Done here. Copy edits, Export, and the presets section arrive with M5; until then they're left out, not shown disabled.
+- **Toolbar:** file name, "Edits saved automatically," undo, redo, the zoom group (−, Fit, 100%, +) as in the Viewer, Copy edits, Export. No Done here. Copy edits, Export, and the presets section arrive with M5; until then they're left out, not shown disabled.
 - **Tool panel** (300 px, right), one scrolling column in process order (INT-3):
   1. Hold to compare · Done (44 px each, first row, where the pointer works)
   2. Enhance (40 px, prominent)
@@ -63,6 +63,7 @@ A single centered card: title; two sentences (what the app does; originals are n
   9. PRESETS: list, then "Save current edits as a preset…"
   10. Revert to original… (last, styled as cautionary)
 - **Photo** on the dark surround with a **filmstrip** (84 px) beneath; the current photo outlined.
+- **Zoom** (EDT-1): as in the Viewer. Dragging pans unless red-eye is active; then Space-drag pans. Crop and straighten show the whole photo. Compare keeps the zoom and position; the filmstrip returns to Fit.
 - Sliders show signed whole numbers (EDT-5): "+12", "0", "−30"; brightness on the same scale, 25 to a stop. Temperature and tint name their ends under the track: Cool and Warm, Green and Magenta. Double-click resets.
 
 ## 6. Crop and straighten (EDT-2, EDT-3)
