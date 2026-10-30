@@ -19,7 +19,7 @@ import {
 } from "./keys";
 import { SHOWN_EVENT } from "./measure";
 import { PhotoMenu } from "./PhotoMenu";
-import { type Backend, createPreview, fetchLinear } from "./preview";
+import { type Backend, createPreview, fetchLinear, type LinearImage } from "./preview";
 import { anchorOf, useStore } from "./store";
 import {
   clampView,
@@ -87,6 +87,8 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
   const detailCanvas = useRef<HTMLCanvasElement>(null);
   const backend = useRef<Promise<Backend | null> | null>(null);
   const detailBackend = useRef<Promise<Backend | null> | null>(null);
+  /** The shown photo's guide image, which its zoomed-in parts share. */
+  const shownGuide = useRef<{ id: number; guide: LinearImage } | null>(null);
   /** Settles once the last renderers made on these canvases are destroyed. */
   const released = useRef<Promise<void>>(Promise.resolve());
   // The stage's size in CSS pixels: `area` follows the window at once, to
@@ -208,13 +210,17 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
       }
       const data = result.data;
       if (data.kind === "cloudOnly") return;
-      const image = await fetchLinear(`view-${viewing}`);
+      const [image, guide] = await Promise.all([
+        fetchLinear(`view-${viewing}`),
+        fetchLinear(`view-guide-${viewing}`),
+      ]);
       const renderer = await backend.current;
       const element = canvas.current;
       if (!live || !renderer || !element) return;
       element.width = image.width;
       element.height = image.height;
-      renderer.upload(image);
+      renderer.upload(image, guide);
+      shownGuide.current = { id: viewing, guide };
       renderer.draw(data.settings);
       setStatus({
         kind: "shown",
@@ -260,12 +266,19 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
         const image = await fetchLinear("view-region");
         const renderer = await detailBackend.current;
         const element = detailCanvas.current;
-        if (!live || !renderer || !element) return;
+        const guide = shownGuide.current;
+        if (!live || !renderer || !element || guide?.id !== shown.id) return;
         // A newer part may have replaced this one in the core meanwhile.
         if (image.width !== result.data.width || image.height !== result.data.height) return;
         element.width = image.width;
         element.height = image.height;
-        renderer.upload(image);
+        // The part's guide is the whole photo's, sampled where the part is.
+        renderer.upload(image, guide.guide, {
+          x: wanted.x / shown.full.width,
+          y: wanted.y / shown.full.height,
+          width: wanted.width / shown.full.width,
+          height: wanted.height / shown.full.height,
+        });
         renderer.draw(shown.settings);
         setDetail({ id: shown.id, region: wanted });
       };

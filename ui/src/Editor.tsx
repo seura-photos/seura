@@ -258,13 +258,16 @@ export function Editor({ id, forceWebgl2 }: Props) {
       }
       const data = result.data;
       if (data.kind === "cloudOnly") return;
-      const image = await fetchLinear("preview");
+      const [image, guide] = await Promise.all([
+        fetchLinear("preview"),
+        fetchLinear("preview-guide"),
+      ]);
       const renderer = await backend.current;
       const element = canvas.current;
       if (!live || !renderer || !element) return;
       element.width = image.width;
       element.height = image.height;
-      renderer.upload(image);
+      renderer.upload(image, guide);
       renderer.draw(data.settings);
       setStatus({
         id,
@@ -496,8 +499,10 @@ export function Editor({ id, forceWebgl2 }: Props) {
     );
   // The sliders' values as shown. Numbers from Rust can be null, which
   // would mean NaN; there is none here.
-  const value = (name: "exposureEv" | "contrast" | "temperature" | "tint" | "saturation") =>
-    shown?.settings[name] ?? 0;
+  const value = (
+    name:
+      "exposureEv" | "contrast" | "highlights" | "shadows" | "temperature" | "tint" | "saturation",
+  ) => shown?.settings[name] ?? 0;
   const undoLabel = shown?.steps.undo
     ? t("editor-undo-change", { change: shown.steps.undo })
     : t("editor-undo");
@@ -637,6 +642,20 @@ export function Editor({ id, forceWebgl2 }: Props) {
             disabled={!editable}
             onInput={(to) => adjust({ contrast: to })}
             onCommit={(to) => commit({ kind: "contrast", amount: to })}
+          />
+          <Slider
+            label={t("editor-highlights")}
+            value={value("highlights")}
+            disabled={!editable}
+            onInput={(to) => adjust({ highlights: to })}
+            onCommit={(to) => commit({ kind: "highlights", amount: to })}
+          />
+          <Slider
+            label={t("editor-shadows")}
+            value={value("shadows")}
+            disabled={!editable}
+            onInput={(to) => adjust({ shadows: to })}
+            onCommit={(to) => commit({ kind: "shadows", amount: to })}
           />
         </section>
 

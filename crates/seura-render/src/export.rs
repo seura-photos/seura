@@ -30,8 +30,8 @@ pub fn export_jpeg(
     settings: &Settings,
     folder: &Path,
 ) -> Result<PathBuf, ExportError> {
-    let image = decode_linear(photo, None)?;
-    let rendered = renderer.render(&image, settings, Output::Srgb)?;
+    let decoded = decode_linear(photo, None)?;
+    let rendered = renderer.render(&decoded.image, &decoded.guide, settings, Output::Srgb)?;
     let bytes = encode_jpeg(&rendered, JPEG_QUALITY)
         .map_err(|error| ExportError::Encode(error.to_string()))?;
     let stem = photo

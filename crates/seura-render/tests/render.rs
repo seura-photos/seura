@@ -76,13 +76,133 @@ fn encode(linear: f64) -> f64 {
     }
 }
 
+/// Luminance is floored at 2^−12 before its log.
+const GUIDE_FLOOR: f64 = 1.0 / 4096.0;
+
+fn log_luminance(c: [f64; 3]) -> f64 {
+    luminance(c).max(GUIDE_FLOOR).log2()
+}
+
+/// The luminance guide (`shaders/guide.wgsl`): a guided filter on the guide
+/// image's log luminance, after white balance, guided by itself. Holds each
+/// guide pixel's a and b.
+struct Guide {
+    width: usize,
+    height: usize,
+    ab: Vec<[f64; 2]>,
+}
+
+impl Guide {
+    fn new(image: &LinearImage, settings: &Settings) -> Guide {
+        let (width, height) = (image.width as usize, image.height as usize);
+        let r = ((width.max(height) as f64 * 0.02).round() as isize).max(1);
+        // The mean of each pixel's 2r + 1 neighbours along one axis, the
+        // edge's repeated past it.
+        let mean = |values: &[[f64; 2]], across: bool| -> Vec<[f64; 2]> {
+            let mut out = vec![[0.0; 2]; values.len()];
+            for y in 0..height {
+                for x in 0..width {
+                    let mut sum = [0.0; 2];
+                    for i in -r..=r {
+                        let (fx, fy) = if across {
+                            ((x as isize + i).clamp(0, width as isize - 1) as usize, y)
+                        } else {
+                            (x, (y as isize + i).clamp(0, height as isize - 1) as usize)
+                        };
+                        let v = values[fy * width + fx];
+                        sum[0] += v[0];
+                        sum[1] += v[1];
+                    }
+                    out[y * width + x] = sum.map(|s| s / (2 * r + 1) as f64);
+                }
+            }
+            out
+        };
+        let l: Vec<[f64; 2]> = image
+            .pixels
+            .chunks(4)
+            .map(|p| {
+                let mut c = [0, 1, 2].map(|i| f64::from(p[i].to_f32()));
+                if settings.temperature != 0.0 || settings.tint != 0.0 {
+                    c = white_balance(c, settings.temperature.into(), settings.tint.into());
+                }
+                let l = log_luminance(c);
+                [l, l * l]
+            })
+            .collect();
+        let means = mean(&mean(&l, true), false);
+        let coefficients: Vec<[f64; 2]> = means
+            .iter()
+            .map(|[m, sq]| {
+                let variance = (sq - m * m).max(0.0);
+                let a = variance / (variance + 0.1);
+                [a, m - a * m]
+            })
+            .collect();
+        Guide {
+            width,
+            height,
+            ab: mean(&mean(&coefficients, true), false),
+        }
+    }
+
+    /// a and b, sampled bilinearly at `u`, `v`, fractions of the photo,
+    /// the edge's repeated past it.
+    fn sample(&self, u: f64, v: f64) -> [f64; 2] {
+        let x = u * self.width as f64 - 0.5;
+        let y = v * self.height as f64 - 0.5;
+        let (x0, y0) = (x.floor(), y.floor());
+        let (tx, ty) = (x - x0, y - y0);
+        let at = |x: f64, y: f64| {
+            let x = (x as isize).clamp(0, self.width as isize - 1) as usize;
+            let y = (y as isize).clamp(0, self.height as isize - 1) as usize;
+            self.ab[y * self.width + x]
+        };
+        let lerp = |a: [f64; 2], b: [f64; 2], t: f64| [0, 1].map(|i| a[i] + (b[i] - a[i]) * t);
+        lerp(
+            lerp(at(x0, y0), at(x0 + 1.0, y0), tx),
+            lerp(at(x0, y0 + 1.0), at(x0 + 1.0, y0 + 1.0), tx),
+            ty,
+        )
+    }
+}
+
+/// x, a base as linear light up to 1, raised to 1/2.2.
+fn tone_position(base: f64) -> f64 {
+    base.exp2().clamp(0.0, 1.0).powf(1.0 / 2.2)
+}
+
+/// `seura.highlights`' gain in stops: up to 2 at 100, by x³.
+fn highlights_gain(base: f64, amount: f64) -> f64 {
+    amount / 100.0 * 2.0 * tone_position(base).powi(3)
+}
+
+/// `seura.shadows`' gain in stops: up to 2 at 100, by (1 − x)³.
+fn shadows_gain(base: f64, amount: f64) -> f64 {
+    amount / 100.0 * 2.0 * (1.0 - tone_position(base)).powi(3)
+}
+
 /// The tone and color operations on a linear Display P3 color, in the
-/// canonical order.
-fn defined(color: [f64; 3], settings: &Settings) -> [f64; 3] {
-    let scale = 2f64.powf(settings.exposure_ev.into());
+/// canonical order; `ab` is the guide where the pixel is, for highlights
+/// and shadows.
+fn defined(color: [f64; 3], settings: &Settings, ab: [f64; 2]) -> [f64; 3] {
+    let ev = f64::from(settings.exposure_ev);
+    let scale = ev.exp2();
     let mut p3 = color.map(|v| v * scale);
     if settings.temperature != 0.0 || settings.tint != 0.0 {
         p3 = white_balance(p3, settings.temperature.into(), settings.tint.into());
+    }
+    if settings.highlights != 0.0 || settings.shadows != 0.0 {
+        let mut base = ab[0] * log_luminance(p3.map(|v| v / scale)) + ab[1] + ev;
+        if settings.highlights != 0.0 {
+            let gain = highlights_gain(base, settings.highlights.into());
+            p3 = p3.map(|v| v * gain.exp2());
+            base += gain;
+        }
+        if settings.shadows != 0.0 {
+            let gain = shadows_gain(base, settings.shadows.into()).exp2();
+            p3 = p3.map(|v| v * gain);
+        }
     }
     if settings.contrast != 0.0 {
         p3 = contrast(p3, settings.contrast.into());
@@ -93,9 +213,13 @@ fn defined(color: [f64; 3], settings: &Settings) -> [f64; 3] {
     p3
 }
 
-/// What a pixel must come out as.
-fn expected(pixel: [f16; 4], settings: &Settings, output: Output) -> [u8; 3] {
-    let p3 = defined([0, 1, 2].map(|i| f64::from(pixel[i].to_f32())), settings);
+/// What a pixel must come out as, given the guide where it is.
+fn expected(pixel: [f16; 4], settings: &Settings, output: Output, ab: [f64; 2]) -> [u8; 3] {
+    let p3 = defined(
+        [0, 1, 2].map(|i| f64::from(pixel[i].to_f32())),
+        settings,
+        ab,
+    );
     let linear = match output {
         Output::DisplayP3 => p3,
         Output::Srgb => P3_TO_SRGB.map(|row| row.iter().zip(p3).map(|(m, v)| m * v).sum()),
@@ -112,11 +236,21 @@ fn renderer() -> Renderer {
 /// Every pixel within one level of the definition: GPU arithmetic isn't
 /// bit-exact, but it's far closer than the 8-bit output can show.
 fn assert_matches(image: &LinearImage, settings: &Settings, output: Output, renderer: &Renderer) {
-    let rendered = renderer.render(image, settings, output).unwrap();
+    let rendered = renderer
+        .render(image, &image.guide_image(), settings, output)
+        .unwrap();
     assert_eq!(
         (rendered.width, rendered.height),
         (image.width, image.height)
     );
+    let guide = Guide::new(&image.guide_image(), settings);
+    let (width, height) = (image.width as usize, image.height as usize);
+    let ab = |i: usize| {
+        guide.sample(
+            ((i % width) as f64 + 0.5) / width as f64,
+            ((i / width) as f64 + 0.5) / height as f64,
+        )
+    };
     let mut worst = (0, 0);
     for (i, (found, source)) in rendered
         .pixels
@@ -124,7 +258,7 @@ fn assert_matches(image: &LinearImage, settings: &Settings, output: Output, rend
         .zip(image.pixels.chunks(4))
         .enumerate()
     {
-        let want = expected(source.try_into().unwrap(), settings, output);
+        let want = expected(source.try_into().unwrap(), settings, output, ab(i));
         let off = found[..3]
             .iter()
             .zip(want)
@@ -143,7 +277,8 @@ fn assert_matches(image: &LinearImage, settings: &Settings, output: Output, rend
         expected(
             image.pixels[i * 4..i * 4 + 4].try_into().unwrap(),
             settings,
-            output
+            output,
+            ab(i)
         ),
     );
 }
@@ -188,11 +323,21 @@ fn light_and_color_match_the_definitions() {
             saturation: value,
             ..neutral
         });
+        cases.push(Settings {
+            highlights: value,
+            ..neutral
+        });
+        cases.push(Settings {
+            shadows: value,
+            ..neutral
+        });
     }
     cases.push(Settings {
         exposure_ev: 0.6,
         temperature: 30.0,
         tint: -15.0,
+        highlights: -55.0,
+        shadows: 70.0,
         contrast: 45.0,
         saturation: -20.0,
         ..neutral
@@ -342,7 +487,7 @@ fn the_definitions_match_the_appendix_vectors() {
     );
     for (operation, vectors) in &all {
         for vector in vectors {
-            let found = defined(vector.input, &vector.settings);
+            let found = defined(vector.input, &vector.settings, [0.0; 2]);
             for (found, want) in found.iter().zip(vector.output) {
                 assert!(
                     (found - want).abs() <= 0.0001 + 0.001 * want.abs(),
@@ -371,7 +516,12 @@ fn the_shaders_match_the_appendix_vectors() {
                 pixels: pixel.to_vec(),
             };
             let rendered = renderer
-                .render(&image, &vector.settings, Output::DisplayP3)
+                .render(
+                    &image,
+                    &image.guide_image(),
+                    &vector.settings,
+                    Output::DisplayP3,
+                )
                 .unwrap();
             let want = vector.output.map(|v| (encode(v) * 255.0).round() as u8);
             let off = rendered.pixels[..3]
@@ -398,10 +548,86 @@ fn large_photos_are_rendered_in_tiles_seamlessly() {
     let image = ramps(2300, 2100);
     let settings = Settings {
         exposure_ev: 0.5,
+        highlights: -60.0,
+        shadows: 50.0,
         contrast: 30.0,
         ..Settings::NEUTRAL
     };
     assert_matches(&image, &settings, Output::Srgb, &renderer);
+}
+
+/// A dark half beside a bright one, each with fine texture: shadows lifts
+/// the dark half and highlights darkens the bright one, each evenly up to
+/// the edge between them, where a plain blur would leave a halo, and the
+/// texture stays (journal, 2026-10-29).
+#[test]
+fn highlights_and_shadows_keep_edges_without_halos() {
+    let (width, height) = (400usize, 60usize);
+    let mut pixels = Vec::new();
+    for y in 0..height {
+        for x in 0..width {
+            let texture = 1.0 + 0.25 * (x as f32 * 0.8).sin() * (y as f32 * 0.8).sin();
+            let v = if x < width / 2 { 0.02 } else { 0.7 } * texture;
+            pixels.extend([v, v, v, 1.0].map(f16::from_f32));
+        }
+    }
+    let image = LinearImage {
+        width: width as u32,
+        height: height as u32,
+        pixels,
+    };
+    let settings = Settings {
+        highlights: -100.0,
+        shadows: 100.0,
+        ..Settings::NEUTRAL
+    };
+    let guide = Guide::new(&image.guide_image(), &settings);
+    // The gain in stops, averaged down each column.
+    let gain = |x: usize| -> f64 {
+        (0..height)
+            .map(|y| {
+                let i = y * width + x;
+                let c = [0, 1, 2].map(|k| f64::from(image.pixels[i * 4 + k].to_f32()));
+                let ab = guide.sample(
+                    (x as f64 + 0.5) / width as f64,
+                    (y as f64 + 0.5) / height as f64,
+                );
+                log_luminance(defined(c, &settings, ab)) - log_luminance(c)
+            })
+            .sum::<f64>()
+            / height as f64
+    };
+    let (dark, bright) = (gain(width / 8), gain(width * 7 / 8));
+    assert!(dark > 1.0, "the dark half is lifted: {dark}");
+    assert!(bright < -0.5, "the bright half is darkened: {bright}");
+    for x in 0..width {
+        let far = if x < width / 2 { dark } else { bright };
+        let off = (gain(x) - far).abs();
+        assert!(
+            off < 0.1,
+            "column {x}: {off} stops from the rest of its half"
+        );
+    }
+    // Across one period of the texture, the base hardly moves, so the
+    // texture is kept rather than evened out.
+    let bases: Vec<f64> = (40..48)
+        .map(|x| {
+            let i = 30 * width + x;
+            let c = [0, 1, 2].map(|k| f64::from(image.pixels[i * 4 + k].to_f32()));
+            let [a, b] = guide.sample((x as f64 + 0.5) / width as f64, 30.5 / height as f64);
+            a * log_luminance(c) + b
+        })
+        .collect();
+    let spread = bases.iter().cloned().fold(f64::MIN, f64::max)
+        - bases.iter().cloned().fold(f64::MAX, f64::min);
+    assert!(
+        spread < 0.25,
+        "the base follows the texture by {spread} stops"
+    );
+    let renderer = renderer();
+    for output in [Output::Srgb, Output::DisplayP3] {
+        assert_matches(&image, &settings, output, &renderer);
+    }
 }
 
 /// Display P3 green is outside sRGB: it must clip to sRGB's green, not
@@ -416,7 +642,12 @@ fn wide_color_is_converted_for_srgb_export() {
         pixels: green.to_vec(),
     };
     let srgb = renderer
-        .render(&image, &Settings::default(), Output::Srgb)
+        .render(
+            &image,
+            &image.guide_image(),
+            &Settings::default(),
+            Output::Srgb,
+        )
         .unwrap();
     // P3 green in linear sRGB is (-0.2249, 1.0421, -0.0786): clipped, (0, 1, 0).
     assert_eq!(&srgb.pixels[..3], &[0, 255, 0]);
@@ -427,10 +658,20 @@ fn wide_color_is_converted_for_srgb_export() {
         pixels: mid.to_vec(),
     };
     let p3 = renderer
-        .render(&image, &Settings::default(), Output::DisplayP3)
+        .render(
+            &image,
+            &image.guide_image(),
+            &Settings::default(),
+            Output::DisplayP3,
+        )
         .unwrap();
     let srgb = renderer
-        .render(&image, &Settings::default(), Output::Srgb)
+        .render(
+            &image,
+            &image.guide_image(),
+            &Settings::default(),
+            Output::Srgb,
+        )
         .unwrap();
     assert_ne!(
         &p3.pixels[..3],

@@ -25,6 +25,11 @@ struct Params {
     float sepia;
     float vignette_amount;
     float vignette_size;
+    uint draw_pass;
+    float tile_x;
+    float tile_y;
+    float tile_width;
+    float tile_height;
 };
 struct VertexOutput {
     vec4 position;
@@ -34,6 +39,10 @@ const mat3x3 P3_TO_SRGB = mat3x3(vec3(1.2249401, -0.0420569, -0.0196376), vec3(-
 const vec3 P3_LUMINANCE = vec3(0.2289746, 0.6917385, 0.0792869);
 const float MIDDLE_GRAY = 0.18;
 const float PERCEPTUAL = 2.2;
+const float HIGHLIGHTS_SHADOWS_STOPS = 2.0;
+const float GUIDE_FLOOR = 0.00024414063;
+const float GUIDE_RADIUS = 0.02;
+const float GUIDE_EPSILON = 0.1;
 
 smooth out vec2 _vs2fs_location0;
 
@@ -75,19 +84,38 @@ vec3 contrast(vec3 color_3, float amount) {
     return (color_3 * (pow(_e30, PERCEPTUAL) / y));
 }
 
-vec3 saturation(vec3 color_4, float amount_1) {
+float tone_position(float base_1) {
+    return pow(clamp(exp2(base_1), 0.0, 1.0), 0.45454544);
+}
+
+float highlights_gain(float base_2, float amount_1) {
+    float _e2 = tone_position(base_2);
+    return (((((amount_1 / 100.0) * HIGHLIGHTS_SHADOWS_STOPS) * _e2) * _e2) * _e2);
+}
+
+float shadows_gain(float base_3, float amount_2) {
+    float _e2 = tone_position(base_3);
+    float x_1 = (1.0 - _e2);
+    return (((((amount_2 / 100.0) * HIGHLIGHTS_SHADOWS_STOPS) * x_1) * x_1) * x_1);
+}
+
+vec3 saturation(vec3 color_4, float amount_3) {
     float y_1 = dot(P3_LUMINANCE, color_4);
-    float s = (1.0 + (amount_1 / 100.0));
+    float s = (1.0 + (amount_3 / 100.0));
     return (vec3(y_1) + ((color_4 - vec3(y_1)) * s));
+}
+
+float log_luminance(vec3 color_5) {
+    return log2(max(dot(P3_LUMINANCE, color_5), GUIDE_FLOOR));
 }
 
 void main() {
     uint index = uint(gl_VertexID);
     VertexOutput out_ = VertexOutput(vec4(0.0), vec2(0.0));
-    float x_1 = float(((index << 1u) & 2u));
+    float x_2 = float(((index << 1u) & 2u));
     float y_2 = float((index & 2u));
-    out_.position = vec4(((x_1 * 2.0) - 1.0), (1.0 - (y_2 * 2.0)), 0.0, 1.0);
-    out_.uv = vec2(x_1, y_2);
+    out_.position = vec4(((x_2 * 2.0) - 1.0), (1.0 - (y_2 * 2.0)), 0.0, 1.0);
+    out_.uv = vec2(x_2, y_2);
     VertexOutput _e24 = out_;
     gl_Position = _e24.position;
     _vs2fs_location0 = _e24.uv;

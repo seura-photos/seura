@@ -3,7 +3,8 @@
 //!
 //! Each photo is decoded to fit the Viewer's area at the screen's density
 //! (DSP-1), in the working space, and served by the `seura://` protocol as
-//! `view-<id>` (technical design, section 6). At most the shown photo and
+//! `view-<id>` (technical design, section 6), with the image its luminance
+//! guide is built from as `view-guide-<id>`. At most the shown photo and
 //! its two neighbors are kept. Zoomed in, the part on screen is cut from the
 //! photo decoded at full size, which is kept while that photo is shown, and
 //! served as `view-region`. Cloud-only photos are read only when the user
@@ -81,6 +82,7 @@ struct Decoded {
     full: (u32, u32),
     /// What the protocol serves.
     bytes: Arc<Vec<u8>>,
+    guide: Arc<Vec<u8>>,
 }
 
 impl Viewer {
@@ -162,6 +164,16 @@ impl Viewer {
         }
     }
 
+    /// The bytes for `view-guide-<id>`, if that photo is decoded: the image
+    /// its luminance guide is built from, for it and every part cut from it.
+    pub fn guide(&self, id: u32) -> Option<Arc<Vec<u8>>> {
+        let cache = self.inner.cache.lock().expect("viewer lock");
+        match cache.slots.get(&id) {
+            Some(Slot::Ready(decoded)) => Some(Arc::clone(&decoded.guide)),
+            _ => None,
+        }
+    }
+
     /// Cuts `region` (in the photo's own pixels) from `photo` at full size,
     /// scaled to `width` × `height`, never larger than the region itself
     /// (the Viewer enlarges it), and keeps it for `view-region`. Returns its
@@ -230,6 +242,7 @@ impl Inner {
                     size,
                     full,
                     bytes: Arc::new(encode_linear(&image)),
+                    guide: Arc::new(encode_linear(&upright.guide_linear())),
                 })
             }
             Err(error) => Slot::Failed(error.to_string()),

@@ -14,6 +14,8 @@ pub const CHECK_SETTINGS: Settings = Settings {
     exposure_ev: 0.7,
     temperature: 23.0,
     tint: -17.0,
+    highlights: -43.0,
+    shadows: 31.0,
     contrast: 37.0,
     saturation: 29.0,
     ..Settings::NEUTRAL

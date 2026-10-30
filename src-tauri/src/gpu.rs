@@ -41,7 +41,9 @@ pub fn apply_edits(photo: &Path, image: Rgba8) -> Rgba8 {
         return image;
     }
     let linear = image.to_linear_p3(None);
-    match with_renderer(|renderer| renderer.render(&linear, &settings, Output::Srgb)) {
+    match with_renderer(|renderer| {
+        renderer.render(&linear, &linear.guide_image(), &settings, Output::Srgb)
+    }) {
         Ok(Ok(rendered)) => rendered,
         _ => image,
     }

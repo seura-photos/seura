@@ -60,13 +60,26 @@ fn generated() -> Vec<(&'static str, String)> {
                 .values()
                 .next()
                 .expect("one uniform block");
-            let sampler = reflection
+            // Each texture's sampler uniform, by the texture's name in the
+            // WGSL: photo, guide, and stage.
+            let mut textures: Vec<(String, String)> = reflection
                 .texture_mapping
-                .keys()
-                .next()
-                .expect("one texture");
+                .iter()
+                .map(|(uniform, mapping)| {
+                    let texture = module.global_variables[mapping.texture]
+                        .name
+                        .clone()
+                        .expect("a named texture");
+                    (texture, uniform.clone())
+                })
+                .collect();
+            textures.sort();
+            let textures: String = textures
+                .iter()
+                .map(|(texture, uniform)| format!(",\n  \"{texture}\": \"{uniform}\""))
+                .collect();
             names.push(format!(
-                "{{\n  \"note\": \"{HEADER}\",\n  \"paramsBlock\": \"{block}\",\n  \"photo\": \"{sampler}\"\n}}\n"
+                "{{\n  \"note\": \"{HEADER}\",\n  \"paramsBlock\": \"{block}\"{textures}\n}}\n"
             ));
         }
         // The version line must come first, so the note goes after it.

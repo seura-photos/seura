@@ -20,7 +20,10 @@ export function RenderCheck({ settings }: { settings: RenderSettings }) {
     const run = async () => {
       const skipped: string[] = [];
       const problems: string[] = [];
-      const image = await fetchLinear("check-image");
+      const [image, guide] = await Promise.all([
+        fetchLinear("check-image"),
+        fetchLinear("check-guide"),
+      ]);
       const paths: [string, () => Promise<Backend | null>][] = [
         ["webgpu", () => createWebGpu(null)],
         ["webgl2", () => Promise.resolve(createWebGl2(document.createElement("canvas")))],
@@ -32,7 +35,7 @@ export function RenderCheck({ settings }: { settings: RenderSettings }) {
             skipped.push(name);
             continue;
           }
-          backend.upload(image);
+          backend.upload(image, guide);
           const pixels = await backend.read(settings);
           backend.destroy();
           const result = await commands.checkRender(

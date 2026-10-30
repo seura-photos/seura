@@ -1526,6 +1526,10 @@ pub enum PhotoEdit {
     Brightness { ev: f64 },
     /// `seura.contrast`, −100 to 100.
     Contrast { amount: f64 },
+    /// `seura.highlights`, −100 to 100.
+    Highlights { amount: f64 },
+    /// `seura.shadows`, −100 to 100.
+    Shadows { amount: f64 },
     /// `seura.whiteBalance` from the Temperature slider: both its
     /// settings, −100 to 100.
     Temperature { temperature: f64, tint: f64 },
@@ -1563,6 +1567,13 @@ pub async fn edit_photo(app: AppHandle, id: u32, edit: PhotoEdit) -> Result<Edit
             PhotoEdit::Brightness { ev } => crate::editor::exposure_action(ev),
             PhotoEdit::Contrast { amount } => {
                 crate::editor::slider_action("Contrast", CoreOperation::Contrast(Amount { amount }))
+            }
+            PhotoEdit::Highlights { amount } => crate::editor::slider_action(
+                "Highlights",
+                CoreOperation::Highlights(Amount { amount }),
+            ),
+            PhotoEdit::Shadows { amount } => {
+                crate::editor::slider_action("Shadows", CoreOperation::Shadows(Amount { amount }))
             }
             PhotoEdit::Temperature { temperature, tint } => crate::editor::slider_action(
                 "Temperature",

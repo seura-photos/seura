@@ -14,11 +14,16 @@ mod system_thumbnail;
 mod thumbnail;
 
 pub use decode::{
-    DecodeError, Decoded, MAX_SIDE, Reduced, Upright, decode, decode_linear, decode_reduced,
-    decode_upright,
+    DecodeError, Decoded, Linear, MAX_SIDE, Reduced, Upright, decode, decode_linear,
+    decode_reduced, decode_upright,
 };
 pub use encode::{JPEG_QUALITY, encode_jpeg};
 pub use exif::{Details, details};
 pub use raster::{LinearImage, Rgba8, decode_transfer};
 pub use system_thumbnail::system_thumbnail;
 pub use thumbnail::{Region, THUMBNAIL_SIZE, fit, thumbnail};
+
+/// The long edge of the image highlights and shadows build their luminance
+/// guide from: the photo scaled to fit it, or as it is if it's smaller
+/// (technical design, "Neighborhood operations").
+pub const GUIDE_LONG_EDGE: u32 = 1024;
