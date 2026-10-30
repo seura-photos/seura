@@ -60,6 +60,7 @@ import {
   type LinearImage,
 } from "./preview";
 import { Effects } from "./Effects";
+import { ScrollArea } from "./ScrollArea";
 import { Slider } from "./Slider";
 import { useStore } from "./store";
 import { orientedSize, type Size } from "./preview/geometry";
@@ -188,6 +189,16 @@ export function Editor({ id, forceWebgl2 }: Props) {
   // How many times the shown edits have been replaced as a whole, by undo,
   // redo, revert, or choosing after an outside change.
   const [replaced, setReplaced] = useState(0);
+  const revertDialog = useRef<HTMLDivElement>(null);
+  // A click anywhere outside the confirmation cancels it (EDT-10).
+  useEffect(() => {
+    if (!confirmingNow) return;
+    const outside = (event: Event) => {
+      if (!revertDialog.current?.contains(event.target as Node)) setConfirming(null);
+    };
+    document.addEventListener("pointerdown", outside);
+    return () => document.removeEventListener("pointerdown", outside);
+  }, [confirmingNow]);
   const revertButton = useRef<HTMLButtonElement>(null);
   // The safe choice has the focus, so Enter is safe (INT-5).
   useEffect(() => {
@@ -1016,27 +1027,29 @@ export function Editor({ id, forceWebgl2 }: Props) {
 
       <aside className="editor-panel" aria-label={t("editor-tools")}>
         {croppingNow ? (
-          <CropPanel
-            choice={croppingNow.now.choice}
-            portrait={croppingNow.now.portrait}
-            angle={croppingNow.now.angle}
-            onRatio={(choice) => chooseRatio(choice, croppingNow.now.portrait)}
-            onPortrait={(portrait) => chooseRatio(croppingNow.now.choice, portrait)}
-            onAngle={(angle, finished) => changeCrop((now) => ({ ...now, angle }), finished)}
-            onReset={() =>
-              changeCrop(
-                (_now, frame) => ({
-                  box: wholeFrame(frame),
-                  angle: 0,
-                  choice: "original",
-                  portrait: frame.height > frame.width,
-                }),
-                true,
-              )
-            }
-            onCancel={() => setCropping(null)}
-            onDone={() => applyCrop()}
-          />
+          <ScrollArea>
+            <CropPanel
+              choice={croppingNow.now.choice}
+              portrait={croppingNow.now.portrait}
+              angle={croppingNow.now.angle}
+              onRatio={(choice) => chooseRatio(choice, croppingNow.now.portrait)}
+              onPortrait={(portrait) => chooseRatio(croppingNow.now.choice, portrait)}
+              onAngle={(angle, finished) => changeCrop((now) => ({ ...now, angle }), finished)}
+              onReset={() =>
+                changeCrop(
+                  (_now, frame) => ({
+                    box: wholeFrame(frame),
+                    angle: 0,
+                    choice: "original",
+                    portrait: frame.height > frame.width,
+                  }),
+                  true,
+                )
+              }
+              onCancel={() => setCropping(null)}
+              onDone={() => applyCrop()}
+            />
+          </ScrollArea>
         ) : (
           <>
             {/* Where the pointer works (INT-5): compare and Done first. */}
@@ -1068,156 +1081,167 @@ export function Editor({ id, forceWebgl2 }: Props) {
               </button>
             </div>
 
-            <div className="editor-section">
-              <button
-                type="button"
-                className="button editor-crop"
-                aria-keyshortcuts="C"
-                disabled={!editable}
-                onClick={() => void openCrop()}
-              >
-                {t("editor-crop")}
-              </button>
-            </div>
+            {/* Between the pinned first row and Revert, the sections scroll
+            (wireframes, Editor). */}
+            <ScrollArea>
+              <div className="editor-section">
+                <button
+                  type="button"
+                  className="button editor-crop"
+                  aria-keyshortcuts="C"
+                  disabled={!editable}
+                  onClick={() => void openCrop()}
+                >
+                  {t("editor-crop")}
+                </button>
+              </div>
 
-            <div className="editor-section editor-turns" role="group" aria-label={t("editor-turn")}>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={t("editor-rotate-left")}
-                aria-keyshortcuts="["
-                title={t("editor-rotate-left")}
-                disabled={!editable}
-                onClick={() => turnPhoto("left")}
+              <div
+                className="editor-section editor-turns"
+                role="group"
+                aria-label={t("editor-turn")}
               >
-                <RotateCcwSquare className="icon" aria-hidden />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={t("editor-rotate-right")}
-                aria-keyshortcuts="]"
-                title={t("editor-rotate-right")}
-                disabled={!editable}
-                onClick={() => turnPhoto("right")}
-              >
-                <RotateCwSquare className="icon" aria-hidden />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={t("editor-flip-horizontal")}
-                title={t("editor-flip-horizontal")}
-                disabled={!editable}
-                onClick={() => turnPhoto("horizontal")}
-              >
-                {/* Mirrored across an upright line. Lucide's FlipHorizontal2
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label={t("editor-rotate-left")}
+                  aria-keyshortcuts="["
+                  title={t("editor-rotate-left")}
+                  disabled={!editable}
+                  onClick={() => turnPhoto("left")}
+                >
+                  <RotateCcwSquare className="icon" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label={t("editor-rotate-right")}
+                  aria-keyshortcuts="]"
+                  title={t("editor-rotate-right")}
+                  disabled={!editable}
+                  onClick={() => turnPhoto("right")}
+                >
+                  <RotateCwSquare className="icon" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label={t("editor-flip-horizontal")}
+                  title={t("editor-flip-horizontal")}
+                  disabled={!editable}
+                  onClick={() => turnPhoto("horizontal")}
+                >
+                  {/* Mirrored across an upright line. Lucide's FlipHorizontal2
                 is the other drawing. */}
-                <TrianglesCenterlineDashedVertical className="icon" aria-hidden />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={t("editor-flip-vertical")}
-                title={t("editor-flip-vertical")}
-                disabled={!editable}
-                onClick={() => turnPhoto("vertical")}
-              >
-                <TrianglesCenterlineDashedHorizontal className="icon" aria-hidden />
-              </button>
-            </div>
+                  <TrianglesCenterlineDashedVertical className="icon" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label={t("editor-flip-vertical")}
+                  title={t("editor-flip-vertical")}
+                  disabled={!editable}
+                  onClick={() => turnPhoto("vertical")}
+                >
+                  <TrianglesCenterlineDashedHorizontal className="icon" aria-hidden />
+                </button>
+              </div>
 
-            <section className="editor-section" aria-label={t("editor-light")}>
-              <h2 className="section-label" aria-hidden>
-                {t("editor-light")}
-              </h2>
-              <Slider
-                label={t("editor-brightness")}
-                value={value("exposureEv") * PER_STOP}
-                disabled={!editable}
-                onInput={(to) => adjust({ exposureEv: to / PER_STOP })}
-                onCommit={(to) => commit({ kind: "brightness", ev: to / PER_STOP })}
-              />
-              <Slider
-                label={t("editor-contrast")}
-                value={value("contrast")}
-                disabled={!editable}
-                onInput={(to) => adjust({ contrast: to })}
-                onCommit={(to) => commit({ kind: "contrast", amount: to })}
-              />
-              <Slider
-                label={t("editor-highlights")}
-                value={value("highlights")}
-                disabled={!editable}
-                onInput={(to) => adjust({ highlights: to })}
-                onCommit={(to) => commit({ kind: "highlights", amount: to })}
-              />
-              <Slider
-                label={t("editor-shadows")}
-                value={value("shadows")}
-                disabled={!editable}
-                onInput={(to) => adjust({ shadows: to })}
-                onCommit={(to) => commit({ kind: "shadows", amount: to })}
-              />
-            </section>
+              <section className="editor-section" aria-label={t("editor-light")}>
+                <h2 className="section-label" aria-hidden>
+                  {t("editor-light")}
+                </h2>
+                <Slider
+                  label={t("editor-brightness")}
+                  value={value("exposureEv") * PER_STOP}
+                  disabled={!editable}
+                  onInput={(to) => adjust({ exposureEv: to / PER_STOP })}
+                  onCommit={(to) => commit({ kind: "brightness", ev: to / PER_STOP })}
+                />
+                <Slider
+                  label={t("editor-contrast")}
+                  value={value("contrast")}
+                  disabled={!editable}
+                  onInput={(to) => adjust({ contrast: to })}
+                  onCommit={(to) => commit({ kind: "contrast", amount: to })}
+                />
+                <Slider
+                  label={t("editor-highlights")}
+                  value={value("highlights")}
+                  disabled={!editable}
+                  onInput={(to) => adjust({ highlights: to })}
+                  onCommit={(to) => commit({ kind: "highlights", amount: to })}
+                />
+                <Slider
+                  label={t("editor-shadows")}
+                  value={value("shadows")}
+                  disabled={!editable}
+                  onInput={(to) => adjust({ shadows: to })}
+                  onCommit={(to) => commit({ kind: "shadows", amount: to })}
+                />
+              </section>
 
-            <section className="editor-section" aria-label={t("editor-color")}>
-              <h2 className="section-label" aria-hidden>
-                {t("editor-color")}
-              </h2>
-              <Slider
-                label={t("editor-temperature")}
-                ends={[t("editor-cool"), t("editor-warm")]}
-                value={value("temperature")}
-                disabled={!editable}
-                onInput={(to) => adjust({ temperature: to })}
-                onCommit={(to) =>
-                  commit({ kind: "temperature", temperature: to, tint: value("tint") })
-                }
-              />
-              <Slider
-                label={t("editor-tint")}
-                ends={[t("editor-green"), t("editor-magenta")]}
-                value={value("tint")}
-                disabled={!editable}
-                onInput={(to) => adjust({ tint: to })}
-                onCommit={(to) =>
-                  commit({ kind: "tint", temperature: value("temperature"), tint: to })
-                }
-              />
-              <Slider
-                label={t("editor-saturation")}
-                value={value("saturation")}
-                disabled={!editable}
-                onInput={(to) => adjust({ saturation: to })}
-                onCommit={(to) => commit({ kind: "saturation", amount: to })}
-              />
-            </section>
+              <section className="editor-section" aria-label={t("editor-color")}>
+                <h2 className="section-label" aria-hidden>
+                  {t("editor-color")}
+                </h2>
+                <Slider
+                  label={t("editor-temperature")}
+                  ends={[t("editor-cool"), t("editor-warm")]}
+                  value={value("temperature")}
+                  disabled={!editable}
+                  onInput={(to) => adjust({ temperature: to })}
+                  onCommit={(to) =>
+                    commit({ kind: "temperature", temperature: to, tint: value("tint") })
+                  }
+                />
+                <Slider
+                  label={t("editor-tint")}
+                  ends={[t("editor-green"), t("editor-magenta")]}
+                  value={value("tint")}
+                  disabled={!editable}
+                  onInput={(to) => adjust({ tint: to })}
+                  onCommit={(to) =>
+                    commit({ kind: "tint", temperature: value("temperature"), tint: to })
+                  }
+                />
+                <Slider
+                  label={t("editor-saturation")}
+                  value={value("saturation")}
+                  disabled={!editable}
+                  onInput={(to) => adjust({ saturation: to })}
+                  onCommit={(to) => commit({ kind: "saturation", amount: to })}
+                />
+              </section>
 
-            <Effects
-              values={{
-                blackAndWhite: shown?.settings.blackAndWhite ?? 0,
-                sepia: shown?.settings.sepia ?? 0,
-                vignetteAmount: shown?.settings.vignetteAmount ?? 0,
-                vignetteSize: shown?.settings.vignetteSize ?? 0,
-              }}
-              disabled={!editable}
-              reset={`${id}:${replaced}`}
-              onInput={adjust}
-              onCommit={commit}
-            />
+              <Effects
+                values={{
+                  blackAndWhite: shown?.settings.blackAndWhite ?? 0,
+                  sepia: shown?.settings.sepia ?? 0,
+                  vignetteAmount: shown?.settings.vignetteAmount ?? 0,
+                  vignetteSize: shown?.settings.vignetteSize ?? 0,
+                }}
+                disabled={!editable}
+                reset={`${id}:${replaced}`}
+                onInput={adjust}
+                onCommit={commit}
+              />
 
-            {problem !== null && (
-              <p className="editor-note" role="note">
-                {t("editor-read-only", { reason: problem })}
-              </p>
-            )}
+              {problem !== null && (
+                <p className="editor-note" role="note">
+                  {t("editor-read-only", { reason: problem })}
+                </p>
+              )}
+            </ScrollArea>
 
-            {/* Last, and cautionary (wireframes). Confirming puts Cancel where
-            the pointer is, the destructive choice below it (INT-5). */}
-            <div className="editor-section editor-revert">
+            {/* Last, cautionary, and pinned to the bottom, so it never needs
+            scrolling to (EDT-10). Confirming puts Cancel where the pointer
+            is, with the question and the destructive choice in a card above
+            it, never below the window (INT-5). Cancel comes first, so Tab
+            goes on to Revert. */}
+            <div className="editor-revert">
               {confirmingNow ? (
-                <div role="group" aria-labelledby="revert-question">
+                <div ref={revertDialog} role="alertdialog" aria-labelledby="revert-question">
                   <button
                     ref={cancelRevert}
                     type="button"
@@ -1229,13 +1253,15 @@ export function Editor({ id, forceWebgl2 }: Props) {
                   >
                     {t("editor-revert-cancel")}
                   </button>
-                  <p id="revert-question">
-                    {t("editor-revert-question")}
-                    {shown?.steps.otherApps && ` ${t("editor-revert-other-apps")}`}
-                  </p>
-                  <button type="button" className="button danger" onClick={revert}>
-                    {t("editor-revert-confirm")}
-                  </button>
+                  <div className="revert-card">
+                    <p id="revert-question">
+                      {t("editor-revert-question")}
+                      {shown?.steps.otherApps && ` ${t("editor-revert-other-apps")}`}
+                    </p>
+                    <button type="button" className="button danger" onClick={revert}>
+                      {t("editor-revert-confirm")}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <button

@@ -756,7 +756,15 @@ describe("Editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Revert to original…" }));
     const cancel = screen.getByRole("button", { name: "Cancel" });
     expect(document.activeElement).toBe(cancel);
-    expect(screen.getByRole("group", { name: /Remove every edit/ })).toBeDefined();
+    const dialog = screen.getByRole("alertdialog", { name: /Remove every edit/ });
+    // Cancel takes the button's place in the pinned footer; the question
+    // and Revert are in the card above it, after Cancel for Tab.
+    expect(cancel.parentElement).toBe(dialog);
+    expect(dialog.parentElement?.classList.contains("editor-revert")).toBe(true);
+    const confirm = screen.getByRole("button", { name: "Revert to original" });
+    expect(confirm.closest(".revert-card")).not.toBeNull();
+    expect(screen.getByText(/Remove every edit/).closest(".revert-card")).not.toBeNull();
+    expect(cancel.compareDocumentPosition(confirm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // Esc cancels the revert, not the Editor.
     fireEvent.keyDown(window, { key: "Escape" });
     expect(useStore.getState().editing).toBe(7);
@@ -826,6 +834,31 @@ describe("Editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Load theirs" }));
     await waitFor(() => expect(slider.value).toBe("50"));
     expect(screen.getByText("Loaded the edits made outside Seura Photos")).toBeDefined();
+  });
+
+  it("cancels the revert with a click outside it, and not with one inside (EDT-10)", async () => {
+    edit();
+    await brightness();
+    fireEvent.click(screen.getByRole("button", { name: "Revert to original…" }));
+    fireEvent.pointerDown(screen.getByText(/Remove every edit/));
+    expect(screen.getByRole("alertdialog")).toBeDefined();
+    fireEvent.pointerDown(screen.getByRole("slider", { name: "Contrast" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "Revert to original…" })).toBeDefined();
+    expect(mocks.revertPhoto).not.toHaveBeenCalled();
+  });
+
+  it("pins the first row and Revert, and scrolls only the sections between", async () => {
+    edit();
+    const slider = await brightness();
+    const scroller = slider.closest(".scroll-area-scroller");
+    expect(scroller).not.toBeNull();
+    for (const name of ["Hold to compare", "Done", "Revert to original…"]) {
+      expect(scroller?.contains(screen.getByRole("button", { name }))).toBe(false);
+    }
+    expect(scroller?.contains(screen.getByRole("button", { name: "Crop and straighten" }))).toBe(
+      true,
+    );
   });
 
   it("says other apps' edits are kept when reverting a photo that has them (EDT-10)", async () => {
