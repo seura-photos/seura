@@ -5,3 +5,5 @@
 - **Sampling:** Catmull-Rom bicubic, as Claude Code suggested, but Claude asked for it in the shared shader for preview and export alike (decision 0004), with a faster preview only if measurement shows a need.
 - **The guide:** built from the photo before any geometry, Claude Code's proposal, accepted. Turning the photo never rebuilds it, and uncovered corners never enter it.
 - Written into the edit format (edit-format #10); the formulas follow in the appendix.
+- **A fourth question, about rotate and flip (slice 5a):** the format didn't say whether `seura.orient` flips before or after it turns. Claude Code had built it as turn first, then flip as seen on screen; Claude agreed and added that both flips together should be stored as a half turn, so there's one way to write it.
+- **Two of Claude Code's choices confirmed:** Compare keeps the photo's turn, straightening, and crop, showing only the original's colors and tone, so it lines up with the edited view at any zoom; and rotating or flipping returns to Fit.
