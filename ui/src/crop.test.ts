@@ -79,16 +79,41 @@ describe("crop mode's box", () => {
     expect(shrunk.right - shrunk.left).toBeCloseTo(2900, 6);
   });
 
-  it("slides to where a straightened photo's slanted edges stop it", () => {
-    const angle = 10;
-    const box = { left: 2750, top: 1750, right: 3250, bottom: 2250 };
-    const moved = moveBox(box, 5000, 5000, frame, angle);
+  it("follows the pointer along a straightened photo's slanted edge in one drag", () => {
+    // Turned 25° clockwise, the photo's top right corner has swung down:
+    // near the top, its right side is further left. Dragged far right, a
+    // box near the top slides down along the slant, in the same drag, to
+    // the frame's right edge, rather than stopping where a corner first
+    // meets the slant, at 3801 (Nevada's case).
+    const angle = 25;
+    const box = { left: 2750, top: 400, right: 3250, bottom: 900 };
+    const right = moveBox(box, 5000, 0, frame, angle);
+    expect(fits(right, frame, angle)).toBe(true);
+    expect(right.right).toBeCloseTo(6000, 3);
+    expect(right.top).toBeGreaterThan(box.top);
+  });
+
+  it("moves to the place nearest the pointer that fits", () => {
+    const angle = -15;
+    const box = { left: 2000, top: 1500, right: 3000, bottom: 2300 };
+    const [dx, dy] = [4000, 3000];
+    const moved = moveBox(box, dx, dy, frame, angle);
     expect(fits(moved, frame, angle)).toBe(true);
-    // In the corner: no further across or down.
-    const across = moveBox(moved, 2, 0, frame, angle);
-    const down = moveBox(moved, 0, 2, frame, angle);
-    expect(across.left - moved.left).toBeLessThan(0.01);
-    expect(down.top - moved.top).toBeLessThan(0.01);
+    const wanted = [box.left + dx, box.top + dy];
+    const away = (b: { left: number; top: number }) =>
+      Math.hypot(b.left - (wanted[0] ?? 0), b.top - (wanted[1] ?? 0));
+    // No nearby place that fits is nearer.
+    for (let k = 0; k < 16; k++) {
+      const turn = (k * Math.PI) / 8;
+      const [ox, oy] = [Math.cos(turn) * 5, Math.sin(turn) * 5];
+      const other = {
+        left: moved.left + ox,
+        top: moved.top + oy,
+        right: moved.right + ox,
+        bottom: moved.bottom + oy,
+      };
+      if (fits(other, frame, angle)) expect(away(other)).toBeGreaterThanOrEqual(away(moved) - 1e-6);
+    }
   });
 
   it("keeps a ratio from a corner, and its smallest size", () => {

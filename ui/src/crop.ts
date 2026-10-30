@@ -119,10 +119,28 @@ export function shrinkToFit(box: Edges, frame: Size, angle: number): Edges {
 
 /**
  * The box closest to `wanted` that fits, starting from `from`, which fits:
- * each group of edges moves as far toward `wanted` as it can, in turn. A
- * move in two groups, across then down, slides along an edge it meets.
+ * each group of edges moves as far toward `wanted` as it can, in turn, as
+ * a corner's two edges do when it's dragged.
  */
 export function slide(
+  from: Edges,
+  wanted: Edges,
+  frame: Size,
+  angle: number,
+  groups: (keyof Edges)[][],
+): Edges {
+  // Again while it gains anything, so the order of the groups doesn't
+  // matter: moving down can make room to move further across.
+  let box = from;
+  for (let pass = 0; pass < 8; pass++) {
+    const before = box;
+    box = slideOnce(box, wanted, frame, angle, groups);
+    if (groups.length === 1 || JSON.stringify(box) === JSON.stringify(before)) break;
+  }
+  return box;
+}
+
+function slideOnce(
   from: Edges,
   wanted: Edges,
   frame: Size,
@@ -151,18 +169,95 @@ export function slide(
   return box;
 }
 
-/** `box` moved by `dx`, `dy`, sliding along the turned photo's edge. */
+type Point = [number, number];
+
+/**
+ * Where the center of a box with half-sizes `a` and `b` can be, so that
+ * all of it is on the photo turned `angle` degrees and in the frame: a
+ * convex polygon, as half-planes n · c ≤ d, each the region's own edge
+ * moved in by how far the box reaches toward it.
+ */
+function centers(frame: Size, angle: number, a: number, b: number): Point[] {
+  const theta = (angle * Math.PI) / 180;
+  const [cos, sin] = [Math.cos(theta), Math.sin(theta)];
+  const [cx, cy] = [frame.width / 2, frame.height / 2];
+  // The turned photo's sides: along u, within W / 2 of the center; along
+  // v, within H / 2 (the turn back of `unturn`).
+  const u: Point = [cos, sin];
+  const v: Point = [-sin, cos];
+  const dot = (n: Point, p: Point) => n[0] * p[0] + n[1] * p[1];
+  const sides: [Point, number][] = [
+    [[-1, 0], 0],
+    [[1, 0], frame.width],
+    [[0, -1], 0],
+    [[0, 1], frame.height],
+    [u, frame.width / 2 + dot(u, [cx, cy])],
+    [[-u[0], -u[1]], frame.width / 2 - dot(u, [cx, cy])],
+    [v, frame.height / 2 + dot(v, [cx, cy])],
+    [[-v[0], -v[1]], frame.height / 2 - dot(v, [cx, cy])],
+  ];
+  // A square larger than any frame, cut by each side in turn.
+  const far = 1e7;
+  let polygon: Point[] = [
+    [-far, -far],
+    [far, -far],
+    [far, far],
+    [-far, far],
+  ];
+  for (const [n, d] of sides) {
+    const limit = d - Math.abs(n[0]) * a - Math.abs(n[1]) * b - 1e-7;
+    const inside = (p: Point) => dot(n, p) <= limit;
+    const next: Point[] = [];
+    polygon.forEach((p, k) => {
+      const q = polygon[(k + 1) % polygon.length] ?? p;
+      if (inside(p)) next.push(p);
+      if (inside(p) !== inside(q)) {
+        const t = (limit - dot(n, p)) / (dot(n, q) - dot(n, p));
+        next.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
+      }
+    });
+    polygon = next;
+  }
+  return polygon;
+}
+
+/** The point of a convex polygon nearest `point`. */
+function nearest(polygon: Point[], point: Point): Point | null {
+  if (polygon.length === 0) return null;
+  const cross = (p: Point, q: Point, r: Point) =>
+    (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  // Inside when on the same side of every edge.
+  const sides = polygon.map((p, k) => cross(p, polygon[(k + 1) % polygon.length] ?? p, point));
+  if (sides.every((side) => side >= 0) || sides.every((side) => side <= 0)) return point;
+  let best: Point = polygon[0] ?? point;
+  let distance = Infinity;
+  polygon.forEach((p, k) => {
+    const q = polygon[(k + 1) % polygon.length] ?? p;
+    const [ex, ey] = [q[0] - p[0], q[1] - p[1]];
+    const length = ex * ex + ey * ey;
+    const t =
+      length === 0
+        ? 0
+        : Math.min(1, Math.max(0, ((point[0] - p[0]) * ex + (point[1] - p[1]) * ey) / length));
+    const on: Point = [p[0] + ex * t, p[1] + ey * t];
+    const away = Math.hypot(on[0] - point[0], on[1] - point[1]);
+    if (away < distance) [best, distance] = [on, away];
+  });
+  return best;
+}
+
+/**
+ * `box` moved by `dx`, `dy`, or as near there as it can be while it's on
+ * the turned photo: against an edge it slides along it, a slanted one too,
+ * and where it ends depends only on where the pointer is, not the way it
+ * came.
+ */
 export function moveBox(box: Edges, dx: number, dy: number, frame: Size, angle: number): Edges {
-  const wanted = {
-    left: box.left + dx,
-    top: box.top + dy,
-    right: box.right + dx,
-    bottom: box.bottom + dy,
-  };
-  return slide(box, wanted, frame, angle, [
-    ["left", "right"],
-    ["top", "bottom"],
-  ]);
+  const [a, b] = [width(box) / 2, height(box) / 2];
+  const wanted: Point = [(box.left + box.right) / 2 + dx, (box.top + box.bottom) / 2 + dy];
+  const center = nearest(centers(frame, angle, a, b), wanted);
+  if (!center) return box;
+  return { left: center[0] - a, top: center[1] - b, right: center[0] + a, bottom: center[1] + b };
 }
 
 /** A corner or an edge of the box, by the edges it moves. */
