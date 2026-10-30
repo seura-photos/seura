@@ -30,6 +30,16 @@ struct Params {
     float tile_y;
     float tile_width;
     float tile_height;
+    float full_width;
+    float full_height;
+    float view_x;
+    float view_y;
+    float view_width;
+    float view_height;
+    float crop_left;
+    float crop_top;
+    float crop_pixels_width;
+    float crop_pixels_height;
 };
 struct VertexOutput {
     vec4 position;
@@ -58,9 +68,9 @@ vec3 exposure(vec3 color_1, float ev) {
 }
 
 vec3 white_balance(vec3 color_2, float temperature, float tint) {
-    float t = (temperature / 100.0);
-    float n = (tint / 100.0);
-    vec3 gains = exp2(vec3((t / 2.0), (-(n) / 2.0), (-(t) / 2.0)));
+    float t_1 = (temperature / 100.0);
+    float n_1 = (tint / 100.0);
+    vec3 gains = exp2(vec3((t_1 / 2.0), (-(n_1) / 2.0), (-(t_1) / 2.0)));
     return (color_2 * (gains / vec3(dot(P3_LUMINANCE, gains))));
 }
 
@@ -107,6 +117,12 @@ vec3 saturation(vec3 color_4, float amount_3) {
 
 float log_luminance(vec3 color_5) {
     return log2(max(dot(P3_LUMINANCE, color_5), GUIDE_FLOOR));
+}
+
+vec4 catmull_rom_weights(float t) {
+    float t2_ = (t * t);
+    float t3_ = (t2_ * t);
+    return vec4((((-(t3_) + (2.0 * t2_)) - t) * 0.5), ((((3.0 * t3_) - (5.0 * t2_)) + 2.0) * 0.5), ((((-3.0 * t3_) + (4.0 * t2_)) + t) * 0.5), ((t3_ - t2_) * 0.5));
 }
 
 void main() {

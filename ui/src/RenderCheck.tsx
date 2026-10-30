@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { commands, type RenderSettings } from "./bindings";
 import { t } from "./messages";
-import { type Backend, createWebGl2, createWebGpu, fetchLinear, orientedSize } from "./preview";
+import { type Backend, createWebGl2, createWebGpu, drawnSize, fetchLinear } from "./preview";
 
 /**
  * The render check (`SEURA_RENDER_CHECK=1`; M1 slice 5): renders the core's
@@ -35,11 +35,11 @@ export function RenderCheck({ settings }: { settings: RenderSettings }) {
             skipped.push(name);
             continue;
           }
-          backend.upload(image, guide);
+          backend.upload(image, guide, { full: image });
           const pixels = await backend.read(settings);
           backend.destroy();
-          // Turned on its side by the check's settings.
-          const drawn = orientedSize(image, settings);
+          // Turned, straightened and cropped by the check's settings.
+          const drawn = drawnSize(image, settings, { full: image });
           const result = await commands.checkRender(
             name,
             drawn.width,

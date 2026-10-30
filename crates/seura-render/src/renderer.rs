@@ -10,11 +10,14 @@ use std::sync::mpsc;
 use half::f16;
 use seura_image::{LinearImage, Rgba8};
 
-use crate::settings::Pass;
+use crate::geometry::{Geometry, Rect};
+use crate::settings::{Draw, Pass};
 use crate::{SHADER, Settings};
 
-/// The tile size: within every adapter's texture limit.
-const TILE: u32 = 2048;
+/// The tile size. The part of the photo a tile samples must fit every
+/// adapter's texture limit, 2048: straightened by up to 45°, a tile's part
+/// is up to √2 times as wide, with room for the filter on each side.
+const TILE: u32 = 1440;
 
 /// The color space a render is encoded for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,64 +58,6 @@ pub struct Renderer {
     empty: wgpu::TextureView,
     empty_stage: wgpu::TextureView,
     adapter: String,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Tile {
-    left: u32,
-    top: u32,
-    width: u32,
-    height: u32,
-}
-
-impl Tile {
-    /// The part of the upright photo, `width` × `height`, that this tile of
-    /// the drawn photo shows, turned and flipped by `settings` (`seura.orient`:
-    /// the rotation, then the flips as the turned photo is seen). Whole
-    /// pixels move, so it's a rectangle of whole pixels too, drawn into the
-    /// tile by the shader's `upright_position`.
-    fn upright(self, settings: &Settings, width: u32, height: u32) -> Tile {
-        let (across, down) = settings.output_size(width, height);
-        // Undo the flips, in the drawn photo.
-        let left = if settings.flip_h {
-            across - self.left - self.width
-        } else {
-            self.left
-        };
-        let top = if settings.flip_v {
-            down - self.top - self.height
-        } else {
-            self.top
-        };
-        // Then the rotation.
-        let (w, h) = (self.width, self.height);
-        match settings.rotate {
-            90 => Tile {
-                left: top,
-                top: across - left - w,
-                width: h,
-                height: w,
-            },
-            180 => Tile {
-                left: across - left - w,
-                top: down - top - h,
-                width: w,
-                height: h,
-            },
-            270 => Tile {
-                left: down - top - h,
-                top: left,
-                width: h,
-                height: w,
-            },
-            _ => Tile {
-                left,
-                top,
-                width: w,
-                height: h,
-            },
-        }
-    }
 }
 
 impl Renderer {
@@ -297,28 +242,37 @@ impl Renderer {
         let guide_view = guide
             .as_ref()
             .map(|guide| guide.create_view(&Default::default()));
-        let (width, height) = settings.output_size(image.width, image.height);
+        let geometry = Geometry::new(settings, image.width, image.height);
+        let (width, height) = geometry.output_size();
         let mut pixels = vec![0; width as usize * height as usize * 4];
         for top in (0..height).step_by(TILE as usize) {
             for left in (0..width).step_by(TILE as usize) {
-                let tile = Tile {
+                let tile = Rect {
                     left,
                     top,
                     width: TILE.min(width - left),
                     height: TILE.min(height - top),
                 };
-                // The guide covers the upright photo, so the shader is told
-                // where in it the tile's part is.
-                let source = tile.upright(settings, image.width, image.height);
+                // Each tile uploads only the part of the photo it samples;
+                // the shader is told where that part is, and which part of
+                // the result the tile is.
+                let source = geometry.source(tile);
+                let fraction = |rect: Rect, (across, down): (u32, u32)| {
+                    [
+                        rect.left as f32 / across as f32,
+                        rect.top as f32 / down as f32,
+                        rect.width as f32 / across as f32,
+                        rect.height as f32 / down as f32,
+                    ]
+                };
                 let params = settings.uniforms(
                     output,
                     Pass::Draw,
-                    [
-                        source.left as f32 / image.width as f32,
-                        source.top as f32 / image.height as f32,
-                        source.width as f32 / image.width as f32,
-                        source.height as f32 / image.height as f32,
-                    ],
+                    &Draw {
+                        full: (image.width, image.height),
+                        part: fraction(source, (image.width, image.height)),
+                        view: fraction(tile, (width, height)),
+                    },
                 );
                 self.queue
                     .write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
@@ -392,7 +346,11 @@ impl Renderer {
             (Pass::Across, &one, &two, &self.build),
             (Pass::Down, &two, &finished, &self.finish),
         ] {
-            let params = settings.uniforms(Output::DisplayP3, pass, [0.0, 0.0, 1.0, 1.0]);
+            let params = settings.uniforms(
+                Output::DisplayP3,
+                pass,
+                &Draw::whole((image.width, image.height)),
+            );
             self.queue
                 .write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
             let bind_group = self.bind_group(&self.empty, &self.empty, from);
@@ -474,8 +432,8 @@ impl Renderer {
     fn render_tile(
         &self,
         image: &LinearImage,
-        part: &Tile,
-        tile: &Tile,
+        part: &Rect,
+        tile: &Rect,
         guide: &wgpu::TextureView,
     ) -> Result<Vec<u8>, RenderError> {
         let source_size = wgpu::Extent3d {
@@ -587,63 +545,5 @@ impl Renderer {
         }
         readback.unmap();
         Ok(pixels)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Where upright pixel `x`, `y` of a `width` × `height` photo lands, as
-    /// the edit format defines `seura.orient`: turned clockwise, then
-    /// flipped as it's then seen.
-    fn drawn_pixel(settings: &Settings, x: u32, y: u32, width: u32, height: u32) -> (u32, u32) {
-        let (x, y) = match settings.rotate {
-            90 => (height - 1 - y, x),
-            180 => (width - 1 - x, height - 1 - y),
-            270 => (y, width - 1 - x),
-            _ => (x, y),
-        };
-        let (across, down) = settings.output_size(width, height);
-        (
-            if settings.flip_h { across - 1 - x } else { x },
-            if settings.flip_v { down - 1 - y } else { y },
-        )
-    }
-
-    #[test]
-    fn each_tile_is_drawn_from_the_upright_pixels_that_land_in_it() {
-        let (width, height) = (7, 4);
-        for rotate in [0, 90, 180, 270] {
-            for (flip_h, flip_v) in [(false, false), (true, false), (false, true), (true, true)] {
-                let settings = Settings {
-                    rotate,
-                    flip_h,
-                    flip_v,
-                    ..Settings::NEUTRAL
-                };
-                let (across, down) = settings.output_size(width, height);
-                let tile = Tile {
-                    left: 1,
-                    top: 2,
-                    width: across.min(3),
-                    height: down.min(2).min(down - 2),
-                };
-                let source = tile.upright(&settings, width, height);
-                let mut landed = 0;
-                for y in 0..height {
-                    for x in 0..width {
-                        let (u, v) = drawn_pixel(&settings, x, y, width, height);
-                        let in_tile = (tile.left..tile.left + tile.width).contains(&u)
-                            && (tile.top..tile.top + tile.height).contains(&v);
-                        let in_source = (source.left..source.left + source.width).contains(&x)
-                            && (source.top..source.top + source.height).contains(&y);
-                        assert_eq!(in_tile, in_source, "{settings:?} at {x}, {y}");
-                        landed += u32::from(in_tile);
-                    }
-                }
-                assert_eq!(landed, tile.width * tile.height);
-            }
-        }
     }
 }

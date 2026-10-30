@@ -70,8 +70,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 // render check in the real web views.
 vi.mock("./preview", async () => ({
   // The real geometry: it's arithmetic, not the GPU.
-  orientedSize: (await vi.importActual<typeof import("./preview")>("./preview")).orientedSize,
-  uprightRegion: (await vi.importActual<typeof import("./preview")>("./preview")).uprightRegion,
+  ...(await vi.importActual<typeof import("./preview/geometry")>("./preview/geometry")),
   fetchLinear: vi.fn(() =>
     Promise.resolve({ width: 4, height: 3, data: new Uint16Array(4 * 3 * 4) }),
   ),
@@ -301,22 +300,29 @@ describe("Editor", () => {
     expect(mocks.editPhoto).toHaveBeenCalledWith(7, { kind: "turn", turn: "horizontal" });
   });
 
-  it("compares with the original turned as the photo is, so they line up (EDT-1)", async () => {
-    mocks.opened.settings = { exposureEv: 0.4, contrast: 20, rotate: 270, flipH: 1, flipV: 0 };
+  it("compares with the original placed as the photo is, so they line up (EDT-1)", async () => {
+    // Turned, straightened, and cropped to the left half as it's seen.
+    const geometry = {
+      rotate: 270,
+      flipH: 1,
+      flipV: 0,
+      straighten: 3,
+      cropX: 0,
+      cropY: 0,
+      cropWidth: 0.5,
+      cropHeight: 1,
+    };
+    mocks.opened.settings = { exposureEv: 0.4, contrast: 20, ...geometry };
     edit();
     await brightness();
+    // The 4 × 3 preview on its side is 3 × 4, and half as wide cropped.
     const canvas = screen.getByLabelText("IMG_7.jpg, edited") as HTMLCanvasElement;
-    expect([canvas.width, canvas.height]).toEqual([3, 4]);
+    expect([canvas.width, canvas.height]).toEqual([2, 4]);
     fireEvent.keyDown(window, { key: "\\" });
     await waitFor(() =>
-      expect(mocks.draw).toHaveBeenLastCalledWith({
-        ...mocks.neutral,
-        rotate: 270,
-        flipH: 1,
-        flipV: 0,
-      }),
+      expect(mocks.draw).toHaveBeenLastCalledWith({ ...mocks.neutral, ...geometry }),
     );
-    expect([canvas.width, canvas.height]).toEqual([3, 4]);
+    expect([canvas.width, canvas.height]).toEqual([2, 4]);
     fireEvent.keyUp(window, { key: "\\" });
   });
 

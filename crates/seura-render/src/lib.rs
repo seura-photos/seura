@@ -8,6 +8,7 @@
 
 pub mod check;
 mod export;
+mod geometry;
 mod renderer;
 mod settings;
 

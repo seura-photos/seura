@@ -4,13 +4,11 @@ import {
   GUIDE_PASSES,
   type LinearImage,
   PARAMS_SIZE,
-  type Region,
-  WHOLE,
   guideKey,
   needsGuide,
-  orientedSize,
   params,
 } from "./backend";
+import { drawnSize, type Placement } from "./geometry";
 import shader from "./generated/shader.wgsl?raw";
 
 // WebGPU's flag values (from the WebGPU specification). TypeScript's DOM
@@ -84,7 +82,7 @@ export async function createWebGpu(canvas: HTMLCanvasElement | null): Promise<Ba
   const emptyStage = empty("rgba32float");
   let photo: GPUTexture | null = null;
   let size = { width: 0, height: 0 };
-  let region: Region = WHOLE;
+  let placement: Placement = { full: { width: 1, height: 1 } };
   let guideImage: GPUTexture | null = null;
   // The guide, and the white balance it was built for.
   let guide: { texture: GPUTexture; key: string } | null = null;
@@ -171,7 +169,7 @@ export async function createWebGpu(canvas: HTMLCanvasElement | null): Promise<Ba
   ) => {
     if (!photo) return null;
     const guided = guideFor(settings) ?? emptyImage;
-    device.queue.writeBuffer(uniforms, 0, params(settings, outputSrgb, 0, region));
+    device.queue.writeBuffer(uniforms, 0, params(settings, outputSrgb, 0, placement));
     const encoder = device.createCommandEncoder();
     pass(encoder, target, format, bindings(photo, sampler, guided, emptyStage));
     return encoder;
@@ -195,13 +193,13 @@ export async function createWebGpu(canvas: HTMLCanvasElement | null): Promise<Ba
 
   return {
     name: "webgpu",
-    upload(image: LinearImage, guideSource: LinearImage, part: Region = WHOLE) {
+    upload(image: LinearImage, guideSource: LinearImage, placed: Placement) {
       photo?.destroy();
       guideImage?.destroy();
       guide?.texture.destroy();
       guide = null;
       size = { width: image.width, height: image.height };
-      region = part;
+      placement = placed;
       photo = texture(image);
       guideImage = texture(guideSource);
     },
@@ -211,7 +209,7 @@ export async function createWebGpu(canvas: HTMLCanvasElement | null): Promise<Ba
       if (encoder) device.queue.submit([encoder.finish()]);
     },
     async read(settings: RenderSettings) {
-      const drawn = orientedSize(size, settings);
+      const drawn = drawnSize(size, settings, placement);
       const target = device.createTexture({
         size: drawn,
         format: "rgba8unorm",

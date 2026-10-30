@@ -1,7 +1,8 @@
 //! The shaders, run with wgpu, against the edit format's definitions
 //! computed here on the CPU, as its formulas appendix gives them: the photo
-//! turned and flipped, each tone and color operation in the canonical
-//! order, then the result encoded for Display P3 or sRGB (EXP-5). The definitions are checked against the
+//! turned, flipped, straightened and cropped, sampled with Catmull-Rom, each
+//! tone and color operation in the canonical order, then the result encoded
+//! for Display P3 or sRGB (EXP-5). The definitions are checked against the
 //! appendix's own test vectors, and the shaders are run on those too.
 //!
 //! The images are generated: ramps through every channel, including Display
@@ -213,13 +214,10 @@ fn defined(color: [f64; 3], settings: &Settings, ab: [f64; 2]) -> [f64; 3] {
     p3
 }
 
-/// What a pixel must come out as, given the guide where it is.
-fn expected(pixel: [f16; 4], settings: &Settings, output: Output, ab: [f64; 2]) -> [u8; 3] {
-    let p3 = defined(
-        [0, 1, 2].map(|i| f64::from(pixel[i].to_f32())),
-        settings,
-        ab,
-    );
+/// What a pixel must come out as, given the photo's color and the guide
+/// where it is.
+fn expected(color: [f64; 3], settings: &Settings, output: Output, ab: [f64; 2]) -> [u8; 3] {
+    let p3 = defined(color, settings, ab);
     let linear = match output {
         Output::DisplayP3 => p3,
         Output::Srgb => P3_TO_SRGB.map(|row| row.iter().zip(p3).map(|(m, v)| m * v).sum()),
@@ -233,66 +231,106 @@ fn renderer() -> Renderer {
     renderer
 }
 
-/// Every pixel within one level of the definition: GPU arithmetic isn't
-/// bit-exact, but it's far closer than the 8-bit output can show.
-/// `seura.orient` as the edit format defines it: where each pixel of the
-/// upright photo lands, by index, turned clockwise and then flipped as it's
-/// then seen. Returns, for each drawn pixel, the upright pixel drawn there,
-/// and the drawn size.
-fn oriented(settings: &Settings, width: usize, height: usize) -> (Vec<usize>, usize, usize) {
-    let sideways = settings.rotate % 180 == 90;
-    let (across, down) = if sideways {
-        (height, width)
-    } else {
-        (width, height)
-    };
-    let mut from = vec![usize::MAX; width * height];
-    for y in 0..height {
-        for x in 0..width {
-            let (u, v) = match settings.rotate {
-                90 => (height - 1 - y, x),
-                180 => (width - 1 - x, height - 1 - y),
-                270 => (y, width - 1 - x),
-                _ => (x, y),
-            };
-            let u = if settings.flip_h { across - 1 - u } else { u };
-            let v = if settings.flip_v { down - 1 - v } else { v };
-            from[v * across + u] = y * width + x;
-        }
-    }
-    (from, across, down)
+/// round() in the geometry appendix: halves round up.
+fn round_half_up(value: f64) -> f64 {
+    (value + 0.5).floor()
 }
 
+/// The geometry stage as the appendix defines it (`geometry.md`), for an
+/// upright photo of `width` × `height`: the result's size, and where the
+/// center of each of its pixels is in the upright photo.
+fn placed(settings: &Settings, width: usize, height: usize) -> (usize, usize, Vec<(f64, f64)>) {
+    let sideways = settings.rotate % 180 == 90;
+    let (across, down) = if sideways {
+        (height as f64, width as f64)
+    } else {
+        (width as f64, height as f64)
+    };
+    let left = round_half_up(settings.crop_x * across);
+    let top = round_half_up(settings.crop_y * down);
+    let result_width = round_half_up(settings.crop_width * across).max(1.0) as usize;
+    let result_height = round_half_up(settings.crop_height * down).max(1.0) as usize;
+    let theta = f64::from(settings.straighten).to_radians();
+    let mut positions = Vec::with_capacity(result_width * result_height);
+    for j in 0..result_height {
+        for i in 0..result_width {
+            let p = (left + i as f64 + 0.5, top + j as f64 + 0.5);
+            let d = (p.0 - across / 2.0, p.1 - down / 2.0);
+            let mut q = (
+                across / 2.0 + d.0 * theta.cos() + d.1 * theta.sin(),
+                down / 2.0 - d.0 * theta.sin() + d.1 * theta.cos(),
+            );
+            if settings.flip_h {
+                q.0 = across - q.0;
+            }
+            if settings.flip_v {
+                q.1 = down - q.1;
+            }
+            positions.push(match settings.rotate {
+                90 => (q.1, across - q.0),
+                180 => (across - q.0, down - q.1),
+                270 => (down - q.1, q.0),
+                _ => q,
+            });
+        }
+    }
+    (result_width, result_height, positions)
+}
+
+/// Catmull-Rom at position x, y of the photo, in its pixels, as the
+/// geometry appendix defines it.
+fn catmull_rom(image: &LinearImage, x: f64, y: f64) -> [f64; 3] {
+    let (width, height) = (image.width as f64, image.height as f64);
+    let x = x.clamp(0.5, width - 0.5) - 0.5;
+    let y = y.clamp(0.5, height - 0.5) - 0.5;
+    let weights = |t: f64| {
+        [
+            (-t.powi(3) + 2.0 * t * t - t) / 2.0,
+            (3.0 * t.powi(3) - 5.0 * t * t + 2.0) / 2.0,
+            (-3.0 * t.powi(3) + 4.0 * t * t + t) / 2.0,
+            (t.powi(3) - t * t) / 2.0,
+        ]
+    };
+    let (wx, wy) = (weights(x - x.floor()), weights(y - y.floor()));
+    let mut color = [0.0; 3];
+    for (n, wy) in wy.iter().enumerate() {
+        let row = (y.floor() as i64 - 1 + n as i64).clamp(0, image.height as i64 - 1) as usize;
+        for (m, wx) in wx.iter().enumerate() {
+            let column =
+                (x.floor() as i64 - 1 + m as i64).clamp(0, image.width as i64 - 1) as usize;
+            let at = (row * image.width as usize + column) * 4;
+            for (k, channel) in color.iter_mut().enumerate() {
+                *channel += wx * wy * f64::from(image.pixels[at + k].to_f32());
+            }
+        }
+    }
+    color
+}
+
+/// Every pixel within one level of the definition: GPU arithmetic isn't
+/// bit-exact, but it's far closer than the 8-bit output can show.
 fn assert_matches(image: &LinearImage, settings: &Settings, output: Output, renderer: &Renderer) {
     let rendered = renderer
         .render(image, &image.guide_image(), settings, output)
         .unwrap();
     let (width, height) = (image.width as usize, image.height as usize);
-    let (from, across, down) = oriented(settings, width, height);
+    let (across, down, positions) = placed(settings, width, height);
     assert_eq!(
         (rendered.width as usize, rendered.height as usize),
         (across, down)
     );
     let guide = Guide::new(&image.guide_image(), settings);
     // The guide is sampled where the pixel is in the upright photo.
-    let ab = |i: usize| {
-        let j = from[i];
-        guide.sample(
-            ((j % width) as f64 + 0.5) / width as f64,
-            ((j / width) as f64 + 0.5) / height as f64,
-        )
-    };
-    let source = |i: usize| -> [f16; 4] {
-        image.pixels[from[i] * 4..from[i] * 4 + 4]
-            .try_into()
-            .unwrap()
+    let want = |i: usize| {
+        let (x, y) = positions[i];
+        let ab = guide.sample(x / width as f64, y / height as f64);
+        expected(catmull_rom(image, x, y), settings, output, ab)
     };
     let mut worst = (0, 0);
     for (i, found) in rendered.pixels.chunks(4).enumerate() {
-        let want = expected(source(i), settings, output, ab(i));
         let off = found[..3]
             .iter()
-            .zip(want)
+            .zip(want(i))
             .map(|(a, b)| a.abs_diff(b))
             .max()
             .unwrap();
@@ -305,8 +343,120 @@ fn assert_matches(image: &LinearImage, settings: &Settings, output: Output, rend
         off <= 1,
         "{settings:?}, {output:?}: pixel {i} is off by {off}: found {:?}, expected {:?}",
         &rendered.pixels[i * 4..i * 4 + 3],
-        expected(source(i), settings, output, ab(i)),
+        want(i),
     );
+}
+
+/// The geometry vectors' file, from the edit format.
+fn geometry_vectors(name: &str) -> serde_json::Value {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../third_party/edit-format/tests/formulas/geometry")
+        .join(format!("{name}.json"));
+    serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+}
+
+#[test]
+fn the_geometry_definitions_match_the_appendix_vectors() {
+    let close = |found: f64, want: &serde_json::Value| {
+        let want = want.as_f64().unwrap();
+        (found - want).abs() <= 0.0001 + 0.001 * want.abs()
+    };
+    for case in geometry_vectors("positions")["cases"].as_array().unwrap() {
+        let number = |value: &serde_json::Value| value.as_f64().unwrap();
+        let settings = Settings {
+            rotate: case["orient"]["rotate"].as_u64().unwrap() as u16,
+            flip_h: case["orient"]["flipH"].as_bool().unwrap(),
+            flip_v: case["orient"]["flipV"].as_bool().unwrap(),
+            straighten: number(&case["angle"]) as f32,
+            crop_x: number(&case["crop"]["x"]),
+            crop_y: number(&case["crop"]["y"]),
+            crop_width: number(&case["crop"]["width"]),
+            crop_height: number(&case["crop"]["height"]),
+            ..Settings::NEUTRAL
+        };
+        let upright = &case["upright"];
+        let (across, down, positions) = placed(
+            &settings,
+            upright[0].as_u64().unwrap() as usize,
+            upright[1].as_u64().unwrap() as usize,
+        );
+        assert_eq!(
+            [across, down],
+            [0, 1].map(|k| case["outputSize"][k].as_u64().unwrap() as usize)
+        );
+        for (pixel, want) in case["pixels"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .zip(case["positions"].as_array().unwrap())
+        {
+            let i =
+                pixel[1].as_u64().unwrap() as usize * across + pixel[0].as_u64().unwrap() as usize;
+            let found = positions[i];
+            assert!(
+                close(found.0, &want[0]) && close(found.1, &want[1]),
+                "{case}: {pixel} at {found:?}"
+            );
+        }
+    }
+    let file = geometry_vectors("sampling");
+    let rows = file["image"].as_array().unwrap();
+    let image = LinearImage {
+        width: rows[0].as_array().unwrap().len() as u32,
+        height: rows.len() as u32,
+        pixels: rows
+            .iter()
+            .flat_map(|row| row.as_array().unwrap().iter())
+            .flat_map(|color| {
+                let c: Vec<f32> = color
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_f64().unwrap() as f32)
+                    .collect();
+                [c[0], c[1], c[2], 1.0].map(f16::from_f32)
+            })
+            .collect(),
+    };
+    for case in file["cases"].as_array().unwrap() {
+        let at = &case["position"];
+        let found = catmull_rom(&image, at[0].as_f64().unwrap(), at[1].as_f64().unwrap());
+        for (found, want) in found.iter().zip(case["output"].as_array().unwrap()) {
+            assert!(close(*found, want), "{case}: found {found}");
+        }
+    }
+}
+
+/// Straightened and cropped (EDT-2, EDT-3), with every turn, and with
+/// highlights and shadows, whose guide covers the upright photo.
+#[test]
+fn straightened_and_cropped_photos_match_the_definition() {
+    let renderer = renderer();
+    let image = ramps(61, 41);
+    for (rotate, flip_h) in [(0, false), (90, true), (270, false)] {
+        for straighten in [7.3, -31.0] {
+            let settings = Settings {
+                rotate,
+                flip_h,
+                straighten,
+                crop_x: 0.17,
+                crop_y: 0.2,
+                crop_width: 0.61,
+                crop_height: 0.5,
+                highlights: -40.0,
+                shadows: 35.0,
+                ..Settings::NEUTRAL
+            };
+            assert_matches(&image, &settings, Output::DisplayP3, &renderer);
+        }
+    }
+    // A crop past the turned photo shows its corners as the nearest edge
+    // pixel, as a file written elsewhere may have them.
+    let corners = Settings {
+        straighten: 20.0,
+        ..Settings::NEUTRAL
+    };
+    assert_matches(&image, &corners, Output::Srgb, &renderer);
 }
 
 /// Both flips are a half turn. Seura stores a half turn, but readers must
@@ -652,13 +802,22 @@ fn large_photos_are_rendered_in_tiles_seamlessly() {
     };
     assert_matches(&image, &settings, Output::Srgb, &renderer);
     // Turned, each tile of the drawn photo comes from a different part of
-    // the upright one.
+    // the upright one; straightened, from a part wider than the tile.
     let turned = Settings {
         rotate: 90,
         flip_v: true,
         ..settings
     };
     assert_matches(&image, &turned, Output::Srgb, &renderer);
+    let straightened = Settings {
+        straighten: -3.5,
+        crop_x: 0.05,
+        crop_y: 0.04,
+        crop_width: 0.9,
+        crop_height: 0.92,
+        ..settings
+    };
+    assert_matches(&image, &straightened, Output::Srgb, &renderer);
 }
 
 /// A dark half beside a bright one, each with fine texture: shadows lifts

@@ -37,9 +37,10 @@ import { NoticeBar } from "./NoticeBar";
 import {
   type Backend,
   createPreview,
+  drawnSize,
   fetchLinear,
+  geometryOf,
   type LinearImage,
-  orientedSize,
 } from "./preview";
 import { Slider } from "./Slider";
 import { useStore } from "./store";
@@ -317,10 +318,11 @@ export function Editor({ id, forceWebgl2 }: Props) {
       const renderer = await backend.current;
       const element = canvas.current;
       if (!live || !renderer || !element) return;
-      const drawn = orientedSize(image, data.settings);
+      const full = { width: data.fullWidth, height: data.fullHeight };
+      const drawn = drawnSize(image, data.settings, { full });
       element.width = drawn.width;
       element.height = drawn.height;
-      renderer.upload(image, guide);
+      renderer.upload(image, guide, { full });
       renderer.draw(data.settings);
       shownGuide.current = { id, guide };
       setStatus({
@@ -348,33 +350,29 @@ export function Editor({ id, forceWebgl2 }: Props) {
   // Every change of a setting, or holding compare, redraws the photo, and
   // the sharp part over it while zoomed in: compare keeps the zoom.
   const settings = shown?.settings ?? null;
-  // Compare shows the original as the photo is turned, so it lines up with
-  // the edited photo, at the same zoom and position (EDT-1).
+  // Compare shows the original turned, straightened and cropped as the
+  // photo is, so it lines up with the edited photo, at the same zoom and
+  // position (EDT-1).
   const drawnSettings = useMemo(
-    () =>
-      settings &&
-      (comparing
-        ? {
-            ...NEUTRAL_SETTINGS,
-            rotate: settings.rotate,
-            flipH: settings.flipH,
-            flipV: settings.flipV,
-          }
-        : settings),
+    () => settings && (comparing ? { ...NEUTRAL_SETTINGS, ...geometryOf(settings) } : settings),
     [settings, comparing],
   );
   // The preview's upright size, for sizing the canvas as it's turned.
   const previewWidth = shown?.width ?? 0;
   const previewHeight = shown?.height ?? 0;
+  const fullWidth = shown?.full.width ?? 0;
+  const fullHeight = shown?.full.height ?? 0;
   // For a sharp part that arrives after a change.
   const drawnNow = useRef(drawnSettings);
   useEffect(() => {
     drawnNow.current = drawnSettings;
     if (!drawnSettings) return;
-    // A turn changes the canvas's shape.
+    // A turn or a crop changes the canvas's shape.
     const element = canvas.current;
     if (element && previewWidth > 0) {
-      const drawn = orientedSize({ width: previewWidth, height: previewHeight }, drawnSettings);
+      const drawn = drawnSize({ width: previewWidth, height: previewHeight }, drawnSettings, {
+        full: { width: fullWidth, height: fullHeight },
+      });
       if (element.width !== drawn.width) element.width = drawn.width;
       if (element.height !== drawn.height) element.height = drawn.height;
     }
@@ -382,14 +380,14 @@ export function Editor({ id, forceWebgl2 }: Props) {
     if (detailUploaded.current) {
       void detailBackend.current?.then((renderer) => renderer?.draw(drawnSettings));
     }
-  }, [drawnSettings, previewWidth, previewHeight]);
+  }, [drawnSettings, previewWidth, previewHeight, fullWidth, fullHeight]);
 
   const zoom = useZoom({
     stage,
     area,
     inset,
     photo: shown && { id: shown.id, full: shown.full },
-    orient: drawnSettings,
+    geometry: drawnSettings,
     cut: async (photoId, region, width, height) => {
       const result = await commands.editorRegion(
         photoId,
@@ -407,16 +405,16 @@ export function Editor({ id, forceWebgl2 }: Props) {
         ? image
         : null;
     },
-    show: async (image, at) => {
+    show: async (image, placement) => {
       const renderer = await detailBackend.current;
       const element = detailCanvas.current;
       const guide = shownGuide.current;
       const drawn = drawnNow.current;
       if (!renderer || !element || !drawn || guide?.id !== idNow.current) return false;
-      const size = orientedSize(image, drawn);
+      const size = drawnSize(image, drawn, placement);
       element.width = size.width;
       element.height = size.height;
-      renderer.upload(image, guide.guide, at);
+      renderer.upload(image, guide.guide, placement);
       renderer.draw(drawn);
       detailUploaded.current = true;
       return true;

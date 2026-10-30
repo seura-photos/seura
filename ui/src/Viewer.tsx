@@ -18,13 +18,7 @@ import {
 } from "./keys";
 import { SHOWN_EVENT } from "./measure";
 import { PhotoMenu } from "./PhotoMenu";
-import {
-  type Backend,
-  createPreview,
-  fetchLinear,
-  type LinearImage,
-  orientedSize,
-} from "./preview";
+import { type Backend, createPreview, drawnSize, fetchLinear, type LinearImage } from "./preview";
 import { anchorOf, useStore } from "./store";
 import { useZoom } from "./useZoom";
 import type { Size } from "./zoom";
@@ -100,7 +94,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     stage,
     area,
     photo: shown,
-    orient: shown?.settings ?? null,
+    geometry: shown?.settings ?? null,
     cut: async (id, region, width, height) => {
       const result = await commands.viewRegion(
         id,
@@ -118,15 +112,15 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
         ? image
         : null;
     },
-    show: async (image, at) => {
+    show: async (image, placement) => {
       const renderer = await detailBackend.current;
       const element = detailCanvas.current;
       const guide = shownGuide.current;
       if (!renderer || !element || !shown || guide?.id !== shown.id) return false;
-      const drawn = orientedSize(image, shown.settings);
+      const drawn = drawnSize(image, shown.settings, placement);
       element.width = drawn.width;
       element.height = drawn.height;
-      renderer.upload(image, guide.guide, at);
+      renderer.upload(image, guide.guide, placement);
       renderer.draw(shown.settings);
       return true;
     },
@@ -231,11 +225,12 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
       const renderer = await backend.current;
       const element = canvas.current;
       if (!live || !renderer || !element) return;
-      // Drawn as its edits turn it.
-      const drawn = orientedSize(image, data.settings);
+      // Drawn as its edits turn, straighten and crop it.
+      const full = { width: data.fullWidth, height: data.fullHeight };
+      const drawn = drawnSize(image, data.settings, { full });
       element.width = drawn.width;
       element.height = drawn.height;
-      renderer.upload(image, guide);
+      renderer.upload(image, guide, { full });
       shownGuide.current = { id: viewing, guide };
       renderer.draw(data.settings);
       setStatus({

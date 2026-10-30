@@ -5,6 +5,7 @@ use bytemuck::{Pod, Zeroable};
 use seura_edit::{CoreOperation, EditDocument, Operation};
 
 use crate::Output;
+use crate::geometry::Geometry;
 
 /// Every core operation's parameters but red-eye's regions, each neutral by
 /// default (technical design, section 6). The shaders skip an operation
@@ -22,11 +23,12 @@ pub struct Settings {
     pub flip_v: bool,
     /// `seura.straighten`'s angle, in degrees, clockwise positive.
     pub straighten: f32,
-    /// `seura.crop`'s rectangle, as fractions of the straightened photo.
-    pub crop_x: f32,
-    pub crop_y: f32,
-    pub crop_width: f32,
-    pub crop_height: f32,
+    /// `seura.crop`'s rectangle, as fractions of the oriented photo, as
+    /// the file has them: rounding them to pixels needs every digit.
+    pub crop_x: f64,
+    pub crop_y: f64,
+    pub crop_width: f64,
+    pub crop_height: f64,
     /// `seura.exposure`'s `ev`, in stops.
     pub exposure_ev: f32,
     /// `seura.whiteBalance`, −100 to 100.
@@ -99,10 +101,10 @@ impl Settings {
                     settings.straighten = straighten.angle as f32;
                 }
                 CoreOperation::Crop(crop) => {
-                    settings.crop_x = crop.x as f32;
-                    settings.crop_y = crop.y as f32;
-                    settings.crop_width = crop.width as f32;
-                    settings.crop_height = crop.height as f32;
+                    settings.crop_x = crop.x;
+                    settings.crop_y = crop.y;
+                    settings.crop_width = crop.width;
+                    settings.crop_height = crop.height;
                 }
                 // Its regions arrive with red-eye, in M4 slice 7.
                 CoreOperation::RedEye(_) => {}
@@ -134,10 +136,10 @@ impl Settings {
         self.rotate % 180 == 90
     }
 
-    /// The size of the photo drawn with these settings, for a photo of
-    /// `width` × `height` upright: turned by `seura.orient`. Straighten and
-    /// crop arrive with slice 5 of M4.
-    pub fn output_size(&self, width: u32, height: u32) -> (u32, u32) {
+    /// The oriented photo's size (edit format, "Geometry frame and
+    /// sampling"), for a photo of `width` × `height` upright: turned by
+    /// `seura.orient`. Straighten and crop are measured in it.
+    pub fn oriented_size(&self, width: u32, height: u32) -> (u32, u32) {
         if self.sideways() {
             (height, width)
         } else {
@@ -145,20 +147,27 @@ impl Settings {
         }
     }
 
-    /// The shaders' `Params` for these settings, encoded for `output`, for
-    /// one pass, over `tile`: x, y, width and height as fractions of the
+    /// The size of the photo drawn with these settings, for a photo of
+    /// `width` × `height` upright: its crop, in whole pixels of the oriented
     /// photo.
-    pub(crate) fn uniforms(&self, output: Output, pass: Pass, tile: [f32; 4]) -> Params {
+    pub fn output_size(&self, width: u32, height: u32) -> (u32, u32) {
+        Geometry::new(self, width, height).output_size()
+    }
+
+    /// The shaders' `Params` for these settings, encoded for `output`, for
+    /// one pass, over `draw`.
+    pub(crate) fn uniforms(&self, output: Output, pass: Pass, draw: &Draw) -> Params {
+        let crop = Geometry::new(self, draw.full.0, draw.full.1).crop();
         Params {
             output_srgb: u32::from(output == Output::Srgb),
             rotate: u32::from(self.rotate),
             flip_h: u32::from(self.flip_h),
             flip_v: u32::from(self.flip_v),
             straighten: self.straighten,
-            crop_x: self.crop_x,
-            crop_y: self.crop_y,
-            crop_width: self.crop_width,
-            crop_height: self.crop_height,
+            crop_x: self.crop_x as f32,
+            crop_y: self.crop_y as f32,
+            crop_width: self.crop_width as f32,
+            crop_height: self.crop_height as f32,
             exposure_ev: self.exposure_ev,
             temperature: self.temperature,
             tint: self.tint,
@@ -171,10 +180,44 @@ impl Settings {
             vignette_amount: self.vignette_amount,
             vignette_size: self.vignette_size,
             draw_pass: pass as u32,
-            tile_x: tile[0],
-            tile_y: tile[1],
-            tile_width: tile[2],
-            tile_height: tile[3],
+            tile_x: draw.part[0],
+            tile_y: draw.part[1],
+            tile_width: draw.part[2],
+            tile_height: draw.part[3],
+            full_width: draw.full.0 as f32,
+            full_height: draw.full.1 as f32,
+            view_x: draw.view[0],
+            view_y: draw.view[1],
+            view_width: draw.view[2],
+            view_height: draw.view[3],
+            crop_left: crop.left as f32,
+            crop_top: crop.top as f32,
+            crop_pixels_width: crop.width as f32,
+            crop_pixels_height: crop.height as f32,
+        }
+    }
+}
+
+/// What one draw covers: the part of the upright photo its photo texture
+/// holds, and the part of the result it draws, each as x, y, width and
+/// height in fractions; and the upright photo's full size in pixels, which
+/// geometry is measured in.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Draw {
+    pub full: (u32, u32),
+    pub part: [f32; 4],
+    pub view: [f32; 4],
+}
+
+impl Draw {
+    pub const ALL: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
+
+    /// All of a photo of this size, drawn whole.
+    pub fn whole(full: (u32, u32)) -> Draw {
+        Draw {
+            full,
+            part: Draw::ALL,
+            view: Draw::ALL,
         }
     }
 }
@@ -216,6 +259,16 @@ pub(crate) struct Params {
     pub tile_y: f32,
     pub tile_width: f32,
     pub tile_height: f32,
+    pub full_width: f32,
+    pub full_height: f32,
+    pub view_x: f32,
+    pub view_y: f32,
+    pub view_width: f32,
+    pub view_height: f32,
+    pub crop_left: f32,
+    pub crop_top: f32,
+    pub crop_pixels_width: f32,
+    pub crop_pixels_height: f32,
 }
 
 /// What a draw does (`Params`' `draw_pass`): draw the photo, or one of the
@@ -301,6 +354,13 @@ mod tests {
         assert_eq!(turned(90).output_size(4, 3), (3, 4));
         assert_eq!(turned(180).output_size(4, 3), (4, 3));
         assert_eq!(turned(270).output_size(4, 3), (3, 4));
+        // Cropped: in whole pixels of the turned photo.
+        let cropped = Settings {
+            crop_width: 0.5,
+            crop_height: 0.3,
+            ..turned(90)
+        };
+        assert_eq!(cropped.output_size(40, 30), (15, 12));
         // Flips keep the size.
         let flipped = Settings {
             flip_h: true,
@@ -363,7 +423,17 @@ mod tests {
             tile_x,
             tile_y,
             tile_width,
-            tile_height
+            tile_height,
+            full_width,
+            full_height,
+            view_x,
+            view_y,
+            view_width,
+            view_height,
+            crop_left,
+            crop_top,
+            crop_pixels_width,
+            crop_pixels_height
         );
         let theirs: Vec<(&str, u32)> = members
             .iter()
@@ -376,7 +446,7 @@ mod tests {
     #[test]
     fn neutral_is_the_whole_photo_unchanged() {
         let params =
-            Settings::NEUTRAL.uniforms(Output::DisplayP3, Pass::Draw, [0.0, 0.0, 1.0, 1.0]);
+            Settings::NEUTRAL.uniforms(Output::DisplayP3, Pass::Draw, &Draw::whole((4, 3)));
         assert_eq!(params.output_srgb, 0);
         assert_eq!(
             (params.crop_width, params.crop_height, params.exposure_ev),
@@ -384,7 +454,7 @@ mod tests {
         );
         assert_eq!(
             Settings::NEUTRAL
-                .uniforms(Output::Srgb, Pass::Draw, [0.0, 0.0, 1.0, 1.0])
+                .uniforms(Output::Srgb, Pass::Draw, &Draw::whole((4, 3)))
                 .output_srgb,
             1
         );

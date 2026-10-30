@@ -129,7 +129,7 @@ No GPL code: exiv2 and gexiv2 are excluded because they're GPL-licensed and Seur
 
 ### Export (EXP-1 to EXP-6)
 
-Decode at full resolution → render all operations with the wgpu pipeline in tiles (about 2048 px squares with an overlap for operations that sample neighbors) → convert to sRGB → encode JPEG (`jpeg-encoder` since M1; `mozjpeg` to be benchmarked against it for quality and speed in M2) or PNG → write metadata → write to a temporary file in the destination folder and rename to the final, never-taken name (EXP-3).
+Decode at full resolution → render all operations with the wgpu pipeline in tiles (1440 px squares of the result, each uploading the part of the photo it samples with a few pixels' margin for the filter, which fits the 2048 px texture limit even straightened by 45°; operations that sample neighbors use the guide, below) → convert to sRGB → encode JPEG (`jpeg-encoder` since M1; `mozjpeg` to be benchmarked against it for quality and speed in M2) or PNG → write metadata → write to a temporary file in the destination folder and rename to the final, never-taken name (EXP-3).
 
 ## 6. Rendering (decision 0004)
 
@@ -142,7 +142,7 @@ Decode at full resolution → render all operations with the wgpu pipeline in ti
 
 ### Pipeline
 
-1. **Geometry** (orient, straighten, crop) is applied as a coordinate transform when sampling, not as a separate pass.
+1. **Geometry** (orient, straighten, crop) is applied as a coordinate transform when sampling, not as a separate pass: each pixel of the result is placed in the upright photo and sampled there with Catmull-Rom, as the edit format's formulas appendix defines (`geometry.md`).
 2. **Retouch** (red-eye) samples the photo in its pre-geometry coordinates.
 3. **Tone and color**, then **effects**, run as one fused fragment pass over the visible region, with uniforms for each operation's parameters. An operation with neutral settings is skipped by a branch on its own uniform values (for example, contrast only when its amount isn't 0), rather than separate shader variants or separate flags that would have to be kept in step with the values.
 
