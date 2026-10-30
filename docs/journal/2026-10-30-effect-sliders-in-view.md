@@ -1,0 +1,5 @@
+# An effect's sliders opened out of sight
+
+- **Nevada noticed it** once Revert was pinned (#177). The effects are now at the bottom of the panel's scrolling part. Turning on an effect whose button was at the bottom of the visible panel opened its sliders below the edge, out of sight. Nevada also noticed the panel seemed to remember the scroll: after scrolling down to the sliders, turning the effect off and on again showed them. That's the browser keeping the scroll position as the content above it is unchanged, not anything Seura did.
+- **The fix, Claude Code's:** turning an effect on scrolls its group (button and sliders) into view, only as far as needed, so a group already in view doesn't move. It scrolls smoothly, or at once when the system asks for reduced motion. Turning an effect off doesn't scroll, and neither does opening a photo with effects already on.
+- **Unlike Revert's confirmation,** scrolling here can only bring a slider under the pointer, not a destructive choice. A slider moved by mistake is one undo away.

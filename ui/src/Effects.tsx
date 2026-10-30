@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PhotoEdit, RenderSettings } from "./bindings";
 import { formatNumber } from "./format";
 import { t } from "./messages";
@@ -58,6 +58,19 @@ export function Effects({ values, disabled, reset, onInput, onCommit }: Props) {
   };
   // Each effect's settings when it was last turned off.
   const last = useRef({ ...EFFECT_DEFAULTS });
+  // Each effect's group, and the one just turned on, whose sliders are
+  // scrolled into view: at the bottom of the panel they'd open out of sight.
+  const groups = useRef<Partial<Record<Effect, HTMLDivElement | null>>>({});
+  const [revealed, setRevealed] = useState<{ effect: Effect } | null>(null);
+  useEffect(() => {
+    if (!revealed) return;
+    const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    // Only as far as needed, so a group already in view doesn't move.
+    groups.current[revealed.effect]?.scrollIntoView?.({
+      block: "nearest",
+      behavior: still ? "auto" : "smooth",
+    });
+  }, [revealed]);
 
   const on = {
     blackAndWhite: values.blackAndWhite !== 0,
@@ -82,6 +95,7 @@ export function Effects({ values, disabled, reset, onInput, onCommit }: Props) {
       return;
     }
     keep(effect);
+    setRevealed({ effect });
     if (effect === "vignette") {
       const { vignetteAmount: amount, vignetteSize: size } = last.current;
       onInput({ vignetteAmount: amount, vignetteSize: size });
@@ -129,15 +143,36 @@ export function Effects({ values, disabled, reset, onInput, onCommit }: Props) {
       <h2 className="section-label" aria-hidden>
         {t("editor-effects")}
       </h2>
-      <div className="effect" role="group" aria-label={t("editor-black-and-white")}>
+      <div
+        ref={(element) => {
+          groups.current.blackAndWhite = element;
+        }}
+        className="effect"
+        role="group"
+        aria-label={t("editor-black-and-white")}
+      >
         {button("blackAndWhite", t("editor-black-and-white"))}
         {shown("blackAndWhite") && strength("blackAndWhite")}
       </div>
-      <div className="effect" role="group" aria-label={t("editor-sepia")}>
+      <div
+        ref={(element) => {
+          groups.current.sepia = element;
+        }}
+        className="effect"
+        role="group"
+        aria-label={t("editor-sepia")}
+      >
         {button("sepia", t("editor-sepia"))}
         {shown("sepia") && strength("sepia")}
       </div>
-      <div className="effect" role="group" aria-label={t("editor-vignette")}>
+      <div
+        ref={(element) => {
+          groups.current.vignette = element;
+        }}
+        className="effect"
+        role="group"
+        aria-label={t("editor-vignette")}
+      >
         {button("vignette", t("editor-vignette"))}
         {shown("vignette") && (
           <>
