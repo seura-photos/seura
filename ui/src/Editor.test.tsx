@@ -300,6 +300,15 @@ describe("Editor", () => {
     expect(mocks.editPhoto).toHaveBeenCalledWith(7, { kind: "turn", turn: "horizontal" });
   });
 
+  it("pictures each flip as it mirrors: left to right across an upright line", async () => {
+    edit();
+    await brightness();
+    const icon = (name: string) =>
+      screen.getByRole("button", { name }).querySelector("svg")?.getAttribute("class") ?? "";
+    expect(icon("Flip horizontal")).toContain("triangles-centerline-dashed-vertical");
+    expect(icon("Flip vertical")).toContain("triangles-centerline-dashed-horizontal");
+  });
+
   it("compares with the original placed as the photo is, so they line up (EDT-1)", async () => {
     // Turned, straightened, and cropped to the left half as it's seen.
     const geometry = {

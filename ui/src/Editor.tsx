@@ -1,10 +1,10 @@
 import {
-  FlipHorizontal2,
-  FlipVertical2,
   Redo2,
   RotateCcwSquare,
   RotateCwSquare,
   TriangleAlert,
+  TrianglesCenterlineDashedHorizontal,
+  TrianglesCenterlineDashedVertical,
   Undo2,
 } from "lucide-react";
 import {
@@ -817,7 +817,9 @@ export function Editor({ id, forceWebgl2 }: Props) {
             disabled={!editable}
             onClick={() => turnPhoto("horizontal")}
           >
-            <FlipHorizontal2 className="icon" aria-hidden />
+            {/* Mirrored across an upright line. Lucide's FlipHorizontal2
+                is the other drawing. */}
+            <TrianglesCenterlineDashedVertical className="icon" aria-hidden />
           </button>
           <button
             type="button"
@@ -827,7 +829,7 @@ export function Editor({ id, forceWebgl2 }: Props) {
             disabled={!editable}
             onClick={() => turnPhoto("vertical")}
           >
-            <FlipVertical2 className="icon" aria-hidden />
+            <TrianglesCenterlineDashedHorizontal className="icon" aria-hidden />
           </button>
         </div>
 
