@@ -628,7 +628,8 @@ pub enum Turn {
 /// after a quarter turn is the other flip before it, so a quarter turn
 /// trades the flips. The crop follows the photo, so the same part stays in
 /// it, and a ratio lock turns with it: 3:2 becomes 2:3 (EDT-4). A flip
-/// mirrors the straighten angle too.
+/// mirrors the straighten angle too. Both flips are a half turn, and are
+/// stored as one (edit format: `seura.orient`).
 pub fn turn_action(mine: &Mine, turn: Turn) -> Action {
     let orient = match mine.get(CoreOpId::Orient) {
         Some(CoreOperation::Orient(orient)) => orient.clone(),
@@ -652,6 +653,15 @@ pub fn turn_action(mine: &Mine, turn: Turn) -> Action {
             flip_v: !orient.flip_v,
             ..orient
         },
+    };
+    let orient = if orient.flip_h && orient.flip_v {
+        Orient {
+            rotate: (orient.rotate + 180) % 360,
+            flip_h: false,
+            flip_v: false,
+        }
+    } else {
+        orient
     };
     let mut edits = vec![Edit::Set(CoreOperation::Orient(orient))];
     if let Some(CoreOperation::Straighten(straighten)) = mine.get(CoreOpId::Straighten)
@@ -1125,16 +1135,35 @@ mod tests {
             orient(&turned(&[], &[Turn::Right, Turn::Horizontal])),
             Some((90, true, false))
         );
-        // Both flips are a half turn.
+        // Both flips are a half turn, and stored as one.
         assert_eq!(
-            Settings::from_operations(
-                turned(&[], &[Turn::Horizontal, Turn::Vertical])
-                    .0
-                    .iter()
-                    .flatten()
-            )
-            .output_size(4, 3),
-            (4, 3)
+            orient(&turned(&[], &[Turn::Horizontal, Turn::Vertical])),
+            Some((180, false, false))
+        );
+        assert_eq!(
+            orient(&turned(
+                &[],
+                &[Turn::Right, Turn::Horizontal, Turn::Vertical]
+            )),
+            Some((270, false, false))
+        );
+    }
+
+    #[test]
+    fn a_double_flip_written_elsewhere_is_read_and_turned_from() {
+        // Readers must accept both flips: 90 with both is 270.
+        let flipped = [CoreOperation::Orient(Orient {
+            rotate: 90,
+            flip_h: true,
+            flip_v: true,
+        })];
+        assert_eq!(orient(&turned(&flipped, &[])), Some((90, true, true)));
+        // A quarter turn right from 270 is upright: nothing to store.
+        assert_eq!(orient(&turned(&flipped, &[Turn::Right])), None);
+        // A flip from it is written without the double flip.
+        assert_eq!(
+            orient(&turned(&flipped, &[Turn::Horizontal])),
+            Some((90, false, true))
         );
     }
 

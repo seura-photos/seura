@@ -29,3 +29,10 @@
 - **Tests:**
   - The GPU renders every turn and flip exactly as the format defines them, with highlights and shadows, and across tile seams.
   - The render check now turns and flips its image too, and still matches export exactly on WebGPU and WebGL2, on Windows and on the Mac (difference 0 on all four; the Mac session ran it).
+- **The design session's answers** (edit-format #10, seura #168), all as proposed:
+  - The crop frame is the oriented photo's own rectangle; the guide is built before any geometry; tilted photos are sampled with Catmull-Rom bicubic, in the shader the preview and export share.
+  - `seura.orient` turns first, then flips as the turned photo is seen, as 5a built it.
+  - Compare keeps the geometry, and a turn returns to Fit, as built.
+  - One addition: both flips are a half turn, and writers should store them as one. Seura now does, and reads a file with both flips as the half turn it is (tests for both).
+- **A paste went wrong on the way.** Nevada's first paste of the questions into the design session was cut short, so it answered only the first three. Claude Code noticed the missing answers when checking the pull requests against the brief, and Nevada asked again with the full list.
+

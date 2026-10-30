@@ -309,6 +309,37 @@ fn assert_matches(image: &LinearImage, settings: &Settings, output: Output, rend
     );
 }
 
+/// Both flips are a half turn. Seura stores a half turn, but readers must
+/// accept both flips (edit format: `seura.orient`), so a file that has them
+/// draws exactly as the half turn does.
+#[test]
+fn both_flips_draw_as_a_half_turn() {
+    let renderer = renderer();
+    let image = ramps(37, 23);
+    let document = seura_edit::EditDocument::parse(
+        br#"{"format": "seura-edit", "formatVersion": "1.0",
+            "photo": {"file": "a.jpg", "size": 1},
+            "operations": [{"id": "seura.orient", "version": 1,
+                "params": {"rotate": 90, "flipH": true, "flipV": true}}]}"#,
+    )
+    .unwrap();
+    let flipped = Settings::from_document(&document);
+    assert_eq!(
+        (flipped.rotate, flipped.flip_h, flipped.flip_v),
+        (90, true, true)
+    );
+    let half_turn = Settings {
+        rotate: 270,
+        ..Settings::NEUTRAL
+    };
+    let draw = |settings: &Settings| {
+        renderer
+            .render(&image, &image.guide_image(), settings, Output::Srgb)
+            .unwrap()
+    };
+    assert_eq!(draw(&flipped), draw(&half_turn));
+}
+
 /// Every turn and flip (EDT-4), on a photo that isn't square, with
 /// highlights and shadows, whose guide covers the upright photo.
 #[test]
