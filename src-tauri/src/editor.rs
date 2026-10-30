@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use seura_edit::{
     Action, Amount, CoreOpId, CoreOperation, Crop, Edit, EditDocument, EditFile, Exposure, Orient,
-    Step, Straighten, WhiteBalance, Writer, edit_file_path,
+    Step, Straighten, Strength, Vignette, WhiteBalance, Writer, edit_file_path,
 };
 use seura_image::{LinearImage, Rgba8};
 use seura_library::{PhotoId, Problem};
@@ -814,14 +814,21 @@ pub fn exposure_action(ev: f64) -> Action {
     }
 }
 
-/// The edit format's range for the light and color sliders (EDT-5).
+/// The edit format's range for the light and color sliders (EDT-5), and
+/// the vignette's amount.
 const AMOUNT_RANGE: (f64, f64) = (-100.0, 100.0);
 
-/// One setting of a light or color slider (EDT-5), as its action: one
-/// record in the photo's history, labelled as the slider is; a neutral
-/// setting removes the operation.
+/// The edit format's range for the effects' strengths and the vignette's
+/// size (EDT-6).
+const STRENGTH_RANGE: (f64, f64) = (0.0, 100.0);
+
+/// One setting of a light, color or effect slider (EDT-5, EDT-6), or an
+/// effect turned on or off, as its action: one record in the photo's
+/// history, labelled as the slider is; a neutral setting removes the
+/// operation.
 pub fn slider_action(label: &str, operation: CoreOperation) -> Action {
     let amount = |value: f64| value.clamp(AMOUNT_RANGE.0, AMOUNT_RANGE.1);
+    let strength = |value: f64| value.clamp(STRENGTH_RANGE.0, STRENGTH_RANGE.1);
     let operation = match operation {
         CoreOperation::WhiteBalance(WhiteBalance { temperature, tint }) => {
             CoreOperation::WhiteBalance(WhiteBalance {
@@ -840,6 +847,21 @@ pub fn slider_action(label: &str, operation: CoreOperation) -> Action {
         }),
         CoreOperation::Saturation(Amount { amount: value }) => CoreOperation::Saturation(Amount {
             amount: amount(value),
+        }),
+        CoreOperation::BlackAndWhite(Strength { strength: value }) => {
+            CoreOperation::BlackAndWhite(Strength {
+                strength: strength(value),
+            })
+        }
+        CoreOperation::Sepia(Strength { strength: value }) => CoreOperation::Sepia(Strength {
+            strength: strength(value),
+        }),
+        CoreOperation::Vignette(Vignette {
+            amount: value,
+            size,
+        }) => CoreOperation::Vignette(Vignette {
+            amount: amount(value),
+            size: strength(size),
         }),
         other => other,
     };
@@ -1109,6 +1131,47 @@ mod tests {
         assert!(file.document.core(CoreOpId::Contrast).is_some());
         file.document.apply(&contrast(0.0), now).unwrap();
         assert!(file.document.core(CoreOpId::Contrast).is_none());
+    }
+
+    #[test]
+    fn effects_are_clamped_and_turned_off_by_a_neutral_setting_edt_6() {
+        let action = slider_action(
+            "Vignette",
+            CoreOperation::Vignette(Vignette {
+                amount: -130.0,
+                size: 104.0,
+            }),
+        );
+        assert_eq!(
+            action.edits,
+            [Edit::Set(CoreOperation::Vignette(Vignette {
+                amount: -100.0,
+                size: 100.0
+            }))]
+        );
+        let sepia = |strength| slider_action("Sepia", CoreOperation::Sepia(Strength { strength }));
+        assert_eq!(
+            sepia(-5.0).edits,
+            [Edit::Set(CoreOperation::Sepia(Strength { strength: 0.0 }))]
+        );
+        // Off is a neutral setting, which removes the operation; on again,
+        // it's back.
+        let (_folder, photo) = photo();
+        save_exposure(&photo, 0.5);
+        let mut file = EditFile::load(&edit_file_path(&photo)).unwrap().unwrap();
+        let now = time::OffsetDateTime::now_utc();
+        file.document.apply(&sepia(100.0), now).unwrap();
+        assert!(file.document.core(CoreOpId::Sepia).is_some());
+        file.document.apply(&sepia(0.0), now).unwrap();
+        assert!(file.document.core(CoreOpId::Sepia).is_none());
+        let vignette = |amount, size| {
+            slider_action(
+                "Vignette",
+                CoreOperation::Vignette(Vignette { amount, size }),
+            )
+        };
+        file.document.apply(&vignette(0.0, 60.0), now).unwrap();
+        assert!(file.document.core(CoreOpId::Vignette).is_none());
     }
 
     #[test]

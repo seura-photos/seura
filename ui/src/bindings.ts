@@ -660,6 +660,15 @@ export type PhotoEdit =
 { kind: "tint"; temperature: number | null; tint: number | null } | 
 /**  `seura.saturation`, −100 to 100. */
 { kind: "saturation"; amount: number | null } | 
+/**  `seura.blackAndWhite`, 0 to 100; 0 turns it off (EDT-6). */
+{ kind: "blackAndWhite"; strength: number | null } | 
+/**  `seura.sepia`, 0 to 100; 0 turns it off. */
+{ kind: "sepia"; strength: number | null } | 
+/**
+ *  `seura.vignette`: amount −100 to 100, 0 turning it off, and size 0
+ *  to 100.
+ */
+{ kind: "vignette"; amount: number | null; size: number | null } | 
 /**  Rotate or flip (EDT-4), from what the Editor shows. */
 { kind: "turn"; turn: Turn } | 
 /**  Crop mode's Done (EDT-2, EDT-3). */

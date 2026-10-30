@@ -114,6 +114,44 @@ fn saturation(color: vec3<f32>, amount: f32) -> vec3<f32> {
     return vec3<f32>(y) + (color - vec3<f32>(y)) * s;
 }
 
+// The effects stage (EDT-6), after tone and color, in the edit format's
+// order: black and white, sepia, then the vignette.
+
+// seura.blackAndWhite: each channel toward the pixel's luminance by
+// strength / 100, so 100 is gray and the brightness stays.
+fn black_and_white(color: vec3<f32>, strength: f32) -> vec3<f32> {
+    let y = dot(P3_LUMINANCE, color);
+    return color + (vec3<f32>(y) - color) * (strength / 100.0);
+}
+
+// Sepia's tone, (1.25, 0.97, 0.56) scaled so its luminance is 1.
+const SEPIA_TONE = vec3<f32>(1.2479966, 0.9684454, 0.5591025);
+
+// seura.sepia: each channel toward the pixel's luminance in sepia's tone,
+// by strength / 100, so 100 is a warm brown monochrome as bright as the
+// photo. Nothing is clipped: white comes out with red above 1.
+fn sepia(color: vec3<f32>, strength: f32) -> vec3<f32> {
+    let y = dot(P3_LUMINANCE, color);
+    return color + (y * SEPIA_TONE - color) * (strength / 100.0);
+}
+
+// seura.vignette, at position at of the cropped frame, as fractions of it:
+// r is 0 at its center, 1 at the middle of each edge and √2 at the corners,
+// an ellipse fitted to the frame. It starts at r = 1 − size / 100 and grows
+// smoothly to the full amount at the corners, scaling toward black when
+// negative and blending toward white when positive, so bright colors keep
+// their hue.
+fn vignette(color: vec3<f32>, amount: f32, size: f32, at: vec2<f32>) -> vec3<f32> {
+    let r = length(at * 2.0 - vec2<f32>(1.0));
+    let start = 1.0 - size / 100.0;
+    let t = clamp((r - start) / (sqrt(2.0) - start), 0.0, 1.0);
+    let m = amount / 100.0 * t * t * (3.0 - 2.0 * t);
+    if m < 0.0 {
+        return color * (1.0 + m);
+    }
+    return color + (vec3<f32>(1.0) - color) * m;
+}
+
 // The luminance guide for highlights and shadows (technical design,
 // "Neighborhood operations"): the photo's log luminance smoothed without
 // crossing strong edges, by a guided filter guided by itself (He, Sun and
@@ -198,7 +236,8 @@ fn guide_pass(position: vec4<f32>) -> vec4<f32> {
 // parameters are neutral is skipped: the branch is on a uniform, so it costs
 // nothing, and there are no separate flags to keep in step. Operations arrive
 // one by one in M4; so far geometry (orient, straighten, crop), exposure,
-// white balance, highlights, shadows, contrast and saturation are rendered.
+// white balance, highlights, shadows, contrast, saturation, black and white,
+// sepia and the vignette are rendered.
 struct Params {
     // 0: Display P3, for the preview. 1: sRGB, for export (EXP-5).
     output_srgb: u32,
@@ -286,22 +325,28 @@ fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
     return out;
 }
 
+// Where a point of this draw, as fractions of it, is in the result: the
+// cropped frame, in its pixels.
+fn result_position(uv: vec2<f32>) -> vec2<f32> {
+    let crop = vec2<f32>(params.crop_pixels_width, params.crop_pixels_height);
+    let view = round(vec2<f32>(params.view_x, params.view_y) * crop);
+    let view_size = round(vec2<f32>(params.view_width, params.view_height) * crop);
+    return view + uv * view_size;
+}
+
 // Geometry is a coordinate transform when sampling (technical design,
-// "Pipeline"; formulas appendix, geometry.md): where a point of this draw,
-// as fractions of it, is in the upright photo, in the photo's own pixels.
+// "Pipeline"; formulas appendix, geometry.md): where a point of the result,
+// in its pixels, is in the upright photo, in the photo's own pixels.
 // Through the crop, the turn back about the oriented photo's center, then
 // seura.orient's flips undone and its turn.
-fn upright_position(uv: vec2<f32>) -> vec2<f32> {
+fn upright_position(result: vec2<f32>) -> vec2<f32> {
     let full = vec2<f32>(params.full_width, params.full_height);
     var frame = full;
     if params.rotate == 90u || params.rotate == 270u {
         frame = full.yx;
     }
-    // Where this point is in the result, then in the oriented photo.
-    let crop = vec2<f32>(params.crop_pixels_width, params.crop_pixels_height);
-    let view = round(vec2<f32>(params.view_x, params.view_y) * crop);
-    let view_size = round(vec2<f32>(params.view_width, params.view_height) * crop);
-    let p = vec2<f32>(params.crop_left, params.crop_top) + view + uv * view_size;
+    // Where this point is in the oriented photo.
+    let p = vec2<f32>(params.crop_left, params.crop_top) + result;
     // The turn back: counter-clockwise as seen, with y down.
     let c = frame * 0.5;
     let d = p - c;
@@ -380,7 +425,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if params.draw_pass != 0u {
         return guide_pass(in.position);
     }
-    let position = upright_position(in.uv);
+    let result = result_position(in.uv);
+    let position = upright_position(result);
     var color = sample_photo(position);
     if params.exposure_ev != 0.0 {
         color = exposure(color, params.exposure_ev);
@@ -410,6 +456,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
     if params.saturation != 0.0 {
         color = saturation(color, params.saturation);
+    }
+    if params.black_and_white != 0.0 {
+        color = black_and_white(color, params.black_and_white);
+    }
+    if params.sepia != 0.0 {
+        color = sepia(color, params.sepia);
+    }
+    if params.vignette_amount != 0.0 {
+        // Measured on the cropped frame (edit format, seura.vignette).
+        let crop = vec2<f32>(params.crop_pixels_width, params.crop_pixels_height);
+        color = vignette(color, params.vignette_amount, params.vignette_size, result / crop);
     }
     if params.output_srgb == 1u {
         color = P3_TO_SRGB * color;

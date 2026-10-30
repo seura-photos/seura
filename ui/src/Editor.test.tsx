@@ -219,6 +219,104 @@ describe("Editor", () => {
     );
   });
 
+  /** An effect's button, by name, and whether it's pressed. */
+  const effect = (name: string) => screen.getByRole("button", { name });
+  const pressed = (name: string) => effect(name).getAttribute("aria-pressed");
+  /** The sliders in an effect's group. */
+  const sliders = (name: string) =>
+    within(screen.getByRole("group", { name })).queryAllByRole("slider") as HTMLInputElement[];
+  /** The effect's slider at `index`, which must be there. */
+  const sliderIn = (name: string, index = 0) => {
+    const found = sliders(name)[index];
+    if (!found) throw new Error(`no slider ${index} in ${name}`);
+    return found;
+  };
+  const drawn = () => mocks.draw.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+
+  it("turns an effect on and off, its slider shown only while it's on (EDT-6, INT-4)", async () => {
+    edit();
+    await brightness();
+    expect(pressed("Black and white")).toBe("false");
+    expect(sliders("Black and white")).toHaveLength(0);
+    fireEvent.click(effect("Black and white"));
+    expect(pressed("Black and white")).toBe("true");
+    await waitFor(() => expect(drawn()).toMatchObject({ blackAndWhite: 100 }));
+    await waitFor(() =>
+      expect(mocks.editPhoto).toHaveBeenCalledWith(7, { kind: "blackAndWhite", strength: 100 }),
+    );
+    const [strength] = sliders("Black and white");
+    expect(strength?.value).toBe("100");
+    fireEvent.click(effect("Black and white"));
+    expect(sliders("Black and white")).toHaveLength(0);
+    await waitFor(() =>
+      expect(mocks.editPhoto).toHaveBeenLastCalledWith(7, { kind: "blackAndWhite", strength: 0 }),
+    );
+  });
+
+  it("shows a stored vignette, and saves its amount and size together (EDT-6, EDT-8)", async () => {
+    mocks.opened.settings = { exposureEv: 0.4, vignetteAmount: -25, vignetteSize: 60 };
+    edit();
+    await brightness();
+    expect(pressed("Vignette")).toBe("true");
+    const [amount, size] = [sliderIn("Vignette"), sliderIn("Vignette", 1)];
+    expect(amount.value).toBe("-25");
+    expect(size.value).toBe("60");
+    expect(screen.getByText("Darker")).toBeDefined();
+    fireEvent.input(size, { target: { value: "75" } });
+    await waitFor(() => expect(drawn()).toMatchObject({ vignetteAmount: -25, vignetteSize: 75 }));
+    fireEvent.change(size, { target: { value: "75" } });
+    await waitFor(() =>
+      expect(mocks.editPhoto).toHaveBeenCalledWith(7, { kind: "vignette", amount: -25, size: 75 }),
+    );
+  });
+
+  it("brings an effect back as it was when turned on again", async () => {
+    edit();
+    await brightness();
+    fireEvent.click(effect("Sepia"));
+    const strength = sliderIn("Sepia");
+    fireEvent.input(strength, { target: { value: "40" } });
+    fireEvent.change(strength, { target: { value: "40" } });
+    fireEvent.click(effect("Sepia"));
+    fireEvent.click(effect("Sepia"));
+    expect(sliders("Sepia")[0]?.value).toBe("40");
+    await waitFor(() =>
+      expect(mocks.editPhoto).toHaveBeenLastCalledWith(7, { kind: "sepia", strength: 40 }),
+    );
+    // Double-click sets the default strength, not 0, which is off.
+    fireEvent.doubleClick(sliderIn("Sepia"));
+    expect(sliders("Sepia")[0]?.value).toBe("100");
+  });
+
+  it("keeps a slider dragged to 0 until the edits are replaced, as by undo", async () => {
+    mocks.opened.settings = { exposureEv: 0.4, vignetteAmount: -25, vignetteSize: 60 };
+    mocks.stepEdit.mockImplementationOnce(() =>
+      Promise.resolve({
+        status: "ok",
+        data: {
+          kind: "done",
+          label: "Vignette",
+          detail: null,
+          settings: { exposureEv: 0.4 },
+          steps: { undo: null, redo: "Vignette" },
+        },
+      }),
+    );
+    edit();
+    await brightness();
+    const amount = sliderIn("Vignette");
+    fireEvent.input(amount, { target: { value: "0" } });
+    fireEvent.change(amount, { target: { value: "0" } });
+    // Nothing to draw, so it's off, but the slider stays under the pointer.
+    expect(pressed("Vignette")).toBe("false");
+    expect(sliders("Vignette")).toHaveLength(2);
+    await waitFor(() =>
+      expect(mocks.editPhoto).toHaveBeenCalledWith(7, { kind: "vignette", amount: 0, size: 60 }),
+    );
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+    await waitFor(() => expect(sliders("Vignette")).toHaveLength(0));
+  });
+
   it("double-clicking the slider resets it (EDT-5)", async () => {
     edit();
     fireEvent.doubleClick(await brightness());

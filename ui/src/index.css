@@ -1219,6 +1219,35 @@ button {
   gap: 0.5rem;
 }
 
+/* An effect: its button, the width of the panel with On or Off at its
+   right (wireframes, panel item 7), and its sliders beneath once it's on
+   (INT-4). An effect that's on is on accentSubtle (visual design). */
+.effect {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.effect-toggle {
+  justify-content: space-between;
+  width: 100%;
+}
+
+.effect-state {
+  color: var(--color-text-secondary);
+  font-size: var(--type-meta-size);
+}
+
+.effect-toggle[aria-pressed="true"] {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent);
+}
+
+.effect-toggle[aria-pressed="true"] .effect-state {
+  color: var(--color-accent-text);
+}
+
 /* What the track's ends mean, small and quiet under it (EDT-5). */
 .slider-ends {
   display: flex;

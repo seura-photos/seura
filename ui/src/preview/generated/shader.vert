@@ -50,6 +50,7 @@ const vec3 P3_LUMINANCE = vec3(0.2289746, 0.6917385, 0.0792869);
 const float MIDDLE_GRAY = 0.18;
 const float PERCEPTUAL = 2.2;
 const float HIGHLIGHTS_SHADOWS_STOPS = 2.0;
+const vec3 SEPIA_TONE = vec3(1.2479966, 0.9684454, 0.5591025);
 const float GUIDE_FLOOR = 0.00024414063;
 const float GUIDE_RADIUS = 0.02;
 const float GUIDE_EPSILON = 0.1;
@@ -115,8 +116,29 @@ vec3 saturation(vec3 color_4, float amount_3) {
     return (vec3(y_1) + ((color_4 - vec3(y_1)) * s));
 }
 
-float log_luminance(vec3 color_5) {
-    return log2(max(dot(P3_LUMINANCE, color_5), GUIDE_FLOOR));
+vec3 black_and_white(vec3 color_5, float strength) {
+    float y_2 = dot(P3_LUMINANCE, color_5);
+    return (color_5 + ((vec3(y_2) - color_5) * (strength / 100.0)));
+}
+
+vec3 sepia(vec3 color_6, float strength_1) {
+    float y_3 = dot(P3_LUMINANCE, color_6);
+    return (color_6 + (((y_3 * SEPIA_TONE) - color_6) * (strength_1 / 100.0)));
+}
+
+vec3 vignette(vec3 color_7, float amount_4, float size, vec2 at) {
+    float r = length(((at * 2.0) - vec2(1.0)));
+    float start = (1.0 - (size / 100.0));
+    float t_2 = clamp(((r - start) / (1.4142135 - start)), 0.0, 1.0);
+    float m_1 = ((((amount_4 / 100.0) * t_2) * t_2) * (3.0 - (2.0 * t_2)));
+    if ((m_1 < 0.0)) {
+        return (color_7 * (1.0 + m_1));
+    }
+    return (color_7 + ((vec3(1.0) - color_7) * m_1));
+}
+
+float log_luminance(vec3 color_8) {
+    return log2(max(dot(P3_LUMINANCE, color_8), GUIDE_FLOOR));
 }
 
 vec4 catmull_rom_weights(float t) {
@@ -129,9 +151,9 @@ void main() {
     uint index = uint(gl_VertexID);
     VertexOutput out_ = VertexOutput(vec4(0.0), vec2(0.0));
     float x_2 = float(((index << 1u) & 2u));
-    float y_2 = float((index & 2u));
-    out_.position = vec4(((x_2 * 2.0) - 1.0), (1.0 - (y_2 * 2.0)), 0.0, 1.0);
-    out_.uv = vec2(x_2, y_2);
+    float y_4 = float((index & 2u));
+    out_.position = vec4(((x_2 * 2.0) - 1.0), (1.0 - (y_4 * 2.0)), 0.0, 1.0);
+    out_.uv = vec2(x_2, y_4);
     VertexOutput _e24 = out_;
     gl_Position = _e24.position;
     _vs2fs_location0 = _e24.uv;

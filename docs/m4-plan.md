@@ -112,6 +112,7 @@ Added 2026-10-29: Nevada noticed the Editor couldn't zoom, which the design had 
 
 - Black and white, sepia, and vignette (amount and size) as on and off buttons in the panel, each one's strength slider appearing when it's on (INT-4). They combine with the adjustments in the format's fixed order. The vignette is measured on the cropped frame.
 - **Done when:** the render check matches with every effect, and Nevada has used each on their own photos.
+- **Formulas** (added 2026-10-30): black and white and sepia blend toward luminance, sepia's in a warm brown tone; the vignette is an ellipse fitted to the cropped frame, darkening toward black or lightening toward white (edit-format #12). Off is the neutral setting, which removes the operation.
 
 ### 7. Red-eye (EDT-7)
 

@@ -46,8 +46,11 @@ export async function measure(): Promise<void> {
  * of its sliders in turn, a step every frame, timing the frames (at least
  * 30 a second). Each slider stays where its drag left it, so the last drag
  * has every operation on. The drag sends only the sliders' input events,
- * which redraw the photo, never their change events, which save it, so no
- * edit file is written.
+ * which redraw the photo, never their change events, which save it. The
+ * effects are turned on first, so their sliders are there and every drag
+ * draws them (M4 slice 6), and off again after: those are saved, in the
+ * edit files beside the measurement's own generated photos, before the
+ * drags begin.
  */
 export async function measureSliders(): Promise<void> {
   const dev = useStore.getState().dev;
@@ -97,10 +100,32 @@ async function editPhoto(folder: number) {
   await shown(photo.id);
   const openMs = performance.now() - started;
   const sliders: Record<string, ReturnType<typeof frameStats>> = {};
+  const effects = () => [...document.querySelectorAll<HTMLButtonElement>(".effect-toggle")];
+  // The photo is drawn before the panel is enabled for it.
+  await waitFor(
+    () => effects().length > 0 && effects().every((effect) => !effect.disabled),
+    10_000,
+  );
+  const turned = effects().filter((effect) => effect.getAttribute("aria-pressed") === "false");
+  for (const effect of turned) {
+    effect.click();
+    await nextFrame();
+  }
+  // Saved within a second (EDT-11), so not during a drag.
+  await sleep(1_500);
   const inputs = document.querySelectorAll<HTMLInputElement>('.editor-panel input[type="range"]');
   for (const input of inputs) {
-    sliders[input.labels?.[0]?.textContent ?? input.id] = await drag(input, 2_000);
+    // Effects' sliders share names ("Strength"), so they're named by group.
+    const group = input.closest('[role="group"]')?.getAttribute("aria-label");
+    const label = input.labels?.[0]?.textContent ?? input.id;
+    sliders[group ? `${group}: ${label}` : label] = await drag(input, 2_000);
   }
+  for (const effect of turned) {
+    effect.click();
+    await nextFrame();
+  }
+  // Saved before the photo closes, and before the app quits after the last.
+  await sleep(1_500);
   useStore.getState().closeEditor();
   await nextFrame();
   return {
@@ -119,10 +144,11 @@ async function drag(input: HTMLInputElement, duration: number) {
   const frames: number[] = [];
   let value = Number(input.value);
   let step = 4;
+  const [min, max] = [Number(input.min), Number(input.max)];
   let last = await nextFrame();
   const end = last + duration;
   while (last < end) {
-    if (Math.abs(value + step) > 100) step = -step;
+    if (value + step > max || value + step < min) step = -step;
     value += step;
     setValue?.call(input, String(value));
     input.dispatchEvent(new Event("input", { bubbles: true }));

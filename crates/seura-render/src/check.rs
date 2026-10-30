@@ -12,7 +12,8 @@ use crate::Settings;
 /// moderate, so the ramps keep some pixels on each side of middle gray. The
 /// photo is turned on its side, flipped, straightened and cropped, so a
 /// preview that placed it any other way, or sampled it any other way, would
-/// fail.
+/// fail. Black and white and sepia are partial, so the colors before them
+/// still count, and the vignette is measured on the cropped frame.
 pub const CHECK_SETTINGS: Settings = Settings {
     rotate: 90,
     flip_h: true,
@@ -28,6 +29,10 @@ pub const CHECK_SETTINGS: Settings = Settings {
     shadows: 31.0,
     contrast: 37.0,
     saturation: 29.0,
+    black_and_white: 23.0,
+    sepia: 41.0,
+    vignette_amount: -47.0,
+    vignette_size: 63.0,
     ..Settings::NEUTRAL
 };
 
