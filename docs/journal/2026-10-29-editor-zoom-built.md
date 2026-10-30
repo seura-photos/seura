@@ -13,3 +13,4 @@
   - Compare keeps the zoom and position, showing the original's sharp part too. Another photo opens fitted.
 - **Left to the slices that need them, as the plan now says:** crop and straighten showing the whole photo (slice 5), and Space-drag to pan while red-eye uses the drag (slice 7). Neither has anything to work on yet.
 - **Also fixed:** the M4 plan, Claude Code's draft, called Nevada "he" and "his" in several places; it now says "they" and "their".
+- **Nevada tried it on both machines:** "Zoom in the edit view looks good on both Mac and Windows."
