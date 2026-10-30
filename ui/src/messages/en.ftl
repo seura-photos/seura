@@ -559,6 +559,8 @@ editor-tools = Tools
 editor-compare = Hold to compare
 editor-done = Done
 # Crop mode (EDT-2, EDT-3; wireframes, "Crop and straighten").
+# One-click enhance (EDT-12).
+editor-enhance = Enhance
 editor-crop = Crop and straighten
 crop-title = Crop and straighten
 crop-hint = Enter to apply · Esc to cancel

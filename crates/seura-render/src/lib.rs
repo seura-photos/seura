@@ -7,11 +7,13 @@
 //! (`ui/src/preview/generated/`).
 
 pub mod check;
+mod enhance;
 mod export;
 mod geometry;
 mod renderer;
 mod settings;
 
+pub use enhance::{Enhanced, enhance};
 pub use export::{ExportError, export_jpeg};
 pub use renderer::{Output, RenderError, Renderer};
 pub use settings::{MAX_RED_EYE, RedEyeRegions, Settings};

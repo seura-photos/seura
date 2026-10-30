@@ -1414,6 +1414,23 @@ button {
   cursor: grabbing;
 }
 
+/* Enhance, the panel's first tool: 40 px, prominent, on accentSubtle
+   (styled mockup). */
+.editor-enhance {
+  justify-content: center;
+  width: 100%;
+  min-height: 2.5rem;
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent);
+  font-weight: 600;
+}
+
+.editor-crop {
+  justify-content: center;
+  width: 100%;
+}
+
 /* Red-eye mode (wireframes, "Red-eye mode"): the drag makes and moves
    circles, so the pointer is a crosshair, and a hand while Space pans. */
 .editor-stage.red-eye,

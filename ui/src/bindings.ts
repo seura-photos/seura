@@ -674,7 +674,9 @@ export type PhotoEdit =
 /**  Crop mode's Done (EDT-2, EDT-3). */
 { kind: "crop"; crop: CropEdit } | 
 /**  Red-eye mode's Done (EDT-7): every circle, none to remove them all. */
-{ kind: "redEye"; regions: RedEyeCircle[] };
+{ kind: "redEye"; regions: RedEyeCircle[] } | 
+/**  Enhance (EDT-12), which the core works out from the photo. */
+{ kind: "enhance" };
 
 /**  What the grid is narrowed to (FND-1), applied to whatever it shows. */
 export type PhotoFilter = {

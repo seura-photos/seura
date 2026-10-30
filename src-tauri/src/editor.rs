@@ -48,8 +48,10 @@ struct Session {
     photo: PathBuf,
     /// The preview pixels, as served by the `seura://` protocol.
     preview: Arc<Vec<u8>>,
-    /// The image its luminance guide is built from, served the same way.
+    /// The image its luminance guide is built from, served the same way,
+    /// and as pixels, for Enhance to analyze (EDT-12).
     guide: Arc<Vec<u8>>,
+    guide_image: Arc<LinearImage>,
     /// The photo's full upright size, which crop mode's box is measured in.
     full: (u32, u32),
     /// The document of its edit file, while the file is in the Trash
@@ -287,6 +289,7 @@ impl Editor {
             preview: Arc::new(encode_linear(&preview)),
             full: (decoded.width, decoded.height),
             guide: Arc::new(encode_linear(&decoded.guide)),
+            guide_image: Arc::new(decoded.guide.clone()),
             kept: None,
             mine: Mine::of(current(&photo_path, None).ok().flatten().as_ref()),
             outside: false,
@@ -373,6 +376,7 @@ impl Editor {
             Change::Set(action) => action.clone(),
             Change::Turn(turn) => turn_action(&session.mine, *turn),
             Change::Crop(crop) => crop_action(&session.mine, session.full, crop),
+            Change::Enhance => enhance_action(&session.mine, &session.guide_image),
         };
         library.edit_with(app, PhotoId::new(id), &mut session.kept, |_| action.clone())?;
         let document = current(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
@@ -629,12 +633,42 @@ fn preview_edge(area: (u32, u32), dimensions: Option<(u32, u32)>, settings: &Set
     (f64::from(width.max(height)) * fit).round() as u32
 }
 
-/// A change from the Editor: settings made there, a turn of the photo, or
-/// crop mode's result.
+/// A change from the Editor: settings made there, a turn of the photo,
+/// crop mode's result, or Enhance, which the core works out.
 pub enum Change {
     Set(Action),
     Turn(Turn),
     Crop(CropEdit),
+    Enhance,
+}
+
+/// Enhance (EDT-12) as one record in the photo's history, "Enhance": the
+/// seven settings it owns, from the photo's guide image as the Editor's
+/// geometry crops and turns it, before any tone or color. Neutral ones
+/// remove their operation; crop, rotation, straightening, red-eye and
+/// effects stay as they are. Pressing it again sets the same values, which
+/// changes nothing and adds no record.
+pub fn enhance_action(mine: &Mine, guide: &LinearImage) -> Action {
+    let found = seura_render::enhance(guide, &mine.settings());
+    let amount = |value: f32| Amount {
+        amount: f64::from(value),
+    };
+    Action {
+        label: "Enhance".into(),
+        edits: vec![
+            Edit::Set(CoreOperation::Exposure(Exposure {
+                ev: f64::from(found.exposure_ev),
+            })),
+            Edit::Set(CoreOperation::WhiteBalance(WhiteBalance {
+                temperature: f64::from(found.temperature),
+                tint: f64::from(found.tint),
+            })),
+            Edit::Set(CoreOperation::Highlights(amount(found.highlights))),
+            Edit::Set(CoreOperation::Shadows(amount(found.shadows))),
+            Edit::Set(CoreOperation::Contrast(amount(found.contrast))),
+            Edit::Set(CoreOperation::Saturation(amount(found.saturation))),
+        ],
+    }
 }
 
 /// What crop mode's Done saves (EDT-2, EDT-3): the box as fractions of the
@@ -1223,6 +1257,51 @@ mod tests {
         assert!(file.document.core(CoreOpId::RedEye).is_some());
         file.document.apply(&red_eye_action(&[]), now).unwrap();
         assert!(file.document.core(CoreOpId::RedEye).is_none());
+    }
+
+    #[test]
+    fn enhance_sets_its_seven_settings_once_and_leaves_the_rest_edt_12() {
+        // A dark photo, cropped, with a vignette.
+        let dark = LinearImage {
+            width: 64,
+            height: 48,
+            pixels: (0..64 * 48)
+                .flat_map(|i| {
+                    let v = 0.01 + (i % 64) as f32 / 64.0 * 0.04;
+                    [v, v * 1.1, v, 1.0].map(half::f16::from_f32)
+                })
+                .collect(),
+        };
+        let mut mine = Mine::default();
+        mine.apply(&Action {
+            label: "Crop".into(),
+            edits: vec![
+                Edit::Set(CoreOperation::Crop(Crop {
+                    x: 0.1,
+                    y: 0.0,
+                    width: 0.8,
+                    height: 1.0,
+                    aspect: None,
+                })),
+                Edit::Set(CoreOperation::Vignette(Vignette {
+                    amount: -30.0,
+                    size: 50.0,
+                })),
+            ],
+        });
+        let action = enhance_action(&mine, &dark);
+        assert_eq!(action.label, "Enhance");
+        assert_eq!(action.edits.len(), 6);
+        let found = Settings::from_operations(action.edits.iter().filter_map(|edit| match edit {
+            Edit::Set(operation) => Some(operation),
+            _ => None,
+        }));
+        assert!(found.exposure_ev > 0.5, "{found:?}");
+        // Applied, the crop and vignette stay; pressing again, the same.
+        mine.apply(&action);
+        assert_eq!(mine.settings().crop_x, 0.1);
+        assert_eq!(mine.settings().vignette_amount, -30.0);
+        assert_eq!(enhance_action(&mine, &dark), action);
     }
 
     #[test]

@@ -164,7 +164,7 @@ When a photo opens, the core decodes it at display resolution (the canvas size Ã
 
 ### One-click enhance (EDT-12)
 
-A compute pass in the core builds a luminance histogram and the average of near-neutral pixels on a downscaled copy, then sets exposure and contrast from the 0.5th and 99.5th percentiles, highlights and shadows from how much of the photo sits near the top and bottom of the range, and temperature and tint from the neutral average. The result is returned as ordinary operation parameters.
+The core analyzes the guide image (the photo at 1024 pixels on its long side), as the photo's geometry crops and turns it, on the CPU, in a few milliseconds (`seura-render`'s `enhance`). Temperature and tint come from the average of near-neutral pixels, found in steps so a cast's own tint doesn't hide them. Exposure moves the log-average luminance toward middle gray, without pushing the 99.5th percentile far past white. Contrast comes from the spread between the 0.5th and 99.5th percentiles, highlights and shadows from how much of the photo sits near the top and bottom of the range, and saturation from how colorful it is on average. The result is returned as ordinary operation parameters. It never reads the tone settings it replaces, so pressing it again gives the same result (EDT-12).
 
 ## 7. Edit files (seura-edit)
 

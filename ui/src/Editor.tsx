@@ -2,6 +2,7 @@ import {
   Redo2,
   RotateCcwSquare,
   RotateCwSquare,
+  Sparkles,
   TriangleAlert,
   TrianglesCenterlineDashedHorizontal,
   TrianglesCenterlineDashedVertical,
@@ -313,7 +314,9 @@ export function Editor({ id, forceWebgl2 }: Props) {
           // A turn or a crop is the core's to finish, so the Editor shows
           // what it made; a slider's setting is already shown.
           const settings =
-            edit.kind === "turn" || edit.kind === "crop" ? result.data.settings : null;
+            edit.kind === "turn" || edit.kind === "crop" || edit.kind === "enhance"
+              ? result.data.settings
+              : null;
           if (result.data.steps) saved(photoId, result.data.steps, settings ?? undefined);
         } else if (result.data.kind === "readOnly") say(t("editor-save-read-only"));
         else if (result.data.kind === "unreadable") say(t("editor-save-unreadable"));
@@ -681,6 +684,15 @@ export function Editor({ id, forceWebgl2 }: Props) {
     });
   }
 
+  /** Enhance (A, or the button; EDT-12): the core sets brightness,
+   * contrast, highlights, shadows, temperature, tint and saturation from
+   * the photo as cropped, as one change, and the Editor shows them. */
+  function enhance() {
+    if (!editable || croppingNow || redEyeNow) return;
+    void flush();
+    void save(id, { kind: "enhance" });
+  }
+
   /** Opens red-eye mode (R, or Fix red-eye…): the photo as edited, at the
    * zoom it has, with its corrections (EDT-7). */
   function openRedEye() {
@@ -927,6 +939,11 @@ export function Editor({ id, forceWebgl2 }: Props) {
     if (event.key === "r" || event.key === "R") {
       event.preventDefault();
       openRedEye();
+      return;
+    }
+    if (event.key === "a" || event.key === "A") {
+      event.preventDefault();
+      enhance();
       return;
     }
     // Arrow keys on a slider move the slider, not the photo.
@@ -1310,6 +1327,20 @@ export function Editor({ id, forceWebgl2 }: Props) {
             {/* Between the pinned first row and Revert, the sections scroll
             (wireframes, Editor). */}
             <ScrollArea>
+              {/* First of the tools, prominent (wireframes, panel item 2). */}
+              <div className="editor-section">
+                <button
+                  type="button"
+                  className="button editor-enhance"
+                  aria-keyshortcuts="A"
+                  disabled={!editable}
+                  onClick={enhance}
+                >
+                  <Sparkles className="icon" aria-hidden />
+                  {t("editor-enhance")}
+                </button>
+              </div>
+
               <div className="editor-section">
                 <button
                   type="button"
