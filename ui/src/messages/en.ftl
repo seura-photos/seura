@@ -262,6 +262,9 @@ info-tag-partial = { $tag } · { $count } of { $total }
 history-undid =
     { $kind ->
         [rating] Undid rating
+        [rotateLeft] Undid rotating left
+        [rotateRight] Undid rotating right
+        [enhance] Undid Enhance
         [addTag] Undid adding “{ $tag }”
        *[removeTag] Undid removing “{ $tag }”
     } on { $count ->
@@ -271,6 +274,9 @@ history-undid =
 history-redid =
     { $kind ->
         [rating] Redid rating
+        [rotateLeft] Redid rotating left
+        [rotateRight] Redid rotating right
+        [enhance] Redid Enhance
         [addTag] Redid adding “{ $tag }”
        *[removeTag] Redid removing “{ $tag }”
     } on { $count ->
@@ -298,6 +304,26 @@ change-done-cleared =
     { $count ->
         [one] Cleared the rating on 1 photo.
        *[other] Cleared the rating on { $count } photos.
+    }
+change-done-rotated =
+    { $count ->
+        [one] Rotated 1 photo
+       *[other] Rotated { $count } photos
+    } { $clockwise ->
+        [true] right.
+       *[false] left.
+    }
+change-done-enhanced =
+    { $count ->
+        [one] Enhanced 1 photo.
+       *[other] Enhanced { $count } photos.
+    }
+# Enhance reads each photo, which would download one that's only in the
+# cloud (LIB-9), so those are left alone.
+change-cloud-only =
+    { $count ->
+        [one] 1 photo is only in the cloud, so it wasn't enhanced. Open it first to download it.
+       *[other] { $count } photos are only in the cloud, so they weren't enhanced. Open them first to download them.
     }
 change-done-added =
     { $count ->
@@ -561,6 +587,15 @@ editor-done = Done
 # Crop mode (EDT-2, EDT-3; wireframes, "Crop and straighten").
 # One-click enhance (EDT-12).
 editor-enhance = Enhance
+# Quick actions in the Library and the Viewer (BRW-10), and on a hovered
+# thumbnail.
+quick-actions = Quick fixes
+quick-rotate-left = Rotate left
+quick-rotate-right = Rotate right
+quick-enhance = Enhance
+quick-rotate-left-key = Rotate left ([)
+quick-rotate-right-key = Rotate right (])
+quick-enhance-key = Enhance (A)
 editor-crop = Crop and straighten
 crop-title = Crop and straighten
 crop-hint = Enter to apply · Esc to cancel

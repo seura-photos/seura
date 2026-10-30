@@ -187,10 +187,52 @@ function folder(fields: Partial<FolderInfo> & { name: string }): FolderInfo {
   };
 }
 
+/** Lays the grid out as a browser would, 800 pixels each way: the grid
+ * draws cells only with a size, which jsdom doesn't give it. Returns what
+ * puts things back. */
+function layOutGrid() {
+  const sizes = ["clientWidth", "clientHeight", "offsetWidth", "offsetHeight"] as const;
+  const own = sizes.map((size) => Object.getOwnPropertyDescriptor(HTMLElement.prototype, size));
+  for (const size of sizes) {
+    Object.defineProperty(HTMLElement.prototype, size, { configurable: true, get: () => 800 });
+  }
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      callback: (entries: unknown[]) => void;
+      constructor(callback: (entries: unknown[]) => void) {
+        this.callback = callback;
+      }
+      observe(target: Element) {
+        const box = { inlineSize: 800, blockSize: 800 };
+        this.callback([{ target, borderBoxSize: [box], contentRect: { width: 800, height: 800 } }]);
+      }
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  return () => {
+    sizes.forEach((size, at) => {
+      const descriptor = own[at];
+      if (descriptor) Object.defineProperty(HTMLElement.prototype, size, descriptor);
+      else Reflect.deleteProperty(HTMLElement.prototype, size);
+    });
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  };
+}
+
 describe("App", () => {
   afterEach(() => {
     cleanup();
     mocks.dev.active = [];
+    mocks.dev.editorAvailable = false;
     mocks.folders = [];
     mocks.photos = [];
     mocks.tags = [];
@@ -352,6 +394,71 @@ describe("App", () => {
     expect(screen.getByText("2 selected")).toBeDefined();
     act(() => useStore.getState().selectAllPhotos());
     expect(screen.getByText("3 selected")).toBeDefined();
+  });
+
+  it("rotates and enhances the selection by key and toolbar, and a hovered photo by its buttons (BRW-10)", async () => {
+    mocks.dev.editorAvailable = true;
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+    mocks.photos = [1, 2, 3].map((id) => photo(id));
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("grid");
+    const fixes = await screen.findByRole("group", { name: "Quick fixes" });
+    expect(
+      (within(fixes).getByRole("button", { name: "Enhance" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    act(() => {
+      useStore.getState().selectPhoto(1, { toggle: false, range: false });
+      useStore.getState().selectPhoto(3, { toggle: true, range: false });
+    });
+    fireEvent.keyDown(window, { key: "]" });
+    expect(mocks.changePhotos).toHaveBeenLastCalledWith([1, 3], {
+      kind: "rotate",
+      clockwise: true,
+    });
+    fireEvent.keyDown(window, { key: "[" });
+    expect(mocks.changePhotos).toHaveBeenLastCalledWith([1, 3], {
+      kind: "rotate",
+      clockwise: false,
+    });
+    fireEvent.keyDown(window, { key: "a" });
+    expect(mocks.changePhotos).toHaveBeenLastCalledWith([1, 3], { kind: "enhance" });
+    fireEvent.click(within(fixes).getByRole("button", { name: "Rotate left" }));
+    expect(mocks.changePhotos).toHaveBeenLastCalledWith([1, 3], {
+      kind: "rotate",
+      clockwise: false,
+    });
+  });
+
+  it("rotates or enhances a hovered photo alone, without selecting it (BRW-10)", async () => {
+    mocks.dev.editorAvailable = true;
+    const restore = layOutGrid();
+    try {
+      mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+      mocks.photos = [1, 2, 3].map((id) => photo(id));
+      render(<App />);
+      fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+      const cell = await screen.findByRole("gridcell", { name: /IMG_2/ });
+      fireEvent.click(within(cell).getByRole("button", { name: "Enhance" }));
+      expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "enhance" });
+      fireEvent.click(within(cell).getByRole("button", { name: "Rotate right" }));
+      expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "rotate", clockwise: true });
+      expect(useStore.getState().selection.ids.has(2)).toBe(false);
+    } finally {
+      restore();
+    }
+  });
+
+  it("has no quick fixes while the Editor isn't available (BRW-10)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 1, total: 1 })];
+    mocks.photos = [photo(1)];
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("grid");
+    act(() => useStore.getState().selectPhoto(1, { toggle: false, range: false }));
+    fireEvent.keyDown(window, { key: "]" });
+    expect(mocks.changePhotos).not.toHaveBeenCalled();
+    expect(screen.queryByRole("group", { name: "Quick fixes" })).toBeNull();
   });
 
   it("rates the selection with 0 to 5, but not while typing (TAG-6)", async () => {
@@ -785,29 +892,7 @@ describe("App", () => {
   });
 
   it("gives the grid the focus back on leaving the Viewer (ACC-1, BRW-5)", async () => {
-    // The grid draws cells only with a size, which jsdom doesn't lay out.
-    const sizes = ["clientWidth", "clientHeight", "offsetWidth", "offsetHeight"] as const;
-    const own = sizes.map((size) => Object.getOwnPropertyDescriptor(HTMLElement.prototype, size));
-    for (const size of sizes) {
-      Object.defineProperty(HTMLElement.prototype, size, { configurable: true, get: () => 800 });
-    }
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        callback: (entries: unknown[]) => void;
-        constructor(callback: (entries: unknown[]) => void) {
-          this.callback = callback;
-        }
-        observe(target: Element) {
-          const box = { inlineSize: 800, blockSize: 800 };
-          this.callback([
-            { target, borderBoxSize: [box], contentRect: { width: 800, height: 800 } },
-          ]);
-        }
-        unobserve() {}
-        disconnect() {}
-      },
-    );
+    const restore = layOutGrid();
     try {
       mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
       mocks.photos = [1, 2, 3].map((id) => photo(id));
@@ -833,19 +918,7 @@ describe("App", () => {
       fireEvent.keyDown(cell(3), { key: "ArrowLeft" });
       expect([...useStore.getState().selection.ids]).toEqual([2]);
     } finally {
-      sizes.forEach((size, at) => {
-        const descriptor = own[at];
-        if (descriptor) Object.defineProperty(HTMLElement.prototype, size, descriptor);
-        else Reflect.deleteProperty(HTMLElement.prototype, size);
-      });
-      vi.stubGlobal(
-        "ResizeObserver",
-        class {
-          observe() {}
-          unobserve() {}
-          disconnect() {}
-        },
-      );
+      restore();
     }
 
     function cell(id: number) {

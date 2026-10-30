@@ -96,7 +96,10 @@ export const commands = {
 	 *  `None` when there's nothing to undo.
 	 */
 	undo: () => typedError<{
-	/**  `rating`, `addTag`, or `removeTag`. */
+	/**
+	 *  `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`, or
+	 *  `enhance`.
+	 */
 	kind: string,
 	/**  The tag added or removed. */
 	tag: string | null,
@@ -110,7 +113,10 @@ export const commands = {
 } | null, string>(__TAURI_INVOKE("undo")),
 	/**  Redoes the last action undone (BRW-11). */
 	redo: () => typedError<{
-	/**  `rating`, `addTag`, or `removeTag`. */
+	/**
+	 *  `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`, or
+	 *  `enhance`.
+	 */
 	kind: string,
 	/**  The tag added or removed. */
 	tag: string | null,
@@ -317,6 +323,8 @@ export type ChangeResult = {
 	unreadable: number,
 	/**  Couldn't be changed for another reason, such as a full drive. */
 	failed: number,
+	/**  Only in the cloud, so not enhanced: reading would download them. */
+	cloudOnly: number,
 };
 
 /**  A folder the user can choose, by id. */
@@ -520,7 +528,10 @@ export type FolderInfo = {
 
 /**  What undo or redo did (BRW-11), for the notice that says so. */
 export type HistoryStep = {
-	/**  `rating`, `addTag`, or `removeTag`. */
+	/**
+	 *  `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`, or
+	 *  `enhance`.
+	 */
 	kind: string,
 	/**  The tag added or removed. */
 	tag: string | null,
@@ -596,7 +607,11 @@ export type Opening = {
 /**  A change to photos' tags or rating (TAG-3, TAG-4, TAG-6). */
 export type PhotoChange = 
 /**  0 to 5 stars; 0 clears the rating. */
-{ kind: "rating"; stars: number } | { kind: "addTag"; tag: string } | { kind: "removeTag"; tag: string };
+{ kind: "rating"; stars: number } | { kind: "addTag"; tag: string } | { kind: "removeTag"; tag: string } | 
+/**  A quarter turn (BRW-10, EDT-4). */
+{ kind: "rotate"; clockwise: boolean } | 
+/**  One-click enhance (BRW-10, EDT-12). */
+{ kind: "enhance" };
 
 /**  One photo's details for the Info panel (BRW-6). */
 export type PhotoDetails = {

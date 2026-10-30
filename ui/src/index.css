@@ -1948,6 +1948,64 @@ button {
   margin-left: 0;
 }
 
+/* Rotate left, rotate right, and Enhance for the selection or the photo
+   shown (BRW-10), on the right of the toolbar before Edit. */
+.quick-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.zoom-group + .quick-actions,
+.quick-actions + .button.primary.toolbar-edit {
+  margin-left: 0;
+}
+
+.quick-enhance {
+  min-height: var(--size-tier1-target);
+  color: var(--color-accent-text);
+}
+
+/* The same on a thumbnail while it's hovered (INT-5): 32 px, on the
+   photo's dark overlay, at its top right. */
+.cell-actions {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cell:hover .cell-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.cell-action {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-on-photo);
+  color: #fff;
+  cursor: pointer;
+}
+
+.cell-action:hover {
+  background: var(--color-toolbar-on-photo);
+}
+
+.cell-action .icon {
+  width: 1rem;
+  height: 1rem;
+}
+
 /* Crop mode (wireframes, "Crop and straighten"): the box over the photo at
    Fit, the outside darkened, the corners the turned photo leaves uncovered
    as the surround. */

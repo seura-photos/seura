@@ -1,0 +1,9 @@
+# Quick actions in the Library and the Viewer (M4 slice 9)
+
+- **Rotate left, rotate right, and Enhance** for the Library's selection and the Viewer's photo, from the toolbar and with `[`, `]` and `A` (BRW-10). A thumbnail shows the three as 32-pixel buttons on the photo while it's hovered, acting on that photo alone, without selecting it.
+- **Each is one action for the Library's undo** (BRW-11), like a rating. A key says what it did ("Rotated 3 photos right.", "Enhanced 3 photos."); a click doesn't (INT-6). The Edit menu and the undo messages name them.
+- **Each photo's action is its own.** A rating is the same for every photo, but a turn depends on each photo's edits (a crop turns with it, flips swap), and Enhance on its pixels. The library's change path now takes an action-maker from the app for these. The app's maker uses the Editor's own turn and Enhance code, so the grid, the Viewer and the Editor do the same thing.
+- **Enhance in the grid decodes each photo** to the guide's size, 1024 pixels on the long side, and reads it as the Editor reads its guide. A photo only in the cloud isn't enhanced, since reading it would download it unasked (LIB-9). The message says so, and that opening it downloads it. Claude Code's choice, raised in the pull request. Rotating needs no pixels, so it works on them too.
+- **Behind the Editor's development switch,** like Edit, until slice 11: they write edits, and a half-built Editor never reaches a public build.
+- **The Viewer draws the new edits** after a quick action, or after undo from anywhere, the Edit menu included. The store counts the core's "library changed" events, and the Viewer asks for the shown photo's edits again on each. It keeps the pixels it has, so only the edit file is read.
+- **Not yet seen in the real app.**

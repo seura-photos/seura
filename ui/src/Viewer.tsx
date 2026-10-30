@@ -11,6 +11,7 @@ import {
   historyKey,
   isDeleteKey,
   isEditKey,
+  quickKey,
   isSelectAll,
   isTagKey,
   isTyping,
@@ -18,6 +19,7 @@ import {
 } from "./keys";
 import { SHOWN_EVENT } from "./measure";
 import { PhotoMenu } from "./PhotoMenu";
+import { type Quick, QuickActions } from "./QuickActions";
 import { type Backend, createPreview, drawnSize, fetchLinear, type LinearImage } from "./preview";
 import { anchorOf, useStore } from "./store";
 import { useZoom } from "./useZoom";
@@ -58,6 +60,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
   const closeViewer = useStore((state) => state.closeViewer);
   const openEditor = useStore((state) => state.openEditor);
   const rate = useStore((state) => state.rate);
+  const libraryVersion = useStore((state) => state.libraryVersion);
   const openPicker = useStore((state) => state.openPicker);
   // Only messages from while it's open: earlier ones were about the Library.
   const [openedAt] = useState(() => useStore.getState().noticeId);
@@ -70,6 +73,9 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
   const detailBackend = useRef<Promise<Backend | null> | null>(null);
   /** The shown photo's guide image, which its zoomed-in parts share. */
   const shownGuide = useRef<{ id: number; guide: LinearImage } | null>(null);
+  /** The shown photo's pixels, kept so a change to its edits alone, such
+   * as a rotation, draws it again without fetching them again. */
+  const shownImage = useRef<{ id: number; image: LinearImage } | null>(null);
   /** Settles once the last renderers made on these canvases are destroyed. */
   const released = useRef<Promise<void>>(Promise.resolve());
   // The stage's size in CSS pixels: `area` follows the window at once, to
@@ -218,10 +224,15 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
       }
       const data = result.data;
       if (data.kind === "cloudOnly") return;
-      const [image, guide] = await Promise.all([
-        fetchLinear(`view-${viewing}`),
-        fetchLinear(`view-guide-${viewing}`),
-      ]);
+      // The library changed, but this photo's pixels are the ones shown:
+      // only its edits may be new (BRW-10, BRW-11).
+      const kept =
+        shownImage.current?.id === viewing && shownGuide.current?.id === viewing
+          ? { image: shownImage.current.image, guide: shownGuide.current.guide }
+          : null;
+      const [image, guide] = kept
+        ? [kept.image, kept.guide]
+        : await Promise.all([fetchLinear(`view-${viewing}`), fetchLinear(`view-guide-${viewing}`)]);
       const renderer = await backend.current;
       const element = canvas.current;
       if (!live || !renderer || !element) return;
@@ -232,6 +243,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
       element.height = drawn.height;
       renderer.upload(image, guide, { full });
       shownGuide.current = { id: viewing, guide };
+      shownImage.current = { id: viewing, image };
       renderer.draw(data.settings);
       setStatus({
         kind: "shown",
@@ -248,13 +260,22 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     return () => {
       live = false;
     };
-  }, [viewing, neighborKey, settled, scale, attempt]);
+  }, [viewing, neighborKey, settled, scale, attempt, libraryVersion]);
 
   function move(to: number | undefined) {
     if (to === undefined) return;
     // Each photo opens fitted.
     zoom.fit();
     view(to);
+  }
+
+  /** Rotates or enhances the photo shown (BRW-10); a key says what it did
+   * (INT-6). It's drawn again once the library says it changed. */
+  function quickAction(action: Quick, byKey = false) {
+    if (!photo) return;
+    const store = useStore.getState();
+    if (action === "enhance") void store.enhance([photo.id], byKey);
+    else void store.rotate([photo.id], action === "right", byKey);
   }
 
   // Listeners are added once; these see the latest state when they run.
@@ -278,6 +299,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     }
     if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return;
     const stars = ratingKey(event);
+    const quick = quickKey(event);
     if (event.key === "ArrowLeft") move(previous?.id);
     else if (event.key === "ArrowRight") move(next?.id);
     else if (event.key === "Escape") closeViewer();
@@ -287,6 +309,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
     } else if (event.key === "+" || event.key === "=") zoom.zoomStep(1);
     else if (event.key === "-") zoom.zoomStep(-1);
     else if (editorAvailable && photo && isEditKey(event)) openEditor(photo.id);
+    else if (editorAvailable && photo && quick !== null) quickAction(quick, true);
     else if (photo && stars !== null) void rate([photo.id], stars, true);
     else if (photo && isTagKey(event)) {
       // Beside the Info panel's Add tag button: the photo fills the stage.
@@ -333,6 +356,9 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
           {t("viewer-position", { position: index + 1, total: photos.length })}
         </span>
         <ZoomControls zoom={zoom} shown={shown !== null} />
+        {editorAvailable && (
+          <QuickActions disabled={shown === null} onAction={(action) => quickAction(action)} />
+        )}
         {editorAvailable && (
           <button
             type="button"

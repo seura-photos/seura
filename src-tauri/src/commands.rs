@@ -697,6 +697,12 @@ pub enum PhotoChange {
     RemoveTag {
         tag: String,
     },
+    /// A quarter turn (BRW-10, EDT-4).
+    Rotate {
+        clockwise: bool,
+    },
+    /// One-click enhance (BRW-10, EDT-12).
+    Enhance,
 }
 
 /// What a change did, in numbers of photos.
@@ -711,6 +717,8 @@ pub struct ChangeResult {
     pub unreadable: u32,
     /// Couldn't be changed for another reason, such as a full drive.
     pub failed: u32,
+    /// Only in the cloud, so not enhanced: reading would download them.
+    pub cloud_only: u32,
 }
 
 /// Changes the tags or rating of photos in the library, writing their edit
@@ -728,6 +736,8 @@ pub async fn change_photos(
             PhotoChange::Rating { stars } => Change::Rating(stars.min(5)),
             PhotoChange::AddTag { tag } => Change::AddTag(tag),
             PhotoChange::RemoveTag { tag } => Change::RemoveTag(tag),
+            PhotoChange::Rotate { clockwise } => Change::Rotate { clockwise },
+            PhotoChange::Enhance => Change::Enhance,
         };
         let report = app.state::<Library>().change(&app, &ids, &change);
         let mut result = ChangeResult {
@@ -738,6 +748,7 @@ pub async fn change_photos(
             match problem {
                 Problem::ReadOnly => result.read_only += 1,
                 Problem::Unreadable => result.unreadable += 1,
+                Problem::CloudOnly => result.cloud_only += 1,
                 _ => result.failed += 1,
             }
         }
@@ -927,7 +938,8 @@ fn choose_tags(index: &seura_library::Index, ids: &[u32], text: String) -> TagCh
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryStep {
-    /// `rating`, `addTag`, or `removeTag`.
+    /// `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`, or
+    /// `enhance`.
     pub kind: String,
     /// The tag added or removed.
     pub tag: Option<String>,
@@ -944,6 +956,9 @@ impl From<seura_library::UndoReport> for HistoryStep {
             Change::Rating(_) => ("rating", None),
             Change::AddTag(tag) => ("addTag", Some(tag)),
             Change::RemoveTag(tag) => ("removeTag", Some(tag)),
+            Change::Rotate { clockwise: true } => ("rotateRight", None),
+            Change::Rotate { clockwise: false } => ("rotateLeft", None),
+            Change::Enhance => ("enhance", None),
         };
         HistoryStep {
             kind: kind.into(),
@@ -1733,6 +1748,7 @@ fn reason(problem: Problem) -> String {
         Problem::Unreadable => "its edit file can't be read".into(),
         Problem::ChangedOnDisk => "its edit file changed on disk meanwhile".into(),
         Problem::Gone => "it's no longer in the library".into(),
+        Problem::CloudOnly => "it's only in the cloud".into(),
         Problem::Failed(reason) => reason,
     }
 }

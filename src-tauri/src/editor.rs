@@ -71,7 +71,7 @@ struct Session {
 pub struct Mine(Vec<Option<CoreOperation>>);
 
 impl Mine {
-    fn of(document: Option<&EditDocument>) -> Mine {
+    pub(crate) fn of(document: Option<&EditDocument>) -> Mine {
         Mine(
             CoreOpId::ALL
                 .iter()
@@ -906,6 +906,34 @@ pub fn slider_action(label: &str, operation: CoreOperation) -> Action {
     }
 }
 
+/// Quick actions from the Library and the Viewer (BRW-10): each photo's
+/// action for a turn or Enhance, from its edit file as loaded and, for
+/// Enhance, its pixels, decoded to the guide's size. A photo only in the
+/// cloud isn't enhanced, since reading it would download it (LIB-9).
+pub fn quick_action(
+    change: &seura_library::Change,
+    photo: &std::path::Path,
+    cloud_only: bool,
+    loaded: Option<&EditFile>,
+) -> Result<Action, Problem> {
+    let mine = Mine::of(loaded.map(|file| &file.document));
+    match change {
+        seura_library::Change::Rotate { clockwise } => Ok(turn_action(
+            &mine,
+            if *clockwise { Turn::Right } else { Turn::Left },
+        )),
+        seura_library::Change::Enhance => {
+            if cloud_only {
+                return Err(Problem::CloudOnly);
+            }
+            let decoded = seura_image::decode_linear(photo, Some(seura_image::GUIDE_LONG_EDGE))
+                .map_err(|error| Problem::Failed(error.to_string()))?;
+            Ok(enhance_action(&mine, &decoded.guide))
+        }
+        _ => Err(Problem::Failed("not a quick action".into())),
+    }
+}
+
 /// The most red-eye corrections a photo can have (the edit format's limit).
 pub const MAX_RED_EYE: usize = 64;
 
@@ -1302,6 +1330,38 @@ mod tests {
         assert_eq!(mine.settings().crop_x, 0.1);
         assert_eq!(mine.settings().vignette_amount, -30.0);
         assert_eq!(enhance_action(&mine, &dark), action);
+    }
+
+    #[test]
+    fn quick_actions_turn_and_enhance_each_photo_from_its_own_edits_brw_10() {
+        let (_folder, photo) = photo();
+        save_exposure(&photo, 0.5);
+        let loaded = EditFile::load(&edit_file_path(&photo)).unwrap();
+        let rotate = |clockwise| seura_library::Change::Rotate { clockwise };
+        let right = quick_action(&rotate(true), &photo, false, loaded.as_ref()).unwrap();
+        assert_eq!(right.label, "Rotate right");
+        assert_eq!(
+            right.edits,
+            [Edit::Set(CoreOperation::Orient(Orient {
+                rotate: 90,
+                flip_h: false,
+                flip_v: false
+            }))]
+        );
+        assert_eq!(
+            quick_action(&rotate(false), &photo, false, None)
+                .unwrap()
+                .label,
+            "Rotate left"
+        );
+        // Enhance reads the photo: a flat gray, a little dark.
+        let enhanced = quick_action(&seura_library::Change::Enhance, &photo, false, None).unwrap();
+        assert_eq!(enhanced.label, "Enhance");
+        // Only in the cloud, it's left alone rather than downloaded.
+        assert_eq!(
+            quick_action(&seura_library::Change::Enhance, &photo, true, None),
+            Err(Problem::CloudOnly)
+        );
     }
 
     #[test]

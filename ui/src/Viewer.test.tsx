@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PhotoInfo } from "./bindings";
 import { useStore } from "./store";
@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   changePhotos: vi.fn(() =>
     Promise.resolve({
       status: "ok",
-      data: { changed: 0, readOnly: 1, unreadable: 0, failed: 0 },
+      data: { changed: 0, readOnly: 1, unreadable: 0, failed: 0, cloudOnly: 0 },
     }),
   ),
   fetchLinear: vi.fn(() =>
@@ -129,6 +129,38 @@ describe("Viewer (BRW-5)", () => {
     expect(mocks.backend.upload).toHaveBeenCalled();
     // 800 × 600 CSS pixels of stage for a 1600-pixel photo.
     await screen.findByText(`Fit · ${String(Math.round(Math.min(1, scale / 2) * 100))}%`);
+  });
+
+  it("rotates and enhances the photo by key and toolbar, then draws its new edits (BRW-10)", async () => {
+    show(2, true);
+    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalledWith({ exposureEv: 0.5 }));
+    fireEvent.keyDown(window, { key: "]" });
+    expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "rotate", clockwise: true });
+    fireEvent.keyDown(window, { key: "a" });
+    expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "enhance" });
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Quick fixes" })).getByRole("button", {
+        name: "Rotate left",
+      }),
+    );
+    expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "rotate", clockwise: false });
+    // The library says it changed: the photo is drawn with its new edits,
+    // its pixels as they were.
+    const fetched = mocks.fetchLinear.mock.calls.length;
+    mocks.viewed = { ...mocks.viewed, settings: { exposureEv: 0.5, rotate: 90 } };
+    act(() => useStore.setState(({ libraryVersion }) => ({ libraryVersion: libraryVersion + 1 })));
+    await waitFor(() =>
+      expect(mocks.backend.draw).toHaveBeenLastCalledWith({ exposureEv: 0.5, rotate: 90 }),
+    );
+    expect(mocks.fetchLinear.mock.calls.length).toBe(fetched);
+  });
+
+  it("has no quick fixes while the Editor isn't available", async () => {
+    show(2);
+    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalled());
+    fireEvent.keyDown(window, { key: "]" });
+    expect(mocks.changePhotos).not.toHaveBeenCalled();
+    expect(screen.queryByRole("group", { name: "Quick fixes" })).toBeNull();
   });
 
   it("moves through the grid's order with the arrow keys, stopping at the ends", async () => {

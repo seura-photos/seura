@@ -154,12 +154,21 @@ impl Library {
         ids: &[PhotoId],
         change: &Change,
     ) -> ChangeReport {
+        // Rotate and Enhance work out each photo's action from its own
+        // edits and pixels (BRW-10).
+        let quick =
+            |photo: &std::path::Path, cloud_only: bool, loaded: Option<&seura_edit::EditFile>| {
+                crate::editor::quick_action(change, photo, cloud_only, loaded)
+            };
+        let make: Option<seura_library::MakeAction<'_>> =
+            matches!(change, Change::Rotate { .. } | Change::Enhance).then_some(&quick);
         let report = {
             let mut history = self.history.lock().expect("history lock");
-            let (report, action) = Index::change_recorded(
+            let (report, action) = Index::change_recorded_with(
                 &self.index,
                 ids,
                 change,
+                make,
                 crate::editor::WRITER,
                 time::OffsetDateTime::now_utc(),
                 &move_to_trash,

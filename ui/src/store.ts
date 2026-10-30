@@ -79,6 +79,9 @@ type State = {
   notice: string | null;
   /** Counts notices, so the same message twice is announced twice. */
   noticeId: number;
+  /** Counts the core's word that the library changed: photos' edits may
+   * be different, so the Viewer reads the shown photo's again. */
+  libraryVersion: number;
   /** The old edit files Start over just kept, by name, for the notice bar
    * to say where they went (FIL-4). */
   kept: string[] | null;
@@ -153,6 +156,11 @@ type State = {
   /** Rates photos 0 to 5 stars, 0 clearing it (TAG-6); `byKey` as for
    * `change`. */
   rate: (ids: number[], stars: number, byKey?: boolean) => Promise<void>;
+  /** Turns photos a quarter (BRW-10); `byKey` as for `change`. */
+  rotate: (ids: number[], clockwise: boolean, byKey?: boolean) => Promise<void>;
+  /** One-click enhance for photos (BRW-10, EDT-12); `byKey` as for
+   * `change`. */
+  enhance: (ids: number[], byKey?: boolean) => Promise<void>;
   /** The tag picker, while it's open (TAG-3): its photos, and the box on
    * screen it's anchored beside (wireframes, section 7). */
   picker: { ids: number[]; anchor: Anchor } | null;
@@ -183,15 +191,20 @@ type State = {
 
 /** What a change made with a key did, for its message (INT-6). */
 function changeDone(change: PhotoChange, count: number): string {
-  if (change.kind === "rating") {
-    return change.stars === 0
-      ? t("change-done-cleared", { count })
-      : t("change-done-rated", { count, stars: change.stars });
+  switch (change.kind) {
+    case "rating":
+      return change.stars === 0
+        ? t("change-done-cleared", { count })
+        : t("change-done-rated", { count, stars: change.stars });
+    case "rotate":
+      return t("change-done-rotated", { count, clockwise: String(change.clockwise) });
+    case "enhance":
+      return t("change-done-enhanced", { count });
+    case "addTag":
+      return t("change-done-added", { count, tag: change.tag });
+    case "removeTag":
+      return t("change-done-removed", { count, tag: change.tag });
   }
-  return t(change.kind === "addTag" ? "change-done-added" : "change-done-removed", {
-    count,
-    tag: change.tag,
-  });
 }
 
 /** Undoes or redoes, and says what happened (BRW-11). */
@@ -298,6 +311,7 @@ export const useStore = create<State>()((set, get) => ({
   editorStep: null,
   notice: null,
   noticeId: 0,
+  libraryVersion: 0,
   kept: null,
   confirmingDelete: null,
   about: false,
@@ -658,6 +672,14 @@ export const useStore = create<State>()((set, get) => ({
     await get().change(ids, { kind: "rating", stars }, byKey);
   },
 
+  async rotate(ids, clockwise, byKey = false) {
+    await get().change(ids, { kind: "rotate", clockwise }, byKey);
+  },
+
+  async enhance(ids, byKey = false) {
+    await get().change(ids, { kind: "enhance" }, byKey);
+  },
+
   async openPicker(ids, anchor) {
     if (ids.length === 0) return;
     const summary = await commands.selectionSummary(ids);
@@ -679,12 +701,12 @@ export const useStore = create<State>()((set, get) => ({
       get().say(t("change-failed", { count: ids.length }));
       return;
     }
-    const { readOnly, unreadable, failed } = result.data;
+    const { readOnly, unreadable, failed, cloudOnly } = result.data;
     // A change made with a key says what it did: nothing changes where the
     // user is looking, and the photos may be off screen. A click on a star
     // or a chip changes what's under the pointer, so it needs no message
     // (INT-6).
-    const changed = ids.length - readOnly - unreadable - failed;
+    const changed = ids.length - readOnly - unreadable - failed - cloudOnly;
     const parts = [
       byKey && changed > 0 ? changeDone(change, changed) : null,
       readOnly === ids.length
@@ -693,6 +715,7 @@ export const useStore = create<State>()((set, get) => ({
           ? t("change-read-only-some", { count: readOnly })
           : null,
       unreadable > 0 ? t("change-unreadable", { count: unreadable }) : null,
+      cloudOnly > 0 ? t("change-cloud-only", { count: cloudOnly }) : null,
       failed > 0 ? t("change-failed", { count: failed }) : null,
     ].filter((part) => part !== null);
     if (parts.length > 0) get().say(parts.join(" "));

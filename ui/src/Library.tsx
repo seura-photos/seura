@@ -28,12 +28,14 @@ import {
   isFind,
   isSelectAll,
   isTagKey,
+  quickKey,
   ratingKey,
 } from "./keys";
 import { Message } from "./Message";
 import { MoreButton } from "./MoreButton";
 import { NoticeBar } from "./NoticeBar";
 import { PhotoMenu } from "./PhotoMenu";
+import { type Quick, QuickActions } from "./QuickActions";
 import { TagTree } from "./TagTree";
 import { tagPathTo } from "./tagRows";
 import { t } from "./messages";
@@ -194,7 +196,9 @@ export function Library({ inert = false }: { inert?: boolean }) {
     if (selection.ids.size === 0) return;
     const ids = [...selection.ids];
     const stars = ratingKey(event);
+    const quick = editorAvailable ? quickKey(event) : null;
     if (stars !== null) void rate(ids, stars, true);
+    else if (quick !== null) quickAction(ids, quick, true);
     else if (editorAvailable && isEditKey(event)) edit();
     // Delete moves them to the Recycle Bin, once confirmed (BRW-9).
     else if (isDeleteKey(event)) void useStore.getState().askDelete(ids);
@@ -202,6 +206,13 @@ export function Library({ inert = false }: { inert?: boolean }) {
     else return;
     event.preventDefault();
   });
+  /** Rotates or enhances photos (BRW-10); a key says what it did (INT-6). */
+  function quickAction(ids: number[], action: Quick, byKey = false) {
+    const store = useStore.getState();
+    if (action === "enhance") void store.enhance(ids, byKey);
+    else void store.rotate(ids, action === "right", byKey);
+  }
+
   /** Opens the Editor on the selection's first photo in the grid's order. */
   function edit() {
     const first = photos.find((photo) => selection.ids.has(photo.id));
@@ -248,6 +259,13 @@ export function Library({ inert = false }: { inert?: boolean }) {
             }}
           />
         </label>
+        {/* The selection's quick fixes, then Edit (wireframes, Library). */}
+        {editorAvailable && (
+          <QuickActions
+            disabled={selection.ids.size === 0}
+            onAction={(action) => quickAction([...selection.ids], action)}
+          />
+        )}
         {editorAvailable && (
           <button
             type="button"
@@ -410,6 +428,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
                 onSelectAll={selectAllPhotos}
                 onOpen={(photo) => view(photo.id)}
                 onMenu={(ids, x, y) => setPhotoMenu({ ids, x, y })}
+                onQuick={editorAvailable ? (id, action) => quickAction([id], action) : undefined}
                 reveal={reveal}
               />
             )}

@@ -328,6 +328,61 @@ mod tests {
         }
     }
 
+    /// Rotate and Enhance (BRW-10): each photo's action comes from the app,
+    /// and the whole is one action to undo, like a rating.
+    #[test]
+    fn a_change_made_photo_by_photo_is_one_action_to_undo() {
+        let mut session = Session::new(2);
+        let ids = session.ids.clone();
+        let turn = |_: &Path, _: bool, _: Option<&EditFile>| {
+            Ok(seura_edit::Action {
+                label: "Rotate right".into(),
+                edits: vec![seura_edit::Edit::Set(seura_edit::CoreOperation::Orient(
+                    seura_edit::Orient {
+                        rotate: 90,
+                        flip_h: false,
+                        flip_v: false,
+                    },
+                ))],
+            })
+        };
+        let change = Change::Rotate { clockwise: true };
+        let (report, action) = Index::change_recorded_with(
+            &session.index,
+            &ids,
+            &change,
+            Some(&turn),
+            WRITER,
+            OffsetDateTime::now_utc(),
+            &|path| session.trash.take(path),
+        );
+        assert_eq!(report.changed.len(), 2);
+        session.history.record(action);
+        let files = [session.edit_file(0), session.edit_file(1)];
+        let rotated = |n: usize| {
+            fs::read(&files[n]).is_ok_and(|bytes| {
+                EditDocument::parse(&bytes)
+                    .unwrap()
+                    .core(seura_edit::CoreOpId::Orient)
+                    .is_some()
+            })
+        };
+        assert!(rotated(0) && rotated(1));
+        let undone = session.undo().unwrap();
+        assert_eq!((undone.change, undone.done), (change, 2));
+        assert!(!rotated(0) && !rotated(1));
+        // Without the app's actions, a rotation changes nothing.
+        let (report, _) = Index::change_recorded(
+            &session.index,
+            &ids,
+            &Change::Enhance,
+            WRITER,
+            OffsetDateTime::now_utc(),
+            &|path| session.trash.take(path),
+        );
+        assert!(report.changed.is_empty());
+    }
+
     #[test]
     fn undo_undoes_the_last_action_on_every_photo_it_touched() {
         let mut session = Session::new(3);

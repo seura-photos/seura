@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useStore } from "./store";
 
-const changed = { readOnly: 0, unreadable: 0, failed: 0 };
+const changed = { readOnly: 0, unreadable: 0, failed: 0, cloudOnly: 0 };
 vi.mock("./bindings", () => ({
   commands: {
     photos: vi.fn(() => Promise.resolve([])),
@@ -50,6 +50,25 @@ describe("store", () => {
     expect(useStore.getState().notice).toBe("Added the tag beach to 5 photos.");
     await change([1], { kind: "removeTag", tag: "beach" }, true);
     expect(useStore.getState().notice).toBe("Removed the tag beach from 1 photo.");
+  });
+
+  it("says what a quick action by key did, and which photos were only in the cloud (BRW-10)", async () => {
+    const { rotate, enhance } = useStore.getState();
+    await rotate([1, 2], true);
+    expect(useStore.getState().notice).toBeNull();
+    await rotate([1, 2], true, true);
+    expect(useStore.getState().notice).toBe("Rotated 2 photos right.");
+    await rotate([1], false, true);
+    expect(useStore.getState().notice).toBe("Rotated 1 photo left.");
+    await enhance([1, 2, 3], true);
+    expect(useStore.getState().notice).toBe("Enhanced 3 photos.");
+    // Enhance leaves cloud-only photos alone, and says so even by click.
+    changed.cloudOnly = 1;
+    await enhance([1, 2]);
+    changed.cloudOnly = 0;
+    expect(useStore.getState().notice).toBe(
+      "1 photo is only in the cloud, so it wasn't enhanced. Open it first to download it.",
+    );
   });
 
   it("counts only the photos a key changed, and says why the others weren't", async () => {
