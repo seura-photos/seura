@@ -32,6 +32,16 @@ The plan asked for the guide's method to be chosen with reference images that ha
 - **WebGL2:** at least 119 frames a second; none over 33 ms.
 - **Opening a photo** first took 0.26 to 0.54 s, against 0.14 to 0.32 s before, because the guide's image is a second scaling of the whole photo. Done side by side with the preview's scaling, it's 0.20 to 0.44 s. PRF-6 sets no target for opening.
 
+## PRF-6 and the render check on the Mac
+
+Nevada asked the Mac session to measure, on the MacBook (M1 Max, macOS 26.6.2, a 120 Hz display), with the same script.
+
+- **Both backends hold 60 frames a second,** WebKit's cap, for every slider at 12, 24 and 48 MP. That includes Temperature with highlights and shadows set, whose longest frame was 22 ms.
+- **One frame over 33 ms on each backend:** Highlights on the 12 MP photo, the first drag that needs the guide (77 ms on WebGPU, 55 on WebGL2). It looks like one-time setup at first use; the same slider stays at 18 to 21 ms on the larger photos.
+- **Opening** took 0.21 to 0.51 s.
+- **WebGL2 on the Mac has the extension the guide needs** (`EXT_color_buffer_float`), and the render check matches export with difference 0 on WebGPU and WebGL2.
+- Claude Code's request gave the Mac session a contradictory build command (`--no-bundle --bundles app`); on macOS, `--bundles app` replaces `--no-bundle`, as CLAUDE.md says.
+
 ## Caught along the way
 
 - **WebGL2 drew nothing at first.** The render check in the real web view passed on WebGPU and failed on WebGL2 by a full 255 levels. The uniform block had grown from 80 to 100 bytes, and GLSL's block layout rounds a struct up to a multiple of 16, so WebGL2 wanted 112 and refused to draw from a 100-byte buffer. WebGPU accepts 100. The preview now rounds the buffer up, with a test. It had never shown because 80 is a multiple of 16.
