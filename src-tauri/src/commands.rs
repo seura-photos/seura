@@ -1621,6 +1621,8 @@ pub enum PhotoEdit {
     Crop { crop: crate::editor::CropEdit },
     /// Red-eye mode's Done (EDT-7): every circle, none to remove them all.
     RedEye { regions: Vec<RedEyeCircle> },
+    /// Enhance (EDT-12), which the core works out from the photo.
+    Enhance,
 }
 
 /// What saving an Editor change did.
@@ -1655,6 +1657,7 @@ pub async fn edit_photo(app: AppHandle, id: u32, edit: PhotoEdit) -> Result<Edit
         let change = match edit {
             PhotoEdit::Turn { turn } => crate::editor::Change::Turn(turn),
             PhotoEdit::Crop { crop } => crate::editor::Change::Crop(crop),
+            PhotoEdit::Enhance => crate::editor::Change::Enhance,
             PhotoEdit::RedEye { regions } => change(crate::editor::red_eye_action(
                 &regions
                     .iter()

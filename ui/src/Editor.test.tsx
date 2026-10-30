@@ -340,6 +340,25 @@ describe("Editor", () => {
     await waitFor(() => expect(sliders("Vignette")).toHaveLength(0));
   });
 
+  it("enhances with the button or A, as one change the core works out (EDT-12)", async () => {
+    const enhanced = { exposureEv: 0.6, contrast: 12, shadows: 20, temperature: 8 };
+    mocks.editPhoto.mockImplementation(() =>
+      Promise.resolve({
+        status: "ok",
+        data: { kind: "saved", steps: { undo: "Enhance", redo: null }, settings: enhanced },
+      }),
+    );
+    edit();
+    const slider = await brightness();
+    fireEvent.click(screen.getByRole("button", { name: "Enhance" }));
+    await waitFor(() => expect(mocks.editPhoto).toHaveBeenCalledWith(7, { kind: "enhance" }));
+    // The Editor shows what the core set.
+    await waitFor(() => expect(slider.value).toBe("15"));
+    expect((screen.getByRole("slider", { name: "Shadows" }) as HTMLInputElement).value).toBe("20");
+    fireEvent.keyDown(window, { key: "a" });
+    await waitFor(() => expect(mocks.editPhoto).toHaveBeenCalledTimes(2));
+  });
+
   it("double-clicking the slider resets it (EDT-5)", async () => {
     edit();
     fireEvent.doubleClick(await brightness());
