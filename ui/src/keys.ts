@@ -61,6 +61,16 @@ export function isDeleteKey(event: KeyboardEvent): boolean {
   return event.key === "Delete" && !isTyping(event);
 }
 
+/** The quick action a key press asks for (BRW-10): `[` and `]` rotate
+ * left and right, `A` enhances; or null. */
+export function quickKey(event: KeyboardEvent): "left" | "right" | "enhance" | null {
+  if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return null;
+  if (event.key === "[") return "left";
+  if (event.key === "]") return "right";
+  if (event.key === "a" || event.key === "A") return "enhance";
+  return null;
+}
+
 /** Whether a key press is `E`, for the Editor (EDT-1). */
 export function isEditKey(event: KeyboardEvent): boolean {
   if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return false;

@@ -1,6 +1,13 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { CircleAlert, SlidersHorizontal, Star } from "lucide-react";
+import {
+  CircleAlert,
+  RotateCcwSquare,
+  RotateCwSquare,
+  SlidersHorizontal,
+  Sparkles,
+  Star,
+} from "lucide-react";
 import {
   type KeyboardEvent,
   type MouseEvent,
@@ -12,6 +19,7 @@ import {
 import { commands, type PhotoInfo } from "./bindings";
 import { cellLabel } from "./cellLabel";
 import { GAP, gridLayout } from "./gridLayout";
+import type { Quick } from "./QuickActions";
 import { t } from "./messages";
 import { moveFocus, type Selection } from "./selection";
 import { thumbLabel, type ThumbState } from "./thumbState";
@@ -33,6 +41,9 @@ type Props = {
   onMenu?: ((ids: number[], x: number, y: number) => void) | undefined;
   /** A photo to scroll to and focus: the last one shown in the Viewer. */
   reveal?: { id: number } | null | undefined;
+  /** Rotate or enhance one photo from its hovered thumbnail (BRW-10);
+   * none while those aren't available. */
+  onQuick?: ((id: number, action: Quick) => void) | undefined;
 };
 
 const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
@@ -55,6 +66,7 @@ export function Grid({
   onOpen,
   onMenu,
   reveal,
+  onQuick,
 }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -218,6 +230,7 @@ export function Grid({
                   focusable={index === current}
                   onClick={(event) => onClick(event, index, photo)}
                   onOpen={onOpen}
+                  onQuick={onQuick}
                   onMenu={(event) => {
                     event.preventDefault();
                     setFocusIndex(index);
@@ -244,6 +257,7 @@ type ThumbnailProps = {
   onClick: (event: MouseEvent) => void;
   onOpen?: ((photo: PhotoInfo) => void) | undefined;
   onMenu: (event: MouseEvent) => void;
+  onQuick?: ((id: number, action: Quick) => void) | undefined;
 };
 
 function Thumbnail({
@@ -257,6 +271,7 @@ function Thumbnail({
   onClick,
   onOpen,
   onMenu,
+  onQuick,
 }: ThumbnailProps) {
   // The version whose image failed to load: a newer version is tried again.
   const [missingVersion, setMissingVersion] = useState<number | null>(null);
@@ -306,6 +321,36 @@ function Thumbnail({
             <Star key={star} className="star" />
           ))}
         </span>
+      )}
+      {/* On the photo while it's hovered (BRW-10, INT-5): the keyboard has
+          [, ] and A for the selection, so these aren't in the tab order. */}
+      {onQuick && (
+        <div className="cell-actions">
+          {(
+            [
+              ["left", RotateCcwSquare, "quick-rotate-left"],
+              ["right", RotateCwSquare, "quick-rotate-right"],
+              ["enhance", Sparkles, "quick-enhance"],
+            ] as const
+          ).map(([action, Icon, label]) => (
+            <button
+              key={action}
+              type="button"
+              className="cell-action"
+              tabIndex={-1}
+              aria-label={t(label)}
+              title={t(label)}
+              onClick={(event) => {
+                // Not a click on the cell, which would select it.
+                event.stopPropagation();
+                onQuick(photo.id, action);
+              }}
+              onDoubleClick={(event) => event.stopPropagation()}
+            >
+              <Icon className="icon" aria-hidden />
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

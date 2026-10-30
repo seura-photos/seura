@@ -24,6 +24,9 @@ menu-redo = Redo
 menu-undo-action =
     { $kind ->
         [rating] Undo Rating
+        [rotateLeft] Undo Rotate Left
+        [rotateRight] Undo Rotate Right
+        [enhance] Undo Enhance
         [addTag] Undo Add Tag “{ $tag }”
        *[removeTag] Undo Remove Tag “{ $tag }”
     } ({ $count ->
@@ -33,6 +36,9 @@ menu-undo-action =
 menu-redo-action =
     { $kind ->
         [rating] Redo Rating
+        [rotateLeft] Redo Rotate Left
+        [rotateRight] Redo Rotate Right
+        [enhance] Redo Enhance
         [addTag] Redo Add Tag “{ $tag }”
        *[removeTag] Redo Remove Tag “{ $tag }”
     } ({ $count ->

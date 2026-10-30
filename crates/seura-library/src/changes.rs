@@ -30,6 +30,13 @@ pub enum Change {
     AddTag(String),
     /// Removes the tag where it's present (TAG-4).
     RemoveTag(String),
+    /// Turns each photo a quarter clockwise or counterclockwise, as its own
+    /// edits show it (BRW-10, EDT-4). Each photo's action depends on its
+    /// edits, so the app makes it: see [`Index::change_recorded_with`].
+    Rotate { clockwise: bool },
+    /// One-click enhance for each photo (BRW-10, EDT-12), from its own
+    /// pixels, which the app reads: see [`Index::change_recorded_with`].
+    Enhance,
 }
 
 impl Change {
@@ -39,6 +46,9 @@ impl Change {
             Change::Rating(_) => "Rating",
             Change::AddTag(_) => "Add tag",
             Change::RemoveTag(_) => "Remove tag",
+            Change::Rotate { clockwise: true } => "Rotate right",
+            Change::Rotate { clockwise: false } => "Rotate left",
+            Change::Enhance => "Enhance",
         }
     }
 }
@@ -56,6 +66,9 @@ pub enum Problem {
     ChangedOnDisk,
     /// The photo is no longer in the library.
     Gone,
+    /// The photo is only in the cloud, and the change needs its pixels,
+    /// which reading would download (LIB-9).
+    CloudOnly,
     /// Anything else, such as a full drive.
     Failed(String),
 }
@@ -123,6 +136,22 @@ impl Index {
         at: OffsetDateTime,
         trash: &dyn Fn(&Path) -> io::Result<()>,
     ) -> (ChangeReport, crate::undo::Action) {
+        Index::change_recorded_with(index, ids, change, None, writer, at, trash)
+    }
+
+    /// As [`Index::change_recorded`], with each photo's action made by
+    /// `make` when given: from the photo's path, whether it's only in the
+    /// cloud, and its edit file as loaded. Rotate and Enhance need it, since
+    /// what they do depends on each photo's edits and pixels.
+    pub fn change_recorded_with(
+        index: &RwLock<Index>,
+        ids: &[PhotoId],
+        change: &Change,
+        make: Option<MakeAction<'_>>,
+        writer: Writer,
+        at: OffsetDateTime,
+        trash: &dyn Fn(&Path) -> io::Result<()>,
+    ) -> (ChangeReport, crate::undo::Action) {
         let mut report = ChangeReport::default();
         let mut action = crate::undo::Action::new(change.clone());
         // A typed tag takes the form the library already has, whatever its
@@ -156,10 +185,15 @@ impl Index {
                 report.problems.push((id, Problem::ReadOnly));
                 continue;
             }
+            let path = target.path.clone();
+            let placeholder = target.placeholder;
             match write(
                 &target,
                 None,
-                |loaded| action_for(change, loaded),
+                |loaded| match make {
+                    Some(make) => make(&path, placeholder, loaded),
+                    None => Ok(action_for(change, loaded)),
+                },
                 writer,
                 at,
                 trash,
@@ -229,7 +263,14 @@ impl Index {
         if target.read_only {
             return Err(Problem::ReadOnly);
         }
-        match write(&target, kept.clone(), make, writer, at, trash) {
+        match write(
+            &target,
+            kept.clone(),
+            |loaded| Ok(make(loaded)),
+            writer,
+            at,
+            trash,
+        ) {
             Ok(None) => Ok(false),
             Ok(Some(mut written)) => {
                 *kept = written.removed.take();
@@ -394,6 +435,14 @@ fn action_for(change: &Change, loaded: Option<&EditFile>) -> Action {
                     .collect(),
             )
         }
+        // Made by the app for each photo (`change_recorded_with`); without
+        // it, nothing changes.
+        Change::Rotate { .. } | Change::Enhance => {
+            return Action {
+                label: change.label().into(),
+                edits: Vec::new(),
+            };
+        }
     };
     Action {
         label: change.label().into(),
@@ -401,12 +450,16 @@ fn action_for(change: &Change, loaded: Option<&EditFile>) -> Action {
     }
 }
 
+/// Makes one photo's action for [`Index::change_recorded_with`]: from its
+/// path, whether it's only in the cloud, and its edit file as loaded.
+pub type MakeAction<'a> = &'a dyn Fn(&Path, bool, Option<&EditFile>) -> Result<Action, Problem>;
+
 /// Changes one photo's edit file with the action `make` gives for the file
 /// as it's loaded now. `None` if the action changes nothing.
 fn write(
     target: &Target,
     base: Option<EditDocument>,
-    make: impl FnOnce(Option<&EditFile>) -> Action,
+    make: impl FnOnce(Option<&EditFile>) -> Result<Action, Problem>,
     writer: Writer,
     at: OffsetDateTime,
     trash: &dyn Fn(&Path) -> io::Result<()>,
@@ -420,7 +473,7 @@ fn write(
     // Without a file, `base` is where the change starts, if given; saving
     // checks again, at the last moment, that nothing has appeared since.
     let loaded = loaded.or_else(|| base.map(|document| EditFile::create(&edit_path, document)));
-    let action = make(loaded.as_ref());
+    let action = make(loaded.as_ref())?;
 
     let mut fingerprint = None;
     let mut file = match loaded {

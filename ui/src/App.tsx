@@ -41,7 +41,10 @@ export function App() {
         else if (dev?.measure) void measure();
       });
     const subscriptions = [
-      events.libraryChanged.listen(() => void useStore.getState().loadFolders()),
+      events.libraryChanged.listen(() => {
+        useStore.setState(({ libraryVersion }) => ({ libraryVersion: libraryVersion + 1 }));
+        void useStore.getState().loadFolders();
+      }),
       // Finished thumbnails arrive in batches, about ten a second.
       events.thumbnailsReady.listen(({ payload }) => useStore.getState().thumbnailsReady(payload)),
       events.scanProgress.listen(({ payload }) => useStore.setState({ progress: payload })),

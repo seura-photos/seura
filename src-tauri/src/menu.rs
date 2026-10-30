@@ -198,6 +198,9 @@ pub fn history_changed<R: Runtime>(
                 Change::Rating(_) => ("rating", ""),
                 Change::AddTag(tag) => ("addTag", tag.as_str()),
                 Change::RemoveTag(tag) => ("removeTag", tag.as_str()),
+                Change::Rotate { clockwise: true } => ("rotateRight", ""),
+                Change::Rotate { clockwise: false } => ("rotateLeft", ""),
+                Change::Enhance => ("enhance", ""),
             };
             t_with(
                 id,
