@@ -68,7 +68,15 @@ A single centered card: title; two sentences (what the app does; originals are n
 
 ## 6. Crop and straighten (EDT-2, EDT-3)
 
-- The whole photo shows, rotated by the straighten angle, with the crop box, rule-of-thirds lines, corner handles, and the area outside darkened; a label shows ratio and resulting pixel size.
+- **The frame:** the oriented photo's own rectangle, always at Fit, with the photo turned by the straighten angle inside it (the edit format's crop frame). Parts of the photo turned past the frame aren't shown, since no crop can reach them; the frame's uncovered corners are the dark surround. The crop box stays upright and the photo turns under it, as in Lightroom. The area outside the box is darkened, and rule-of-thirds lines show inside it the whole time.
+- **The box:** dragging a corner resizes, keeping the ratio if one is set; dragging an edge resizes that side (Freeform) or both sides about the middle (with a ratio); dragging inside moves it. The box can't leave the turned photo: a drag slides along the edge instead of uncovering a corner. It can't be smaller than 16 × 16 pixels of the photo. From the keyboard, the box and its four corners are focusable in turn; the arrow keys move the focused one by one screen pixel, ten with Shift.
+- **The label** shows the ratio and the result in the photo's own pixels: "3:2 · 3720 × 2480", or "Freeform · 3720 × 2481".
+- **Choosing a ratio** sets the largest box of that ratio, centered where the current box is, that fits inside the turned photo. Landscape and Portrait swap it the same way; they start set from the photo's own shape and are disabled for Freeform and 1:1. Original is the photo's own width and height, stored reduced ("4:3", "375:211"); a stored ratio equal to the photo's own shows as Original on reopening.
+- **Straighten slider:** −45° to +45° in 0.1° steps, shown as "+2.4°"; arrow keys step 0.1°, 1° with Shift; double-click resets to 0. While the angle changes, the box shrinks about its center only as much as it must, and grows back toward the box the user set (EDT-3).
+- **Rotate and flip** still work in crop mode from the keys (`[` `]`), the box turning with the photo (EDT-4). No buttons are added.
+- **Header and filmstrip:** crop mode's header replaces the Editor's toolbar, and the filmstrip is hidden. Compare isn't available in crop mode.
+- **Undo inside crop mode** steps back through the changes made since it opened (box, ratio, angle, Reset). Reset crop sets the whole photo, angle 0, and Original.
+- **Done** (or Enter) saves the crop and angle as one change in the photo's history, labeled "Crop", or "Straighten" when only the angle changed. **Cancel** (or Esc) leaves everything as it was when crop mode opened. Leaving the Editor or the photo any other way while crop mode is open counts as Done, so the work isn't lost, as everywhere else in the Editor (EDT-11).
 - **Panel:** aspect ratios (Original, Freeform, 1:1, 4:3, 3:2, 16:9, 5:4) as a 3-column grid; Landscape or Portrait; Straighten slider with its value and a note that the crop shrinks so no corners show; Reset crop; Cancel and Done at the bottom right. Enter applies, Esc cancels.
 
 ## 7. Tag picker (TAG-3)
