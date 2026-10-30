@@ -410,7 +410,7 @@ export function Editor({ id, forceWebgl2 }: Props) {
         ? // Crop mode shows the whole frame, the photo turned in it.
           { ...settings, straighten: cropAngle, cropX: 0, cropY: 0, cropWidth: 1, cropHeight: 1 }
         : comparing
-          ? { ...NEUTRAL_SETTINGS, ...geometryOf(settings) }
+          ? { ...NEUTRAL_SETTINGS, redEye: [], ...geometryOf(settings) }
           : settings),
     [settings, comparing, cropAngle],
   );
@@ -891,9 +891,12 @@ export function Editor({ id, forceWebgl2 }: Props) {
   // Whether there's anything of Seura's to revert, as shown now.
   const edited =
     shown !== null &&
-    Object.entries(NEUTRAL_SETTINGS).some(
-      ([name, neutral]) => shown.settings[name as keyof RenderSettings] !== neutral,
-    );
+    Object.entries(NEUTRAL_SETTINGS).some(([name, neutral]) => {
+      const now = shown.settings[name as keyof RenderSettings];
+      // Red-eye's circles are a list, neutral when empty.
+      if (Array.isArray(neutral)) return Array.isArray(now) && now.length > 0;
+      return now !== neutral;
+    });
   // The sliders' values as shown. Numbers from Rust can be null, which
   // would mean NaN; there is none here.
   const value = (

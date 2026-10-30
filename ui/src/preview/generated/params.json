@@ -1,6 +1,6 @@
 {
   "note": "Generated from crates/seura-render/shaders by `npm run shaders`. Don't edit.",
-  "size": 140,
+  "size": 1168,
   "fields": [
     { "name": "output_srgb", "offset": 0, "type": "u32" },
     { "name": "rotate", "offset": 4, "type": "u32" },
@@ -36,6 +36,8 @@
     { "name": "crop_left", "offset": 124, "type": "f32" },
     { "name": "crop_top", "offset": 128, "type": "f32" },
     { "name": "crop_pixels_width", "offset": 132, "type": "f32" },
-    { "name": "crop_pixels_height", "offset": 136, "type": "f32" }
+    { "name": "crop_pixels_height", "offset": 136, "type": "f32" },
+    { "name": "red_eye_count", "offset": 140, "type": "u32" },
+    { "name": "red_eye", "offset": 144, "type": "vec4f", "count": 64, "stride": 16 }
   ]
 }

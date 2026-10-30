@@ -90,6 +90,10 @@ export function params(
   const part = placement.part ?? WHOLE;
   const shown = placement.view ?? WHOLE;
   const crop = cropPixels(settings, placement.full);
+  // Red-eye's circles, as many as the block holds (seura-render's
+  // MAX_RED_EYE), each x, y and radius in a vec4.
+  const circles = layout.fields.find((field) => field.name === "red_eye");
+  const redEye = (settings.redEye ?? []).slice(0, circles?.count ?? 0);
   // The fields that aren't settings: which pass, and where the draw sits.
   const draw: Record<string, number | boolean> = {
     output_srgb: outputSrgb,
@@ -108,12 +112,21 @@ export function params(
     crop_top: crop.y,
     crop_pixels_width: crop.width,
     crop_pixels_height: crop.height,
+    red_eye_count: redEye.length,
   };
   for (const field of layout.fields) {
+    if (field.type === "vec4f") {
+      redEye.forEach(({ x, y, radius }, i) => {
+        const at = field.offset + i * (field.stride ?? 16);
+        [x, y, radius, 0].forEach((v, k) => view.setFloat32(at + k * 4, v ?? 0, true));
+      });
+      continue;
+    }
+    // Every other field is a number or a flag.
     const value =
       field.name in draw
         ? draw[field.name]
-        : settings[settingName(field.name) as keyof RenderSettings];
+        : (settings[settingName(field.name) as keyof RenderSettings] as number | boolean | null);
     // Numbers from Rust can be null, which would mean NaN; edit files hold
     // only finite numbers, so there is none here.
     const number = typeof value === "boolean" ? Number(value) : (value ?? 0);

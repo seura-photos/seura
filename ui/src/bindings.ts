@@ -287,7 +287,7 @@ export const events = {
 };
 
 /* Constants */
-export const NEUTRAL_SETTINGS = {"rotate":0,"flipH":false,"flipV":false,"straighten":0.0,"cropX":0.0,"cropY":0.0,"cropWidth":1.0,"cropHeight":1.0,"exposureEv":0.0,"temperature":0.0,"tint":0.0,"highlights":0.0,"shadows":0.0,"contrast":0.0,"saturation":0.0,"blackAndWhite":0.0,"sepia":0.0,"vignetteAmount":0.0,"vignetteSize":0.0} as const;
+export const NEUTRAL_SETTINGS = {"rotate":0,"flipH":false,"flipV":false,"straighten":0.0,"cropX":0.0,"cropY":0.0,"cropWidth":1.0,"cropHeight":1.0,"exposureEv":0.0,"temperature":0.0,"tint":0.0,"highlights":0.0,"shadows":0.0,"contrast":0.0,"saturation":0.0,"blackAndWhite":0.0,"sepia":0.0,"vignetteAmount":0.0,"vignetteSize":0.0,"redEye":[]} as const;
 
 /* Types */
 /**  What adding a folder did (LIB-1). */
@@ -727,6 +727,16 @@ export type PhotoNotices = {
 	originalChanged: boolean,
 };
 
+/**
+ *  One of `seura.redEye`'s circles: x and y as fractions of the upright
+ *  photo, the radius as a fraction of its shorter side.
+ */
+export type RedEyeCircle = {
+	x: number | null,
+	y: number | null,
+	radius: number | null,
+};
+
 /**  A part of a photo, cut for the Viewer. */
 export type RegionSize = {
 	width: number,
@@ -758,6 +768,8 @@ export type RenderSettings = {
 	sepia: number | null,
 	vignetteAmount: number | null,
 	vignetteSize: number | null,
+	/**  `seura.redEye`'s circles (EDT-7). */
+	redEye: RedEyeCircle[],
 };
 
 /**
