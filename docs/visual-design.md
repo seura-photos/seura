@@ -26,7 +26,10 @@ Two sets of tokens, light and dark; the app follows the operating system's setti
 | accent | `#3352CC` | `#3D5BE0` | Main action fill, selection outline, focus ring (white text on it) |
 | accentText | `#3352CC` | `#8EA6FF` | Links and quiet buttons |
 | accentSubtle | `#E3E8FA` | `#26304F` | Selected rows, banners, effects that are on |
+| accentHover, accentPressed | `#2B47B8`, `#243DA3` | `#4A67E8`, `#3550C4` | Primary buttons on hover and while pressed |
+| hoverOverlay, pressedOverlay | black 4%, 8% | white 6%, 3% | Neutral buttons on hover and while pressed |
 | danger | `#B3261E` | `#FF8A80` | Unreadable edit files, Trash confirmations |
+| dangerSubtleHover, dangerSubtlePressed | `#F8DEDA`, `#F4D3CE` | `#57302D`, `#3F201E` | Danger buttons on hover and while pressed |
 | caution | `#7A5200` | `#E3B341` | Caution icons (6.2:1 and 6.5:1 on cautionSubtle) |
 | cautionSubtle | `#FDF1D2` | `#3B3220` | Notice bar for a caution |
 | rating | `#9A6700` | `#E3B341` | Filled stars |
@@ -49,6 +52,12 @@ Details the tokens alone don't settle, decided while building M3.
   - **Problem,** something the user needs to act on: dangerSubtle, warning icon in danger (FIL-4, an unreadable edit file, with Start over).
   Text is always the primary text color. 8 px corners, at the top of the photo area. Icons on accentSubtle use accentText, not accent, which is only 2.3:1 on it in dark mode (the same as the selected row).
 - **Message** (the last action's result, INT-6): text on surface with a border and a soft shadow (`0 6px 20px rgba(0,0,0,0.18)`), 8 px corners, near the bottom of the photo area, centered, up to 480 px wide. Its border is faint against the grid (about 1.4:1), which is fine: the shadow sets it apart, and WCAG asks contrast of its text, which is high, not of a container's edge.
+- **Hover and pressed states,** for every button, the same on Windows and macOS (one design, INT-2), so the pointer always shows what it's over and that a press landed:
+  - **Neutral buttons** (default, icon, quiet, caution, and toggles that are on): hoverOverlay over the button's own background on hover, pressedOverlay while pressed. In light mode, pressed is darker than hover; in dark mode, pressed sits between rest and hover, as in Windows' own controls. Being overlays, they work on any background: surface, panel, or transparent.
+  - **Primary:** accentHover and accentPressed (white text at 7.8:1 and 9.3:1 in light, 4.8:1 and 6.8:1 in dark).
+  - **Danger:** dangerSubtleHover and dangerSubtlePressed (its text at 5.1:1 and 4.7:1 in light, 4.9:1 and 6.4:1 in dark).
+  - Disabled buttons show neither. Nothing moves or scales when pressed, and the change is immediate, with no transition.
+- **Pointer:** the arrow over buttons and other controls, as native apps on both platforms use; the hand only over links.
 - **Confirmation card** (Revert to original, opening upward over the panel): surface background, border, the message's soft shadow, and 8 px corners, the panel's width less its padding, so it reads as on top of the content it covers. The question in primary text, Revert as a danger button, Cancel as a quiet button where the Revert button was. For screen readers, an alertdialog named by its question, with Cancel focused; Tab reaches Revert.
 - **Sidebar divider:** the 1 px border at rest; 2 px in accentText on hover, while dragging, and when focused, with the focus ring (wireframes, "Resizable sidebar"). Widths are the sidebar, sidebarMin, and sidebarMax tokens.
 
