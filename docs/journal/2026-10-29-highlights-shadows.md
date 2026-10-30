@@ -56,3 +56,8 @@ The first-choice constants stay.
 - **WebGL2 drew nothing at first.** The render check in the real web view passed on WebGPU and failed on WebGL2 by a full 255 levels. The uniform block had grown from 80 to 100 bytes, and GLSL's block layout rounds a struct up to a multiple of 16, so WebGL2 wanted 112 and refused to draw from a 100-byte buffer. WebGPU accepts 100. The preview now rounds the buffer up, with a test. It had never shown because 80 is a multiple of 16.
 - **The generated WebGL2 names were wrong too.** `gl-names.json` took the first texture naga listed as the photo; with three textures, that was the guide. It now names each texture by its name in the WGSL.
 - `from` is a reserved word in WGSL.
+
+## The appendix
+
+- **The formulas appendix now has the guide, highlights and shadows** (edit-format #9, merged by Nevada). Two points were listed for the design session: whether a fixed 1024-pixel guide fits the specification's "never in pixels", and that the guide covers the photo before the crop, which slice 5 builds.
+- **Their example values give each pixel's base** beside its color, since the result depends on the neighborhood. Seura's render tests check its definitions against them by giving that base directly. The shaders can't be handed a base, so for these two the GPU is checked against the definitions by the other render tests.

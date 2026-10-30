@@ -401,9 +401,11 @@ fn light_and_color_keep_what_they_promise() {
 }
 
 /// One of the formulas appendix's test vectors: an operation's params, an
-/// input color, and what it must come out as.
+/// input color, and what it must come out as; for a neighborhood operation,
+/// also the pixel's base, from the luminance guide.
 struct Vector {
     settings: Settings,
+    base: Option<f64>,
     input: [f64; 3],
     output: [f64; 3],
 }
@@ -462,10 +464,19 @@ fn appendix_vectors() -> Vec<(String, Vec<Vector>)> {
                             saturation: param("amount"),
                             ..neutral
                         },
+                        "seura.highlights" => Settings {
+                            highlights: param("amount"),
+                            ..neutral
+                        },
+                        "seura.shadows" => Settings {
+                            shadows: param("amount"),
+                            ..neutral
+                        },
                         other => panic!("{other} has test vectors, but no test here yet"),
                     };
                     Vector {
                         settings,
+                        base: case["base"].as_f64(),
                         input: color(&case["input"]),
                         output: color(&case["output"]),
                     }
@@ -482,12 +493,17 @@ fn appendix_vectors() -> Vec<(String, Vec<Vector>)> {
 fn the_definitions_match_the_appendix_vectors() {
     let all = appendix_vectors();
     assert!(
-        all.len() >= 4,
-        "exposure, white balance, contrast and saturation"
+        all.len() >= 6,
+        "exposure, white balance, highlights, shadows, contrast and saturation"
     );
     for (operation, vectors) in &all {
         for vector in vectors {
-            let found = defined(vector.input, &vector.settings, [0.0; 2]);
+            // A guide with a = 0 and b = the base gives every pixel that base.
+            let found = defined(
+                vector.input,
+                &vector.settings,
+                [0.0, vector.base.unwrap_or(0.0)],
+            );
             for (found, want) in found.iter().zip(vector.output) {
                 assert!(
                     (found - want).abs() <= 0.0001 + 0.001 * want.abs(),
@@ -507,7 +523,10 @@ fn the_definitions_match_the_appendix_vectors() {
 fn the_shaders_match_the_appendix_vectors() {
     let renderer = renderer();
     for (operation, vectors) in appendix_vectors() {
-        for vector in vectors {
+        // A neighborhood operation's base comes from the photo, so a vector's
+        // can't be given to the shaders; the tests above compare them with
+        // the definitions instead.
+        for vector in vectors.iter().filter(|vector| vector.base.is_none()) {
             let pixel = [vector.input[0], vector.input[1], vector.input[2], 1.0].map(f16::from_f64);
             assert_eq!(pixel.map(|v| v.to_f64())[..3], vector.input, "exact in f16");
             let image = LinearImage {
