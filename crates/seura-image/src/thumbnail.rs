@@ -15,13 +15,10 @@ const QUALITY: f32 = 80.0;
 /// Scales an image to fit within `size` × `size`, keeping its proportions.
 /// Images already that small are left alone.
 pub fn fit(image: &Rgba8, size: u32) -> Rgba8 {
-    let long = image.width.max(image.height);
-    if long <= size {
+    if image.width.max(image.height) <= size {
         return image.clone();
     }
-    let scale = f64::from(size) / f64::from(long);
-    let width = ((f64::from(image.width) * scale).round() as u32).max(1);
-    let height = ((f64::from(image.height) * scale).round() as u32).max(1);
+    let (width, height) = fitted(image.width, image.height, size);
     // Borrowed, not copied: a 12-megapixel photo is about 48 MB.
     let source = ImageRef::new(image.width, image.height, &image.pixels, PixelType::U8x4)
         .expect("the buffer matches the image size");
@@ -33,6 +30,17 @@ pub fn fit(image: &Rgba8, size: u32) -> Rgba8 {
         .resize(&source, &mut target, &options)
         .expect("same pixel type on both sides");
     Rgba8::new(width, height, target.into_vec())
+}
+
+/// The size [`fit`] scales a `width` × `height` image to.
+pub(crate) fn fitted(width: u32, height: u32, size: u32) -> (u32, u32) {
+    let long = width.max(height);
+    if long <= size {
+        return (width, height);
+    }
+    let scale = f64::from(size) / f64::from(long);
+    let scaled = |side: u32| ((f64::from(side) * scale).round() as u32).max(1);
+    (scaled(width), scaled(height))
 }
 
 /// A part of an image, in its pixels.

@@ -9,9 +9,13 @@
 //!   again when the `ThumbnailsReady` event names it.
 //! - `preview`: the photo open in the Editor, in the working space (see
 //!   `editor::encode_linear`).
-//! - `check-image`: the render check's reference image, in the same form.
+//! - `preview-guide`: the image the open photo's luminance guide is built
+//!   from, for highlights and shadows, in the same form.
+//! - `check-image`: the render check's reference image, in the same form,
+//!   and `check-guide`, its guide's image.
 //! - `view-<id>`: a photo decoded for the Viewer, in the same form (see
-//!   `viewer`). Only photos the Viewer has decoded.
+//!   `viewer`). Only photos the Viewer has decoded; `view-guide-<id>` is
+//!   the image its luminance guide is built from.
 //! - `view-region`: the last part of the shown photo cut for zooming in, in
 //!   the same form.
 
@@ -21,7 +25,7 @@ use seura_library::PhotoId;
 use tauri::http::{Request, Response, StatusCode, header};
 use tauri::{AppHandle, Manager, Runtime};
 
-use crate::editor::{Editor, check_image_bytes};
+use crate::editor::{Editor, check_guide_bytes, check_image_bytes};
 use crate::library::Library;
 use crate::viewer::Viewer;
 
@@ -35,7 +39,12 @@ pub fn respond<R: Runtime>(
             .try_state::<Editor>()
             .and_then(|editor| editor.preview())
             .and_then(|bytes| pixels(bytes.as_ref().clone())),
+        "/preview-guide" => app
+            .try_state::<Editor>()
+            .and_then(|editor| editor.guide())
+            .and_then(|bytes| pixels(bytes.as_ref().clone())),
         "/check-image" => pixels(check_image_bytes()),
+        "/check-guide" => pixels(check_guide_bytes()),
         "/view-region" => app
             .try_state::<Viewer>()
             .and_then(|viewer| viewer.region_pixels())
@@ -62,8 +71,11 @@ fn pixels(bytes: Vec<u8>) -> Option<Response<Cow<'static, [u8]>>> {
 }
 
 fn viewed<R: Runtime>(app: &AppHandle<R>, path: &str) -> Option<Response<Cow<'static, [u8]>>> {
-    let id: u32 = path.strip_prefix("/view-")?.parse().ok()?;
-    let bytes = app.try_state::<Viewer>()?.pixels(id)?;
+    let viewer = app.try_state::<Viewer>()?;
+    let bytes = match path.strip_prefix("/view-guide-") {
+        Some(id) => viewer.guide(id.parse().ok()?)?,
+        None => viewer.pixels(path.strip_prefix("/view-")?.parse().ok()?)?,
+    };
     pixels(bytes.as_ref().clone())
 }
 

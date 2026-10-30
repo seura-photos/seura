@@ -4,6 +4,8 @@
 use half::f16;
 use moxcms::{ColorProfile, Layout, TransformOptions};
 
+use crate::thumbnail::fitted;
+
 /// An image as 8-bit RGBA, upright: in sRGB once decoded, or in the photo's
 /// own color space while decoding.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,6 +90,67 @@ pub struct LinearImage {
     pub pixels: Vec<f16>,
 }
 
+impl LinearImage {
+    /// The image a luminance guide is built from, for an image that was
+    /// never a decoded photo (the render check's, or a test's): scaled to
+    /// fit [`GUIDE_LONG_EDGE`](crate::GUIDE_LONG_EDGE) by averaging the
+    /// pixels each covers, in linear light, or as it is if it's smaller.
+    pub fn guide_image(&self) -> LinearImage {
+        let (width, height) = fitted(self.width, self.height, crate::GUIDE_LONG_EDGE);
+        if (width, height) == (self.width, self.height) {
+            return self.clone();
+        }
+        // Each output pixel's span of input pixels along one side, with how
+        // much of each it covers.
+        let spans = |from: u32, to: u32| -> Vec<Vec<(usize, f32)>> {
+            let step = f64::from(from) / f64::from(to);
+            (0..to)
+                .map(|i| {
+                    let (start, end) = (f64::from(i) * step, f64::from(i + 1) * step);
+                    (start.floor() as usize..(end.ceil() as usize).min(from as usize))
+                        .map(|j| {
+                            let covered = (end.min(j as f64 + 1.0) - start.max(j as f64)) / step;
+                            (j, covered as f32)
+                        })
+                        .collect()
+                })
+                .collect()
+        };
+        let (columns, rows) = (spans(self.width, width), spans(self.height, height));
+        // Across, then down.
+        let mut across = vec![0.0f32; self.height as usize * width as usize * 4];
+        for y in 0..self.height as usize {
+            for (x, span) in columns.iter().enumerate() {
+                for &(j, weight) in span {
+                    let from = (y * self.width as usize + j) * 4;
+                    let to = (y * width as usize + x) * 4;
+                    for k in 0..4 {
+                        across[to + k] += weight * self.pixels[from + k].to_f32();
+                    }
+                }
+            }
+        }
+        let mut pixels = Vec::with_capacity(width as usize * height as usize * 4);
+        for span in &rows {
+            for x in 0..width as usize {
+                let mut sum = [0.0f32; 4];
+                for &(j, weight) in span {
+                    let from = (j * width as usize + x) * 4;
+                    for k in 0..4 {
+                        sum[k] += weight * across[from + k];
+                    }
+                }
+                pixels.extend(sum.map(f16::from_f32));
+            }
+        }
+        LinearImage {
+            width,
+            height,
+            pixels,
+        }
+    }
+}
+
 /// Pixels converted at a time, so a large photo never needs a full-size
 /// buffer of 32-bit floats.
 const CHUNK: usize = 1 << 16;
@@ -164,6 +227,48 @@ mod tests {
 
     fn numbers(image: &Rgba8) -> Vec<u8> {
         image.pixels.chunks(4).map(|pixel| pixel[0]).collect()
+    }
+
+    /// Columns alternating 0 and 1, `width` wide and half as tall.
+    fn stripes(width: u32) -> LinearImage {
+        let height = width / 2;
+        let pixels = (0..width * height)
+            .flat_map(|i| {
+                let v = f16::from_f32((i % width % 2) as f32);
+                [v, v, v, f16::ONE]
+            })
+            .collect();
+        LinearImage {
+            width,
+            height,
+            pixels,
+        }
+    }
+
+    #[test]
+    fn a_guide_image_averages_the_pixels_it_covers() {
+        // Twice the guide's size: each guide pixel covers one of each stripe.
+        let guide = stripes(2048).guide_image();
+        assert_eq!((guide.width, guide.height), (1024, 512));
+        assert!(
+            guide
+                .pixels
+                .iter()
+                .all(|v| v.to_f32() == 0.5 || v.to_f32() == 1.0)
+        );
+        assert!(guide.pixels.chunks(4).all(|p| p[0].to_f32() == 0.5));
+        // An uneven scale still averages to the same.
+        let guide = stripes(3000).guide_image();
+        assert_eq!(guide.width, 1024);
+        let middle = guide.pixels.chunks(4).map(|p| p[0].to_f32()).sum::<f32>()
+            / (guide.width * guide.height) as f32;
+        assert!((middle - 0.5).abs() < 0.001, "{middle}");
+    }
+
+    #[test]
+    fn a_small_image_is_its_own_guide_image() {
+        let image = stripes(600);
+        assert_eq!(image.guide_image(), image);
     }
 
     #[test]

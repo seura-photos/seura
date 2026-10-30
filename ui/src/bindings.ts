@@ -619,6 +619,10 @@ export type PhotoEdit =
 { kind: "brightness"; ev: number | null } | 
 /**  `seura.contrast`, −100 to 100. */
 { kind: "contrast"; amount: number | null } | 
+/**  `seura.highlights`, −100 to 100. */
+{ kind: "highlights"; amount: number | null } | 
+/**  `seura.shadows`, −100 to 100. */
+{ kind: "shadows"; amount: number | null } | 
 /**
  *  `seura.whiteBalance` from the Temperature slider: both its
  *  settings, −100 to 100.

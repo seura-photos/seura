@@ -11,6 +11,7 @@ use zune_jpeg::zune_core::bytestream::ZCursor;
 use zune_jpeg::zune_core::colorspace::ColorSpace;
 use zune_jpeg::zune_core::options::DecoderOptions;
 
+use crate::GUIDE_LONG_EDGE;
 use crate::exif::{self, ExifInfo};
 use crate::heif;
 use crate::raster::{LinearImage, Rgba8};
@@ -157,16 +158,32 @@ fn decode_jpeg_scaled(bytes: &[u8], size: u32) -> Option<(Source, u32, u32)> {
     Some((source, width, height))
 }
 
+/// A photo in the working space, ready to render: the photo, and the image
+/// its luminance guide is built from (for highlights and shadows).
+pub struct Linear {
+    pub image: LinearImage,
+    pub guide: LinearImage,
+}
+
 /// Decodes a photo into the working space (linear light, Display P3), for
 /// editing and export. With `long_edge`, it's first scaled down to fit, for
-/// the preview (DSP-1).
-pub fn decode_linear(path: &Path, long_edge: Option<u32>) -> Result<LinearImage, DecodeError> {
+/// the preview (DSP-1). The guide's image is scaled from the photo as
+/// decoded, whatever `long_edge` is, so the preview and export build the
+/// same guide (technical design, "Neighborhood operations").
+pub fn decode_linear(path: &Path, long_edge: Option<u32>) -> Result<Linear, DecodeError> {
     let source = decode_source(path)?;
-    let image = match long_edge {
-        Some(size) => fit(&source.image, size),
-        None => source.image,
-    };
-    Ok(image.to_linear_p3(source.icc.as_deref()))
+    let icc = source.icc.as_deref();
+    // Two scalings of the whole photo, which take most of the time for a
+    // large one, so side by side.
+    let (image, guide) = std::thread::scope(|scope| {
+        let guide = scope.spawn(|| guide_linear(&source.image, icc));
+        let image = match long_edge {
+            Some(size) => fit(&source.image, size).to_linear_p3(icc),
+            None => source.image.to_linear_p3(icc),
+        };
+        (image, guide.join().expect("scaling doesn't panic"))
+    });
+    Ok(Linear { image, guide })
 }
 
 /// A photo decoded at full size, upright, before color conversion: what the
@@ -195,6 +212,12 @@ impl Upright {
         self.image.height
     }
 
+    /// The image its luminance guide is built from, as [`decode_linear`]
+    /// gives it.
+    pub fn guide_linear(&self) -> LinearImage {
+        guide_linear(&self.image, self.icc.as_deref())
+    }
+
     /// The part `region` of the photo (kept within it), scaled to `width` ×
     /// `height`, in the working space, as [`decode_linear`] gives it.
     pub fn region_linear(&self, region: Region, width: u32, height: u32) -> LinearImage {
@@ -209,6 +232,13 @@ impl Upright {
         resize_region(&self.image, region, width.max(1), height.max(1))
             .to_linear_p3(self.icc.as_deref())
     }
+}
+
+/// The photo scaled to fit [`GUIDE_LONG_EDGE`], in the working space: what
+/// highlights and shadows build their luminance guide from, the same for
+/// the preview, the Viewer and export.
+fn guide_linear(image: &Rgba8, icc: Option<&[u8]>) -> LinearImage {
+    fit(image, GUIDE_LONG_EDGE).to_linear_p3(icc)
 }
 
 fn decode_source(path: &Path) -> Result<Source, DecodeError> {

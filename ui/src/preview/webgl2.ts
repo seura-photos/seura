@@ -1,8 +1,21 @@
 import type { RenderSettings } from "../bindings";
-import { type Backend, type LinearImage, PARAMS_SIZE, params } from "./backend";
+import {
+  type Backend,
+  GUIDE_PASSES,
+  type LinearImage,
+  PARAMS_SIZE,
+  type Region,
+  WHOLE,
+  guideKey,
+  needsGuide,
+  params,
+} from "./backend";
 import names from "./generated/gl-names.json";
 import fragmentSource from "./generated/shader.frag?raw";
 import vertexSource from "./generated/shader.vert?raw";
+
+// The texture units the shaders' textures are bound to.
+const UNIT = { photo: 0, guide: 1, stage: 2 };
 
 /**
  * The preview on WebGL2, for web views without WebGPU (macOS 13 to 15). It
@@ -15,6 +28,9 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
   if (!gl) return null;
   // Encoded as Display P3, like the WebGPU path; older engines ignore it.
   if ("drawingBufferColorSpace" in gl) gl.drawingBufferColorSpace = "display-p3";
+  // Building the luminance guide draws into float textures, which WebGL2
+  // allows only with this; every engine Seura runs on has it.
+  const floatTargets = gl.getExtension("EXT_color_buffer_float") !== null;
 
   const program = link(gl);
   gl.useProgram(program);
@@ -24,19 +40,114 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
   gl.bindBuffer(gl.UNIFORM_BUFFER, uniforms);
   gl.bufferData(gl.UNIFORM_BUFFER, PARAMS_SIZE, gl.DYNAMIC_DRAW);
   gl.bindBufferBase(gl.UNIFORM_BUFFER, 0, uniforms);
-  gl.uniform1i(gl.getUniformLocation(program, names.photo), 0);
+  gl.uniform1i(gl.getUniformLocation(program, names.photo), UNIT.photo);
+  gl.uniform1i(gl.getUniformLocation(program, names.guide), UNIT.guide);
+  gl.uniform1i(gl.getUniformLocation(program, names.stage), UNIT.stage);
   // The vertex shader makes its own triangle; WebGL2 still wants an array bound.
   const vertices = gl.createVertexArray();
   gl.bindVertexArray(vertices);
 
-  const photo = gl.createTexture();
-  let size = { width: 0, height: 0 };
-
-  const render = (settings: RenderSettings, outputSrgb: boolean, filter: number) => {
-    gl.bindBuffer(gl.UNIFORM_BUFFER, uniforms);
-    gl.bufferSubData(gl.UNIFORM_BUFFER, 0, params(settings, outputSrgb));
+  /** A texture of `format`, sampled with `filter`, its edges repeated past it. */
+  const texture = (width: number, height: number, format: number, filter: number) => {
+    const made = gl.createTexture();
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, photo);
+    gl.bindTexture(gl.TEXTURE_2D, made);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, format, width, height);
+    return made;
+  };
+  const upload = (image: LinearImage, filter: number) => {
+    const made = texture(image.width, image.height, gl.RGBA16F, filter);
+    // Row 0 is the photo's top, as in WebGPU; the shader's coordinates match.
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.texSubImage2D(
+      gl.TEXTURE_2D,
+      0,
+      0,
+      0,
+      image.width,
+      image.height,
+      gl.RGBA,
+      gl.HALF_FLOAT,
+      image.data,
+    );
+    return made;
+  };
+  // Bound to every unit a draw doesn't read, so no unit holds the texture
+  // being drawn into.
+  const empty = texture(1, 1, gl.RGBA16F, gl.NEAREST);
+  const bind = (unit: number, bound: WebGLTexture) => {
+    gl.activeTexture(gl.TEXTURE0 + unit);
+    gl.bindTexture(gl.TEXTURE_2D, bound);
+  };
+
+  let photo: WebGLTexture | null = null;
+  let size = { width: 0, height: 0 };
+  let region: Region = WHOLE;
+  let guideImage: { texture: WebGLTexture; width: number; height: number } | null = null;
+  // The guide, and the white balance it was built for.
+  let guide: { texture: WebGLTexture; key: string } | null = null;
+  const framebuffer = gl.createFramebuffer();
+
+  /** The guide for these settings, built if it isn't yet; `null` if none is needed. */
+  const guideFor = (settings: RenderSettings): WebGLTexture | null => {
+    if (!needsGuide(settings) || !guideImage) return null;
+    const key = guideKey(settings);
+    if (guide?.key === key) return guide.texture;
+    if (!floatTargets) throw new Error("WebGL2 can't draw into float textures here");
+    if (guide) gl.deleteTexture(guide.texture);
+    const { width, height } = guideImage;
+    // The 32-bit textures are read pixel by pixel, so never filtered.
+    const textures = {
+      image: guideImage.texture,
+      one: texture(width, height, gl.RGBA32F, gl.NEAREST),
+      two: texture(width, height, gl.RGBA32F, gl.NEAREST),
+      guide: texture(width, height, gl.RGBA16F, gl.LINEAR),
+    };
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.viewport(0, 0, width, height);
+    bind(UNIT.photo, empty);
+    bind(UNIT.guide, empty);
+    for (const step of GUIDE_PASSES) {
+      bind(UNIT.stage, textures[step.from]);
+      gl.framebufferTexture2D(
+        gl.FRAMEBUFFER,
+        gl.COLOR_ATTACHMENT0,
+        gl.TEXTURE_2D,
+        textures[step.to],
+        0,
+      );
+      gl.bindBuffer(gl.UNIFORM_BUFFER, uniforms);
+      gl.bufferSubData(gl.UNIFORM_BUFFER, 0, params(settings, false, step.pass));
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+    bind(UNIT.stage, empty);
+    gl.deleteTexture(textures.one);
+    gl.deleteTexture(textures.two);
+    guide = { texture: textures.guide, key };
+    return guide.texture;
+  };
+
+  /** Draws the photo into the bound framebuffer, `width` × `height`. */
+  const render = (
+    settings: RenderSettings,
+    outputSrgb: boolean,
+    filter: number,
+    target: WebGLFramebuffer | null,
+    width: number,
+    height: number,
+  ) => {
+    const guided = guideFor(settings) ?? empty;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target);
+    gl.viewport(0, 0, width, height);
+    gl.bindBuffer(gl.UNIFORM_BUFFER, uniforms);
+    gl.bufferSubData(gl.UNIFORM_BUFFER, 0, params(settings, outputSrgb, 0, region));
+    bind(UNIT.guide, guided);
+    bind(UNIT.stage, empty);
+    bind(UNIT.photo, photo ?? empty);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
@@ -44,45 +155,34 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
 
   return {
     name: "webgl2",
-    upload(image: LinearImage) {
+    upload(image: LinearImage, guideSource: LinearImage, part: Region = WHOLE) {
+      if (photo) gl.deleteTexture(photo);
+      if (guideImage) gl.deleteTexture(guideImage.texture);
+      if (guide) gl.deleteTexture(guide.texture);
+      guide = null;
       size = { width: image.width, height: image.height };
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, photo);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      // Row 0 is the photo's top, as in WebGPU; the shader's coordinates match.
-      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        gl.RGBA16F,
-        image.width,
-        image.height,
-        0,
-        gl.RGBA,
-        gl.HALF_FLOAT,
-        image.data,
-      );
+      region = part;
+      photo = upload(image, gl.LINEAR);
+      guideImage = {
+        texture: upload(guideSource, gl.NEAREST),
+        width: guideSource.width,
+        height: guideSource.height,
+      };
     },
     draw(settings: RenderSettings) {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-      render(settings, false, gl.LINEAR);
+      render(settings, false, gl.LINEAR, null, gl.drawingBufferWidth, gl.drawingBufferHeight);
     },
     read(settings: RenderSettings) {
-      const target = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, target);
-      gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, size.width, size.height);
-      const framebuffer = gl.createFramebuffer();
-      gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+      const target = texture(size.width, size.height, gl.RGBA8, gl.NEAREST);
+      const readFrom = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, readFrom);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, target, 0);
-      gl.viewport(0, 0, size.width, size.height);
-      render(settings, true, gl.NEAREST);
+      render(settings, true, gl.NEAREST, readFrom, size.width, size.height);
       const row = size.width * 4;
       const bottomFirst = new Uint8Array(row * size.height);
       gl.readPixels(0, 0, size.width, size.height, gl.RGBA, gl.UNSIGNED_BYTE, bottomFirst);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.deleteFramebuffer(framebuffer);
+      gl.deleteFramebuffer(readFrom);
       gl.deleteTexture(target);
       // WebGL reads from the bottom row up; the photo's top is the last row.
       const pixels = new Uint8Array(bottomFirst.length);
@@ -97,7 +197,11 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
     // made on the same canvas (React mounts effects twice in development)
     // unable to draw. The context goes with the canvas.
     destroy() {
-      gl.deleteTexture(photo);
+      if (photo) gl.deleteTexture(photo);
+      if (guideImage) gl.deleteTexture(guideImage.texture);
+      if (guide) gl.deleteTexture(guide.texture);
+      gl.deleteTexture(empty);
+      gl.deleteFramebuffer(framebuffer);
       gl.deleteBuffer(uniforms);
       gl.deleteVertexArray(vertices);
       gl.deleteProgram(program);

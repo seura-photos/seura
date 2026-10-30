@@ -43,6 +43,8 @@ struct Session {
     photo: PathBuf,
     /// The preview pixels, as served by the `seura://` protocol.
     preview: Arc<Vec<u8>>,
+    /// The image its luminance guide is built from, served the same way.
+    guide: Arc<Vec<u8>>,
     /// The document of its edit file, while the file is in the Trash
     /// because undo left nothing in it, for redo to write back.
     kept: Option<EditDocument>,
@@ -240,8 +242,9 @@ impl Editor {
     /// `long_edge` and reads its edit file, if any. Only reads (CLAUDE.md
     /// rule 1).
     pub fn open(&self, id: u32, photo: PathBuf, long_edge: u32) -> Result<Opened, String> {
-        let preview = seura_image::decode_linear(&photo, Some(long_edge.clamp(1, MAX_PREVIEW)))
+        let decoded = seura_image::decode_linear(&photo, Some(long_edge.clamp(1, MAX_PREVIEW)))
             .map_err(|error| error.to_string())?;
+        let preview = decoded.image;
         let photo_path = photo.clone();
         let ((settings, steps), problem) = match saved(&photo, None) {
             Ok(saved) => (saved, None),
@@ -251,6 +254,7 @@ impl Editor {
             id,
             photo,
             preview: Arc::new(encode_linear(&preview)),
+            guide: Arc::new(encode_linear(&decoded.guide)),
             kept: None,
             mine: Mine::of(current(&photo_path, None).ok().flatten().as_ref()),
             outside: false,
@@ -450,6 +454,12 @@ impl Editor {
         session.as_ref().map(|session| Arc::clone(&session.preview))
     }
 
+    /// The open photo's guide image, for the protocol.
+    pub fn guide(&self) -> Option<Arc<Vec<u8>>> {
+        let session = self.session.lock().expect("editor lock");
+        session.as_ref().map(|session| Arc::clone(&session.guide))
+    }
+
     /// Exports the open photo with its edits into `folder` (EXP-1).
     pub fn export(&self, id: u32, folder: &Path) -> Result<PathBuf, String> {
         let (photo, settings) = {
@@ -474,7 +484,8 @@ impl Editor {
         pixels: Vec<u8>,
     ) -> Result<u8, String> {
         let expected = crate::gpu::with_renderer(|renderer| {
-            renderer.render(&check_image(), &CHECK_SETTINGS, Output::Srgb)
+            let image = check_image();
+            renderer.render(&image, &image.guide_image(), &CHECK_SETTINGS, Output::Srgb)
         })?
         .map_err(|error| error.to_string())?;
         if pixels.len() != width as usize * height as usize * 4 {
@@ -556,6 +567,12 @@ pub fn slider_action(label: &str, operation: CoreOperation) -> Action {
         CoreOperation::Contrast(Amount { amount: value }) => CoreOperation::Contrast(Amount {
             amount: amount(value),
         }),
+        CoreOperation::Highlights(Amount { amount: value }) => CoreOperation::Highlights(Amount {
+            amount: amount(value),
+        }),
+        CoreOperation::Shadows(Amount { amount: value }) => CoreOperation::Shadows(Amount {
+            amount: amount(value),
+        }),
         CoreOperation::Saturation(Amount { amount: value }) => CoreOperation::Saturation(Amount {
             amount: amount(value),
         }),
@@ -582,6 +599,11 @@ pub fn encode_linear(image: &LinearImage) -> Vec<u8> {
 /// The check image, encoded for the protocol.
 pub fn check_image_bytes() -> Vec<u8> {
     encode_linear(&check_image())
+}
+
+/// The check image's guide image, for the protocol.
+pub fn check_guide_bytes() -> Vec<u8> {
+    encode_linear(&check_image().guide_image())
 }
 
 #[cfg(test)]

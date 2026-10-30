@@ -1,6 +1,6 @@
 {
   "note": "Generated from crates/seura-render/shaders by `npm run shaders`. Don't edit.",
-  "size": 80,
+  "size": 100,
   "fields": [
     { "name": "output_srgb", "offset": 0, "type": "u32" },
     { "name": "rotate", "offset": 4, "type": "u32" },
@@ -21,6 +21,11 @@
     { "name": "black_and_white", "offset": 64, "type": "f32" },
     { "name": "sepia", "offset": 68, "type": "f32" },
     { "name": "vignette_amount", "offset": 72, "type": "f32" },
-    { "name": "vignette_size", "offset": 76, "type": "f32" }
+    { "name": "vignette_size", "offset": 76, "type": "f32" },
+    { "name": "draw_pass", "offset": 80, "type": "u32" },
+    { "name": "tile_x", "offset": 84, "type": "f32" },
+    { "name": "tile_y", "offset": 88, "type": "f32" },
+    { "name": "tile_width", "offset": 92, "type": "f32" },
+    { "name": "tile_height", "offset": 96, "type": "f32" }
   ]
 }

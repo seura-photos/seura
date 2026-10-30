@@ -12,8 +12,8 @@ use crate::Output;
 /// costs nothing. Red-eye's regions are a list, which slice 7 of M4 gives a
 /// buffer of its own.
 ///
-/// So far only exposure is rendered; the other operations arrive with the
-/// Editor's tools in M4, each as one function in the shaders.
+/// Operations arrive with the Editor's tools in M4, each as one function in
+/// the shaders.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Settings {
     /// `seura.orient`: clockwise, 0, 90, 180, or 270 degrees, then flips.
@@ -121,8 +121,10 @@ impl Settings {
         settings
     }
 
-    /// The shaders' `Params` for these settings, encoded for `output`.
-    pub(crate) fn uniforms(&self, output: Output) -> Params {
+    /// The shaders' `Params` for these settings, encoded for `output`, for
+    /// one pass, over `tile`: x, y, width and height as fractions of the
+    /// photo.
+    pub(crate) fn uniforms(&self, output: Output, pass: Pass, tile: [f32; 4]) -> Params {
         Params {
             output_srgb: u32::from(output == Output::Srgb),
             rotate: u32::from(self.rotate),
@@ -144,6 +146,11 @@ impl Settings {
             sepia: self.sepia,
             vignette_amount: self.vignette_amount,
             vignette_size: self.vignette_size,
+            draw_pass: pass as u32,
+            tile_x: tile[0],
+            tile_y: tile[1],
+            tile_width: tile[2],
+            tile_height: tile[3],
         }
     }
 }
@@ -180,6 +187,22 @@ pub(crate) struct Params {
     pub sepia: f32,
     pub vignette_amount: f32,
     pub vignette_size: f32,
+    pub draw_pass: u32,
+    pub tile_x: f32,
+    pub tile_y: f32,
+    pub tile_width: f32,
+    pub tile_height: f32,
+}
+
+/// What a draw does (`Params`' `draw_pass`): draw the photo, or one of the
+/// luminance guide's passes (`shaders/guide.wgsl`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Pass {
+    Draw = 0,
+    Luminance = 1,
+    Across = 2,
+    Coefficients = 3,
+    Down = 4,
 }
 
 #[cfg(test)]
@@ -292,7 +315,12 @@ mod tests {
             black_and_white,
             sepia,
             vignette_amount,
-            vignette_size
+            vignette_size,
+            draw_pass,
+            tile_x,
+            tile_y,
+            tile_width,
+            tile_height
         );
         let theirs: Vec<(&str, u32)> = members
             .iter()
@@ -304,12 +332,18 @@ mod tests {
 
     #[test]
     fn neutral_is_the_whole_photo_unchanged() {
-        let params = Settings::NEUTRAL.uniforms(Output::DisplayP3);
+        let params =
+            Settings::NEUTRAL.uniforms(Output::DisplayP3, Pass::Draw, [0.0, 0.0, 1.0, 1.0]);
         assert_eq!(params.output_srgb, 0);
         assert_eq!(
             (params.crop_width, params.crop_height, params.exposure_ev),
             (1.0, 1.0, 0.0)
         );
-        assert_eq!(Settings::NEUTRAL.uniforms(Output::Srgb).output_srgb, 1);
+        assert_eq!(
+            Settings::NEUTRAL
+                .uniforms(Output::Srgb, Pass::Draw, [0.0, 0.0, 1.0, 1.0])
+                .output_srgb,
+            1
+        );
     }
 }

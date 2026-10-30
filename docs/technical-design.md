@@ -150,11 +150,11 @@ Decode at full resolution → render all operations with the wgpu pipeline in ti
 
 Highlights and shadows depend on the brightness of each pixel's surroundings, not just the pixel, so they can't be computed in the fused pass alone. They use a **luminance guide**: an edge-preserving, blurred map of the photo's brightness, computed in a separate pass and sampled by the fused pass.
 
-- **Resolution-independent.** The guide is computed at a fixed size relative to the photo (for example, a long side of 1024 pixels, chosen during M4), and its blur radius is a fraction of the photo's size. The preview and the full-resolution export therefore use the same guide and match, as the edit format requires.
+- **Resolution-independent.** The guide is computed at a fixed size relative to the photo (a long side of 1024 pixels, from the photo as decoded), and its blur radius is a fraction of the photo's size. The preview and the full-resolution export therefore use the same guide and match, as the edit format requires.
 - **Tiles without seams.** For tiled export, the guide is computed once for the whole photo before the tiles are rendered, and every tile samples it. No tile needs to see its neighbors.
 - **Independent of the crop.** The guide covers the whole oriented, straightened photo, so changing the crop never changes how shadows or highlights look.
-- **Fast while dragging.** The guide is rebuilt only when something it depends on changes. Moving the highlights or shadows sliders changes only uniforms, within PRF-6. How exposure and white balance changes are handled (rebuild, or scale the existing guide) is settled during M4 and measured against PRF-6.
-- **Edge-preserving.** A plain blur causes halos along strong edges, such as a dark tree against a bright sky. The method (a guided filter, bilateral grid, or similar) is chosen in M4 with reference images that include such edges, and written into the edit format's formulas appendix.
+- **Fast while dragging.** The guide is rebuilt only when something it depends on changes. Moving the highlights or shadows sliders changes only uniforms, within PRF-6. Exposure shifts every log luminance equally, so it's added to the guide's result as each pixel is drawn, and needs no rebuild; a white balance change rebuilds the guide (M4 slice 4).
+- **Edge-preserving.** A plain blur causes halos along strong edges, such as a dark tree against a bright sky. The method is a guided filter, chosen in M4 over a bilateral grid and a plain blur with reference images that include such edges (journal, 2026-10-29), and written into the edit format's formulas appendix.
 
 Like every operation, it's implemented once in WGSL and runs in both hosts, including the WebGL2 fallback.
 

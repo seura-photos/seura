@@ -16,12 +16,14 @@ pub use renderer::{Output, RenderError, Renderer};
 pub use settings::Settings;
 
 /// The shader source: shared color functions, then each stage's
-/// operations, then the render pass. WGSL has no includes, so the files
+/// operations, then the luminance guide, then the render pass. WGSL has no includes, so the files
 /// are joined in this order, here and in the generated files.
 pub const SHADER: &str = concat!(
     include_str!("../shaders/color.wgsl"),
     "\n",
     include_str!("../shaders/tone.wgsl"),
+    "\n",
+    include_str!("../shaders/guide.wgsl"),
     "\n",
     include_str!("../shaders/main.wgsl"),
 );

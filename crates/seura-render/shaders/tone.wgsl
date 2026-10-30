@@ -56,6 +56,30 @@ fn contrast(color: vec3<f32>, amount: f32) -> vec3<f32> {
     return color * (pow(curved, PERCEPTUAL) / y);
 }
 
+// Highlights and shadows each move a pixel's brightness by a gain in stops,
+// weighed by its base (guide.wgsl): x, the base as linear light up to 1,
+// raised to 1/2.2. At 100 or −100 the gain is up to this many stops.
+const HIGHLIGHTS_SHADOWS_STOPS: f32 = 2.0;
+
+fn tone_position(base: f32) -> f32 {
+    return pow(clamp(exp2(base), 0.0, 1.0), 1.0 / PERCEPTUAL);
+}
+
+// seura.highlights: the gain for a pixel with this base, in stops: x³ of
+// the full amount, so it works on bright areas, such as a sky, and barely
+// on dark ones.
+fn highlights_gain(base: f32, amount: f32) -> f32 {
+    let x = tone_position(base);
+    return amount / 100.0 * HIGHLIGHTS_SHADOWS_STOPS * x * x * x;
+}
+
+// seura.shadows: (1 − x)³ of the full amount, so it works on dark areas,
+// such as a backlit face, and barely on bright ones.
+fn shadows_gain(base: f32, amount: f32) -> f32 {
+    let x = 1.0 - tone_position(base);
+    return amount / 100.0 * HIGHLIGHTS_SHADOWS_STOPS * x * x * x;
+}
+
 // seura.saturation: moves each channel away from the pixel's luminance by
 // s = 1 + amount / 100, so −100 is gray and 100 doubles the color. Colors
 // outside Display P3 have components below 0, which are kept, and a vivid
