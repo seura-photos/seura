@@ -42,8 +42,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 vi.mock("./preview", async () => ({
   // The real geometry: it's arithmetic, not the GPU.
-  orientedSize: (await vi.importActual<typeof import("./preview")>("./preview")).orientedSize,
-  uprightRegion: (await vi.importActual<typeof import("./preview")>("./preview")).uprightRegion,
+  ...(await vi.importActual<typeof import("./preview/geometry")>("./preview/geometry")),
   createPreview: vi.fn(() => Promise.resolve(mocks.backend)),
   fetchLinear: mocks.fetchLinear,
 }));

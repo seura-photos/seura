@@ -200,14 +200,9 @@ impl Inner {
         let slot = match seura_image::decode_upright(&photo.path) {
             Ok(upright) => {
                 let full = (upright.width(), upright.height());
-                // Fitted as its edits turn it: on its side, its height
-                // meets the area's width.
-                let size = if edits(photo).sideways() {
-                    let (height, width) = fitted((full.1, full.0), area);
-                    (width, height)
-                } else {
-                    fitted(full, area)
-                };
+                // Fitted as its edits turn and crop it.
+                let shown = edits(photo).output_size(full.0, full.1);
+                let size = fitted(full, shown, area);
                 let whole = Region {
                     x: 0,
                     y: 0,
@@ -236,12 +231,13 @@ impl Inner {
     }
 }
 
-/// The size at which a photo of `full` size fills `area` without being
-/// enlarged, keeping its shape.
-fn fitted(full: (u32, u32), area: (u32, u32)) -> (u32, u32) {
+/// The size to decode a photo of `full` size at, so that the part of it
+/// that's `shown` (its edits' result, in its own pixels) fills `area`
+/// without being enlarged, keeping its shape.
+fn fitted(full: (u32, u32), shown: (u32, u32), area: (u32, u32)) -> (u32, u32) {
     let (width, height) = (f64::from(full.0.max(1)), f64::from(full.1.max(1)));
-    let scale = (f64::from(area.0.max(1)) / width)
-        .min(f64::from(area.1.max(1)) / height)
+    let scale = (f64::from(area.0.max(1)) / f64::from(shown.0.max(1)))
+        .min(f64::from(area.1.max(1)) / f64::from(shown.1.max(1)))
         .min(f64::from(MAX_LONG_EDGE) / width.max(height))
         .min(1.0);
     let size = |side: f64| ((side * scale).round() as u32).max(1);
@@ -286,13 +282,33 @@ mod tests {
 
     #[test]
     fn a_photo_is_decoded_to_fit_the_area_without_enlarging() {
-        assert_eq!(fitted((4000, 3000), (2000, 2000)), (2000, 1500));
+        let whole = |full| fitted(full, full, (2000, 2000));
+        assert_eq!(whole((4000, 3000)), (2000, 1500));
         // A portrait photo in a wide area fits its height.
-        assert_eq!(fitted((3000, 4000), (2000, 1000)), (750, 1000));
-        assert_eq!(fitted((800, 600), (2000, 2000)), (800, 600));
         assert_eq!(
-            fitted((40_000, 30_000), (20_000, 20_000)),
+            fitted((3000, 4000), (3000, 4000), (2000, 1000)),
+            (750, 1000)
+        );
+        assert_eq!(whole((800, 600)), (800, 600));
+        assert_eq!(
+            fitted((40_000, 30_000), (40_000, 30_000), (20_000, 20_000)),
             (MAX_LONG_EDGE, 6144)
+        );
+    }
+
+    #[test]
+    fn a_turned_or_cropped_photo_is_decoded_so_what_s_shown_fits() {
+        // On its side, a landscape photo's height meets a wide area's width
+        // only after the turn: it fits the area's height.
+        assert_eq!(
+            fitted((4000, 3000), (3000, 4000), (2000, 1000)),
+            (1000, 750)
+        );
+        // Cropped to a quarter of it, the photo is decoded twice as large,
+        // so the quarter fills the area.
+        assert_eq!(
+            fitted((4000, 3000), (2000, 1500), (2000, 1500)),
+            (4000, 3000)
         );
     }
 

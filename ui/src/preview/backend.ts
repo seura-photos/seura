@@ -1,6 +1,7 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { RenderSettings } from "../bindings";
 import layout from "./generated/params.json";
+import { cropPixels, type Placement, WHOLE } from "./geometry";
 
 /**
  * Pixels in the working space (linear light, Display P3 primaries) as RGBA
@@ -8,51 +9,6 @@ import layout from "./generated/params.json";
  * UI never reads a photo itself (decision 0009).
  */
 export type LinearImage = { width: number; height: number; data: Uint16Array };
-
-/** A part of a photo, as fractions of it. */
-export type Region = { x: number; y: number; width: number; height: number };
-
-export const WHOLE: Region = { x: 0, y: 0, width: 1, height: 1 };
-
-/** `seura.orient`'s settings: the rest don't change where pixels go yet. */
-export type Orient = Pick<RenderSettings, "rotate" | "flipH" | "flipV">;
-
-/** Whether `seura.orient` turns the photo on its side. */
-export function sideways(orient: Orient): boolean {
-  return orient.rotate % 180 === 90;
-}
-
-/** The size of an upright image once `orient` has turned it. */
-export function orientedSize<T extends { width: number; height: number }>(
-  image: T,
-  orient: Orient,
-): { width: number; height: number } {
-  return sideways(orient)
-    ? { width: image.height, height: image.width }
-    : { width: image.width, height: image.height };
-}
-
-/**
- * Where a part of the photo as drawn (fractions of it) is in the upright
- * photo: `orient`'s flips undone, then its turn, as the shader's
- * `upright_position` does for each pixel, and the core's for export's tiles
- * (`crates/seura-render/src/renderer.rs`).
- */
-export function uprightRegion(region: Region, orient: Orient): Region {
-  const x = orient.flipH ? 1 - region.x - region.width : region.x;
-  const y = orient.flipV ? 1 - region.y - region.height : region.y;
-  const { width, height } = region;
-  switch (orient.rotate) {
-    case 90:
-      return { x: y, y: 1 - x - width, width: height, height: width };
-    case 180:
-      return { x: 1 - x - width, y: 1 - y - height, width, height };
-    case 270:
-      return { x: 1 - y - height, y: x, width: height, height: width };
-    default:
-      return { x, y, width, height };
-  }
-}
 
 /**
  * One way of running the shared shaders (decision 0004): WebGPU, or WebGL2
@@ -62,16 +18,16 @@ export interface Backend {
   readonly name: "webgpu" | "webgl2";
   /**
    * Uploads the photo, with the image its luminance guide is built from
-   * (for highlights and shadows), and which part of the photo `image` is:
-   * the guide always covers all of it. Both are upright, and `region` is a
-   * part of the upright photo; drawing turns them. The canvas must already
-   * have the size of the image as the settings drawn turn it
-   * (`orientedSize`).
+   * (for highlights and shadows), and where it's placed: the photo's full
+   * size, which part of it `image` is, and which part of the result it
+   * draws. Both images are upright, and the guide always covers all of the
+   * photo; drawing places them as the settings say. The canvas must already
+   * have the size the settings drawn give it (`drawnSize`).
    */
-  upload(image: LinearImage, guide: LinearImage, region?: Region): void;
+  upload(image: LinearImage, guide: LinearImage, placement: Placement): void;
   /** Draws the photo with these settings on the canvas, for the display. */
   draw(settings: RenderSettings): void;
-  /** Renders the photo at its own size, turned as the settings say, encoded as sRGB like export, and reads it back as 8-bit RGBA rows, top first. */
+  /** Renders the photo at its own resolution, placed as the settings say (`drawnSize`), encoded as sRGB like export, and reads it back as 8-bit RGBA rows, top first. */
   read(settings: RenderSettings): Promise<Uint8Array>;
   destroy(): void;
 }
@@ -127,18 +83,31 @@ export function params(
   settings: RenderSettings,
   outputSrgb: boolean,
   pass = 0,
-  region: Region = WHOLE,
+  placement: Placement = { full: { width: 1, height: 1 } },
 ): ArrayBuffer {
   const buffer = new ArrayBuffer(PARAMS_SIZE);
   const view = new DataView(buffer);
-  // The fields that aren't settings: which pass, and which part of the photo.
+  const part = placement.part ?? WHOLE;
+  const shown = placement.view ?? WHOLE;
+  const crop = cropPixels(settings, placement.full);
+  // The fields that aren't settings: which pass, and where the draw sits.
   const draw: Record<string, number | boolean> = {
     output_srgb: outputSrgb,
     draw_pass: pass,
-    tile_x: region.x,
-    tile_y: region.y,
-    tile_width: region.width,
-    tile_height: region.height,
+    tile_x: part.x,
+    tile_y: part.y,
+    tile_width: part.width,
+    tile_height: part.height,
+    full_width: placement.full.width,
+    full_height: placement.full.height,
+    view_x: shown.x,
+    view_y: shown.y,
+    view_width: shown.width,
+    view_height: shown.height,
+    crop_left: crop.x,
+    crop_top: crop.y,
+    crop_pixels_width: crop.width,
+    crop_pixels_height: crop.height,
   };
   for (const field of layout.fields) {
     const value =

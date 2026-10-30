@@ -1237,5 +1237,16 @@ mod tests {
         );
         // Without its size, the area's long edge.
         assert_eq!(preview_edge((1500, 1000), None, &sideways), 1500);
+        // Cropped to its top left quarter, the photo is decoded twice as
+        // large, so that quarter fits.
+        let cropped = Settings {
+            crop_width: 0.5,
+            crop_height: 0.5,
+            ..Settings::NEUTRAL
+        };
+        assert_eq!(
+            preview_edge((1500, 1000), Some((6000, 4000)), &cropped),
+            3000
+        );
     }
 }

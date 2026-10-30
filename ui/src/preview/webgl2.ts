@@ -4,13 +4,11 @@ import {
   GUIDE_PASSES,
   type LinearImage,
   PARAMS_SIZE,
-  type Region,
-  WHOLE,
   guideKey,
   needsGuide,
-  orientedSize,
   params,
 } from "./backend";
+import { drawnSize, type Placement } from "./geometry";
 import names from "./generated/gl-names.json";
 import fragmentSource from "./generated/shader.frag?raw";
 import vertexSource from "./generated/shader.vert?raw";
@@ -87,7 +85,7 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
 
   let photo: WebGLTexture | null = null;
   let size = { width: 0, height: 0 };
-  let region: Region = WHOLE;
+  let placement: Placement = { full: { width: 1, height: 1 } };
   let guideImage: { texture: WebGLTexture; width: number; height: number } | null = null;
   // The guide, and the white balance it was built for.
   let guide: { texture: WebGLTexture; key: string } | null = null;
@@ -145,7 +143,7 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
     gl.bindFramebuffer(gl.FRAMEBUFFER, target);
     gl.viewport(0, 0, width, height);
     gl.bindBuffer(gl.UNIFORM_BUFFER, uniforms);
-    gl.bufferSubData(gl.UNIFORM_BUFFER, 0, params(settings, outputSrgb, 0, region));
+    gl.bufferSubData(gl.UNIFORM_BUFFER, 0, params(settings, outputSrgb, 0, placement));
     bind(UNIT.guide, guided);
     bind(UNIT.stage, empty);
     bind(UNIT.photo, photo ?? empty);
@@ -156,13 +154,13 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
 
   return {
     name: "webgl2",
-    upload(image: LinearImage, guideSource: LinearImage, part: Region = WHOLE) {
+    upload(image: LinearImage, guideSource: LinearImage, placed: Placement) {
       if (photo) gl.deleteTexture(photo);
       if (guideImage) gl.deleteTexture(guideImage.texture);
       if (guide) gl.deleteTexture(guide.texture);
       guide = null;
       size = { width: image.width, height: image.height };
-      region = part;
+      placement = placed;
       photo = upload(image, gl.LINEAR);
       guideImage = {
         texture: upload(guideSource, gl.NEAREST),
@@ -174,7 +172,7 @@ export function createWebGl2(canvas: HTMLCanvasElement): Backend | null {
       render(settings, false, gl.LINEAR, null, gl.drawingBufferWidth, gl.drawingBufferHeight);
     },
     read(settings: RenderSettings) {
-      const { width, height } = orientedSize(size, settings);
+      const { width, height } = drawnSize(size, settings, placement);
       const target = texture(width, height, gl.RGBA8, gl.NEAREST);
       const readFrom = gl.createFramebuffer();
       gl.bindFramebuffer(gl.FRAMEBUFFER, readFrom);

@@ -7,8 +7,15 @@ import {
   useState,
 } from "react";
 import { formatNumber } from "./format";
-import { type LinearImage, type Orient, orientedSize, uprightRegion } from "./preview";
-import type { Region as Fraction } from "./preview/backend";
+import {
+  type Geometry,
+  geometryKey,
+  type LinearImage,
+  outputSize,
+  type Placement,
+  sourceRegion,
+} from "./preview";
+import { UPRIGHT } from "./preview/geometry";
 import {
   clampView,
   fitView,
@@ -35,16 +42,16 @@ type Options = {
   inset?: { left: number; top: number };
   /** The photo shown, by id, and its own upright size; `null` while none is. */
   photo: { id: number; full: Size } | null;
-  /** How the photo's edits turn it (`seura.orient`): zoom works on the
-   * photo as it's shown. */
-  orient?: Orient | null;
+  /** How the photo's edits turn, straighten and crop it: zoom works on
+   * the photo as it's shown. */
+  geometry?: Geometry | null;
   /** Has the core cut `region` of photo `id` (upright pixels), scaled to
    * `width` × `height`, and fetches it; `null` if a newer part replaced it
    * meanwhile. */
   cut: (id: number, region: Region, width: number, height: number) => Promise<LinearImage | null>;
-  /** Uploads and draws a sharp part (upright), where it is as fractions of
-   * the upright photo. False if it's no longer wanted. */
-  show: (image: LinearImage, at: Fraction) => Promise<boolean>;
+  /** Uploads and draws a sharp part (upright), placed as it is in the
+   * photo and on screen. False if it's no longer wanted. */
+  show: (image: LinearImage, placement: Placement) => Promise<boolean>;
   /** Anything that means the sharp part must be fetched again. */
   version?: unknown;
 };
@@ -63,17 +70,17 @@ export function useZoom({
   area,
   inset,
   photo: upright,
-  orient,
+  geometry,
   cut,
   show,
   version,
 }: Options) {
   const scale = window.devicePixelRatio;
   const stageSize: Size = { width: area.width * scale, height: area.height * scale };
-  const turn = orient ?? { rotate: 0, flipH: false, flipV: false };
-  // The photo as it's shown.
-  const photo = upright && { id: upright.id, full: orientedSize(upright.full, turn) };
-  const turned = `${turn.rotate} ${turn.flipH} ${turn.flipV}`;
+  const placed = geometry ?? UPRIGHT;
+  // The photo as it's shown: its edits' result.
+  const photo = upright && { id: upright.id, full: outputSize(placed, upright.full) };
+  const turned = geometryKey(placed);
   // Zoomed in on a photo; none while it's fitted.
   const [zoomed, setZoomed] = useState<{ id: number; view: View } | null>(null);
   // The sharp part on screen while zoomed in, which photo it's from, and
@@ -101,23 +108,10 @@ export function useZoom({
     const timer = window.setTimeout(() => {
       const fetchPart = async () => {
         if (!upright) return;
-        // Where the part is in the upright photo, which the core cuts and
-        // whose guide the part samples.
-        const at = uprightRegion(
-          {
-            x: wanted.x / photo.full.width,
-            y: wanted.y / photo.full.height,
-            width: wanted.width / photo.full.width,
-            height: wanted.height / photo.full.height,
-          },
-          turn,
-        );
-        const region = {
-          x: Math.round(at.x * upright.full.width),
-          y: Math.round(at.y * upright.full.height),
-          width: Math.round(at.width * upright.full.width),
-          height: Math.round(at.height * upright.full.height),
-        };
+        // The part of the upright photo it samples, which the core cuts,
+        // with room for the filter at the part's resolution.
+        const full = upright.full;
+        const region = sourceRegion(placed, full, wanted, Math.ceil(3 / zoom));
         const image = await cut(
           photo.id,
           region,
@@ -125,7 +119,21 @@ export function useZoom({
           Math.max(1, Math.round(region.height * zoom)),
         );
         if (!live || !image) return;
-        const drawn = await show(image, at);
+        const drawn = await show(image, {
+          full,
+          part: {
+            x: region.x / full.width,
+            y: region.y / full.height,
+            width: region.width / full.width,
+            height: region.height / full.height,
+          },
+          view: {
+            x: wanted.x / photo.full.width,
+            y: wanted.y / photo.full.height,
+            width: wanted.width / photo.full.width,
+            height: wanted.height / photo.full.height,
+          },
+        });
         if (live && drawn) setDetail({ id: photo.id, region: wanted, turned });
       };
       void fetchPart().catch(() => {});

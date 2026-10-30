@@ -2,14 +2,16 @@ import type { Backend } from "./backend";
 import { createWebGl2 } from "./webgl2";
 import { createWebGpu } from "./webgpu";
 
+export { type Backend, fetchLinear, type LinearImage } from "./backend";
 export {
-  type Backend,
-  fetchLinear,
-  type LinearImage,
-  type Orient,
-  orientedSize,
-  uprightRegion,
-} from "./backend";
+  drawnSize,
+  type Geometry,
+  geometryKey,
+  geometryOf,
+  outputSize,
+  type Placement,
+  sourceRegion,
+} from "./geometry";
 export { createWebGl2 } from "./webgl2";
 export { createWebGpu } from "./webgpu";
 

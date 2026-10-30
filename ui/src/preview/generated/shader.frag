@@ -30,6 +30,16 @@ struct Params {
     float tile_y;
     float tile_width;
     float tile_height;
+    float full_width;
+    float full_height;
+    float view_x;
+    float view_y;
+    float view_width;
+    float view_height;
+    float crop_left;
+    float crop_top;
+    float crop_pixels_width;
+    float crop_pixels_height;
 };
 struct VertexOutput {
     vec4 position;
@@ -67,9 +77,9 @@ vec3 exposure(vec3 color_1, float ev) {
 }
 
 vec3 white_balance(vec3 color_2, float temperature, float tint) {
-    float t = (temperature / 100.0);
-    float n = (tint / 100.0);
-    vec3 gains = exp2(vec3((t / 2.0), (-(n) / 2.0), (-(t) / 2.0)));
+    float t_1 = (temperature / 100.0);
+    float n_1 = (tint / 100.0);
+    vec3 gains = exp2(vec3((t_1 / 2.0), (-(n_1) / 2.0), (-(t_1) / 2.0)));
     return (color_2 * (gains / vec3(dot(P3_LUMINANCE, gains))));
 }
 
@@ -194,40 +204,156 @@ vec4 guide_pass(vec4 position) {
 }
 
 vec2 upright_position(vec2 uv) {
-    vec2 p = vec2(0.0);
-    p = uv;
-    uint _e4 = _group_0_binding_0_fs.flip_h;
-    if ((_e4 == 1u)) {
-        float _e9 = p.x;
-        p.x = (1.0 - _e9);
+    vec2 frame = vec2(0.0);
+    bool local_3 = false;
+    vec2 q = vec2(0.0);
+    float _e3 = _group_0_binding_0_fs.full_width;
+    float _e6 = _group_0_binding_0_fs.full_height;
+    vec2 full = vec2(_e3, _e6);
+    frame = full;
+    uint _e11 = _group_0_binding_0_fs.rotate;
+    if (!((_e11 == 90u))) {
+        uint _e19 = _group_0_binding_0_fs.rotate;
+        local_3 = (_e19 == 270u);
+    } else {
+        local_3 = true;
     }
-    uint _e14 = _group_0_binding_0_fs.flip_v;
-    if ((_e14 == 1u)) {
-        float _e19 = p.y;
-        p.y = (1.0 - _e19);
+    bool _e23 = local_3;
+    if (_e23) {
+        frame = full.yx;
     }
-    uint _e24 = _group_0_binding_0_fs.rotate;
-    switch(_e24) {
+    float _e27 = _group_0_binding_0_fs.crop_pixels_width;
+    float _e30 = _group_0_binding_0_fs.crop_pixels_height;
+    vec2 crop = vec2(_e27, _e30);
+    float _e34 = _group_0_binding_0_fs.view_x;
+    float _e37 = _group_0_binding_0_fs.view_y;
+    vec2 view = roundEven((vec2(_e34, _e37) * crop));
+    float _e43 = _group_0_binding_0_fs.view_width;
+    float _e46 = _group_0_binding_0_fs.view_height;
+    vec2 view_size = roundEven((vec2(_e43, _e46) * crop));
+    float _e52 = _group_0_binding_0_fs.crop_left;
+    float _e55 = _group_0_binding_0_fs.crop_top;
+    vec2 p = ((vec2(_e52, _e55) + view) + (uv * view_size));
+    vec2 _e60 = frame;
+    vec2 c = (_e60 * 0.5);
+    vec2 d = (p - c);
+    float _e66 = _group_0_binding_0_fs.straighten;
+    float theta = radians(_e66);
+    float s_1 = sin(theta);
+    float k = cos(theta);
+    q = (c + vec2(((d.x * k) + (d.y * s_1)), ((-(d.x) * s_1) + (d.y * k))));
+    uint _e86 = _group_0_binding_0_fs.flip_h;
+    if ((_e86 == 1u)) {
+        float _e91 = frame.x;
+        float _e93 = q.x;
+        q.x = (_e91 - _e93);
+    }
+    uint _e97 = _group_0_binding_0_fs.flip_v;
+    if ((_e97 == 1u)) {
+        float _e102 = frame.y;
+        float _e104 = q.y;
+        q.y = (_e102 - _e104);
+    }
+    uint _e108 = _group_0_binding_0_fs.rotate;
+    switch(_e108) {
         case 90u: {
-            float _e26 = p.y;
-            float _e28 = p.x;
-            return vec2(_e26, (1.0 - _e28));
+            float _e110 = q.y;
+            float _e112 = frame.x;
+            float _e114 = q.x;
+            return vec2(_e110, (_e112 - _e114));
         }
         case 180u: {
-            float _e33 = p.x;
-            float _e37 = p.y;
-            return vec2((1.0 - _e33), (1.0 - _e37));
+            vec2 _e117 = frame;
+            vec2 _e118 = q;
+            return (_e117 - _e118);
         }
         case 270u: {
-            float _e42 = p.y;
-            float _e46 = p.x;
-            return vec2((1.0 - _e42), _e46);
+            float _e121 = frame.y;
+            float _e123 = q.y;
+            float _e126 = q.x;
+            return vec2((_e121 - _e123), _e126);
         }
         default: {
-            vec2 _e48 = p;
-            return _e48;
+            vec2 _e128 = q;
+            return _e128;
         }
     }
+}
+
+vec4 catmull_rom_weights(float t) {
+    float t2_ = (t * t);
+    float t3_ = (t2_ * t);
+    return vec4((((-(t3_) + (2.0 * t2_)) - t) * 0.5), ((((3.0 * t3_) - (5.0 * t2_)) + 2.0) * 0.5), ((((-3.0 * t3_) + (4.0 * t2_)) + t) * 0.5), ((t3_ - t2_) * 0.5));
+}
+
+vec3 sample_photo(vec2 u) {
+    vec3 color_7 = vec3(0.0);
+    int n = 0;
+    vec3 row = vec3(0.0);
+    int m = 0;
+    float _e3 = _group_0_binding_0_fs.full_width;
+    float _e6 = _group_0_binding_0_fs.full_height;
+    vec2 full_1 = vec2(_e3, _e6);
+    vec2 size_1 = vec2(uvec2(textureSize(_group_0_binding_1_fs, 0).xy));
+    float _e13 = _group_0_binding_0_fs.tile_x;
+    float _e16 = _group_0_binding_0_fs.tile_y;
+    vec2 part = roundEven((vec2(_e13, _e16) * full_1));
+    float _e22 = _group_0_binding_0_fs.tile_width;
+    float _e25 = _group_0_binding_0_fs.tile_height;
+    vec2 part_size = roundEven((vec2(_e22, _e25) * full_1));
+    vec2 at_2 = clamp(u, vec2(0.5), (full_1 - vec2(0.5)));
+    vec2 texel = clamp((((at_2 - part) * size_1) / part_size), vec2(0.5), (size_1 - vec2(0.5)));
+    vec2 f = (texel - vec2(0.5));
+    vec2 first = floor(f);
+    vec4 _e51 = catmull_rom_weights((f.x - first.x));
+    vec4 _e55 = catmull_rom_weights((f.y - first.y));
+    ivec2 last = (ivec2(size_1) - ivec2(1));
+    bool loop_init_1 = true;
+    while(true) {
+        if (!loop_init_1) {
+            int _e114 = n;
+            n = (_e114 + 1);
+        }
+        loop_init_1 = false;
+        int _e65 = n;
+        if ((_e65 < 4)) {
+        } else {
+            break;
+        }
+        {
+            int _e72 = n;
+            int y_2 = min(max(((int(first.y) - 1) + _e72), 0), last.y);
+            row = vec3(0.0);
+            m = 0;
+            bool loop_init_2 = true;
+            while(true) {
+                if (!loop_init_2) {
+                    int _e105 = m;
+                    m = (_e105 + 1);
+                }
+                loop_init_2 = false;
+                int _e82 = m;
+                if ((_e82 < 4)) {
+                } else {
+                    break;
+                }
+                {
+                    int _e89 = m;
+                    int x_2 = min(max(((int(first.x) - 1) + _e89), 0), last.x);
+                    vec3 _e94 = row;
+                    int _e95 = m;
+                    vec4 _e100 = texelFetch(_group_0_binding_1_fs, ivec2(x_2, y_2), 0);
+                    row = (_e94 + (_e51[_e95] * _e100.xyz));
+                }
+            }
+            vec3 _e107 = color_7;
+            int _e108 = n;
+            vec3 _e110 = row;
+            color_7 = (_e107 + (_e55[_e108] * _e110));
+        }
+    }
+    vec3 _e116 = color_7;
+    return _e116;
 }
 
 void main() {
@@ -243,92 +369,90 @@ void main() {
         return;
     }
     vec2 _e9 = upright_position(in_.uv);
-    vec4 sample_ = textureLod(_group_0_binding_1_fs, vec2(_e9), 0.0);
-    color = sample_.xyz;
-    float _e18 = _group_0_binding_0_fs.exposure_ev;
-    if ((_e18 != 0.0)) {
-        vec3 _e21 = color;
-        float _e24 = _group_0_binding_0_fs.exposure_ev;
-        vec3 _e25 = exposure(_e21, _e24);
-        color = _e25;
+    vec3 _e10 = sample_photo(_e9);
+    color = _e10;
+    float _e14 = _group_0_binding_0_fs.exposure_ev;
+    if ((_e14 != 0.0)) {
+        vec3 _e17 = color;
+        float _e20 = _group_0_binding_0_fs.exposure_ev;
+        vec3 _e21 = exposure(_e17, _e20);
+        color = _e21;
     }
-    float _e28 = _group_0_binding_0_fs.temperature;
-    if (!((_e28 != 0.0))) {
-        float _e36 = _group_0_binding_0_fs.tint;
-        local = (_e36 != 0.0);
+    float _e24 = _group_0_binding_0_fs.temperature;
+    if (!((_e24 != 0.0))) {
+        float _e32 = _group_0_binding_0_fs.tint;
+        local = (_e32 != 0.0);
     } else {
         local = true;
     }
-    bool _e40 = local;
-    if (_e40) {
-        vec3 _e41 = color;
-        float _e44 = _group_0_binding_0_fs.temperature;
-        float _e47 = _group_0_binding_0_fs.tint;
-        vec3 _e48 = white_balance(_e41, _e44, _e47);
-        color = _e48;
+    bool _e36 = local;
+    if (_e36) {
+        vec3 _e37 = color;
+        float _e40 = _group_0_binding_0_fs.temperature;
+        float _e43 = _group_0_binding_0_fs.tint;
+        vec3 _e44 = white_balance(_e37, _e40, _e43);
+        color = _e44;
     }
-    float _e51 = _group_0_binding_0_fs.highlights;
-    if (!((_e51 != 0.0))) {
-        float _e59 = _group_0_binding_0_fs.shadows;
-        local_1 = (_e59 != 0.0);
+    float _e47 = _group_0_binding_0_fs.highlights;
+    if (!((_e47 != 0.0))) {
+        float _e55 = _group_0_binding_0_fs.shadows;
+        local_1 = (_e55 != 0.0);
     } else {
         local_1 = true;
     }
-    bool _e63 = local_1;
-    if (_e63) {
-        float _e66 = _group_0_binding_0_fs.tile_x;
-        float _e69 = _group_0_binding_0_fs.tile_y;
-        float _e73 = _group_0_binding_0_fs.tile_width;
-        float _e76 = _group_0_binding_0_fs.tile_height;
-        vec2 at_2 = (vec2(_e66, _e69) + (_e9 * vec2(_e73, _e76)));
-        vec4 _e83 = textureLod(_group_0_binding_3_fs, vec2(at_2), 0.0);
-        vec2 ab = _e83.xy;
-        vec3 _e85 = color;
-        float _e88 = _group_0_binding_0_fs.exposure_ev;
-        float _e92 = log_luminance((_e85 * exp2(-(_e88))));
-        float _e99 = _group_0_binding_0_fs.exposure_ev;
-        base = (((ab.x * _e92) + ab.y) + _e99);
-        float _e104 = _group_0_binding_0_fs.highlights;
-        if ((_e104 != 0.0)) {
-            float _e107 = base;
-            float _e110 = _group_0_binding_0_fs.highlights;
-            float _e111 = highlights_gain(_e107, _e110);
-            vec3 _e112 = color;
-            color = (_e112 * exp2(_e111));
-            float _e115 = base;
-            base = (_e115 + _e111);
+    bool _e59 = local_1;
+    if (_e59) {
+        float _e62 = _group_0_binding_0_fs.full_width;
+        float _e65 = _group_0_binding_0_fs.full_height;
+        vec2 at_3 = (_e9 / vec2(_e62, _e65));
+        vec4 _e71 = textureLod(_group_0_binding_3_fs, vec2(at_3), 0.0);
+        vec2 ab = _e71.xy;
+        vec3 _e73 = color;
+        float _e76 = _group_0_binding_0_fs.exposure_ev;
+        float _e80 = log_luminance((_e73 * exp2(-(_e76))));
+        float _e87 = _group_0_binding_0_fs.exposure_ev;
+        base = (((ab.x * _e80) + ab.y) + _e87);
+        float _e92 = _group_0_binding_0_fs.highlights;
+        if ((_e92 != 0.0)) {
+            float _e95 = base;
+            float _e98 = _group_0_binding_0_fs.highlights;
+            float _e99 = highlights_gain(_e95, _e98);
+            vec3 _e100 = color;
+            color = (_e100 * exp2(_e99));
+            float _e103 = base;
+            base = (_e103 + _e99);
         }
-        float _e119 = _group_0_binding_0_fs.shadows;
-        if ((_e119 != 0.0)) {
-            vec3 _e122 = color;
-            float _e123 = base;
-            float _e126 = _group_0_binding_0_fs.shadows;
-            float _e127 = shadows_gain(_e123, _e126);
-            color = (_e122 * exp2(_e127));
+        float _e107 = _group_0_binding_0_fs.shadows;
+        if ((_e107 != 0.0)) {
+            vec3 _e110 = color;
+            float _e111 = base;
+            float _e114 = _group_0_binding_0_fs.shadows;
+            float _e115 = shadows_gain(_e111, _e114);
+            color = (_e110 * exp2(_e115));
         }
     }
-    float _e132 = _group_0_binding_0_fs.contrast;
-    if ((_e132 != 0.0)) {
-        vec3 _e135 = color;
-        float _e138 = _group_0_binding_0_fs.contrast;
-        vec3 _e139 = contrast(_e135, _e138);
-        color = _e139;
+    float _e120 = _group_0_binding_0_fs.contrast;
+    if ((_e120 != 0.0)) {
+        vec3 _e123 = color;
+        float _e126 = _group_0_binding_0_fs.contrast;
+        vec3 _e127 = contrast(_e123, _e126);
+        color = _e127;
     }
-    float _e142 = _group_0_binding_0_fs.saturation;
-    if ((_e142 != 0.0)) {
-        vec3 _e145 = color;
-        float _e148 = _group_0_binding_0_fs.saturation;
-        vec3 _e149 = saturation(_e145, _e148);
-        color = _e149;
+    float _e130 = _group_0_binding_0_fs.saturation;
+    if ((_e130 != 0.0)) {
+        vec3 _e133 = color;
+        float _e136 = _group_0_binding_0_fs.saturation;
+        vec3 _e137 = saturation(_e133, _e136);
+        color = _e137;
     }
-    uint _e152 = _group_0_binding_0_fs.output_srgb;
-    if ((_e152 == 1u)) {
-        vec3 _e156 = color;
-        color = (P3_TO_SRGB * _e156);
+    uint _e140 = _group_0_binding_0_fs.output_srgb;
+    if ((_e140 == 1u)) {
+        vec3 _e144 = color;
+        color = (P3_TO_SRGB * _e144);
     }
-    vec3 _e158 = color;
-    vec3 _e159 = encode_transfer(_e158);
-    _fs2p_location0 = vec4(clamp(_e159, vec3(0.0), vec3(1.0)), 1.0);
+    vec3 _e146 = color;
+    vec3 _e147 = encode_transfer(_e146);
+    _fs2p_location0 = vec4(clamp(_e147, vec3(0.0), vec3(1.0)), 1.0);
     return;
 }
 
