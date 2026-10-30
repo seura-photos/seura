@@ -59,7 +59,7 @@ A single centered card: title; two sentences (what the app does; originals are n
   5. LIGHT: brightness, contrast, highlights, shadows
   6. COLOR: temperature, tint, saturation
   7. EFFECTS: black and white, sepia, vignette as on/off buttons; each one's strength slider appears only when it's on (INT-4)
-  8. RED-EYE: Fix red-eye…
+  8. RED-EYE: Fix red-eye… (R), with "1 correction" or "3 corrections" beside it once there are any (INT-4)
   9. PRESETS: list, then "Save current edits as a preset…"
   10. Revert to original… (last, styled as cautionary), pinned at the bottom in a footer about 60 px tall, so it never needs scrolling to
 - **Revert's confirmation** (EDT-10) opens upward: Cancel takes the button's place, under the pointer and focused; above it, the question (with the note about other apps' edits when there are any) and the red Revert, in a card over the bottom of the scrolling area. From the top: question, Revert, Cancel. The panel never scrolls on its own, and nothing appears below the window. Esc or a click outside the card cancels.
@@ -79,6 +79,16 @@ A single centered card: title; two sentences (what the app does; originals are n
 - **Undo inside crop mode** steps back through the changes made since it opened (box, ratio, angle, Reset). Reset crop sets the whole photo, angle 0, and Original.
 - **Done** (or Enter) saves the crop and angle as one change in the photo's history, labeled "Crop", or "Straighten" when only the angle changed. **Cancel** (or Esc) leaves everything as it was when crop mode opened. Leaving the Editor or the photo any other way while crop mode is open counts as Done, so the work isn't lost, as everywhere else in the Editor (EDT-11).
 - **Panel:** aspect ratios (Original, Freeform, 1:1, 4:3, 3:2, 16:9, 5:4) as a 3-column grid; Landscape or Portrait; Straighten slider with its value and a note that the crop shrinks so no corners show; Reset crop; Cancel and Done at the bottom right. Enter applies, Esc cancels.
+
+## 6b. Red-eye mode (EDT-7)
+
+- **A mode, like crop.** "Fix red-eye…" or R opens it. The header becomes "Fix red-eye · file name · Enter to apply · Esc to cancel", and the filmstrip is hidden. The zoom stays as it was and can be changed in the mode, since zooming in is how small eyes are reached; Space-drag, the wheel, and the trackpad pan (EDT-1). Compare isn't available.
+- **The panel** is replaced by a short instruction ("Click each red eye, or drag across it. Drag a circle to move it."), the count ("3 corrections", adding "1 outside the crop" when some are), Remove all, Cancel, and Done.
+- **The photo** shows as edited (cropped, turned, straightened), with each correction drawn where its eye is. A correction outside the crop is kept, unseen, until the crop shows it again.
+- **Adding:** a click makes a circle there; a drag makes one centered where it started, with its edge at the pointer. A click's circle is a fixed size on screen (about 24 px across), not a fraction of the photo, since the user zooms until the eyes are a workable size; `[` and `]` make the next click's circle smaller or larger, as for a brush in Lightroom and Photoshop. The circle being drawn shows as an outline, and the correction shows at once.
+- **Changing:** each circle is a thin outline with a handle on its edge. Dragging inside moves it; dragging the handle resizes it. Clicking a circle selects it, with a small × beside it; Delete or Backspace removes it. A click away from every circle adds one. From the keyboard, Tab goes through the circles; the arrow keys move the focused one by a screen pixel (ten with Shift), `[` and `]` resize it, and Delete removes it. (`+` and `−` stay zoom, as everywhere.)
+- **Done** (or Enter) saves one change in the history, "Red-eye"; **Cancel** (or Esc) discards; leaving any other way counts as Done, as in crop mode. Ctrl+Z steps through the mode's own changes. Remove all needs no confirmation, since Cancel and undo bring the circles back.
+- **At most 64 corrections** per photo (the edit format's limit); at the limit, the instruction says so and a click adds nothing.
 
 ## 7. Tag picker (TAG-3)
 
