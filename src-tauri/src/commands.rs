@@ -1521,6 +1521,14 @@ pub async fn open_photo(
     .map_err(|error| error.to_string())?
 }
 
+/// The open photo's crop ratio lock (`seura.crop`'s `aspect`), for crop
+/// mode to show the ratio chosen (EDT-2).
+#[tauri::command]
+#[specta::specta]
+pub fn crop_aspect(editor: State<'_, Editor>, id: u32) -> Option<String> {
+    editor.crop_aspect(id)
+}
+
 /// Zoomed in (EDT-1): cuts the part of the open photo `id` at `x`, `y`,
 /// `width` × `height` (in its own upright pixels) at full resolution,
 /// scaled to `outWidth` × `outHeight` but never enlarged, for
@@ -1585,6 +1593,8 @@ pub enum PhotoEdit {
     Saturation { amount: f64 },
     /// Rotate or flip (EDT-4), from what the Editor shows.
     Turn { turn: crate::editor::Turn },
+    /// Crop mode's Done (EDT-2, EDT-3).
+    Crop { crop: crate::editor::CropEdit },
 }
 
 /// What saving an Editor change did.
@@ -1618,6 +1628,7 @@ pub async fn edit_photo(app: AppHandle, id: u32, edit: PhotoEdit) -> Result<Edit
         let change = |action| crate::editor::Change::Set(action);
         let change = match edit {
             PhotoEdit::Turn { turn } => crate::editor::Change::Turn(turn),
+            PhotoEdit::Crop { crop } => crate::editor::Change::Crop(crop),
             PhotoEdit::Brightness { ev } => change(crate::editor::exposure_action(ev)),
             PhotoEdit::Contrast { amount } => change(crate::editor::slider_action(
                 "Contrast",

@@ -1738,3 +1738,211 @@ button {
 .toolbar-edit + .more-button {
   margin-left: 0;
 }
+
+/* Crop mode (wireframes, "Crop and straighten"): the box over the photo at
+   Fit, the outside darkened, the corners the turned photo leaves uncovered
+   as the surround. */
+.crop-overlay {
+  position: absolute;
+  pointer-events: none;
+}
+
+.crop-shade {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.crop-outside {
+  fill: var(--color-on-photo);
+}
+
+.crop-uncovered {
+  fill: var(--color-photo);
+}
+
+.crop-box {
+  position: absolute;
+  pointer-events: auto;
+  touch-action: none;
+  cursor: move;
+  outline: 1px solid rgba(255, 255, 255, 0.9);
+}
+
+.crop-box:focus-visible,
+.crop-corner:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 2px;
+}
+
+/* Rule-of-thirds lines (EDT-2). */
+.crop-thirds {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      to right,
+      transparent calc(100% / 3 - 0.5px),
+      rgba(255, 255, 255, 0.6) 0,
+      rgba(255, 255, 255, 0.6) calc(100% / 3 + 0.5px),
+      transparent 0,
+      transparent calc(200% / 3 - 0.5px),
+      rgba(255, 255, 255, 0.6) 0,
+      rgba(255, 255, 255, 0.6) calc(200% / 3 + 0.5px),
+      transparent 0
+    ),
+    linear-gradient(
+      to bottom,
+      transparent calc(100% / 3 - 0.5px),
+      rgba(255, 255, 255, 0.6) 0,
+      rgba(255, 255, 255, 0.6) calc(100% / 3 + 0.5px),
+      transparent 0,
+      transparent calc(200% / 3 - 0.5px),
+      rgba(255, 255, 255, 0.6) 0,
+      rgba(255, 255, 255, 0.6) calc(200% / 3 + 0.5px),
+      transparent 0
+    );
+  pointer-events: none;
+}
+
+/* Edges: a band along each side to grab. */
+.crop-edge {
+  position: absolute;
+}
+
+.crop-edge.top,
+.crop-edge.bottom {
+  left: 1.25rem;
+  right: 1.25rem;
+  height: 0.75rem;
+  cursor: ns-resize;
+}
+
+.crop-edge.left,
+.crop-edge.right {
+  top: 1.25rem;
+  bottom: 1.25rem;
+  width: 0.75rem;
+  cursor: ew-resize;
+}
+
+.crop-edge.top {
+  top: -0.375rem;
+}
+
+.crop-edge.bottom {
+  bottom: -0.375rem;
+}
+
+.crop-edge.left {
+  left: -0.375rem;
+}
+
+.crop-edge.right {
+  right: -0.375rem;
+}
+
+/* Corner handles: an L at each corner, on the box's line. */
+.crop-corner {
+  position: absolute;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 0 solid #fff;
+}
+
+.crop-corner.top-left {
+  top: -3px;
+  left: -3px;
+  border-width: 3px 0 0 3px;
+  cursor: nwse-resize;
+}
+
+.crop-corner.top-right {
+  top: -3px;
+  right: -3px;
+  border-width: 3px 3px 0 0;
+  cursor: nesw-resize;
+}
+
+.crop-corner.bottom-left {
+  bottom: -3px;
+  left: -3px;
+  border-width: 0 0 3px 3px;
+  cursor: nesw-resize;
+}
+
+.crop-corner.bottom-right {
+  bottom: -3px;
+  right: -3px;
+  border-width: 0 3px 3px 0;
+  cursor: nwse-resize;
+}
+
+/* The size, near the box's bottom. */
+.crop-size {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-control);
+  background: var(--color-toolbar-on-photo);
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.crop-bar .crop-hint {
+  margin-left: auto;
+}
+
+/* The panel: ratios in three columns, the orientation in two, Cancel and
+   Done at the bottom right. */
+.crop-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.crop-ratios {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.crop-orientation {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.crop-ratios .button,
+.crop-orientation .button {
+  justify-content: center;
+}
+
+.crop-ratios .button[aria-pressed="true"],
+.crop-orientation .button[aria-pressed="true"] {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent-text);
+  border-color: var(--color-accent);
+}
+
+.crop-panel .link-button {
+  align-self: flex-start;
+}
+
+.crop-actions {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.crop-actions .button {
+  min-height: var(--size-primary-target);
+  padding: 0 1.25rem;
+}

@@ -49,6 +49,8 @@ struct Session {
     preview: Arc<Vec<u8>>,
     /// The image its luminance guide is built from, served the same way.
     guide: Arc<Vec<u8>>,
+    /// The photo's full upright size, which crop mode's box is measured in.
+    full: (u32, u32),
     /// The document of its edit file, while the file is in the Trash
     /// because undo left nothing in it, for redo to write back.
     kept: Option<EditDocument>,
@@ -98,6 +100,14 @@ impl Mine {
             if let Some(at) = CoreOpId::ALL.iter().position(|each| *each == id) {
                 self.0[at] = operation;
             }
+        }
+    }
+
+    /// The crop's ratio lock, as the Editor shows it.
+    fn aspect(&self) -> Option<String> {
+        match self.get(CoreOpId::Crop) {
+            Some(CoreOperation::Crop(crop)) => crop.aspect.clone(),
+            _ => None,
         }
     }
 
@@ -274,6 +284,7 @@ impl Editor {
             id,
             photo,
             preview: Arc::new(encode_linear(&preview)),
+            full: (decoded.width, decoded.height),
             guide: Arc::new(encode_linear(&decoded.guide)),
             kept: None,
             mine: Mine::of(current(&photo_path, None).ok().flatten().as_ref()),
@@ -289,6 +300,16 @@ impl Editor {
             steps,
             problem,
         })
+    }
+
+    /// The open photo's crop ratio lock, for crop mode (`None` while
+    /// another photo is open, or the crop is freeform).
+    pub fn crop_aspect(&self, id: u32) -> Option<String> {
+        let session = self.session.lock().expect("editor lock");
+        session
+            .as_ref()
+            .filter(|session| session.id == id)
+            .and_then(|session| session.mine.aspect())
     }
 
     /// Closes photo `id`, unless another has been opened since: moving
@@ -350,6 +371,7 @@ impl Editor {
         let action = match change {
             Change::Set(action) => action.clone(),
             Change::Turn(turn) => turn_action(&session.mine, *turn),
+            Change::Crop(crop) => crop_action(&session.mine, session.full, crop),
         };
         library.edit_with(app, PhotoId::new(id), &mut session.kept, |_| action.clone())?;
         let document = current(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
@@ -606,10 +628,78 @@ fn preview_edge(area: (u32, u32), dimensions: Option<(u32, u32)>, settings: &Set
     (f64::from(width.max(height)) * fit).round() as u32
 }
 
-/// A change from the Editor: settings made there, or a turn of the photo.
+/// A change from the Editor: settings made there, a turn of the photo, or
+/// crop mode's result.
 pub enum Change {
     Set(Action),
     Turn(Turn),
+    Crop(CropEdit),
+}
+
+/// What crop mode's Done saves (EDT-2, EDT-3): the box as fractions of the
+/// oriented photo, its ratio lock, and the straighten angle in degrees.
+#[derive(Clone, Debug, PartialEq, Deserialize, Type)]
+pub struct CropEdit {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub aspect: Option<String>,
+    pub angle: f64,
+}
+
+/// Straighten's range in the edit format, and its steps (EDT-3).
+const ANGLE_RANGE: (f64, f64) = (-45.0, 45.0);
+
+/// Crop mode's result as one record in the photo's history: "Crop", or
+/// "Straighten" when only the angle changed. The box's edges are rounded
+/// inward to whole pixels of the oriented photo, of the photo at `full`
+/// size upright, so rendering's rounding can't move an edge outward onto
+/// an uncovered corner (formulas appendix, geometry.md).
+pub fn crop_action(mine: &Mine, full: (u32, u32), crop: &CropEdit) -> Action {
+    let (across, down) = mine.settings().oriented_size(full.0, full.1);
+    let (across, down) = (f64::from(across.max(1)), f64::from(down.max(1)));
+    // A hair of slack, so an edge already on a pixel stays there.
+    let inward = |start: f64, length: f64, size: f64| {
+        let first = ((start.clamp(0.0, 1.0) * size) - 1e-6).ceil().max(0.0);
+        let last = (((start + length).clamp(0.0, 1.0) * size) + 1e-6)
+            .floor()
+            .min(size)
+            .max(first + 1.0);
+        (first / size, (last - first) / size)
+    };
+    let (x, width) = inward(crop.x, crop.width, across);
+    let (y, height) = inward(crop.y, crop.height, down);
+    let angle = (crop.angle.clamp(ANGLE_RANGE.0, ANGLE_RANGE.1) * 10.0).round() / 10.0;
+    let cropped = Crop {
+        x,
+        y,
+        width,
+        height,
+        aspect: crop.aspect.clone(),
+    };
+    let before = match mine.get(CoreOpId::Crop) {
+        Some(CoreOperation::Crop(crop)) => crop.clone(),
+        _ => Crop {
+            x: 0.0,
+            y: 0.0,
+            width: 1.0,
+            height: 1.0,
+            aspect: None,
+        },
+    };
+    let label = if before == cropped {
+        "Straighten"
+    } else {
+        "Crop"
+    };
+    Action {
+        label: label.into(),
+        edits: vec![
+            Edit::Set(CoreOperation::Straighten(Straighten { angle })),
+            Edit::Set(CoreOperation::Crop(cropped)),
+        ],
+    }
 }
 
 /// Rotate left or right, flip horizontally or vertically (EDT-4), as the
@@ -1216,6 +1306,61 @@ mod tests {
         assert_eq!(angle(&turned(&tilted, &[Turn::Right])), 2.5);
         assert_eq!(angle(&turned(&tilted, &[Turn::Horizontal])), -2.5);
         assert_eq!(angle(&turned(&tilted, &[Turn::Vertical])), -2.5);
+    }
+
+    fn crop_edit(x: f64, y: f64, width: f64, height: f64, angle: f64) -> CropEdit {
+        CropEdit {
+            x,
+            y,
+            width,
+            height,
+            aspect: Some("3:2".into()),
+            angle,
+        }
+    }
+
+    #[test]
+    fn crop_mode_saves_one_record_with_edges_on_whole_pixels_edt_2() {
+        let mine = Mine::of(None);
+        // On a 600 × 400 photo, 0.1004 × 600 is 60.24: the left edge rounds
+        // in to 61, and the right, at 0.8996 × 600 = 539.76, in to 539.
+        let action = crop_action(
+            &mine,
+            (600, 400),
+            &crop_edit(0.1004, 0.25, 0.7992, 0.5, 2.34),
+        );
+        assert_eq!(action.label, "Crop");
+        let [
+            Edit::Set(CoreOperation::Straighten(straighten)),
+            Edit::Set(CoreOperation::Crop(crop)),
+        ] = action.edits.as_slice()
+        else {
+            panic!("{action:?}");
+        };
+        assert_eq!(straighten.angle, 2.3);
+        assert_eq!((crop.x * 600.0, crop.width * 600.0), (61.0, 478.0));
+        assert_eq!((crop.y * 400.0, crop.height * 400.0), (100.0, 200.0));
+        assert_eq!(crop.aspect.as_deref(), Some("3:2"));
+    }
+
+    #[test]
+    fn only_the_angle_changing_is_labelled_straighten() {
+        let mut mine = Mine::of(None);
+        mine.apply(&crop_action(
+            &mine,
+            (600, 400),
+            &crop_edit(0.25, 0.25, 0.5, 0.5, 0.0),
+        ));
+        let action = crop_action(&mine, (600, 400), &crop_edit(0.25, 0.25, 0.5, 0.5, 4.0));
+        assert_eq!(action.label, "Straighten");
+        // The whole photo, unlocked and level, stores nothing.
+        let whole = CropEdit {
+            aspect: None,
+            ..crop_edit(0.0, 0.0, 1.0, 1.0, 0.0)
+        };
+        mine.apply(&crop_action(&mine, (600, 400), &whole));
+        assert_eq!(mine.get(CoreOpId::Crop), None);
+        assert_eq!(mine.get(CoreOpId::Straighten), None);
     }
 
     #[test]

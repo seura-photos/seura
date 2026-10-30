@@ -106,7 +106,7 @@ Added 2026-10-29: Nevada noticed the Editor couldn't zoom, which the design had 
 - **Built in three parts** (added 2026-10-29, Claude Code's split, which Nevada agreed):
   - **5a, rotate and flip, end to end:** drawn by the shader as it samples, in export, edited thumbnails, the Viewer and the Editor; zoom on a turned photo; the four buttons in the panel and `[` `]`. A turn moves a crop and straighten already in the file with the photo.
   - **5b, straighten and crop in the renderer**, as the design session answered (edit-format #10) and the formulas appendix defines (`geometry.md`, edit-format #11): Catmull-Rom sampling, export at the crop's size, edited thumbnails, the Viewer, zoom and Compare.
-  - **5c, crop mode**, as above.
+  - **5c, crop mode**, as above, with the behaviours the design session settled in #172: keyboard resizing, sliding along the edge, crop mode's own undo, leaving counts as Done, and no Compare while cropping.
 
 ### 6. Effects (EDT-6)
 

@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
     }),
   ),
   stepEdit: vi.fn<(id: number, undo: boolean) => Promise<unknown>>(),
+  cropAspect: vi.fn<(id: number) => Promise<string | null>>(() => Promise.resolve(null)),
   revertPhoto: vi.fn<(id: number) => Promise<unknown>>(),
   resolveOutsideChange: vi.fn<(id: number, keep: boolean) => Promise<unknown>>(),
   // The Editor's listener for its photo's edit file changing outside Seura.
@@ -53,6 +54,7 @@ vi.mock("./bindings", () => ({
     editorRegion: mocks.editorRegion,
     editPhoto: mocks.editPhoto,
     stepEdit: mocks.stepEdit,
+    cropAspect: mocks.cropAspect,
     revertPhoto: mocks.revertPhoto,
     resolveOutsideChange: mocks.resolveOutsideChange,
     exportPhoto: vi.fn(),
@@ -333,6 +335,139 @@ describe("Editor", () => {
     );
     expect([canvas.width, canvas.height]).toEqual([2, 4]);
     fireEvent.keyUp(window, { key: "\\" });
+  });
+
+  /** Opens crop mode with C, once the photo is shown. */
+  async function crop() {
+    edit();
+    await brightness();
+    fireEvent.keyDown(window, { key: "c" });
+    return screen.findByRole("button", { name: "Crop box" });
+  }
+
+  /** The settings of the last draw. */
+  const lastDrawn = () => mocks.draw.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+
+  it("opens crop mode on the whole photo, without the filmstrip, at Original (EDT-2)", async () => {
+    mocks.opened.settings = { exposureEv: 0.4, contrast: 20, cropX: 0.25, cropWidth: 0.5 };
+    await crop();
+    expect(screen.getByText("Crop and straighten")).toBeTruthy();
+    expect(screen.getByText("Enter to apply · Esc to cancel")).toBeTruthy();
+    expect(screen.queryByRole("listbox")).toBeNull();
+    // The whole frame is drawn, with the edits.
+    await waitFor(() =>
+      expect(lastDrawn()).toMatchObject({ cropX: 0, cropWidth: 1, exposureEv: 0.4 }),
+    );
+    // The box is the saved crop, half of 4032 wide.
+    expect(screen.getByText(/· 2,016 × 3,024/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Freeform" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    expect((screen.getByRole("button", { name: "Landscape" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it("sets the largest box of a ratio, and turns it with Portrait (EDT-2)", async () => {
+    await crop();
+    // Never cropped: Original, the photo's own 4:3.
+    expect(screen.getByRole("button", { name: "Original" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    expect(screen.getByText("4:3 · 4,032 × 3,024")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "1:1" }));
+    expect(screen.getByText("1:1 · 3,024 × 3,024")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Portrait" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "3:2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Portrait" }));
+    expect(screen.getByText("2:3 · 2,016 × 3,024")).toBeTruthy();
+  });
+
+  it("straightens, shrinking the box so no corner shows, and saves one record (EDT-3)", async () => {
+    await crop();
+    const straighten = screen.getByRole("slider", { name: "Straighten" });
+    fireEvent.change(straighten, { target: { value: "2.5" } });
+    await waitFor(() => expect(lastDrawn()).toMatchObject({ straighten: 2.5, cropWidth: 1 }));
+    expect(screen.getByText("+2.5°")).toBeTruthy();
+    // Smaller than the whole photo now.
+    expect(screen.queryByText("4:3 · 4,032 × 3,024")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(mocks.editPhoto).toHaveBeenCalled());
+    const [, saved] = mocks.editPhoto.mock.calls[0] ?? [];
+    const { crop: box } = saved as { crop: Record<string, number | string> };
+    expect(box).toMatchObject({ angle: 2.5, aspect: "4:3" });
+    expect(box.width as number).toBeLessThan(1);
+    expect(screen.queryByText("Crop and straighten", { selector: ".editor-name" })).toBeNull();
+  });
+
+  it("undoes within crop mode, and Esc discards it all (EDT-2)", async () => {
+    await crop();
+    fireEvent.click(screen.getByRole("button", { name: "1:1" }));
+    fireEvent.click(screen.getByRole("button", { name: "16:9" }));
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+    expect(screen.getByText("1:1 · 3,024 × 3,024")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true, shiftKey: true });
+    expect(screen.getByRole("button", { name: "16:9" }).getAttribute("aria-pressed")).toBe("true");
+    expect(mocks.stepEdit).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Crop box" })).toBeNull());
+    expect(mocks.editPhoto).not.toHaveBeenCalled();
+  });
+
+  it("shrinks the box from a corner with the keyboard, keeping the ratio", async () => {
+    await crop();
+    // Original, the photo's own 4:3.
+    const corner = screen.getByRole("button", { name: "Bottom-right corner" });
+    fireEvent.keyDown(corner, { key: "ArrowLeft", shiftKey: true });
+    const label = screen.getByText(/^4:3 · /).textContent ?? "";
+    expect(label).not.toBe("4:3 · 4,032 × 3,024");
+    fireEvent.keyDown(corner, { key: "ArrowUp", shiftKey: true });
+    expect(screen.getByText(/^4:3 · /).textContent).not.toBe(label);
+  });
+
+  it("moves the box and its corners from the keyboard, a screen pixel at a time", async () => {
+    const box = await crop();
+    fireEvent.click(screen.getByRole("button", { name: "Freeform" }));
+    const corner = screen.getByRole("button", { name: "Bottom-right corner" });
+    const before = screen.getByText(/Freeform ·/).textContent;
+    fireEvent.keyDown(corner, { key: "ArrowLeft", shiftKey: true });
+    expect(screen.getByText(/Freeform ·/).textContent).not.toBe(before);
+    // The box itself can't leave the photo: whole, it can't move.
+    const moved = screen.getByText(/Freeform ·/).textContent;
+    fireEvent.keyDown(box, { key: "ArrowRight", shiftKey: true });
+    fireEvent.keyDown(box, { key: "ArrowRight", shiftKey: true });
+    expect(screen.getByText(/Freeform ·/).textContent).toBe(moved);
+  });
+
+  it("has no compare in crop mode, and keeps the crop when the photo is left (EDT-1)", async () => {
+    const { rerender } = edit();
+    await brightness();
+    fireEvent.keyDown(window, { key: "c" });
+    await screen.findByRole("button", { name: "Crop box" });
+    fireEvent.keyDown(window, { key: "\\" });
+    expect(screen.queryByRole("button", { name: "Hold to compare" })).toBeNull();
+    expect(lastDrawn()).toMatchObject({ exposureEv: 0.4 });
+    fireEvent.click(screen.getByRole("button", { name: "1:1" }));
+    // Another photo opened from elsewhere: crop mode's work is kept.
+    useStore.setState({ editing: 8 });
+    rerender(<Editor id={8} forceWebgl2={false} />);
+    await waitFor(() =>
+      expect(mocks.editPhoto).toHaveBeenCalledWith(7, {
+        kind: "crop",
+        crop: expect.objectContaining({ aspect: "1:1", angle: 0 }) as unknown,
+      }),
+    );
+    // Once.
+    expect(mocks.editPhoto).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves nothing when crop mode is done without a change", async () => {
+    await crop();
+    fireEvent.keyDown(window, { key: "Enter" });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Crop box" })).toBeNull());
+    expect(mocks.editPhoto).not.toHaveBeenCalled();
   });
 
   it("won't turn a photo whose edit file can't be read (FIL-4)", async () => {
