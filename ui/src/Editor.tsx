@@ -27,6 +27,23 @@ import {
   type Turn,
 } from "./bindings";
 import { CloudPhoto } from "./CloudPhoto";
+import { formatNumber } from "./format";
+import {
+  aspectOf,
+  boxHeight,
+  boxWidth,
+  type CropState,
+  choiceOf,
+  MINIMUM,
+  type Ratio,
+  ratioBox,
+  ratioOf,
+  shownBox,
+  turnEdges,
+  wholeFrame,
+} from "./crop";
+import { CropOverlay } from "./CropOverlay";
+import { CropPanel } from "./CropPanel";
 import { Filmstrip } from "./Filmstrip";
 import { historyKey, isCompareKey, isTyping } from "./keys";
 import { Message } from "./Message";
@@ -44,6 +61,7 @@ import {
 } from "./preview";
 import { Slider } from "./Slider";
 import { useStore } from "./store";
+import { orientedSize, type Size } from "./preview/geometry";
 import { useZoom } from "./useZoom";
 import { ZoomControls } from "./ZoomControls";
 
@@ -133,6 +151,20 @@ export function Editor({ id, forceWebgl2 }: Props) {
   // Try again after a failed download asks for the photo once more.
   const [attempt, setAttempt] = useState(0);
   const [comparing, setComparing] = useState(false);
+  // Crop mode (EDT-2, EDT-3), on photo `id`: the oriented photo's frame,
+  // the state shown, its own undo and redo, the state it opened with, and
+  // the state before a drag or a slider's movement in progress.
+  /** The crop mode state last applied, so it's saved once. */
+  const appliedCrop = useRef<object | null>(null);
+  const [cropping, setCropping] = useState<{
+    id: number;
+    frame: Size;
+    now: CropState;
+    past: CropState[];
+    future: CropState[];
+    start: CropState;
+    moving: CropState | null;
+  } | null>(null);
   const [exporting, setExporting] = useState(false);
   // A finished change waiting to be saved, and the saves in progress.
   const pending = useRef<{ timer: number; id: number; edit: PhotoEdit } | null>(null);
@@ -237,9 +269,10 @@ export function Editor({ id, forceWebgl2 }: Props) {
         const result = await commands.editPhoto(photoId, edit);
         if (result.status === "error") say(t("editor-save-failed", { reason: result.error }));
         else if (result.data.kind === "saved") {
-          // A turn is the core's to work out, so the Editor shows what it
-          // made; a slider's setting is already shown.
-          const settings = edit.kind === "turn" ? result.data.settings : null;
+          // A turn or a crop is the core's to finish, so the Editor shows
+          // what it made; a slider's setting is already shown.
+          const settings =
+            edit.kind === "turn" || edit.kind === "crop" ? result.data.settings : null;
           if (result.data.steps) saved(photoId, result.data.steps, settings ?? undefined);
         } else if (result.data.kind === "readOnly") say(t("editor-save-read-only"));
         else if (result.data.kind === "unreadable") say(t("editor-save-unreadable"));
@@ -353,9 +386,18 @@ export function Editor({ id, forceWebgl2 }: Props) {
   // Compare shows the original turned, straightened and cropped as the
   // photo is, so it lines up with the edited photo, at the same zoom and
   // position (EDT-1).
+  const croppingNow = cropping?.id === id ? cropping : null;
+  const cropAngle = croppingNow?.now.angle ?? null;
   const drawnSettings = useMemo(
-    () => settings && (comparing ? { ...NEUTRAL_SETTINGS, ...geometryOf(settings) } : settings),
-    [settings, comparing],
+    () =>
+      settings &&
+      (cropAngle !== null
+        ? // Crop mode shows the whole frame, the photo turned in it.
+          { ...settings, straighten: cropAngle, cropX: 0, cropY: 0, cropWidth: 1, cropHeight: 1 }
+        : comparing
+          ? { ...NEUTRAL_SETTINGS, ...geometryOf(settings) }
+          : settings),
+    [settings, comparing, cropAngle],
   );
   // The preview's upright size, for sizing the canvas as it's turned.
   const previewWidth = shown?.width ?? 0;
@@ -383,6 +425,8 @@ export function Editor({ id, forceWebgl2 }: Props) {
   }, [drawnSettings, previewWidth, previewHeight, fullWidth, fullHeight]);
 
   const zoom = useZoom({
+    // Crop and straighten show the whole photo; the zoom returns after (EDT-1).
+    suspended: croppingNow !== null,
     stage,
     area,
     inset,
@@ -438,9 +482,160 @@ export function Editor({ id, forceWebgl2 }: Props) {
     void flush();
     zoom.fit();
     void save(id, { kind: "turn", turn });
+    // In crop mode, the box and its ratio turn with the photo (EDT-4).
+    if (croppingNow && (turn === "left" || turn === "right")) {
+      const clockwise = turn === "right";
+      setCropping((crop) => {
+        if (!crop) return crop;
+        const turned = (state: CropState): CropState => ({
+          ...state,
+          box: turnEdges(state.box, crop.frame, clockwise),
+          portrait: !state.portrait,
+        });
+        return {
+          ...crop,
+          frame: { width: crop.frame.height, height: crop.frame.width },
+          now: turned(crop.now),
+          past: crop.past.map(turned),
+          future: crop.future.map(turned),
+          start: turned(crop.start),
+          moving: crop.moving && turned(crop.moving),
+        };
+      });
+    }
+  }
+
+  /** Opens crop mode (C, or Crop and straighten): the whole photo at Fit,
+   * with its crop box and angle, and the ratio chosen last (EDT-2). */
+  async function openCrop() {
+    if (!shown || !editable || croppingNow) return;
+    void flush();
+    setComparing(false);
+    const frame = orientedSize(shown.full, shown.settings);
+    const current = shown.settings;
+    const whole =
+      (current.cropX ?? 0) === 0 &&
+      (current.cropY ?? 0) === 0 &&
+      (current.cropWidth ?? 1) === 1 &&
+      (current.cropHeight ?? 1) === 1;
+    const aspect = await commands.cropAspect(id);
+    // Never cropped, it starts at Original.
+    const chosen =
+      whole && aspect === null
+        ? { choice: "original" as Ratio, portrait: frame.height > frame.width }
+        : choiceOf(aspect, frame);
+    const state: CropState = {
+      box: {
+        left: (current.cropX ?? 0) * frame.width,
+        top: (current.cropY ?? 0) * frame.height,
+        right: ((current.cropX ?? 0) + (current.cropWidth ?? 1)) * frame.width,
+        bottom: ((current.cropY ?? 0) + (current.cropHeight ?? 1)) * frame.height,
+      },
+      angle: current.straighten ?? 0,
+      ...chosen,
+    };
+    setCropping({ id, frame, now: state, past: [], future: [], start: state, moving: null });
+  }
+
+  /** A change in crop mode: shown at once; `done` makes it a step of crop
+   * mode's own undo (a drag released, a key, a button). */
+  function changeCrop(next: (now: CropState, frame: Size) => CropState, done: boolean) {
+    setCropping((crop) => {
+      if (!crop) return crop;
+      const now = next(crop.now, crop.frame);
+      const before = crop.moving ?? crop.now;
+      if (!done) return { ...crop, now, moving: before };
+      const same = JSON.stringify(before) === JSON.stringify(now);
+      return {
+        ...crop,
+        now,
+        moving: null,
+        past: same ? crop.past : [...crop.past, before],
+        future: same ? crop.future : [],
+      };
+    });
+  }
+
+  /** A ratio, or Landscape or Portrait: the largest box of it, centered
+   * where the box is, that fits (EDT-2). */
+  function chooseRatio(choice: Ratio, portrait: boolean) {
+    changeCrop((now, frame) => {
+      const ratio = ratioOf(choice, portrait, frame);
+      const box = shownBox(now, frame);
+      return {
+        ...now,
+        choice,
+        portrait,
+        box: ratio === null ? box : ratioBox(box, ratio, frame, now.angle),
+      };
+    }, true);
+  }
+
+  /** The size label: "3:2 · 3720 × 2480", in the photo's own pixels. */
+  function cropLabel(crop: { frame: Size; now: CropState }) {
+    const box = shownBox(crop.now, crop.frame);
+    const aspect = aspectOf(crop.now.choice, crop.now.portrait, crop.frame);
+    return t("crop-size", {
+      ratio: aspect ?? t("crop-freeform"),
+      width: formatNumber(Math.round(boxWidth(box))),
+      height: formatNumber(Math.round(boxHeight(box))),
+    });
+  }
+
+  // Leaving the photo or the Editor any other way while crop mode is open
+  // counts as Done (wireframes, "Crop and straighten").
+  const leaveCrop = useEffectEvent(() => {
+    if (cropping) applyCrop(cropping);
+  });
+  useEffect(() => () => leaveCrop(), [id]);
+
+  /** Crop mode's own undo and redo (Ctrl+Z, Shift+Ctrl+Z). */
+  function stepCrop(undo: boolean) {
+    setCropping((crop) => {
+      if (!crop) return crop;
+      const from = undo ? crop.past : crop.future;
+      const to = from[from.length - 1];
+      if (!to) return crop;
+      return {
+        ...crop,
+        now: to,
+        moving: null,
+        past: undo ? crop.past.slice(0, -1) : [...crop.past, crop.now],
+        future: undo ? [...crop.future, crop.now] : crop.future.slice(0, -1),
+      };
+    });
+  }
+
+  /** Done (or Enter, or leaving the photo): saves the box shown and the
+   * angle as one record, "Crop" or "Straighten", if anything changed. */
+  function applyCrop(crop = croppingNow) {
+    // Each crop mode session is saved once, however it ends.
+    if (!crop || appliedCrop.current === crop) return;
+    appliedCrop.current = crop;
+    setCropping(null);
+    const { frame, now, start } = crop;
+    const box = shownBox(now, frame);
+    const unchanged =
+      JSON.stringify(box) === JSON.stringify(shownBox(start, frame)) &&
+      now.angle === start.angle &&
+      aspectOf(now.choice, now.portrait, frame) === aspectOf(start.choice, start.portrait, frame);
+    if (unchanged) return;
+    void save(crop.id, {
+      kind: "crop",
+      crop: {
+        x: box.left / frame.width,
+        y: box.top / frame.height,
+        width: boxWidth(box) / frame.width,
+        height: boxHeight(box) / frame.height,
+        aspect: aspectOf(now.choice, now.portrait, frame),
+        angle: now.angle,
+      },
+    });
   }
 
   function done() {
+    // Leaving while cropping keeps the crop.
+    applyCrop();
     void flush();
     leaving();
     closeEditor();
@@ -534,7 +729,7 @@ export function Editor({ id, forceWebgl2 }: Props) {
   }, []);
 
   // The Edit menu's Undo and Redo come here while the Editor is open (macOS).
-  const fromMenu = useEffectEvent((undo: boolean) => step(undo));
+  const fromMenu = useEffectEvent((undo: boolean) => (croppingNow ? stepCrop(undo) : step(undo)));
   useEffect(() => {
     useStore.setState({ editorStep: (undo) => fromMenu(undo) });
     return () => useStore.setState({ editorStep: null });
@@ -542,6 +737,7 @@ export function Editor({ id, forceWebgl2 }: Props) {
 
   function move(to: number | undefined) {
     if (to === undefined) return;
+    applyCrop();
     void flush();
     leaving();
     // Each photo opens fitted.
@@ -551,6 +747,10 @@ export function Editor({ id, forceWebgl2 }: Props) {
 
   // Listeners are added once; these see the latest state when they run.
   const onKey = useEffectEvent((event: KeyboardEvent) => {
+    if (croppingNow) {
+      cropKey(event);
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
       // Esc first cancels a revert being confirmed.
@@ -588,6 +788,11 @@ export function Editor({ id, forceWebgl2 }: Props) {
       turnPhoto(event.key === "[" ? "left" : "right");
       return;
     }
+    if (event.key === "c" || event.key === "C") {
+      event.preventDefault();
+      void openCrop();
+      return;
+    }
     // Arrow keys on a slider move the slider, not the photo.
     if (event.target instanceof HTMLInputElement) return;
     if (event.key === "ArrowLeft") move(previous?.id);
@@ -611,6 +816,34 @@ export function Editor({ id, forceWebgl2 }: Props) {
       window.removeEventListener("blur", away);
     };
   }, []);
+
+  /** Crop mode's keys: Enter applies and Esc cancels; its own undo and
+   * redo; [ and ] rotate with the box. Compare and zoom aren't available
+   * (EDT-1), and arrow keys belong to the box and its corners. */
+  function cropKey(event: KeyboardEvent) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setCropping(null);
+      return;
+    }
+    const history = historyKey(event);
+    if (history !== null) {
+      event.preventDefault();
+      stepCrop(history === "undo");
+      return;
+    }
+    if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return;
+    // Enter on a button presses the button.
+    if (event.key === "Enter" && !(event.target instanceof HTMLButtonElement)) {
+      event.preventDefault();
+      applyCrop();
+      return;
+    }
+    if (event.key === "[" || event.key === "]") {
+      event.preventDefault();
+      turnPhoto(event.key === "[" ? "left" : "right");
+    }
+  }
 
   function holdCompare(event: PointerEvent<HTMLButtonElement>) {
     if (event.button !== 0) return;
@@ -660,45 +893,53 @@ export function Editor({ id, forceWebgl2 }: Props) {
 
   return (
     <div ref={root} className="editor" tabIndex={-1} aria-label={photo.name}>
-      <header className="editor-bar">
-        <span className="editor-name">{photo.name}</span>
-        <span className="meta">
-          {problem === null ? t("editor-saved-automatically") : t("editor-not-saved")}
-        </span>
-        <div className="editor-history">
+      {croppingNow ? (
+        <header className="editor-bar crop-bar">
+          <span className="editor-name">{t("crop-title")}</span>
+          <span className="meta">{photo.name}</span>
+          <span className="meta crop-hint">{t("crop-hint")}</span>
+        </header>
+      ) : (
+        <header className="editor-bar">
+          <span className="editor-name">{photo.name}</span>
+          <span className="meta">
+            {problem === null ? t("editor-saved-automatically") : t("editor-not-saved")}
+          </span>
+          <div className="editor-history">
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={undoLabel}
+              title={undoLabel}
+              disabled={!editable || outsideNow || !shown?.steps.undo}
+              onClick={() => step(true)}
+            >
+              <Undo2 className="icon" aria-hidden />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={redoLabel}
+              title={redoLabel}
+              disabled={!editable || outsideNow || !shown?.steps.redo}
+              onClick={() => step(false)}
+            >
+              <Redo2 className="icon" aria-hidden />
+            </button>
+          </div>
+          <ZoomControls zoom={zoom} shown={shown !== null} />
+          {/* M1's development-only export, until export is built (M5). */}
           <button
             type="button"
-            className="icon-button"
-            aria-label={undoLabel}
-            title={undoLabel}
-            disabled={!editable || outsideNow || !shown?.steps.undo}
-            onClick={() => step(true)}
+            className="button editor-export"
+            disabled={!shown || exporting}
+            onClick={() => void exportPhoto()}
           >
-            <Undo2 className="icon" aria-hidden />
+            {exporting ? t("editor-exporting") : t("editor-export")}
           </button>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label={redoLabel}
-            title={redoLabel}
-            disabled={!editable || outsideNow || !shown?.steps.redo}
-            onClick={() => step(false)}
-          >
-            <Redo2 className="icon" aria-hidden />
-          </button>
-        </div>
-        <ZoomControls zoom={zoom} shown={shown !== null} />
-        {/* M1's development-only export, until export is built (M5). */}
-        <button
-          type="button"
-          className="button editor-export"
-          disabled={!shown || exporting}
-          onClick={() => void exportPhoto()}
-        >
-          {exporting ? t("editor-exporting") : t("editor-export")}
-        </button>
-        <MoreButton />
-      </header>
+          <MoreButton />
+        </header>
+      )}
 
       <div className="editor-main">
         {/* The notice bar pushes the photo down rather than covering it
@@ -738,6 +979,18 @@ export function Editor({ id, forceWebgl2 }: Props) {
               hidden={zoom.sharp === null || inCloud || message !== null}
               style={zoom.sharp ?? undefined}
             />
+            {croppingNow && zoom.whole && !inCloud && message === null && (
+              <CropOverlay
+                place={zoom.whole}
+                frame={croppingNow.frame}
+                angle={croppingNow.now.angle}
+                box={shownBox(croppingNow.now, croppingNow.frame)}
+                ratio={ratioOf(croppingNow.now.choice, croppingNow.now.portrait, croppingNow.frame)}
+                minimum={MINIMUM}
+                label={cropLabel(croppingNow)}
+                onChange={(box, finished) => changeCrop((now) => ({ ...now, box }), finished)}
+              />
+            )}
             {current && (current.kind === "downloading" || current.kind === "downloadFailed") && (
               <CloudPhoto
                 id={photo.id}
@@ -753,191 +1006,233 @@ export function Editor({ id, forceWebgl2 }: Props) {
           </div>
           <Message since={openedAt} />
         </div>
-        <Filmstrip photos={photos} current={photo.id} onChoose={move} />
+        {!croppingNow && <Filmstrip photos={photos} current={photo.id} onChoose={move} />}
       </div>
 
       <aside className="editor-panel" aria-label={t("editor-tools")}>
-        {/* Where the pointer works (INT-5): compare and Done first. */}
-        <div className="editor-actions">
-          <button
-            type="button"
-            className="button editor-compare"
-            aria-pressed={comparing}
-            disabled={!shown}
-            onPointerDown={holdCompare}
-            onPointerUp={() => setComparing(false)}
-            onPointerCancel={() => setComparing(false)}
-            onLostPointerCapture={() => setComparing(false)}
-            onKeyDown={(event) => {
-              if ((event.key === " " || event.key === "Enter") && !event.repeat) {
-                event.preventDefault();
-                setComparing(true);
-              }
-            }}
-            onKeyUp={(event) => {
-              if (event.key === " " || event.key === "Enter") setComparing(false);
-            }}
-            onBlur={() => setComparing(false)}
-          >
-            {t("editor-compare")}
-          </button>
-          <button type="button" className="button primary" onClick={done}>
-            {t("editor-done")}
-          </button>
-        </div>
-
-        <div className="editor-section editor-turns" role="group" aria-label={t("editor-turn")}>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label={t("editor-rotate-left")}
-            aria-keyshortcuts="["
-            title={t("editor-rotate-left")}
-            disabled={!editable}
-            onClick={() => turnPhoto("left")}
-          >
-            <RotateCcwSquare className="icon" aria-hidden />
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label={t("editor-rotate-right")}
-            aria-keyshortcuts="]"
-            title={t("editor-rotate-right")}
-            disabled={!editable}
-            onClick={() => turnPhoto("right")}
-          >
-            <RotateCwSquare className="icon" aria-hidden />
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label={t("editor-flip-horizontal")}
-            title={t("editor-flip-horizontal")}
-            disabled={!editable}
-            onClick={() => turnPhoto("horizontal")}
-          >
-            {/* Mirrored across an upright line. Lucide's FlipHorizontal2
-                is the other drawing. */}
-            <TrianglesCenterlineDashedVertical className="icon" aria-hidden />
-          </button>
-          <button
-            type="button"
-            className="icon-button"
-            aria-label={t("editor-flip-vertical")}
-            title={t("editor-flip-vertical")}
-            disabled={!editable}
-            onClick={() => turnPhoto("vertical")}
-          >
-            <TrianglesCenterlineDashedHorizontal className="icon" aria-hidden />
-          </button>
-        </div>
-
-        <section className="editor-section" aria-label={t("editor-light")}>
-          <h2 className="section-label" aria-hidden>
-            {t("editor-light")}
-          </h2>
-          <Slider
-            label={t("editor-brightness")}
-            value={value("exposureEv") * PER_STOP}
-            disabled={!editable}
-            onInput={(to) => adjust({ exposureEv: to / PER_STOP })}
-            onCommit={(to) => commit({ kind: "brightness", ev: to / PER_STOP })}
+        {croppingNow ? (
+          <CropPanel
+            choice={croppingNow.now.choice}
+            portrait={croppingNow.now.portrait}
+            angle={croppingNow.now.angle}
+            onRatio={(choice) => chooseRatio(choice, croppingNow.now.portrait)}
+            onPortrait={(portrait) => chooseRatio(croppingNow.now.choice, portrait)}
+            onAngle={(angle, finished) => changeCrop((now) => ({ ...now, angle }), finished)}
+            onReset={() =>
+              changeCrop(
+                (_now, frame) => ({
+                  box: wholeFrame(frame),
+                  angle: 0,
+                  choice: "original",
+                  portrait: frame.height > frame.width,
+                }),
+                true,
+              )
+            }
+            onCancel={() => setCropping(null)}
+            onDone={() => applyCrop()}
           />
-          <Slider
-            label={t("editor-contrast")}
-            value={value("contrast")}
-            disabled={!editable}
-            onInput={(to) => adjust({ contrast: to })}
-            onCommit={(to) => commit({ kind: "contrast", amount: to })}
-          />
-          <Slider
-            label={t("editor-highlights")}
-            value={value("highlights")}
-            disabled={!editable}
-            onInput={(to) => adjust({ highlights: to })}
-            onCommit={(to) => commit({ kind: "highlights", amount: to })}
-          />
-          <Slider
-            label={t("editor-shadows")}
-            value={value("shadows")}
-            disabled={!editable}
-            onInput={(to) => adjust({ shadows: to })}
-            onCommit={(to) => commit({ kind: "shadows", amount: to })}
-          />
-        </section>
-
-        <section className="editor-section" aria-label={t("editor-color")}>
-          <h2 className="section-label" aria-hidden>
-            {t("editor-color")}
-          </h2>
-          <Slider
-            label={t("editor-temperature")}
-            ends={[t("editor-cool"), t("editor-warm")]}
-            value={value("temperature")}
-            disabled={!editable}
-            onInput={(to) => adjust({ temperature: to })}
-            onCommit={(to) => commit({ kind: "temperature", temperature: to, tint: value("tint") })}
-          />
-          <Slider
-            label={t("editor-tint")}
-            ends={[t("editor-green"), t("editor-magenta")]}
-            value={value("tint")}
-            disabled={!editable}
-            onInput={(to) => adjust({ tint: to })}
-            onCommit={(to) => commit({ kind: "tint", temperature: value("temperature"), tint: to })}
-          />
-          <Slider
-            label={t("editor-saturation")}
-            value={value("saturation")}
-            disabled={!editable}
-            onInput={(to) => adjust({ saturation: to })}
-            onCommit={(to) => commit({ kind: "saturation", amount: to })}
-          />
-        </section>
-
-        {problem !== null && (
-          <p className="editor-note" role="note">
-            {t("editor-read-only", { reason: problem })}
-          </p>
-        )}
-
-        {/* Last, and cautionary (wireframes). Confirming puts Cancel where
-            the pointer is, the destructive choice below it (INT-5). */}
-        <div className="editor-section editor-revert">
-          {confirmingNow ? (
-            <div role="group" aria-labelledby="revert-question">
+        ) : (
+          <>
+            {/* Where the pointer works (INT-5): compare and Done first. */}
+            <div className="editor-actions">
               <button
-                ref={cancelRevert}
                 type="button"
-                className="button"
-                onClick={() => {
-                  setConfirming(null);
-                  revertButton.current?.focus();
+                className="button editor-compare"
+                aria-pressed={comparing}
+                disabled={!shown}
+                onPointerDown={holdCompare}
+                onPointerUp={() => setComparing(false)}
+                onPointerCancel={() => setComparing(false)}
+                onLostPointerCapture={() => setComparing(false)}
+                onKeyDown={(event) => {
+                  if ((event.key === " " || event.key === "Enter") && !event.repeat) {
+                    event.preventDefault();
+                    setComparing(true);
+                  }
                 }}
+                onKeyUp={(event) => {
+                  if (event.key === " " || event.key === "Enter") setComparing(false);
+                }}
+                onBlur={() => setComparing(false)}
               >
-                {t("editor-revert-cancel")}
+                {t("editor-compare")}
               </button>
-              <p id="revert-question">
-                {t("editor-revert-question")}
-                {shown?.steps.otherApps && ` ${t("editor-revert-other-apps")}`}
-              </p>
-              <button type="button" className="button danger" onClick={revert}>
-                {t("editor-revert-confirm")}
+              <button type="button" className="button primary" onClick={done}>
+                {t("editor-done")}
               </button>
             </div>
-          ) : (
-            <button
-              ref={revertButton}
-              type="button"
-              className="button caution"
-              disabled={!editable || outsideNow || !edited}
-              onClick={() => setConfirming(id)}
-            >
-              {t("editor-revert")}
-            </button>
-          )}
-        </div>
+
+            <div className="editor-section">
+              <button
+                type="button"
+                className="button editor-crop"
+                aria-keyshortcuts="C"
+                disabled={!editable}
+                onClick={() => void openCrop()}
+              >
+                {t("editor-crop")}
+              </button>
+            </div>
+
+            <div className="editor-section editor-turns" role="group" aria-label={t("editor-turn")}>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={t("editor-rotate-left")}
+                aria-keyshortcuts="["
+                title={t("editor-rotate-left")}
+                disabled={!editable}
+                onClick={() => turnPhoto("left")}
+              >
+                <RotateCcwSquare className="icon" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={t("editor-rotate-right")}
+                aria-keyshortcuts="]"
+                title={t("editor-rotate-right")}
+                disabled={!editable}
+                onClick={() => turnPhoto("right")}
+              >
+                <RotateCwSquare className="icon" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={t("editor-flip-horizontal")}
+                title={t("editor-flip-horizontal")}
+                disabled={!editable}
+                onClick={() => turnPhoto("horizontal")}
+              >
+                {/* Mirrored across an upright line. Lucide's FlipHorizontal2
+                is the other drawing. */}
+                <TrianglesCenterlineDashedVertical className="icon" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={t("editor-flip-vertical")}
+                title={t("editor-flip-vertical")}
+                disabled={!editable}
+                onClick={() => turnPhoto("vertical")}
+              >
+                <TrianglesCenterlineDashedHorizontal className="icon" aria-hidden />
+              </button>
+            </div>
+
+            <section className="editor-section" aria-label={t("editor-light")}>
+              <h2 className="section-label" aria-hidden>
+                {t("editor-light")}
+              </h2>
+              <Slider
+                label={t("editor-brightness")}
+                value={value("exposureEv") * PER_STOP}
+                disabled={!editable}
+                onInput={(to) => adjust({ exposureEv: to / PER_STOP })}
+                onCommit={(to) => commit({ kind: "brightness", ev: to / PER_STOP })}
+              />
+              <Slider
+                label={t("editor-contrast")}
+                value={value("contrast")}
+                disabled={!editable}
+                onInput={(to) => adjust({ contrast: to })}
+                onCommit={(to) => commit({ kind: "contrast", amount: to })}
+              />
+              <Slider
+                label={t("editor-highlights")}
+                value={value("highlights")}
+                disabled={!editable}
+                onInput={(to) => adjust({ highlights: to })}
+                onCommit={(to) => commit({ kind: "highlights", amount: to })}
+              />
+              <Slider
+                label={t("editor-shadows")}
+                value={value("shadows")}
+                disabled={!editable}
+                onInput={(to) => adjust({ shadows: to })}
+                onCommit={(to) => commit({ kind: "shadows", amount: to })}
+              />
+            </section>
+
+            <section className="editor-section" aria-label={t("editor-color")}>
+              <h2 className="section-label" aria-hidden>
+                {t("editor-color")}
+              </h2>
+              <Slider
+                label={t("editor-temperature")}
+                ends={[t("editor-cool"), t("editor-warm")]}
+                value={value("temperature")}
+                disabled={!editable}
+                onInput={(to) => adjust({ temperature: to })}
+                onCommit={(to) =>
+                  commit({ kind: "temperature", temperature: to, tint: value("tint") })
+                }
+              />
+              <Slider
+                label={t("editor-tint")}
+                ends={[t("editor-green"), t("editor-magenta")]}
+                value={value("tint")}
+                disabled={!editable}
+                onInput={(to) => adjust({ tint: to })}
+                onCommit={(to) =>
+                  commit({ kind: "tint", temperature: value("temperature"), tint: to })
+                }
+              />
+              <Slider
+                label={t("editor-saturation")}
+                value={value("saturation")}
+                disabled={!editable}
+                onInput={(to) => adjust({ saturation: to })}
+                onCommit={(to) => commit({ kind: "saturation", amount: to })}
+              />
+            </section>
+
+            {problem !== null && (
+              <p className="editor-note" role="note">
+                {t("editor-read-only", { reason: problem })}
+              </p>
+            )}
+
+            {/* Last, and cautionary (wireframes). Confirming puts Cancel where
+            the pointer is, the destructive choice below it (INT-5). */}
+            <div className="editor-section editor-revert">
+              {confirmingNow ? (
+                <div role="group" aria-labelledby="revert-question">
+                  <button
+                    ref={cancelRevert}
+                    type="button"
+                    className="button"
+                    onClick={() => {
+                      setConfirming(null);
+                      revertButton.current?.focus();
+                    }}
+                  >
+                    {t("editor-revert-cancel")}
+                  </button>
+                  <p id="revert-question">
+                    {t("editor-revert-question")}
+                    {shown?.steps.otherApps && ` ${t("editor-revert-other-apps")}`}
+                  </p>
+                  <button type="button" className="button danger" onClick={revert}>
+                    {t("editor-revert-confirm")}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  ref={revertButton}
+                  type="button"
+                  className="button caution"
+                  disabled={!editable || outsideNow || !edited}
+                  onClick={() => setConfirming(id)}
+                >
+                  {t("editor-revert")}
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </aside>
     </div>
   );

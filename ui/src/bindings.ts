@@ -162,6 +162,11 @@ export const commands = {
 	 */
 	editorRegion: (id: number, x: number, y: number, width: number, height: number, outWidth: number, outHeight: number) => typedError<RegionSize, string>(__TAURI_INVOKE("editor_region", { id, x, y, width, height, outWidth, outHeight })),
 	/**
+	 *  The open photo's crop ratio lock (`seura.crop`'s `aspect`), for crop
+	 *  mode to show the ratio chosen (EDT-2).
+	 */
+	cropAspect: (id: number) => __TAURI_INVOKE<string | null>("crop_aspect", { id }),
+	/**
 	 *  Shows photo `id` in the Viewer, decoded to fit an area of `width` ×
 	 *  `height` device pixels (DSP-1), and decodes `neighbors` ahead (PRF-5).
 	 *  A cloud-only photo is read, downloading it, only with `download`, and
@@ -321,6 +326,19 @@ export type Choice = {
 	path: string,
 	/**  The service that syncs it, if any (for a cache location). */
 	syncedTo: string | null,
+};
+
+/**
+ *  What crop mode's Done saves (EDT-2, EDT-3): the box as fractions of the
+ *  oriented photo, its ratio lock, and the straighten angle in degrees.
+ */
+export type CropEdit = {
+	x: number | null,
+	y: number | null,
+	width: number | null,
+	height: number | null,
+	aspect: string | null,
+	angle: number | null,
 };
 
 /**  What deleting did (BRW-9), in numbers of photos. */
@@ -643,7 +661,9 @@ export type PhotoEdit =
 /**  `seura.saturation`, −100 to 100. */
 { kind: "saturation"; amount: number | null } | 
 /**  Rotate or flip (EDT-4), from what the Editor shows. */
-{ kind: "turn"; turn: Turn };
+{ kind: "turn"; turn: Turn } | 
+/**  Crop mode's Done (EDT-2, EDT-3). */
+{ kind: "crop"; crop: CropEdit };
 
 /**  What the grid is narrowed to (FND-1), applied to whatever it shows. */
 export type PhotoFilter = {

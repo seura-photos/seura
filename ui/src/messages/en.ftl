@@ -558,6 +558,30 @@ editor-original = { $name }, original
 editor-tools = Tools
 editor-compare = Hold to compare
 editor-done = Done
+# Crop mode (EDT-2, EDT-3; wireframes, "Crop and straighten").
+editor-crop = Crop and straighten
+crop-title = Crop and straighten
+crop-hint = Enter to apply · Esc to cancel
+crop-aspect-ratio = Aspect ratio
+crop-original = Original
+crop-freeform = Freeform
+crop-orientation = Orientation
+crop-landscape = Landscape
+crop-portrait = Portrait
+crop-straighten = Straighten
+crop-straighten-note = The crop shrinks as needed so no empty corners show.
+crop-reset = Reset crop
+crop-cancel = Cancel
+crop-done = Done
+# The box and its corners take the focus in turn; arrow keys move them.
+crop-box = Crop box
+crop-handle = crop handle
+crop-top-left = Top-left corner
+crop-top-right = Top-right corner
+crop-bottom-left = Bottom-left corner
+crop-bottom-right = Bottom-right corner
+# The box's size, in the photo's own pixels, such as "3:2 · 3720 × 2480".
+crop-size = { $ratio } · { $width } × { $height }
 # The Editor's rotate and flip buttons (EDT-4).
 editor-turn = Rotate and flip
 editor-rotate-left = Rotate left

@@ -37,6 +37,7 @@ fn main() {
         "open_photo",
         "close_photo",
         "editor_region",
+        "crop_aspect",
         "view_photo",
         "view_region",
         "close_viewer",

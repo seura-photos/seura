@@ -37,6 +37,7 @@
     "allow-open-photo",
     "allow-close-photo",
     "allow-editor-region",
+    "allow-crop-aspect",
     "allow-view-photo",
     "allow-view-region",
     "allow-close-viewer",

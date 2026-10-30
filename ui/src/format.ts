@@ -82,3 +82,13 @@ export function formatDate(secondsSince1970: number): string {
 export function formatSigned(value: number): string {
   return formatNumber(Math.round(value), { signDisplay: "exceptZero" }).replace("-", "−");
 }
+
+/** An angle as crop mode shows it: "+2.4°", "0°", "−12.5°". */
+export function formatAngle(angle: number): string {
+  const tenths = Math.round(angle * 10) / 10;
+  const number = formatNumber(tenths, {
+    signDisplay: "exceptZero",
+    maximumFractionDigits: 1,
+  }).replace("-", "−");
+  return `${number}°`;
+}

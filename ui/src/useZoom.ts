@@ -54,6 +54,9 @@ type Options = {
   show: (image: LinearImage, placement: Placement) => Promise<boolean>;
   /** Anything that means the sharp part must be fetched again. */
   version?: unknown;
+  /** Shows the whole photo, and keeps the zoom and position to return
+   * to: crop mode (EDT-1). */
+  suspended?: boolean;
 };
 
 /**
@@ -74,6 +77,7 @@ export function useZoom({
   cut,
   show,
   version,
+  suspended = false,
 }: Options) {
   const scale = window.devicePixelRatio;
   const stageSize: Size = { width: area.width * scale, height: area.height * scale };
@@ -90,7 +94,9 @@ export function useZoom({
 
   const fitted = photo ? fitView(photo.full, stageSize) : null;
   const current =
-    photo && zoomed?.id === photo.id ? clampView(zoomed.view, photo.full, stageSize) : fitted;
+    photo && zoomed?.id === photo.id && !suspended
+      ? clampView(zoomed.view, photo.full, stageSize)
+      : fitted;
   const isZoomed = photo !== null && current !== null && !isFit(current, photo.full, stageSize);
 
   // Zoomed in, the part on screen is fetched sharp once zooming and
@@ -148,7 +154,7 @@ export function useZoom({
 
   /** Zooms to `zoom` about `point` (device pixels from the stage's center). */
   function zoomTo(zoom: number, point = { x: 0, y: 0 }) {
-    if (!photo || !current) return;
+    if (!photo || !current || suspended) return;
     setZoomed({ id: photo.id, view: zoomAt(current, zoom, point, photo.full, stageSize) });
   }
 
@@ -178,14 +184,14 @@ export function useZoom({
   const pinchStart = useRef(1);
   const onWheel = useEffectEvent((event: WheelEvent) => {
     event.preventDefault();
-    if (!current) return;
+    if (!current || suspended) return;
     const lines = event.deltaMode === 1 ? 16 : 1;
     const factor = Math.exp(-event.deltaY * lines * (event.ctrlKey ? 0.01 : 0.002));
     zoomTo(current.zoom * factor, pointFrom(event.clientX, event.clientY));
   });
   const onGesture = useEffectEvent((event: Event, starting: boolean) => {
     event.preventDefault();
-    if (!current) return;
+    if (!current || suspended) return;
     const gesture = event as UIEvent & { scale: number; clientX: number; clientY: number };
     if (starting) pinchStart.current = current.zoom;
     else zoomTo(pinchStart.current * gesture.scale, pointFrom(gesture.clientX, gesture.clientY));
