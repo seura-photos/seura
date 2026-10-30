@@ -49,6 +49,7 @@ Details the tokens alone don't settle, decided while building M3.
   - **Problem,** something the user needs to act on: dangerSubtle, warning icon in danger (FIL-4, an unreadable edit file, with Start over).
   Text is always the primary text color. 8 px corners, at the top of the photo area. Icons on accentSubtle use accentText, not accent, which is only 2.3:1 on it in dark mode (the same as the selected row).
 - **Message** (the last action's result, INT-6): text on surface with a border and a soft shadow (`0 6px 20px rgba(0,0,0,0.18)`), 8 px corners, near the bottom of the photo area, centered, up to 480 px wide. Its border is faint against the grid (about 1.4:1), which is fine: the shadow sets it apart, and WCAG asks contrast of its text, which is high, not of a container's edge.
+- **Confirmation card** (Revert to original, opening upward over the panel): surface background, border, the message's soft shadow, and 8 px corners, the panel's width less its padding, so it reads as on top of the content it covers. The question in primary text, Revert as a danger button, Cancel as a quiet button where the Revert button was. For screen readers, an alertdialog named by its question, with Cancel focused; Tab reaches Revert.
 - **Sidebar divider:** the 1 px border at rest; 2 px in accentText on hover, while dragging, and when focused, with the focus ring (wireframes, "Resizable sidebar"). Widths are the sidebar, sidebarMin, and sidebarMax tokens.
 
 ## Type

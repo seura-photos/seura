@@ -51,8 +51,8 @@ A single centered card: title; two sentences (what the app does; originals are n
 ## 5. Editor (EDT-*, PRE-*)
 
 - **Toolbar:** file name, "Edits saved automatically," undo, redo, the zoom group (−, Fit, 100%, +) as in the Viewer, Copy edits, Export. No Done here. Copy edits, Export, and the presets section arrive with M5; until then they're left out, not shown disabled.
-- **Tool panel** (300 px, right), one scrolling column in process order (INT-3):
-  1. Hold to compare · Done (44 px each, first row, where the pointer works)
+- **Tool panel** (300 px, right), in process order (INT-3). Its first row is pinned at the top and Revert is pinned at the bottom; the sections between them scroll, with a soft shadow at the scrolling area's top or bottom edge when there's more to see:
+  1. Hold to compare · Done (44 px each, first row, where the pointer works), pinned at the top
   2. Enhance (40 px, prominent)
   3. Crop and straighten
   4. Rotate left, rotate right, flip horizontal, flip vertical
@@ -61,7 +61,8 @@ A single centered card: title; two sentences (what the app does; originals are n
   7. EFFECTS: black and white, sepia, vignette as on/off buttons; each one's strength slider appears only when it's on (INT-4)
   8. RED-EYE: Fix red-eye…
   9. PRESETS: list, then "Save current edits as a preset…"
-  10. Revert to original… (last, styled as cautionary)
+  10. Revert to original… (last, styled as cautionary), pinned at the bottom in a footer about 60 px tall, so it never needs scrolling to
+- **Revert's confirmation** (EDT-10) opens upward: Cancel takes the button's place, under the pointer and focused; above it, the question (with the note about other apps' edits when there are any) and the red Revert, in a card over the bottom of the scrolling area. From the top: question, Revert, Cancel. The panel never scrolls on its own, and nothing appears below the window. Esc or a click outside the card cancels.
 - **Photo** on the dark surround with a **filmstrip** (84 px) beneath; the current photo outlined.
 - **Zoom** (EDT-1): as in the Viewer. Dragging pans unless red-eye is active; then Space-drag pans. Crop and straighten show the whole photo. Compare keeps the zoom and position; the filmstrip returns to Fit.
 - Sliders show signed whole numbers (EDT-5): "+12", "0", "−30"; brightness on the same scale, 25 to a stop. Temperature and tint name their ends under the track: Cool and Warm, Green and Magenta. Double-click resets.
