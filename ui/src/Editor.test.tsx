@@ -20,12 +20,15 @@ const mocks = vi.hoisted(() => ({
   fileChanged: null as ((event: { payload: unknown }) => void) | null,
   openPhoto: vi.fn<(id: number, longEdge: number, download: boolean) => Promise<unknown>>(),
   closePhoto: vi.fn(() => Promise.resolve(null)),
+  editorRegion: vi.fn(() => Promise.resolve({ status: "ok", data: { width: 4, height: 3 } })),
   draw: vi.fn(),
   // Saved settings beside brightness, which the slider must keep.
   opened: {
     kind: "opened",
     width: 4,
     height: 3,
+    fullWidth: 4032,
+    fullHeight: 3024,
     settings: { exposureEv: 0.4, contrast: 20 } as Record<string, number>,
     steps: { undo: null as string | null, redo: null as string | null },
     problem: null as string | null,
@@ -46,6 +49,7 @@ vi.mock("./bindings", () => ({
   commands: {
     openPhoto: mocks.openPhoto,
     closePhoto: mocks.closePhoto,
+    editorRegion: mocks.editorRegion,
     editPhoto: mocks.editPhoto,
     stepEdit: mocks.stepEdit,
     revertPhoto: mocks.revertPhoto,
@@ -250,6 +254,42 @@ describe("Editor", () => {
     await waitFor(() =>
       expect(mocks.draw).toHaveBeenLastCalledWith({ exposureEv: 0.4, contrast: 20 }),
     );
+  });
+
+  it("zooms as the Viewer does, and compare keeps the zoom (EDT-1)", async () => {
+    edit();
+    await brightness();
+    const zoom = screen.getByRole("group", { name: "Zoom" });
+    const fit = within(zoom).getByRole("button", { name: "Fit" });
+    expect(fit.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.keyDown(window, { key: "+" });
+    expect(fit.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(within(zoom).getByRole("button", { name: "100%" }));
+    expect(within(zoom).getByRole("button", { name: "100%" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+    // Once zooming rests, the part on screen is cut sharp from the photo.
+    await waitFor(() => expect(mocks.editorRegion).toHaveBeenCalled());
+    fireEvent.keyDown(window, { key: "\\" });
+    await waitFor(() => expect(mocks.draw).toHaveBeenLastCalledWith(mocks.neutral));
+    expect(fit.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.keyUp(window, { key: "\\" });
+    fireEvent.keyDown(window, { key: "-" });
+    fireEvent.click(fit);
+    expect(fit.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("opens the next photo fitted (EDT-1)", async () => {
+    edit();
+    await brightness();
+    fireEvent.keyDown(window, { key: "+" });
+    const fit = within(screen.getByRole("group", { name: "Zoom" })).getByRole("button", {
+      name: "Fit",
+    });
+    expect(fit.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(useStore.getState().editing).toBe(8);
+    expect(fit.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("goes back to the grid with Done, the photo selected (flow 4)", async () => {

@@ -630,7 +630,7 @@ button {
 }
 
 /* In the Viewer, the zoom controls already end the bar. */
-.viewer-zoom + .more-button {
+.zoom-group + .more-button {
   margin-left: 0;
 }
 
@@ -1053,6 +1053,11 @@ button {
   margin-left: 0;
 }
 
+/* The zoom group follows undo and redo (wireframes, "Editor"). */
+.editor-history + .zoom-group {
+  margin-left: 0;
+}
+
 .editor-main {
   grid-area: main;
   display: flex;
@@ -1296,17 +1301,19 @@ button {
   position: absolute;
 }
 
-.viewer-stage.zoomed {
+.viewer-stage.zoomed,
+.editor-stage.zoomed {
   cursor: grab;
   touch-action: none;
 }
 
-.viewer-stage.zoomed:active {
+.viewer-stage.zoomed:active,
+.editor-stage.zoomed:active {
   cursor: grabbing;
 }
 
 /* −, Fit, 100%, + (styled mockup): one control in four parts. */
-.viewer-zoom {
+.zoom-group {
   display: inline-flex;
   margin-left: auto;
   border: 1px solid var(--color-border);
@@ -1314,7 +1321,7 @@ button {
   overflow: hidden;
 }
 
-.viewer-zoom button {
+.zoom-group button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1327,16 +1334,16 @@ button {
   cursor: pointer;
 }
 
-.viewer-zoom button:first-child {
+.zoom-group button:first-child {
   border-left: 0;
 }
 
-.viewer-zoom button[aria-pressed="true"] {
+.zoom-group button[aria-pressed="true"] {
   background: var(--color-accent-subtle);
   color: var(--color-accent-text);
 }
 
-.viewer-zoom button:disabled {
+.zoom-group button:disabled {
   color: var(--color-text-secondary);
   cursor: default;
 }
@@ -1720,7 +1727,7 @@ button {
   margin-left: auto;
 }
 
-.viewer-zoom + .button.primary.toolbar-edit,
+.zoom-group + .button.primary.toolbar-edit,
 .toolbar-edit + .more-button {
   margin-left: 0;
 }

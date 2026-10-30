@@ -15,10 +15,11 @@ use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
 
 use seura_edit::{EditFile, edit_file_path};
-use seura_image::{Region, Upright};
+use seura_image::Region;
 use seura_render::Settings;
 
 use crate::editor::encode_linear;
+use crate::parts::Parts;
 
 /// Why a photo wasn't shown: the Viewer moved on before it was decoded.
 pub const MOVED_ON: &str = "the Viewer moved on";
@@ -49,10 +50,8 @@ pub struct Shown {
 #[derive(Default)]
 pub struct Viewer {
     inner: Arc<Inner>,
-    /// The shown photo at full size, while it's zoomed into.
-    full: Mutex<Option<(u32, Arc<Upright>)>>,
-    /// The last part cut from it, for the protocol.
-    region: Mutex<Option<Arc<Vec<u8>>>>,
+    /// The parts cut from the shown photo while it's zoomed into.
+    parts: Parts,
 }
 
 #[derive(Default)]
@@ -96,11 +95,7 @@ impl Viewer {
         neighbors: &[Wanted],
         area: (u32, u32),
     ) -> Result<Shown, String> {
-        let mut full = self.full.lock().expect("viewer lock");
-        if full.as_ref().is_some_and(|(id, _)| *id != photo.id) {
-            *full = None;
-        }
-        drop(full);
+        self.parts.keep_only(photo.id);
 
         let mut cache = self.inner.cache.lock().expect("viewer lock");
         if cache.area != area {
@@ -175,9 +170,7 @@ impl Viewer {
     }
 
     /// Cuts `region` (in the photo's own pixels) from `photo` at full size,
-    /// scaled to `width` × `height`, never larger than the region itself
-    /// (the Viewer enlarges it), and keeps it for `view-region`. Returns its
-    /// size. The first part of a photo decodes it at full size.
+    /// scaled to `width` × `height`, for `view-region`. Returns its size.
     pub fn region(
         &self,
         photo: &Wanted,
@@ -185,41 +178,18 @@ impl Viewer {
         width: u32,
         height: u32,
     ) -> Result<(u32, u32), String> {
-        let kept = self
-            .full
-            .lock()
-            .expect("viewer lock")
-            .as_ref()
-            .filter(|(id, _)| *id == photo.id)
-            .map(|(_, full)| Arc::clone(full));
-        let full = match kept {
-            Some(full) => full,
-            None => {
-                let full = Arc::new(
-                    seura_image::decode_upright(&photo.path).map_err(|error| error.to_string())?,
-                );
-                *self.full.lock().expect("viewer lock") = Some((photo.id, Arc::clone(&full)));
-                full
-            }
-        };
-        let width = width.clamp(1, region.width.max(1)).min(MAX_LONG_EDGE);
-        let height = height.clamp(1, region.height.max(1)).min(MAX_LONG_EDGE);
-        let image = full.region_linear(region, width, height);
-        let size = (image.width, image.height);
-        *self.region.lock().expect("viewer lock") = Some(Arc::new(encode_linear(&image)));
-        Ok(size)
+        self.parts.cut(photo.id, &photo.path, region, width, height)
     }
 
     /// The bytes for `view-region`: the last part cut.
     pub fn region_pixels(&self) -> Option<Arc<Vec<u8>>> {
-        self.region.lock().expect("viewer lock").clone()
+        self.parts.pixels()
     }
 
     /// The Viewer closed: its photos are let go.
     pub fn close(&self) {
         self.inner.cache.lock().expect("viewer lock").slots.clear();
-        *self.full.lock().expect("viewer lock") = None;
-        *self.region.lock().expect("viewer lock") = None;
+        self.parts.clear();
     }
 }
 
@@ -441,6 +411,6 @@ mod tests {
         viewer
             .show(&wanted(folder.path(), 2), &[], (100, 100))
             .unwrap();
-        assert!(viewer.full.lock().unwrap().is_none());
+        assert_eq!(viewer.parts.kept(), None);
     }
 }

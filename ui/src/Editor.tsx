@@ -17,10 +17,11 @@ import { t } from "./messages";
 import { SHOWN_EVENT } from "./measure";
 import { MoreButton } from "./MoreButton";
 import { NoticeBar } from "./NoticeBar";
-import { type Backend, createPreview, fetchLinear } from "./preview";
-import { fitSize } from "./preview/fit";
+import { type Backend, createPreview, fetchLinear, type LinearImage } from "./preview";
 import { Slider } from "./Slider";
 import { useStore } from "./store";
+import { useZoom } from "./useZoom";
+import { ZoomControls } from "./ZoomControls";
 
 /** How long after a finished change it's saved, so a run of key presses on
  * a slider is one change (EDT-11: within a second). */
@@ -51,6 +52,8 @@ type Status = { id: number } & (
       kind: "shown";
       width: number;
       height: number;
+      // The photo's own upright size, for zooming.
+      full: { width: number; height: number };
       // As saved; the slider changes brightness in them.
       settings: RenderSettings;
       // What Undo and Redo would undo or redo (EDT-9).
@@ -67,8 +70,10 @@ type Status = { id: number } & (
  * surround with the filmstrip beneath, and the tool panel on the right in
  * process order (INT-3). Changes show live and are saved automatically
  * (EDT-11) through the one write path for edit files. Hold to compare, or
- * `\`, shows the original (EDT-1). Done or Esc goes back where the Editor
- * was opened (user flows, flow 4).
+ * `\`, shows the original (EDT-1). The photo zooms as in the Viewer, with
+ * the same code (`useZoom`); compare keeps the zoom, and the next photo
+ * opens fitted. Done or Esc goes back where the Editor was opened (user
+ * flows, flow 4).
  *
  * Tools arrive slice by slice in M4; until then the panel has Brightness,
  * M1's exposure (EDT-5).
@@ -84,12 +89,20 @@ export function Editor({ id, forceWebgl2 }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const detailCanvas = useRef<HTMLCanvasElement>(null);
   const backend = useRef<Promise<Backend | null> | null>(null);
-  /** Settles once the last renderer made on the canvas is destroyed. */
+  const detailBackend = useRef<Promise<Backend | null> | null>(null);
+  /** The open photo's guide image, which its zoomed-in parts share. */
+  const shownGuide = useRef<{ id: number; guide: LinearImage } | null>(null);
+  /** Whether the sharp part has an image to draw. */
+  const detailUploaded = useRef(false);
+  /** Settles once the last renderers made on the canvases are destroyed. */
   const released = useRef<Promise<void>>(Promise.resolve());
   const [noPreview, setNoPreview] = useState(false);
-  // The stage's content size in CSS pixels.
+  // The stage's content size in CSS pixels, and where it starts within the
+  // stage's padding.
   const [area, setArea] = useState({ width: 0, height: 0 });
+  const [inset, setInset] = useState({ left: 0, top: 0 });
   // The same, for opening a photo without opening it again on each resize.
   const sized = useRef(area);
   const [status, setStatus] = useState<Status | null>(null);
@@ -139,20 +152,29 @@ export function Editor({ id, forceWebgl2 }: Props) {
     root.current?.focus();
   }, []);
 
-  // One renderer for the Editor's life; each photo is uploaded to it.
+  // Two renderers for the Editor's life, as in the Viewer: the photo, and
+  // the sharp part over it while zoomed in.
   useEffect(() => {
     const element = canvas.current;
-    if (!element) return;
+    const detailElement = detailCanvas.current;
+    if (!element || !detailElement) return;
     // A canvas has one WebGPU context: a new renderer waits until the last
     // one has let it go (as in the Viewer).
     const created = released.current.then(() => createPreview(element, forceWebgl2));
+    const createdDetail = released.current.then(() => createPreview(detailElement, forceWebgl2));
     backend.current = created;
+    detailBackend.current = createdDetail;
+    detailUploaded.current = false;
     void created.then((made) => {
       if (!made) setNoPreview(true);
     });
     return () => {
-      released.current = created.then((made) => made?.destroy());
+      released.current = Promise.all([
+        created.then((made) => made?.destroy()),
+        createdDetail.then((made) => made?.destroy()),
+      ]).then(() => {});
       backend.current = null;
+      detailBackend.current = null;
     };
   }, [forceWebgl2]);
 
@@ -167,6 +189,10 @@ export function Editor({ id, forceWebgl2 }: Props) {
       const size = { width: element.clientWidth - across, height: element.clientHeight - down };
       sized.current = size;
       setArea(size);
+      setInset({
+        left: parseFloat(style.paddingLeft) || 0,
+        top: parseFloat(style.paddingTop) || 0,
+      });
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -269,11 +295,13 @@ export function Editor({ id, forceWebgl2 }: Props) {
       element.height = image.height;
       renderer.upload(image, guide);
       renderer.draw(data.settings);
+      shownGuide.current = { id, guide };
       setStatus({
         id,
         kind: "shown",
         width: image.width,
         height: image.height,
+        full: { width: data.fullWidth, height: data.fullHeight },
         settings: data.settings,
         steps: data.steps,
         problem: data.problem,
@@ -290,13 +318,57 @@ export function Editor({ id, forceWebgl2 }: Props) {
     };
   }, [id, attempt, measured, flush]);
 
-  // Every change of a setting, or holding compare, redraws the photo.
+  // Every change of a setting, or holding compare, redraws the photo, and
+  // the sharp part over it while zoomed in: compare keeps the zoom.
   const settings = shown?.settings ?? null;
+  const drawnSettings = settings && (comparing ? NEUTRAL_SETTINGS : settings);
+  // For a sharp part that arrives after a change.
+  const drawnNow = useRef(drawnSettings);
   useEffect(() => {
-    if (!settings) return;
-    const drawn = comparing ? NEUTRAL_SETTINGS : settings;
-    void backend.current?.then((renderer) => renderer?.draw(drawn));
-  }, [settings, comparing]);
+    drawnNow.current = drawnSettings;
+    if (!drawnSettings) return;
+    void backend.current?.then((renderer) => renderer?.draw(drawnSettings));
+    if (detailUploaded.current) {
+      void detailBackend.current?.then((renderer) => renderer?.draw(drawnSettings));
+    }
+  }, [drawnSettings]);
+
+  const zoom = useZoom({
+    stage,
+    area,
+    inset,
+    photo: shown && { id: shown.id, full: shown.full },
+    cut: async (photoId, region, width, height) => {
+      const result = await commands.editorRegion(
+        photoId,
+        region.x,
+        region.y,
+        region.width,
+        region.height,
+        width,
+        height,
+      );
+      if (result.status === "error") return null;
+      const image = await fetchLinear("preview-region");
+      // A newer part may have replaced this one in the core meanwhile.
+      return image.width === result.data.width && image.height === result.data.height
+        ? image
+        : null;
+    },
+    show: async (image, at) => {
+      const renderer = await detailBackend.current;
+      const element = detailCanvas.current;
+      const guide = shownGuide.current;
+      const drawn = drawnNow.current;
+      if (!renderer || !element || !drawn || guide?.id !== idNow.current) return false;
+      element.width = image.width;
+      element.height = image.height;
+      renderer.upload(image, guide.guide, at);
+      renderer.draw(drawn);
+      detailUploaded.current = true;
+      return true;
+    },
+  });
 
   /** A slider's movement, shown at once; saved when it's committed. */
   function adjust(change: Partial<RenderSettings>) {
@@ -411,6 +483,8 @@ export function Editor({ id, forceWebgl2 }: Props) {
     if (to === undefined) return;
     void flush();
     leaving();
+    // Each photo opens fitted.
+    zoom.fit();
     openEditor(to);
   }
 
@@ -437,9 +511,19 @@ export function Editor({ id, forceWebgl2 }: Props) {
       step(history === "undo");
       return;
     }
+    if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return;
+    if (event.key === "+" || event.key === "=") {
+      event.preventDefault();
+      zoom.zoomStep(1);
+      return;
+    }
+    if (event.key === "-") {
+      event.preventDefault();
+      zoom.zoomStep(-1);
+      return;
+    }
     // Arrow keys on a slider move the slider, not the photo.
     if (event.target instanceof HTMLInputElement) return;
-    if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return;
     if (event.key === "ArrowLeft") move(previous?.id);
     else if (event.key === "ArrowRight") move(next?.id);
     else return;
@@ -480,8 +564,6 @@ export function Editor({ id, forceWebgl2 }: Props) {
 
   if (!photo) return null;
 
-  const scale = window.devicePixelRatio;
-  const fitted = shown ? fitSize(shown.width, shown.height, area.width, area.height, scale) : null;
   const inCloud = current?.kind === "downloading" || current?.kind === "downloadFailed";
   const message =
     current?.kind === "failed"
@@ -539,6 +621,7 @@ export function Editor({ id, forceWebgl2 }: Props) {
             <Redo2 className="icon" aria-hidden />
           </button>
         </div>
+        <ZoomControls zoom={zoom} shown={shown !== null} />
         {/* M1's development-only export, until export is built (M5). */}
         <button
           type="button"
@@ -568,14 +651,26 @@ export function Editor({ id, forceWebgl2 }: Props) {
             </div>
           )}
           <NoticeBar ids={[photo.id]} photos={photos} />
-          <div ref={stage} className="editor-stage">
+          <div
+            ref={stage}
+            className={zoom.isZoomed ? "editor-stage zoomed" : "editor-stage"}
+            {...zoom.pointer}
+          >
             <canvas
               ref={canvas}
+              className="viewer-photo"
               aria-label={t(comparing ? "editor-original" : "editor-preview", {
                 name: photo.name,
               })}
-              hidden={fitted === null || inCloud || message !== null}
-              style={fitted ?? undefined}
+              hidden={zoom.whole === null || inCloud || message !== null}
+              style={zoom.whole ?? undefined}
+            />
+            <canvas
+              ref={detailCanvas}
+              className="viewer-photo"
+              aria-hidden
+              hidden={zoom.sharp === null || inCloud || message !== null}
+              style={zoom.sharp ?? undefined}
             />
             {current && (current.kind === "downloading" || current.kind === "downloadFailed") && (
               <CloudPhoto

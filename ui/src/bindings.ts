@@ -155,6 +155,13 @@ export const commands = {
 	/**  The Editor let photo `id` go: closed, or moved on to another. */
 	closePhoto: (id: number) => __TAURI_INVOKE<void>("close_photo", { id }),
 	/**
+	 *  Zoomed in (EDT-1): cuts the part of the open photo `id` at `x`, `y`,
+	 *  `width` × `height` (in its own upright pixels) at full resolution,
+	 *  scaled to `outWidth` × `outHeight` but never enlarged, for
+	 *  `seura://…/preview-region`, as the Viewer's `view_region` does.
+	 */
+	editorRegion: (id: number, x: number, y: number, width: number, height: number, outWidth: number, outHeight: number) => typedError<RegionSize, string>(__TAURI_INVOKE("editor_region", { id, x, y, width, height, outWidth, outHeight })),
+	/**
 	 *  Shows photo `id` in the Viewer, decoded to fit an area of `width` ×
 	 *  `height` device pixels (DSP-1), and decodes `neighbors` ahead (PRF-5).
 	 *  A cloud-only photo is read, downloading it, only with `download`, and
@@ -536,7 +543,9 @@ export type OpenedPhoto =
 /**  Decoded: its preview is at `seura://â€¦/preview`. */
 { kind: "opened"; 
 /**  The preview's size. */
-width: number; height: number; settings: RenderSettings; 
+width: number; height: number; 
+/**  The photo's own upright size, for zooming (EDT-1). */
+fullWidth: number; fullHeight: number; settings: RenderSettings; 
 /**  What Undo and Redo would undo or redo (EDT-9). */
 steps: EditSteps; 
 /**

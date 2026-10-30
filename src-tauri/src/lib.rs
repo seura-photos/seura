@@ -15,6 +15,7 @@ mod locations;
 mod measure;
 mod menu;
 mod messages;
+mod parts;
 mod protocol;
 mod synced;
 mod viewer;
@@ -62,6 +63,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::selection_summary,
             commands::open_photo,
             commands::close_photo,
+            commands::editor_region,
             commands::view_photo,
             commands::view_region,
             commands::close_viewer,
