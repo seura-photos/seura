@@ -28,4 +28,4 @@
   - Compare's settings became a new object on every redraw, which would have redrawn the photo continuously while Compare was held. Caught in review before any test ran.
 - **Tests:**
   - The GPU renders every turn and flip exactly as the format defines them, with highlights and shadows, and across tile seams.
-  - The render check now turns and flips its image too, and still matches export exactly on WebGPU and WebGL2 on Windows (difference 0).
+  - The render check now turns and flips its image too, and still matches export exactly on WebGPU and WebGL2, on Windows and on the Mac (difference 0 on all four; the Mac session ran it).
