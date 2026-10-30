@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PhotoInfo } from "./bindings";
 import { Editor } from "./Editor";
+import { BRUSH_DEFAULT, brushMemory } from "./redeye";
 import { emptySelection } from "./selection";
 import { useStore } from "./store";
 
@@ -150,6 +151,8 @@ describe("Editor", () => {
   });
 
   afterEach(() => {
+    // A click's circle size is kept while the app runs.
+    brushMemory.across = BRUSH_DEFAULT;
     cleanup();
     vi.clearAllMocks();
     useStore.setState({ editing: null, viewing: null, selection: emptySelection });
@@ -465,6 +468,167 @@ describe("Editor", () => {
 
   /** The settings of the last draw. */
   const lastDrawn = () => mocks.draw.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+
+  /** Opens red-eye mode with R, once the photo is shown, and returns its
+   * overlay, whose pointer capture jsdom lacks. */
+  async function redEyeMode() {
+    edit();
+    await brightness();
+    fireEvent.keyDown(window, { key: "r" });
+    const overlay = await screen.findByTestId("red-eye-overlay");
+    overlay.setPointerCapture = vi.fn();
+    return overlay;
+  }
+
+  /** A press, optionally dragged, at points within the overlay. */
+  function press(overlay: HTMLElement, at: [number, number], to?: [number, number]) {
+    const point = ([clientX, clientY]: [number, number]) => ({ clientX, clientY, pointerId: 1 });
+    fireEvent.pointerDown(overlay, { ...point(at), button: 0 });
+    if (to) fireEvent.pointerMove(overlay, point(to));
+    fireEvent.pointerUp(overlay, point(to ?? at));
+  }
+
+  /** The red-eye circles last saved. */
+  const savedCircles = () => {
+    const call = [...mocks.editPhoto.mock.calls]
+      .reverse()
+      .find(([, change]) => (change as { kind: string }).kind === "redEye");
+    return (call?.[1] as { regions: { x: number; y: number; radius: number }[] } | undefined)
+      ?.regions;
+  };
+
+  it("opens red-eye mode with R, without the filmstrip or compare, and Esc discards (EDT-7)", async () => {
+    const overlay = await redEyeMode();
+    expect(screen.getByText("Fix red-eye", { selector: ".editor-name" })).toBeTruthy();
+    expect(screen.getByText("Enter to apply · Esc to cancel")).toBeTruthy();
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Hold to compare" })).toBeNull();
+    expect(
+      screen.getByText("Click each red eye, or drag across it. Drag a circle to move it."),
+    ).toBeTruthy();
+    expect(screen.getByText("No corrections yet")).toBeTruthy();
+    press(overlay, [200, 150]);
+    expect(screen.getByText("1 correction")).toBeTruthy();
+    // The correction shows at once.
+    await waitFor(() =>
+      expect(lastDrawn()).toMatchObject({ redEye: [expect.objectContaining({})] }),
+    );
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("red-eye-overlay")).toBeNull());
+    expect(savedCircles()).toBeUndefined();
+  });
+
+  it("adds a click's circle at the brush's size, ] larger, and a drag's drawn out (EDT-7)", async () => {
+    const overlay = await redEyeMode();
+    press(overlay, [200, 150]);
+    fireEvent.keyDown(window, { key: "]" });
+    press(overlay, [400, 150]);
+    press(overlay, [300, 300], [330, 340]);
+    fireEvent.keyDown(window, { key: "Enter" });
+    await waitFor(() => expect(savedCircles()).toHaveLength(3));
+    const [first, larger, drawn] = savedCircles() ?? [];
+    // 24 CSS pixels across, then a quarter larger; the drag's radius is the
+    // distance dragged, 50 pixels.
+    expect((larger?.radius ?? 0) / (first?.radius ?? 1)).toBeCloseTo(1.25, 5);
+    expect((drawn?.radius ?? 0) / (first?.radius ?? 1)).toBeCloseTo(50 / 12, 5);
+    expect((larger?.x ?? 0) > (first?.x ?? 0)).toBe(true);
+    // The panel's entry counts them.
+    expect(await screen.findByText("3 corrections")).toBeTruthy();
+    // The brush stays as set when the mode opens again.
+    fireEvent.keyDown(window, { key: "r" });
+    const again = await screen.findByTestId("red-eye-overlay");
+    again.setPointerCapture = vi.fn();
+    press(again, [500, 400]);
+    fireEvent.keyDown(window, { key: "Enter" });
+    await waitFor(() => expect(savedCircles()).toHaveLength(4));
+    expect(savedCircles()?.[3]?.radius).toBeCloseTo(larger?.radius ?? 0, 9);
+  });
+
+  it("moves, resizes and removes a circle, with the mode's own undo (EDT-7)", async () => {
+    const overlay = await redEyeMode();
+    press(overlay, [200, 150]);
+    press(overlay, [300, 150]);
+    const first = screen.getByRole("button", { name: "Correction 1" });
+    // From the keyboard: ten screen pixels right, then larger.
+    fireEvent.focus(first);
+    fireEvent.keyDown(first, { key: "ArrowRight", shiftKey: true });
+    fireEvent.keyDown(first, { key: "]" });
+    // The × removes the selected circle.
+    fireEvent.click(screen.getByRole("button", { name: "Remove correction 1" }));
+    expect(screen.getByText("1 correction")).toBeTruthy();
+    // Undo brings it back, as it was before it was removed.
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+    expect(screen.getByText("2 corrections")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Remove all" }));
+    expect(screen.getByText("No corrections yet")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(savedCircles()).toHaveLength(2));
+    const [moved, second] = savedCircles() ?? [];
+    expect((moved?.radius ?? 0) / (second?.radius ?? 1)).toBeCloseTo(1.25, 5);
+    expect(mocks.stepEdit).not.toHaveBeenCalled();
+  });
+
+  it("zooms with + and Ctrl with the wheel in red-eye mode, and the wheel alone pans (EDT-1)", async () => {
+    const overlay = await redEyeMode();
+    const stage = overlay.closest(".editor-stage") as HTMLElement;
+    const fit = within(screen.getByRole("group", { name: "Zoom" })).getByRole("button", {
+      name: "Fit",
+    });
+    fireEvent.wheel(stage, { deltaY: -200 });
+    expect(fit.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.wheel(stage, { deltaY: -200, ctrlKey: true });
+    expect(fit.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(fit);
+    fireEvent.keyDown(window, { key: "+" });
+    expect(fit.getAttribute("aria-pressed")).toBe("false");
+    // Space held lets the drag through to pan: the circles step aside.
+    fireEvent.keyDown(window, { key: " " });
+    expect(overlay.classList.contains("panning")).toBe(true);
+    expect(stage.classList.contains("panning")).toBe(true);
+    fireEvent.keyUp(window, { key: " " });
+    expect(overlay.classList.contains("panning")).toBe(false);
+  });
+
+  it("adds nothing at the format's 64, and says so (EDT-7)", async () => {
+    const circles = Array.from({ length: 64 }, (_, i) => ({
+      x: (i % 8) / 8 + 0.05,
+      y: Math.floor(i / 8) / 8 + 0.05,
+      radius: 0.005,
+    }));
+    mocks.opened.settings = { exposureEv: 0, redEye: circles };
+    const overlay = await redEyeMode();
+    expect(screen.getByText("64 corrections")).toBeTruthy();
+    expect(
+      screen.getByText("That's the most corrections a photo can have. Remove one to add another."),
+    ).toBeTruthy();
+    press(overlay, [5, 5]);
+    expect(screen.getByText("64 corrections")).toBeTruthy();
+  });
+
+  it("counts corrections the crop hides, and keeps the work when the photo is left", async () => {
+    mocks.opened.settings = {
+      exposureEv: 0,
+      cropX: 0.5,
+      cropWidth: 0.5,
+      redEye: [
+        { x: 0.75, y: 0.5, radius: 0.01 },
+        { x: 0.2, y: 0.5, radius: 0.01 },
+      ],
+    };
+    const { rerender } = edit();
+    await brightness();
+    expect(screen.getByText("2 corrections, 1 outside the crop")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Fix red-eye…" }));
+    const overlay = await screen.findByTestId("red-eye-overlay");
+    overlay.setPointerCapture = vi.fn();
+    // The hidden one isn't drawn.
+    expect(screen.getAllByRole("button", { name: /^Correction/ })).toHaveLength(1);
+    press(overlay, [100, 100]);
+    useStore.setState({ editing: 8 });
+    rerender(<Editor id={8} forceWebgl2={false} />);
+    await waitFor(() => expect(savedCircles()).toHaveLength(3));
+  });
 
   it("opens crop mode on the whole photo, without the filmstrip, at Original (EDT-2)", async () => {
     mocks.opened.settings = { exposureEv: 0.4, contrast: 20, cropX: 0.25, cropWidth: 0.5 };

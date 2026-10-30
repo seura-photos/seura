@@ -582,6 +582,26 @@ crop-bottom-left = Bottom-left corner
 crop-bottom-right = Bottom-right corner
 # The box's size, in the photo's own pixels, such as "3:2 · 3720 × 2480".
 crop-size = { $ratio } · { $width } × { $height }
+# Red-eye mode (EDT-7; wireframes, "Red-eye mode").
+editor-red-eye = Red-eye
+editor-fix-red-eye = Fix red-eye…
+red-eye-title = Fix red-eye
+red-eye-hint = Enter to apply · Esc to cancel
+red-eye-instruction = Click each red eye, or drag across it. Drag a circle to move it.
+red-eye-full = That's the most corrections a photo can have. Remove one to add another.
+red-eye-count =
+    { $total ->
+        [0] No corrections yet
+        [one] 1 correction
+       *[other] { $total } corrections
+    }
+# { $corrections } is red-eye-count.
+red-eye-count-outside = { $corrections }, { $outside } outside the crop
+red-eye-remove-all = Remove all
+red-eye-cancel = Cancel
+red-eye-done = Done
+red-eye-correction = Correction { $number }
+red-eye-remove = Remove correction { $number }
 # The Editor's rotate and flip buttons (EDT-4).
 editor-turn = Rotate and flip
 editor-rotate-left = Rotate left

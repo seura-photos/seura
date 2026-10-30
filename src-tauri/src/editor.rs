@@ -9,7 +9,8 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 use seura_edit::{
     Action, Amount, CoreOpId, CoreOperation, Crop, Edit, EditDocument, EditFile, Exposure, Orient,
-    Step, Straighten, Strength, Vignette, WhiteBalance, Writer, edit_file_path,
+    RedEye, RedEyeRegion, Step, Straighten, Strength, Vignette, WhiteBalance, Writer,
+    edit_file_path,
 };
 use seura_image::{LinearImage, Rgba8};
 use seura_library::{PhotoId, Problem};
@@ -871,6 +872,29 @@ pub fn slider_action(label: &str, operation: CoreOperation) -> Action {
     }
 }
 
+/// The most red-eye corrections a photo can have (the edit format's limit).
+pub const MAX_RED_EYE: usize = 64;
+
+/// Red-eye mode's result (EDT-7) as one record in the photo's history,
+/// "Red-eye": the circles, at most the format's 64, each within its ranges.
+/// The radius stays at least 0.0001, which the file's four decimals keep
+/// above 0, as the format requires. None removes the operation.
+pub fn red_eye_action(regions: &[RedEyeRegion]) -> Action {
+    let regions = regions
+        .iter()
+        .take(MAX_RED_EYE)
+        .map(|region| RedEyeRegion {
+            x: region.x.clamp(0.0, 1.0),
+            y: region.y.clamp(0.0, 1.0),
+            radius: region.radius.clamp(0.0001, 1.0),
+        })
+        .collect();
+    Action {
+        label: "Red-eye".into(),
+        edits: vec![Edit::Set(CoreOperation::RedEye(RedEye { regions }))],
+    }
+}
+
 /// Working-space pixels as the preview fetches them: width and height as
 /// little-endian `u32`s, then RGBA half floats, little-endian.
 pub fn encode_linear(image: &LinearImage) -> Vec<u8> {
@@ -1172,6 +1196,33 @@ mod tests {
         };
         file.document.apply(&vignette(0.0, 60.0), now).unwrap();
         assert!(file.document.core(CoreOpId::Vignette).is_none());
+    }
+
+    #[test]
+    fn red_eye_is_one_record_within_the_format_s_limits_edt_7() {
+        let region = |x, radius| RedEyeRegion { x, y: 0.5, radius };
+        let mut many: Vec<RedEyeRegion> = (0..70)
+            .map(|i| region(f64::from(i) / 100.0, 0.01))
+            .collect();
+        many[0] = region(-0.2, 0.0);
+        let action = red_eye_action(&many);
+        assert_eq!(action.label, "Red-eye");
+        let [Edit::Set(CoreOperation::RedEye(red_eye))] = action.edits.as_slice() else {
+            panic!("one red-eye setting: {:?}", action.edits);
+        };
+        assert_eq!(red_eye.regions.len(), MAX_RED_EYE);
+        assert_eq!(red_eye.regions[0], region(0.0, 0.0001));
+        // Saved, then all removed: the operation goes.
+        let (_folder, photo) = photo();
+        save_exposure(&photo, 0.5);
+        let mut file = EditFile::load(&edit_file_path(&photo)).unwrap().unwrap();
+        let now = time::OffsetDateTime::now_utc();
+        file.document
+            .apply(&red_eye_action(&many[1..3]), now)
+            .unwrap();
+        assert!(file.document.core(CoreOpId::RedEye).is_some());
+        file.document.apply(&red_eye_action(&[]), now).unwrap();
+        assert!(file.document.core(CoreOpId::RedEye).is_none());
     }
 
     #[test]

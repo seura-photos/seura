@@ -119,6 +119,7 @@ Added 2026-10-29: Nevada noticed the Editor couldn't zoom, which the design had 
 - **Red-eye mode:** the user clicks or drags over each eye; each correction is a circle that can be moved, resized or removed. Regions are stored on the photo before geometry, so they stay on the eyes when the crop changes. No automatic detection.
 - **Panning while red-eye uses the drag** (EDT-1): hold Space and drag, with the grab cursor while Space is held; the scroll wheel and trackpad pan too.
 - **Done when:** the render check matches with red-eye and a crop together, and Nevada has corrected red eyes in a real photo (one with red eyes they're happy to use, or a licensed sample).
+- **Built in two parts** (added 2026-10-30, Claude Code's split): **7a**, red-eye in the renderer, with its formula in the appendix (edit-format #13); **7b**, red-eye mode, as the design session settled it (#180, edit-format #14), with Space-drag and the wheel panning.
 
 ### 8. Enhance (EDT-12)
 

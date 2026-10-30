@@ -672,7 +672,9 @@ export type PhotoEdit =
 /**  Rotate or flip (EDT-4), from what the Editor shows. */
 { kind: "turn"; turn: Turn } | 
 /**  Crop mode's Done (EDT-2, EDT-3). */
-{ kind: "crop"; crop: CropEdit };
+{ kind: "crop"; crop: CropEdit } | 
+/**  Red-eye mode's Done (EDT-7): every circle, none to remove them all. */
+{ kind: "redEye"; regions: RedEyeCircle[] };
 
 /**  What the grid is narrowed to (FND-1), applied to whatever it shows. */
 export type PhotoFilter = {

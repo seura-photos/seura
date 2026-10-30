@@ -1414,6 +1414,103 @@ button {
   cursor: grabbing;
 }
 
+/* Red-eye mode (wireframes, "Red-eye mode"): the drag makes and moves
+   circles, so the pointer is a crosshair, and a hand while Space pans. */
+.editor-stage.red-eye,
+.editor-stage.red-eye.zoomed {
+  cursor: crosshair;
+}
+
+.editor-stage.panning,
+.editor-stage.red-eye.panning {
+  cursor: grab;
+}
+
+.editor-stage.panning:active {
+  cursor: grabbing;
+}
+
+/* Over the photo's result, clipped to it: a correction outside the crop
+   isn't seen. */
+.red-eye-overlay {
+  position: absolute;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.red-eye-overlay.panning {
+  pointer-events: none;
+}
+
+/* A correction: a thin outline, light with a dark edge so it shows on any
+   photo, and a handle on its right edge to resize it. */
+.red-eye-circle {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid rgb(255 255 255 / 0.9);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.45),
+    inset 0 0 0 1px rgb(0 0 0 / 0.45);
+  cursor: move;
+}
+
+.red-eye-circle.selected {
+  border-width: 2px;
+}
+
+.red-eye-circle:focus-visible {
+  outline: 2px solid var(--color-accent-text);
+  outline-offset: 3px;
+}
+
+.red-eye-handle {
+  position: absolute;
+  top: 50%;
+  right: -5px;
+  width: 9px;
+  height: 9px;
+  margin-top: -4.5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.5);
+  cursor: ew-resize;
+}
+
+/* The selected correction's ×, beside its top right. */
+.red-eye-remove {
+  position: absolute;
+  top: -10px;
+  right: -22px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-toolbar-on-photo);
+  color: #fff;
+  cursor: pointer;
+}
+
+.red-eye-remove .icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* The panel's entry: Fix red-eye…, and the count beside it once there are
+   any (INT-4). */
+.red-eye-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.red-eye-panel p {
+  margin: 0;
+}
+
 /* −, Fit, 100%, + (styled mockup): one control in four parts. */
 .zoom-group {
   display: inline-flex;
