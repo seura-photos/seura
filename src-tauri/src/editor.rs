@@ -19,6 +19,8 @@ use specta::Type;
 use tauri::{AppHandle, Runtime};
 use tauri_specta::Event;
 
+use crate::parts::Parts;
+
 /// Recorded in every edit file Seura writes.
 pub(crate) const WRITER: Writer = Writer {
     app: "Seura Photos",
@@ -34,6 +36,8 @@ const EXPOSURE_RANGE: (f64, f64) = (-4.0, 4.0);
 #[derive(Default)]
 pub struct Editor {
     session: Mutex<Option<Session>>,
+    /// The parts cut from the open photo while it's zoomed into (EDT-1).
+    parts: Parts,
     /// The render check's results so far: backend, and whether it passed.
     checks: Mutex<Vec<(String, bool)>>,
 }
@@ -232,6 +236,9 @@ pub struct Stepped {
 pub struct Opened {
     pub width: u32,
     pub height: u32,
+    /// The photo's own upright size, for zooming.
+    pub full_width: u32,
+    pub full_height: u32,
     pub settings: Settings,
     pub steps: EditSteps,
     pub problem: Option<String>,
@@ -259,9 +266,12 @@ impl Editor {
             mine: Mine::of(current(&photo_path, None).ok().flatten().as_ref()),
             outside: false,
         });
+        self.parts.keep_only(id);
         Ok(Opened {
             width: preview.width,
             height: preview.height,
+            full_width: decoded.width,
+            full_height: decoded.height,
             settings,
             steps,
             problem,
@@ -277,8 +287,35 @@ impl Editor {
         let open = session.as_ref().is_some_and(|session| session.id == id);
         if open {
             *session = None;
+            self.parts.clear();
         }
         open
+    }
+
+    /// Zoomed in (EDT-1): cuts `region` (in its own pixels) from photo `id`,
+    /// if it's open, at full size, scaled to `width` × `height`, for
+    /// `preview-region`. Returns its size.
+    pub fn region(
+        &self,
+        id: u32,
+        region: seura_image::Region,
+        width: u32,
+        height: u32,
+    ) -> Result<(u32, u32), String> {
+        let photo = {
+            let session = self.session.lock().expect("editor lock");
+            session
+                .as_ref()
+                .filter(|session| session.id == id)
+                .map(|session| session.photo.clone())
+                .ok_or("that photo isn't open")?
+        };
+        self.parts.cut(id, &photo, region, width, height)
+    }
+
+    /// The bytes for `preview-region`: the last part cut.
+    pub fn region_pixels(&self) -> Option<Arc<Vec<u8>>> {
+        self.parts.pixels()
     }
 
     /// Saves a change to photo `id` (EDT-11) through the Library's one
@@ -736,6 +773,29 @@ mod tests {
         assert_eq!(opened.settings, Settings::NEUTRAL);
         assert_eq!(opened.problem, None);
         assert_eq!(fs::read_dir(folder.path()).unwrap().count(), 1);
+    }
+
+    /// Zoomed in (EDT-1): parts are cut from the open photo at full size,
+    /// only from it, and let go when it's closed.
+    #[test]
+    fn zooming_in_cuts_parts_of_the_open_photo() {
+        let (_folder, photo) = photo();
+        let editor = Editor::default();
+        let opened = editor.open(1, photo, 8).unwrap();
+        assert_eq!((opened.full_width, opened.full_height), (32, 24));
+        let part = seura_image::Region {
+            x: 4,
+            y: 2,
+            width: 8,
+            height: 6,
+        };
+        assert_eq!(editor.region(1, part, 8, 6).unwrap(), (8, 6));
+        let bytes = editor.region_pixels().unwrap();
+        assert_eq!(&bytes[..8], &[8, 0, 0, 0, 6, 0, 0, 0]);
+        assert!(editor.region(2, part, 8, 6).is_err(), "only the open photo");
+        assert!(editor.close(1));
+        assert!(editor.region_pixels().is_none());
+        assert_eq!(editor.parts.kept(), None);
     }
 
     #[test]

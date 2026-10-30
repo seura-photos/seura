@@ -163,6 +163,9 @@ fn decode_jpeg_scaled(bytes: &[u8], size: u32) -> Option<(Source, u32, u32)> {
 pub struct Linear {
     pub image: LinearImage,
     pub guide: LinearImage,
+    /// The photo's own upright size.
+    pub width: u32,
+    pub height: u32,
 }
 
 /// Decodes a photo into the working space (linear light, Display P3), for
@@ -183,7 +186,12 @@ pub fn decode_linear(path: &Path, long_edge: Option<u32>) -> Result<Linear, Deco
         };
         (image, guide.join().expect("scaling doesn't panic"))
     });
-    Ok(Linear { image, guide })
+    Ok(Linear {
+        image,
+        guide,
+        width: source.image.width,
+        height: source.image.height,
+    })
 }
 
 /// A photo decoded at full size, upright, before color conversion: what the

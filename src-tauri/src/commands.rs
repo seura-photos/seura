@@ -1293,6 +1293,9 @@ pub enum OpenedPhoto {
         /// The preview's size.
         width: u32,
         height: u32,
+        /// The photo's own upright size, for zooming (EDT-1).
+        full_width: u32,
+        full_height: u32,
         settings: RenderSettings,
         /// What Undo and Redo would undo or redo (EDT-9).
         steps: EditSteps,
@@ -1499,10 +1502,45 @@ pub async fn open_photo(
         Ok(OpenedPhoto::Opened {
             width: opened.width,
             height: opened.height,
+            full_width: opened.full_width,
+            full_height: opened.full_height,
             settings: opened.settings.into(),
             steps: opened.steps,
             problem: opened.problem,
         })
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// Zoomed in (EDT-1): cuts the part of the open photo `id` at `x`, `y`,
+/// `width` × `height` (in its own upright pixels) at full resolution,
+/// scaled to `outWidth` × `outHeight` but never enlarged, for
+/// `seura://…/preview-region`, as the Viewer's `view_region` does.
+#[tauri::command]
+#[specta::specta]
+#[allow(clippy::too_many_arguments)]
+pub async fn editor_region(
+    app: AppHandle,
+    id: u32,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    out_width: u32,
+    out_height: u32,
+) -> Result<RegionSize, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let region = seura_image::Region {
+            x,
+            y,
+            width,
+            height,
+        };
+        let (width, height) = app
+            .state::<Editor>()
+            .region(id, region, out_width, out_height)?;
+        Ok(RegionSize { width, height })
     })
     .await
     .map_err(|error| error.to_string())?

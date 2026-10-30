@@ -1,12 +1,12 @@
 # M4 work plan: Fix
 
-Status: draft for review · Last updated: 2026-10-28
+Status: draft for review · Last updated: 2026-10-29
 
 The working plan for milestone M4 from the [milestone plan](milestone-plan.md): the full Editor. It breaks the milestone into slices, one pull request each (or a few, lettered), in order. Drafted by Claude Code from the milestone plan, the [functional spec](functional-spec.md), the [user flows](ux/user-flows.md) and [wireframes](ux/wireframes.md), the [visual design](visual-design.md), the [technical design](technical-design.md), and the [edit format](https://github.com/seura-photos/edit-format). The questions it couldn't settle are at the end, for a design session.
 
 **Scope** (milestone plan, M4): EDT-1 to EDT-12 (crop, straighten, rotate and flip, adjustments, effects, red-eye, reopening, undo across sessions, revert, autosave, and Enhance); rotate and Enhance as quick actions in the Library and the Viewer (BRW-10); each operation implemented once as WGSL (decision 0004), with a reference-image test showing preview and export match.
 
-**Done when** (milestone plan): Nevada fixes his own photos in Seura instead of another app, and the edit format is proven by a full implementation, so it can be frozen at 1.0 in M7.
+**Done when** (milestone plan): Nevada fixes their own photos in Seura instead of another app, and the edit format is proven by a full implementation, so it can be frozen at 1.0 in M7.
 
 **Also carried in** (M3 plan, "Carried forward", and the design answers since):
 - the notice levels, messages after a key, date ranges, and the filter row (#128);
@@ -84,7 +84,16 @@ New in M4:
 - **The luminance guide** (technical design, "Neighborhood operations"): an edge-preserving, blurred map of the photo's brightness at a fixed size relative to the photo, computed once and sampled by the fused pass, so preview, tiles and export match.
 - **The method is chosen with reference images** that include strong edges, such as a dark tree against a bright sky, comparing a guided filter, a bilateral grid or similar for halos, speed and how simply it can be written as a formula. The comparison goes in the journal, and the choice into the formulas appendix.
 - **When the guide is rebuilt:** moving highlights or shadows changes only uniforms; how changes to exposure and white balance reach the guide is measured against PRF-6.
-- **Done when:** the render check matches on both platforms and on WebGL2, PRF-6 holds on 48 megapixel photos, and Nevada has recovered a sky and lifted a backlit face on his own photos without halos he can see.
+- **Done when:** the render check matches on both platforms and on WebGL2, PRF-6 holds on 48 megapixel photos, and Nevada has recovered a sky and lifted a backlit face on their own photos without halos they can see.
+
+### 4c. Zoom in the Editor (EDT-1)
+
+Added 2026-10-29: Nevada noticed the Editor couldn't zoom, which the design had never covered. The design session specified it in #165, to be built before red-eye, which needs it; it comes before crop, so slice 5 builds crop's Fit around it.
+
+- **The Viewer's zoom, the same code** (`useZoom`, `ZoomControls`, and the core's `Parts`): Fit, 100%, in and out, from the zoom group after undo and redo, the wheel, pinch, and + and −. Dragging pans. Zoomed-in parts are cut from the full-size photo and drawn with every edit, highlights and shadows sampling the whole photo's guide.
+- **Compare keeps the zoom and position; another photo opens fitted.**
+- **Left to the slices that need them:** crop and straighten showing the whole photo and bringing the zoom back after (slice 5); Space-drag to pan, and the wheel and trackpad panning, while red-eye uses the drag (slice 7).
+- **Done when:** Nevada has zoomed and panned in the Editor on both machines, with edits and compare, and the Viewer's zoom works as before.
 
 ### 5. Rotate and flip, straighten, and crop (EDT-2, EDT-3, EDT-4)
 
@@ -92,23 +101,25 @@ New in M4:
 - **Crop mode** (`C`, or Crop and straighten in the panel; wireframe, "Crop and straighten"): the whole photo with the crop box, rule-of-thirds lines, corner handles and the darkened outside; the ratio grid (Original, Freeform, 1:1, 4:3, 3:2, 16:9, 5:4), Landscape or Portrait, the size label; Reset, Cancel, Done; Enter applies and Esc cancels. Reopening shows the whole photo with the current box (EDT-2).
 - **Straighten** (`seura.straighten`): −45° to 45° in 0.1° steps, in crop mode; the crop shrinks so no empty corners show (EDT-3).
 - **Geometry is a coordinate transform when sampling** (technical design, "Pipeline"), never a separate pass. Rotating or flipping a cropped photo moves the crop with it (question 3).
+- **Crop mode always shows the whole photo** (Fit); the zoom and position from before come back when it closes (EDT-1).
 - **Done when:** Nevada fixes a crooked photo in under five minutes (user flows, flow 4's design test), the render check matches with geometry and tone together, and edited thumbnails show the rotation and crop.
 
 ### 6. Effects (EDT-6)
 
 - Black and white, sepia, and vignette (amount and size) as on and off buttons in the panel, each one's strength slider appearing when it's on (INT-4). They combine with the adjustments in the format's fixed order. The vignette is measured on the cropped frame.
-- **Done when:** the render check matches with every effect, and Nevada has used each on his own photos.
+- **Done when:** the render check matches with every effect, and Nevada has used each on their own photos.
 
 ### 7. Red-eye (EDT-7)
 
 - **Red-eye mode:** the user clicks or drags over each eye; each correction is a circle that can be moved, resized or removed. Regions are stored on the photo before geometry, so they stay on the eyes when the crop changes. No automatic detection.
-- **Done when:** the render check matches with red-eye and a crop together, and Nevada has corrected red eyes in a real photo (one with red eyes he's happy to use, or a licensed sample).
+- **Panning while red-eye uses the drag** (EDT-1): hold Space and drag, with the grab cursor while Space is held; the scroll wheel and trackpad pan too.
+- **Done when:** the render check matches with red-eye and a crop together, and Nevada has corrected red eyes in a real photo (one with red eyes they're happy to use, or a licensed sample).
 
 ### 8. Enhance (EDT-12)
 
 - **The analysis** (technical design, "One-click enhance"): a compute pass in the core over a downscaled copy sets brightness, contrast, highlights, shadows, temperature, tint and saturation, as ordinary slider settings in one history record.
 - **Tuned on a set of reference photos** of common faults (dark, bright, low contrast, a colour cast, backlit), whose results Nevada judges by eye; the numbers and thresholds go in the journal.
-- **Done when:** Enhance improves most of Nevada's test photos in his judgement, never makes one unusable, and its result can be adjusted or undone like any other.
+- **Done when:** Enhance improves most of Nevada's test photos in their judgement, never makes one unusable, and its result can be adjusted or undone like any other.
 
 ### 9. Quick actions in the Library and the Viewer (BRW-10)
 
@@ -127,7 +138,7 @@ New in M4:
 - **Measure** PRF-6 on both machines, on WebGPU and WebGL2, and every earlier target again; results in `docs/benchmarks/`.
 - `check.py` over the edit files written by the Editor in Nevada's library.
 - **The Editor in release builds,** then build 0.3, the devlog post, part 10, and confirming every "done when".
-- **Done when:** Nevada fixes his own photos with build 0.3 on both machines, instead of another app.
+- **Done when:** Nevada fixes their own photos with build 0.3 on both machines, instead of another app.
 
 ## Questions
 
@@ -140,4 +151,4 @@ Questions 1 to 6 are for a design session; 7 and 8 were Nevada's.
 5. **How sliders show their values.** "Sliders show signed values" (wireframes). Suggestion: brightness in stops with two decimals (+0.50), as the format stores it; the others as whole numbers from −100 to 100; temperature and tint with words at the ends (Cool, Warm; Green, Magenta).
 6. **Enhance on an edited photo.** Suggestion: Enhance replaces the seven settings it computes and leaves crop, rotation, effects and red-eye as they are; pressing it again gives the same result, not a stronger one.
 7. **When 0.3 ships.** Answered by Nevada (2026-10-28): an interim **0.2.2** with slice 0, About and the dialog keys, so testers can say which build they have, and 0.3 with the Editor at the end of M4.
-8. **Signing on the Mac (#112).** Answered by Nevada (2026-10-28): he'll install Xcode on the MacBook (he had it before; the command-line tools are likely still there), for the test with his free Apple account as a Personal Team.
+8. **Signing on the Mac (#112).** Answered by Nevada (2026-10-28): they'll install Xcode on the MacBook (they had it before; the command-line tools are likely still there), for the test with their free Apple account as a Personal Team.

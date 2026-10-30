@@ -523,6 +523,14 @@ about-license = Apache License 2.0
 about-ok = OK
 about-link-failed = Couldn't open that: { $reason }
 
+## Zoom, in the Viewer and the Editor (BRW-5, EDT-1)
+
+zoom = Zoom
+zoom-out = Zoom out
+zoom-in = Zoom in
+zoom-fit = Fit
+zoom-full = { $percent }
+
 ## Viewer (BRW-5)
 
 viewer-back = Back to { $folder }
@@ -532,11 +540,6 @@ viewer-next = Next photo
 viewer-photo = { $name }
 viewer-fit = Fit · { $percent }
 viewer-zoomed = { $percent }
-viewer-zoom = Zoom
-viewer-zoom-out = Zoom out
-viewer-zoom-in = Zoom in
-viewer-zoom-fit = Fit
-viewer-zoom-full = { $percent }
 viewer-keys = ← → next and previous · + − zoom · T tag · 0–5 rate · Esc back to { $folder }
 viewer-keys-edit = ← → next and previous · + − zoom · T tag · 0–5 rate · E edit · Esc back to { $folder }
 viewer-downloading = Downloading { $size } from the cloud…

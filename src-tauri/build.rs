@@ -36,6 +36,7 @@ fn main() {
         "selection_summary",
         "open_photo",
         "close_photo",
+        "editor_region",
         "view_photo",
         "view_region",
         "close_viewer",

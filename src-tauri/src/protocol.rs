@@ -9,6 +9,7 @@
 //!   again when the `ThumbnailsReady` event names it.
 //! - `preview`: the photo open in the Editor, in the working space (see
 //!   `editor::encode_linear`).
+//! - `preview-region`: the last part of the open photo cut for zooming in.
 //! - `preview-guide`: the image the open photo's luminance guide is built
 //!   from, for highlights and shadows, in the same form.
 //! - `check-image`: the render check's reference image, in the same form,
@@ -38,6 +39,10 @@ pub fn respond<R: Runtime>(
         "/preview" => app
             .try_state::<Editor>()
             .and_then(|editor| editor.preview())
+            .and_then(|bytes| pixels(bytes.as_ref().clone())),
+        "/preview-region" => app
+            .try_state::<Editor>()
+            .and_then(|editor| editor.region_pixels())
             .and_then(|bytes| pixels(bytes.as_ref().clone())),
         "/preview-guide" => app
             .try_state::<Editor>()

@@ -36,6 +36,7 @@
     "allow-selection-summary",
     "allow-open-photo",
     "allow-close-photo",
+    "allow-editor-region",
     "allow-view-photo",
     "allow-view-region",
     "allow-close-viewer",

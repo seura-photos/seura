@@ -114,7 +114,7 @@ export function params(
 
 /**
  * Fetches working-space pixels from the `seura://` protocol: `preview` (the
- * photo open in the Editor), `view-<id>` (a photo decoded for the Viewer),
+ * photo open in the Editor; `preview-region`, the part cut while zoomed in), `view-<id>` (a photo decoded for the Viewer),
  * `view-region` (the part cut for it while zoomed in), or `check-image`;
  * or the image each's luminance guide is built from, `preview-guide`,
  * `view-guide-<id>` and `check-guide`. The body is the width and height as
@@ -124,6 +124,7 @@ export async function fetchLinear(
   path:
     | "preview"
     | "preview-guide"
+    | "preview-region"
     | "check-image"
     | "check-guide"
     | "view-region"
