@@ -323,9 +323,10 @@ function Thumbnail({
         </span>
       )}
       {/* On the photo while it's hovered (BRW-10, INT-5): the keyboard has
-          [, ] and A for the selection, so these aren't in the tab order. */}
+          [, ] and A for the selection, so these aren't in the tab order,
+          and a click leaves the focus where it was. */}
       {onQuick && (
-        <div className="cell-actions">
+        <div className="cell-actions" onMouseDown={(event) => event.preventDefault()}>
           {(
             [
               ["left", RotateCcwSquare, "quick-rotate-left"],

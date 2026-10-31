@@ -446,6 +446,33 @@ describe("App", () => {
     }
   });
 
+  it("leaves the focus in the grid when a quick fix is clicked, so Enter still opens the photo (BRW-10)", async () => {
+    const restore = layOutGrid();
+    try {
+      mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+      mocks.photos = [1, 2, 3].map((id) => photo(id));
+      render(<App />);
+      fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+      const cell = await screen.findByRole("gridcell", { name: /IMG_2/ });
+      fireEvent.click(cell);
+      cell.focus();
+      const fixes = screen.getByRole("group", { name: "Quick fixes" });
+      // A press whose default is prevented doesn't move the focus.
+      for (const button of [
+        within(fixes).getByRole("button", { name: "Enhance" }),
+        within(cell).getByRole("button", { name: "Rotate right" }),
+      ]) {
+        expect(fireEvent.mouseDown(button)).toBe(false);
+        fireEvent.click(button);
+      }
+      expect(document.activeElement).toBe(cell);
+      fireEvent.keyDown(cell, { key: "Enter" });
+      expect(useStore.getState().viewing).toBe(2);
+    } finally {
+      restore();
+    }
+  });
+
   it("rates the selection with 0 to 5, but not while typing (TAG-6)", async () => {
     mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
     mocks.photos = [1, 2, 3].map((id) => photo(id));
