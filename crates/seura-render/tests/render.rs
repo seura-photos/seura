@@ -1320,3 +1320,93 @@ fn wide_color_is_converted_for_srgb_export() {
         "a saturated color differs between the two encodings"
     );
 }
+
+/// The edit format's reference images (`tests/reference/`): its photo
+/// rendered with each case's operations, read as an edit file holds them,
+/// matches the expected result within one level once encoded.
+#[test]
+fn the_shaders_match_the_reference_images() {
+    let folder = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../third_party/edit-format/tests/reference");
+    let read = |name: &str| -> serde_json::Value {
+        serde_json::from_str(&std::fs::read_to_string(folder.join(name)).unwrap()).unwrap()
+    };
+    let photo = read("photo.json");
+    let rows = |value: &serde_json::Value| -> Vec<[f64; 3]> {
+        value
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|row| row.as_array().unwrap().iter())
+            .map(|color| [0, 1, 2].map(|k| color[k].as_f64().unwrap()))
+            .collect()
+    };
+    let image = LinearImage {
+        width: photo["width"].as_u64().unwrap() as u32,
+        height: photo["height"].as_u64().unwrap() as u32,
+        pixels: rows(&photo["pixels"])
+            .iter()
+            .flat_map(|c| [c[0], c[1], c[2], 1.0])
+            .map(f16::from_f64)
+            .collect(),
+    };
+    let renderer = renderer();
+    let mut cases: Vec<PathBuf> = std::fs::read_dir(&folder)
+        .expect("the edit format's reference images; run `git submodule update --init`")
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.file_name().is_some_and(|name| name != "photo.json"))
+        .collect();
+    cases.sort();
+    assert!(!cases.is_empty());
+    for path in cases {
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        let case = read(&name);
+        // The operations in an edit file for the photo, read as Seura reads one.
+        let file = serde_json::json!({
+            "format": "seura-edit",
+            "formatVersion": "1.0",
+            "writer": { "app": "Seura Photos tests", "version": "1.0" },
+            "modified": "2026-10-30T00:00:00Z",
+            "photo": { "file": "photo.json", "size": 1, "sha256": "0".repeat(64), "width": image.width, "height": image.height },
+            "operations": case["operations"],
+        });
+        let document = seura_edit::EditDocument::parse(file.to_string().as_bytes()).unwrap();
+        let settings = Settings::from_document(&document);
+        let rendered = renderer
+            .render(&image, &image.guide_image(), &settings, Output::DisplayP3)
+            .unwrap();
+        assert_eq!(
+            (u64::from(rendered.width), u64::from(rendered.height)),
+            (
+                case["width"].as_u64().unwrap(),
+                case["height"].as_u64().unwrap()
+            ),
+            "{name}: the result's size"
+        );
+        let want: Vec<u8> = rows(&case["output"])
+            .iter()
+            .flat_map(|c| c.map(|v| (encode(v) * 255.0).round() as u8))
+            .collect();
+        let found: Vec<u8> = rendered
+            .pixels
+            .chunks(4)
+            .flat_map(|pixel| pixel[..3].to_vec())
+            .collect();
+        let (off, at) = found
+            .iter()
+            .zip(&want)
+            .map(|(a, b)| a.abs_diff(*b))
+            .enumerate()
+            .map(|(at, off)| (off, at))
+            .max()
+            .unwrap();
+        eprintln!("{name}: off by at most {off}");
+        assert!(
+            off <= 1,
+            "{name}: pixel {} is off by {off}: found {:?}, expected {:?}",
+            at / 3,
+            &found[at / 3 * 3..at / 3 * 3 + 3],
+            &want[at / 3 * 3..at / 3 * 3 + 3],
+        );
+    }
+}
