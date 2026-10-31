@@ -138,11 +138,13 @@ describe("Viewer (BRW-5)", () => {
     expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "rotate", clockwise: true });
     fireEvent.keyDown(window, { key: "a" });
     expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "enhance" });
-    fireEvent.click(
-      within(screen.getByRole("group", { name: "Quick fixes" })).getByRole("button", {
-        name: "Rotate left",
-      }),
-    );
+    // The buttons are enabled once the photo is shown, which can come a
+    // render after it's drawn.
+    const left = within(screen.getByRole("group", { name: "Quick fixes" })).getByRole("button", {
+      name: "Rotate left",
+    });
+    await waitFor(() => expect((left as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(left);
     expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "rotate", clockwise: false });
     // The library says it changed: the photo is drawn with its new edits,
     // its pixels as they were.
