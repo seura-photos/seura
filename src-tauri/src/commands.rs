@@ -1874,10 +1874,15 @@ pub enum ExportResult {
     },
 }
 
-/// Asks for a folder and exports the open photo there as JPEG (EXP-1, EXP-5).
+/// Asks for a folder and exports the open photo there as JPEG (EXP-1, EXP-5):
+/// M1's development-only export.
 #[tauri::command]
 #[specta::specta]
 pub async fn export_photo(app: AppHandle, id: u32) -> Result<ExportResult, String> {
+    // Development builds only, until export is built (M5).
+    if !cfg!(debug_assertions) {
+        return Err("export isn't available in this build".into());
+    }
     let Some(folder) = pick_folder(&app).await? else {
         return Ok(ExportResult::Cancelled);
     };
@@ -1937,9 +1942,9 @@ pub struct DevOptions {
     pub pseudo_locale: bool,
     /// The settings the render check uses, so both sides agree.
     pub check_settings: RenderSettings,
-    /// Whether M1's Editor is available: in development builds only, since
-    /// M2 writes no edit files (M2 work plan), and when measuring it.
-    pub editor_available: bool,
+    /// Whether M1's export is shown in the Editor: in development builds
+    /// only, until export is built (M5).
+    pub dev_export: bool,
     /// `SEURA_MEASURE=1` runs the measurement script (M2 slice 10).
     pub measure: bool,
     /// `SEURA_MEASURE=sliders` runs the Editor's instead (PRF-6).
@@ -1978,7 +1983,7 @@ pub fn dev_options() -> DevOptions {
         render_check: render_check_mode(),
         pseudo_locale: crate::locale::pseudo(),
         check_settings: seura_render::check::CHECK_SETTINGS.into(),
-        editor_available: cfg!(debug_assertions) || crate::measure::sliders(),
+        dev_export: cfg!(debug_assertions),
         measure: crate::measure::active(),
         measure_sliders: crate::measure::sliders(),
         active: active_switches(),

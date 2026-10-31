@@ -566,8 +566,7 @@ viewer-next = Next photo
 viewer-photo = { $name }
 viewer-fit = Fit · { $percent }
 viewer-zoomed = { $percent }
-viewer-keys = ← → next and previous · + − zoom · T tag · 0–5 rate · Esc back to { $folder }
-viewer-keys-edit = ← → next and previous · + − zoom · T tag · 0–5 rate · E edit · Esc back to { $folder }
+viewer-keys = ← → next and previous · + − zoom · T tag · 0–5 rate · E edit · Esc back to { $folder }
 viewer-downloading = Downloading { $size } from the cloud…
 viewer-download-failed = This photo is in the cloud, and it couldn't be downloaded. Check your connection.
 viewer-try-again = Try again
@@ -575,7 +574,7 @@ viewer-edit = Edit
 viewer-failed = This photo can't be shown: { $reason }
 viewer-no-preview = This computer's graphics can't show photos here.
 
-## The Editor (EDT-*; development builds only until M4's wrap-up)
+## The Editor (EDT-*)
 
 editor-saved-automatically = Edits saved automatically
 editor-not-saved = Edits can't be saved

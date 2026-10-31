@@ -90,6 +90,8 @@ type Props = {
   /** The photo being edited. */
   id: number;
   forceWebgl2: boolean;
+  /** M1's export, in development builds only until export is built (M5). */
+  devExport: boolean;
 };
 
 /** What undo or redo did, for the message: a rating or tag change says
@@ -134,7 +136,7 @@ type Status = { id: number } & (
  * Tools arrive slice by slice in M4; until then the panel has Brightness,
  * M1's exposure (EDT-5).
  */
-export function Editor({ id, forceWebgl2 }: Props) {
+export function Editor({ id, forceWebgl2, devExport }: Props) {
   const photos = useStore((state) => state.photos);
   const openEditor = useStore((state) => state.openEditor);
   const closeEditor = useStore((state) => state.closeEditor);
@@ -1150,14 +1152,16 @@ export function Editor({ id, forceWebgl2 }: Props) {
           </div>
           <ZoomControls zoom={zoom} shown={shown !== null} />
           {/* M1's development-only export, until export is built (M5). */}
-          <button
-            type="button"
-            className="button editor-export"
-            disabled={!shown || exporting}
-            onClick={() => void exportPhoto()}
-          >
-            {exporting ? t("editor-exporting") : t("editor-export")}
-          </button>
+          {devExport && (
+            <button
+              type="button"
+              className="button editor-export"
+              disabled={!shown || exporting}
+              onClick={() => void exportPhoto()}
+            >
+              {exporting ? t("editor-exporting") : t("editor-export")}
+            </button>
+          )}
           <MoreButton />
         </header>
       )}

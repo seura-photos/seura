@@ -68,8 +68,7 @@ type State = {
   viewing: number | null;
   /** The photo the grid scrolls to and focuses, after the Viewer closes. */
   reveal: { id: number } | null;
-  /** The photo open in the Editor (EDT-1), by id; development builds only
-   * until M4's wrap-up. */
+  /** The photo open in the Editor (EDT-1), by id. */
   editing: number | null;
   /** Where Done goes back to: the Viewer, or the grid (user flows, flow 4). */
   editedFrom: "viewer" | "library";

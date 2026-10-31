@@ -14,8 +14,7 @@ import { Viewer } from "./Viewer";
 import { Welcome } from "./Welcome";
 
 /**
- * The window's views: the Library, with the Viewer or the Editor over it
- * (the Editor in development builds only until M4's wrap-up).
+ * The window's views: the Library, with the Viewer or the Editor over it.
  */
 export function App() {
   const dev = useStore((state) => state.dev);
@@ -91,7 +90,6 @@ export function App() {
   if (dev === null) return null;
   if (dev.renderCheck) return <RenderCheck settings={dev.checkSettings} />;
 
-  const editingNow = editing !== null && dev.editorAvailable;
   // Developer switches are easy to leave set in a terminal, so they're always shown.
   const switches = dev.active.length > 0 && (
     <p className="dev-switches" role="note">
@@ -111,15 +109,13 @@ export function App() {
         // (BRW-5). While the Editor is open, the Viewer it came from waits
         // closed, and opens again on the photo the Editor ends on.
         <div className="views">
-          <Library inert={viewing !== null || editingNow} />
-          {viewing !== null && !editingNow && (
-            <Viewer
-              folder={folderName}
-              forceWebgl2={dev.forceWebgl2}
-              editorAvailable={dev.editorAvailable}
-            />
+          <Library inert={viewing !== null || editing !== null} />
+          {viewing !== null && editing === null && (
+            <Viewer folder={folderName} forceWebgl2={dev.forceWebgl2} />
           )}
-          {editing !== null && editingNow && <Editor id={editing} forceWebgl2={dev.forceWebgl2} />}
+          {editing !== null && (
+            <Editor id={editing} forceWebgl2={dev.forceWebgl2} devExport={dev.devExport} />
+          )}
         </div>
       )}
       <ConfirmOpen />

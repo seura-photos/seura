@@ -215,7 +215,10 @@ export const commands = {
 	 *  otherwise loads the other.
 	 */
 	resolveOutsideChange: (id: number, keep: boolean) => typedError<EditStepped, string>(__TAURI_INVOKE("resolve_outside_change", { id, keep })),
-	/**  Asks for a folder and exports the open photo there as JPEG (EXP-1, EXP-5). */
+	/**
+	 *  Asks for a folder and exports the open photo there as JPEG (EXP-1, EXP-5):
+	 *  M1's development-only export.
+	 */
 	exportPhoto: (id: number) => typedError<ExportResult, string>(__TAURI_INVOKE("export_photo", { id })),
 	devOptions: () => __TAURI_INVOKE<DevOptions>("dev_options"),
 	/**
@@ -418,10 +421,10 @@ export type DevOptions = {
 	/**  The settings the render check uses, so both sides agree. */
 	checkSettings: RenderSettings,
 	/**
-	 *  Whether M1's Editor is available: in development builds only, since
-	 *  M2 writes no edit files (M2 work plan), and when measuring it.
+	 *  Whether M1's export is shown in the Editor: in development builds
+	 *  only, until export is built (M5).
 	 */
-	editorAvailable: boolean,
+	devExport: boolean,
 	/**  `SEURA_MEASURE=1` runs the measurement script (M2 slice 10). */
 	measure: boolean,
 	/**  `SEURA_MEASURE=sliders` runs the Editor's instead (PRF-6). */
