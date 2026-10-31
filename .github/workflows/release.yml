@@ -3,8 +3,8 @@ name: Release
 # A numbered early build, public from 0.2 (decision 0016; milestone plan,
 # "Working within a milestone"): pushing a tag like v0.1.0 builds the
 # Windows installer and the macOS disk image, unsigned, and attaches them to
-# a draft pre-release for Nevada to look over and publish. M1's Editor isn't
-# in release builds. Not signed for distribution: Windows SmartScreen warns,
+# a draft pre-release for Nevada to look over and publish. The Editor is
+# in release builds from 0.3. Not signed for distribution: Windows SmartScreen warns,
 # and the Mac app is only ad-hoc signed (bundle.macOS.signingIdentity "-"): with no
 # signature at all, macOS on Apple Silicon calls a downloaded app
 # "damaged". The first time, macOS blocks it, and System Settings →
