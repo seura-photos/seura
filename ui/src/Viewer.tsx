@@ -33,8 +33,6 @@ type Props = {
   /** The folder's name, for the way back. */
   folder: string;
   forceWebgl2: boolean;
-  /** The Editor opens with E or Edit (development builds only, until M4's wrap-up). */
-  editorAvailable: boolean;
 };
 
 type Status =
@@ -53,7 +51,7 @@ type Status =
  * Zoom is shared with the Editor (`useZoom`): wheel, pinch, the buttons,
  * and + and − zoom; dragging pans.
  */
-export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
+export function Viewer({ folder, forceWebgl2 }: Props) {
   const photos = useStore((state) => state.photos);
   const viewing = useStore((state) => state.viewing);
   const view = useStore((state) => state.view);
@@ -308,8 +306,8 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
       setMenu({ x: box ? box.left + box.width / 2 : 0, y: box ? box.top + box.height / 2 : 0 });
     } else if (event.key === "+" || event.key === "=") zoom.zoomStep(1);
     else if (event.key === "-") zoom.zoomStep(-1);
-    else if (editorAvailable && photo && isEditKey(event)) openEditor(photo.id);
-    else if (editorAvailable && photo && quick !== null) quickAction(quick, true);
+    else if (photo && isEditKey(event)) openEditor(photo.id);
+    else if (photo && quick !== null) quickAction(quick, true);
     else if (photo && stars !== null) void rate([photo.id], stars, true);
     else if (photo && isTagKey(event)) {
       // Beside the Info panel's Add tag button: the photo fills the stage.
@@ -356,18 +354,14 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
           {t("viewer-position", { position: index + 1, total: photos.length })}
         </span>
         <ZoomControls zoom={zoom} shown={shown !== null} />
-        {editorAvailable && (
-          <QuickActions disabled={shown === null} onAction={(action) => quickAction(action)} />
-        )}
-        {editorAvailable && (
-          <button
-            type="button"
-            className="button primary toolbar-edit"
-            onClick={() => openEditor(photo.id)}
-          >
-            {t("viewer-edit")}
-          </button>
-        )}
+        <QuickActions disabled={shown === null} onAction={(action) => quickAction(action)} />
+        <button
+          type="button"
+          className="button primary toolbar-edit"
+          onClick={() => openEditor(photo.id)}
+        >
+          {t("viewer-edit")}
+        </button>
         <MoreButton />
       </header>
 
@@ -442,9 +436,7 @@ export function Viewer({ folder, forceWebgl2, editorAvailable }: Props) {
           {percent !== null &&
             (isZoomed ? t("viewer-zoomed", { percent }) : t("viewer-fit", { percent }))}
         </span>
-        <span className="viewer-keys">
-          {editorAvailable ? t("viewer-keys-edit", { folder }) : t("viewer-keys", { folder })}
-        </span>
+        <span className="viewer-keys">{t("viewer-keys", { folder })}</span>
       </footer>
     </div>
   );

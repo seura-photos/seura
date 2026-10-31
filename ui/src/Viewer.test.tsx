@@ -91,9 +91,9 @@ async function fitted() {
   );
 }
 
-function show(id: number, editorAvailable = false) {
+function show(id: number) {
   useStore.setState({ photos: [photo(1), photo(2), photo(3)], viewing: id });
-  return render(<Viewer folder="Summer" forceWebgl2={false} editorAvailable={editorAvailable} />);
+  return render(<Viewer folder="Summer" forceWebgl2={false} />);
 }
 
 describe("Viewer (BRW-5)", () => {
@@ -132,7 +132,7 @@ describe("Viewer (BRW-5)", () => {
   });
 
   it("rotates and enhances the photo by key and toolbar, then draws its new edits (BRW-10)", async () => {
-    show(2, true);
+    show(2);
     await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalledWith({ exposureEv: 0.5 }));
     fireEvent.keyDown(window, { key: "]" });
     expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "rotate", clockwise: true });
@@ -155,14 +155,6 @@ describe("Viewer (BRW-5)", () => {
       expect(mocks.backend.draw).toHaveBeenLastCalledWith({ exposureEv: 0.5, rotate: 90 }),
     );
     expect(mocks.fetchLinear.mock.calls.length).toBe(fetched);
-  });
-
-  it("has no quick fixes while the Editor isn't available", async () => {
-    show(2);
-    await waitFor(() => expect(mocks.backend.draw).toHaveBeenCalled());
-    fireEvent.keyDown(window, { key: "]" });
-    expect(mocks.changePhotos).not.toHaveBeenCalled();
-    expect(screen.queryByRole("group", { name: "Quick fixes" })).toBeNull();
   });
 
   it("moves through the grid's order with the arrow keys, stopping at the ends", async () => {
@@ -300,12 +292,8 @@ describe("Viewer (BRW-5)", () => {
     await waitFor(() => expect(useStore.getState().picker?.ids).toEqual([2]));
   });
 
-  it("opens the Editor with E only where it's available", async () => {
+  it("opens the Editor with E", () => {
     show(1);
-    fireEvent.keyDown(window, { key: "e" });
-    expect(useStore.getState().editing).toBeNull();
-    cleanup();
-    show(1, true);
     fireEvent.keyDown(window, { key: "e" });
     expect(useStore.getState().editing).toBe(1);
   });

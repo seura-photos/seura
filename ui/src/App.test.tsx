@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => {
       menuCommand: event("menuCommand"),
       scanProgress: event("scanProgress"),
     },
-    dev: { active: [] as string[], editorAvailable: false },
+    dev: { active: [] as string[] },
     folders: [] as FolderInfo[],
     photos: [] as PhotoInfo[],
     tags: [] as TagInfo[],
@@ -77,7 +77,7 @@ vi.mock("./bindings", () => ({
         forceWebgl2: false,
         renderCheck: false,
         checkSettings: { exposureEv: 0.7 },
-        editorAvailable: mocks.dev.editorAvailable,
+        devExport: false,
         pseudoLocale: false,
         active: mocks.dev.active,
       }),
@@ -232,7 +232,6 @@ describe("App", () => {
   afterEach(() => {
     cleanup();
     mocks.dev.active = [];
-    mocks.dev.editorAvailable = false;
     mocks.folders = [];
     mocks.photos = [];
     mocks.tags = [];
@@ -397,7 +396,6 @@ describe("App", () => {
   });
 
   it("rotates and enhances the selection by key and toolbar, and a hovered photo by its buttons (BRW-10)", async () => {
-    mocks.dev.editorAvailable = true;
     mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
     mocks.photos = [1, 2, 3].map((id) => photo(id));
     render(<App />);
@@ -431,7 +429,6 @@ describe("App", () => {
   });
 
   it("rotates or enhances a hovered photo alone, without selecting it (BRW-10)", async () => {
-    mocks.dev.editorAvailable = true;
     const restore = layOutGrid();
     try {
       mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
@@ -447,18 +444,6 @@ describe("App", () => {
     } finally {
       restore();
     }
-  });
-
-  it("has no quick fixes while the Editor isn't available (BRW-10)", async () => {
-    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 1, total: 1 })];
-    mocks.photos = [photo(1)];
-    render(<App />);
-    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
-    await screen.findByRole("grid");
-    act(() => useStore.getState().selectPhoto(1, { toggle: false, range: false }));
-    fireEvent.keyDown(window, { key: "]" });
-    expect(mocks.changePhotos).not.toHaveBeenCalled();
-    expect(screen.queryByRole("group", { name: "Quick fixes" })).toBeNull();
   });
 
   it("rates the selection with 0 to 5, but not while typing (TAG-6)", async () => {

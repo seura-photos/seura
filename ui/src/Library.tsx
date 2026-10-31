@@ -103,7 +103,6 @@ export function Library({ inert = false }: { inert?: boolean }) {
   const addFolder = useStore((state) => state.addFolder);
   const view = useStore((state) => state.view);
   const openEditor = useStore((state) => state.openEditor);
-  const editorAvailable = useStore((state) => state.dev?.editorAvailable ?? false);
   const reveal = useStore((state) => state.reveal);
   const tags = useStore((state) => state.tags);
   const tag = useStore((state) => state.tag);
@@ -196,10 +195,10 @@ export function Library({ inert = false }: { inert?: boolean }) {
     if (selection.ids.size === 0) return;
     const ids = [...selection.ids];
     const stars = ratingKey(event);
-    const quick = editorAvailable ? quickKey(event) : null;
+    const quick = quickKey(event);
     if (stars !== null) void rate(ids, stars, true);
     else if (quick !== null) quickAction(ids, quick, true);
-    else if (editorAvailable && isEditKey(event)) edit();
+    else if (isEditKey(event)) edit();
     // Delete moves them to the Recycle Bin, once confirmed (BRW-9).
     else if (isDeleteKey(event)) void useStore.getState().askDelete(ids);
     else if (isTagKey(event)) void openPicker(ids, selectionAnchor(ids));
@@ -260,22 +259,18 @@ export function Library({ inert = false }: { inert?: boolean }) {
           />
         </label>
         {/* The selection's quick fixes, then Edit (wireframes, Library). */}
-        {editorAvailable && (
-          <QuickActions
-            disabled={selection.ids.size === 0}
-            onAction={(action) => quickAction([...selection.ids], action)}
-          />
-        )}
-        {editorAvailable && (
-          <button
-            type="button"
-            className="button primary toolbar-edit"
-            disabled={selection.ids.size === 0}
-            onClick={edit}
-          >
-            {t("library-edit")}
-          </button>
-        )}
+        <QuickActions
+          disabled={selection.ids.size === 0}
+          onAction={(action) => quickAction([...selection.ids], action)}
+        />
+        <button
+          type="button"
+          className="button primary toolbar-edit"
+          disabled={selection.ids.size === 0}
+          onClick={edit}
+        >
+          {t("library-edit")}
+        </button>
         <MoreButton />
       </header>
 
@@ -428,7 +423,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
                 onSelectAll={selectAllPhotos}
                 onOpen={(photo) => view(photo.id)}
                 onMenu={(ids, x, y) => setPhotoMenu({ ids, x, y })}
-                onQuick={editorAvailable ? (id, action) => quickAction([id], action) : undefined}
+                onQuick={(id, action) => quickAction([id], action)}
                 reveal={reveal}
               />
             )}

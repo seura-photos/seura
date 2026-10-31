@@ -126,7 +126,7 @@ function edit(from: "library" | "viewer" = "library") {
     editedFrom: from,
     viewing: null,
   });
-  return render(<Editor id={7} forceWebgl2={false} />);
+  return render(<Editor id={7} forceWebgl2={false} devExport={false} />);
 }
 
 /** The Brightness slider, once the photo is shown. */
@@ -165,6 +165,14 @@ describe("Editor", () => {
     expect(screen.getByText("+10")).toBeDefined();
     expect(mocks.draw).toHaveBeenCalledWith({ exposureEv: 0.4, contrast: 20 });
     expect(screen.getByText("Edits saved automatically")).toBeDefined();
+  });
+
+  it("shows M1's export in development builds only, until export is built", async () => {
+    const { rerender } = edit();
+    await brightness();
+    expect(screen.queryByRole("button", { name: "Export…" })).toBeNull();
+    rerender(<Editor id={7} forceWebgl2={false} devExport />);
+    expect(screen.getByRole("button", { name: "Export…" })).toBeDefined();
   });
 
   it("saves a drag once, when it ends (EDT-11)", async () => {
@@ -645,7 +653,7 @@ describe("Editor", () => {
     expect(screen.getAllByRole("button", { name: /^Correction/ })).toHaveLength(1);
     press(overlay, [100, 100]);
     useStore.setState({ editing: 8 });
-    rerender(<Editor id={8} forceWebgl2={false} />);
+    rerender(<Editor id={8} forceWebgl2={false} devExport={false} />);
     await waitFor(() => expect(savedCircles()).toHaveLength(3));
   });
 
@@ -753,7 +761,7 @@ describe("Editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "1:1" }));
     // Another photo opened from elsewhere: crop mode's work is kept.
     useStore.setState({ editing: 8 });
-    rerender(<Editor id={8} forceWebgl2={false} />);
+    rerender(<Editor id={8} forceWebgl2={false} devExport={false} />);
     await waitFor(() =>
       expect(mocks.editPhoto).toHaveBeenCalledWith(7, {
         kind: "crop",
@@ -855,7 +863,7 @@ describe("Editor", () => {
     fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(useStore.getState().editing).toBe(8);
     // As App does, the Editor follows the store.
-    rerender(<Editor id={8} forceWebgl2={false} />);
+    rerender(<Editor id={8} forceWebgl2={false} devExport={false} />);
     const next = within(strip).getByRole("button", { name: "IMG_8.jpg" });
     await waitFor(() => expect(document.activeElement).toBe(next));
     expect(within(strip).getByRole("button", { name: "IMG_7.jpg" }).tabIndex).toBe(-1);
