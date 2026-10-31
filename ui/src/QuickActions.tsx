@@ -7,6 +7,8 @@ export type Quick = "left" | "right" | "enhance";
 /**
  * Rotate left, rotate right, and Enhance (BRW-10; wireframes, Library and
  * Viewer toolbars), for the selection or the photo shown, with their keys.
+ * A click leaves the focus where it was, so Enter still opens the photo
+ * focused in the grid; Tab still reaches the buttons.
  */
 export function QuickActions({
   disabled,
@@ -16,7 +18,12 @@ export function QuickActions({
   onAction: (action: Quick) => void;
 }) {
   return (
-    <div className="quick-actions" role="group" aria-label={t("quick-actions")}>
+    <div
+      className="quick-actions"
+      role="group"
+      aria-label={t("quick-actions")}
+      onMouseDown={(event) => event.preventDefault()}
+    >
       <button
         type="button"
         className="icon-button"
