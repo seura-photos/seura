@@ -10,7 +10,7 @@ A free, open-source photo app for Windows and macOS, in the spirit of Picasa.
 - **Tags, not albums.** Organize with tags and subtags, and rate with stars.
 - **Open format.** Edits are stored in the [Seura edit format](https://github.com/seura-photos/edit-format), an open specification any app can implement.
 
-> **Status:** in design. There is no app to download yet. The documents below describe what's being built.
+> **Status:** in development. [Build 0.3](https://github.com/seura-photos/seura/releases) is an early build, not yet the beta: it browses, organizes, and edits, but export, presets, and the Review flow come later, so for now edits show only in Seura. It isn't signed for distribution yet; each release's notes say how to install it. Progress is written up in the [devlog](https://seuraphotos.app/devlog/).
 
 ## Documents
 
@@ -23,11 +23,15 @@ A free, open-source photo app for Windows and macOS, in the spirit of Picasa.
 - [Technical design](docs/technical-design.md): architecture, libraries, rendering, testing.
 - [Visual design](docs/visual-design.md): color, type, icons, and the Seura mark.
 - [Milestone plan](docs/milestone-plan.md): the order of work from first code to version 1.0.
-- [M1 work plan](docs/m1-plan.md): the first milestone, slice by slice.
+- Work plans for each milestone, slice by slice: [M1](docs/m1-plan.md), [M2](docs/m2-plan.md), [M3](docs/m3-plan.md), [M4](docs/m4-plan.md).
+- [Benchmarks](docs/benchmarks/): the performance targets, measured at the end of each milestone.
+- [Journal](docs/journal/): short dated notes on decisions, surprises, and mistakes as the work goes.
 
 ## Technology
 
 [Tauri](https://tauri.app) with a Rust core and a TypeScript web UI, with editing rendered on the GPU. See [decision 0001](docs/decisions/0001-tauri-and-rust.md).
+
+To build and run it yourself, see [CLAUDE.md](CLAUDE.md#build-test-and-lint): it lists the tools, the commands, and the checks CI runs.
 
 ## License
 
