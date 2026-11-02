@@ -1408,6 +1408,9 @@ pub async fn view_photo(
                 let shown = handle
                     .state::<Viewer>()
                     .show(&photo, &neighbors, (width, height));
+                handle
+                    .state::<Library>()
+                    .downloaded(&handle, PhotoId::new(id));
                 let _ = sender.send(shown);
             });
             receiver
@@ -1530,7 +1533,11 @@ pub async fn open_photo(
             let (sender, receiver) = std::sync::mpsc::channel();
             let handle = app.clone();
             std::thread::spawn(move || {
-                let _ = sender.send(open(&handle));
+                let opened = open(&handle);
+                handle
+                    .state::<Library>()
+                    .downloaded(&handle, PhotoId::new(id));
+                let _ = sender.send(opened);
             });
             receiver
                 .recv_timeout(DOWNLOAD_WAIT)

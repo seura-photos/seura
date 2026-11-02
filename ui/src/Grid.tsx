@@ -2,6 +2,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   CircleAlert,
+  Cloud,
   RotateCcwSquare,
   RotateCwSquare,
   SlidersHorizontal,
@@ -313,6 +314,17 @@ function Thumbnail({
       {photo.edited && (
         <span className="badge badge-edited" title={t("grid-edited")}>
           <SlidersHorizontal className="icon" aria-hidden />
+        </span>
+      )}
+      {/* Only where the tile doesn't say so already (LIB-9). */}
+      {photo.cloudOnly && !state?.cloudOnly && (
+        <span
+          className="badge badge-cloud"
+          role="img"
+          aria-label={t("grid-cloud-only")}
+          title={t("grid-cloud-only")}
+        >
+          <Cloud className="icon" aria-hidden />
         </span>
       )}
       {photo.rating > 0 && (

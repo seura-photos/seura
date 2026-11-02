@@ -146,6 +146,20 @@ Added 2026-10-29: Nevada noticed the Editor couldn't zoom, which the design had 
 - **The Editor in release builds,** then build 0.3, the devlog post, part 10, and confirming every "done when".
 - **Done when:** Nevada fixes their own photos with build 0.3 on both machines, instead of another app.
 
+### 12. The cloud badge in the grid (LIB-9)
+
+Added after 0.3, from Nevada's use of it, and designed in #195.
+
+- **A small cloud, top right of the thumbnail,** on photos still in the cloud, with the tooltip and accessible name "In the cloud". A tile with no thumbnail still says so in words instead.
+- **It stays current:** when Seura reads a photo, which downloads it, and when the watcher sees its state change.
+- **Done when:** Nevada sees the badge go when a photo is opened, on both machines.
+
+### 13. Enhance downloads cloud-only photos (BRW-10, LIB-9)
+
+- **One photo** downloads without asking, as opening does, and the tile shows it. **A selection** asks once, with the count and total size; if declined, only the photos on the computer are enhanced, and the message says how many were left.
+- Downloads run one at a time, each photo enhanced as it arrives, and the whole is one action for undo (BRW-11). A photo that fails to download stays unenhanced, and the message says so.
+- **Done when:** Nevada enhances cloud-only photos, one and several, on both machines, and undoes it.
+
 ## Questions
 
 Questions 1 to 6 are for a design session; 7 and 8 were Nevada's.

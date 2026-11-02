@@ -221,6 +221,30 @@ impl Index {
         (report, action)
     }
 
+    /// Asks a photo's file whether it's still only in the cloud, which only
+    /// reads its attributes, and records the answer: reading a cloud-only
+    /// photo downloads it (LIB-9). Returns whether that changed anything.
+    pub fn refresh_placeholder(index: &RwLock<Index>, id: PhotoId) -> bool {
+        let path = index
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .path(id);
+        let Some(metadata) = path.and_then(|path| std::fs::metadata(path).ok()) else {
+            return false;
+        };
+        let placeholder = crate::platform::is_placeholder(&metadata);
+        let mut index = index
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        match index.photo_mut(id) {
+            Some(photo) if photo.placeholder != placeholder => {
+                photo.placeholder = placeholder;
+                true
+            }
+            _ => false,
+        }
+    }
+
     /// Changes one photo's edits from the Editor (EDT-11), as `action`,
     /// writing its edit file through the same path as the Library's changes.
     /// Not recorded for the Library's undo: the photo's own history has it
@@ -663,6 +687,17 @@ mod tests {
             OffsetDateTime::now_utc(),
             &no_trash,
         )
+    }
+
+    #[test]
+    fn a_downloaded_photo_is_no_longer_recorded_as_cloud_only_lib_9() {
+        let (_dir, index, id) = library();
+        // On disk, as far as its file says, and the index knows it.
+        assert!(!Index::refresh_placeholder(&index, id));
+        // Downloaded since the index last looked.
+        index.write().unwrap().photo_mut(id).unwrap().placeholder = true;
+        assert!(Index::refresh_placeholder(&index, id));
+        assert!(!index.read().unwrap().photo(id).unwrap().placeholder);
     }
 
     #[test]

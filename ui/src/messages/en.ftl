@@ -185,6 +185,12 @@ grid-cell-label =
         [one] { $name }, { $date }, 1 star
        *[other] { $name }, { $date }, { $rating } stars
     }
+grid-cell-label-cloud =
+    { $rating ->
+        [0] { $name }, { $date }, in the cloud
+        [one] { $name }, { $date }, 1 star, in the cloud
+       *[other] { $name }, { $date }, { $rating } stars, in the cloud
+    }
 
 ## The Info panel (BRW-6)
 
