@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   CircleAlert,
   Cloud,
+  LoaderCircle,
   RotateCcwSquare,
   RotateCwSquare,
   SlidersHorizontal,
@@ -29,6 +30,8 @@ type Props = {
   folder: string;
   photos: PhotoInfo[];
   thumbs: Map<number, ThumbState>;
+  /** Photos downloading for Enhance, which their tiles show (BRW-10). */
+  downloading?: ReadonlySet<number> | undefined;
   /** Cell size in logical pixels (BRW-3). */
   size: number;
   selection: Selection;
@@ -60,6 +63,7 @@ export function Grid({
   folder,
   photos,
   thumbs,
+  downloading,
   size,
   selection,
   onSelect,
@@ -227,6 +231,7 @@ export function Grid({
                   column={column}
                   size={cell}
                   state={thumbs.get(photo.id)}
+                  downloading={downloading?.has(photo.id) ?? false}
                   selected={selection.ids.has(photo.id)}
                   focusable={index === current}
                   onClick={(event) => onClick(event, index, photo)}
@@ -253,6 +258,7 @@ type ThumbnailProps = {
   column: number;
   size: number;
   state: ThumbState | undefined;
+  downloading: boolean;
   selected: boolean;
   focusable: boolean;
   onClick: (event: MouseEvent) => void;
@@ -267,6 +273,7 @@ function Thumbnail({
   column,
   size,
   state,
+  downloading,
   selected,
   focusable,
   onClick,
@@ -311,8 +318,18 @@ function Thumbnail({
           <SlidersHorizontal className="icon" aria-hidden />
         </span>
       )}
+      {downloading && (
+        <span
+          className="badge badge-cloud"
+          role="img"
+          aria-label={t("grid-downloading")}
+          title={t("grid-downloading")}
+        >
+          <LoaderCircle className="icon viewer-spinner" aria-hidden />
+        </span>
+      )}
       {/* Only where the tile doesn't say so already (LIB-9). */}
-      {photo.cloudOnly && !state?.cloudOnly && (
+      {!downloading && photo.cloudOnly && !state?.cloudOnly && (
         <span
           className="badge badge-cloud"
           role="img"

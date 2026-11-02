@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { About } from "./About";
 import { commands, events } from "./bindings";
 import { ConfirmDelete } from "./ConfirmDelete";
+import { ConfirmEnhance } from "./ConfirmEnhance";
 import { ConfirmOpen } from "./ConfirmOpen";
 import { Editor } from "./Editor";
 import { Library } from "./Library";
@@ -46,6 +47,7 @@ export function App() {
       }),
       // Finished thumbnails arrive in batches, about ten a second.
       events.thumbnailsReady.listen(({ payload }) => useStore.getState().thumbnailsReady(payload)),
+      events.enhanceDownload.listen(({ payload }) => useStore.getState().enhanceDownload(payload)),
       events.scanProgress.listen(({ payload }) => useStore.setState({ progress: payload })),
       // Menu commands take the same path as the buttons (ACC-4).
       events.menuCommand.listen(({ payload }) => {
@@ -119,6 +121,7 @@ export function App() {
         </div>
       )}
       <ConfirmOpen />
+      <ConfirmEnhance />
       <ConfirmDelete />
       <TagPicker />
       <About />

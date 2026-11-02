@@ -16,6 +16,8 @@ use specta::Type;
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_specta::Event;
 
+use crate::downloads::{Downloaded, Downloads};
+
 pub struct Library {
     pub index: RwLock<Index>,
     /// Held while scanning: one scan at a time, so a scan never removes a
@@ -26,6 +28,8 @@ pub struct Library {
     progress: Mutex<Progress>,
     /// Watches the library folders while the app runs (LIB-4).
     watcher: Mutex<Option<Watcher>>,
+    /// Enhance's downloads, one at a time (BRW-10).
+    downloads: Downloads,
     /// Where the cache is, and the workers filling it; replaced together
     /// when the cache moves.
     store: RwLock<Store>,
@@ -90,6 +94,36 @@ pub struct ThumbnailReady {
 #[derive(Clone, Debug, Serialize, Type, Event)]
 pub struct LibraryChanged;
 
+/// Enhance's download of a cloud-only photo started or ended (BRW-10).
+#[derive(Clone, Debug, Serialize, Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct EnhanceDownload {
+    pub id: u32,
+    pub downloading: bool,
+    /// Which download of how many, counting from 1.
+    pub at: u32,
+    pub total: u32,
+    /// For a selection, which shows its progress and Stop; one photo's tile
+    /// is enough for itself.
+    pub batch: bool,
+}
+
+/// What Enhance with downloads did, in numbers of photos.
+#[derive(Clone, Debug, Default, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct EnhanceReport {
+    /// In a read-only folder (TAG-7).
+    pub read_only: u32,
+    /// Their edit file can't be read, so it's left alone (FIL-4).
+    pub unreadable: u32,
+    /// Couldn't be changed for another reason, such as a full drive.
+    pub failed: u32,
+    /// In the cloud, and the download failed or took too long.
+    pub not_downloaded: u32,
+    /// In the cloud, and left there because the user stopped.
+    pub stopped: u32,
+}
+
 /// How far scanning has got, for the status bar (LIB-3): first looking for
 /// photos in a library folder, then making their thumbnails. All empty and
 /// zero when there's nothing to do.
@@ -124,6 +158,18 @@ const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 /// The settings file, as the app holds it (SET-3).
 pub struct AppSettings(pub Mutex<SettingsFile>);
 
+impl EnhanceReport {
+    fn add(&mut self, report: &ChangeReport) {
+        for (_, problem) in &report.problems {
+            match problem {
+                Problem::ReadOnly => self.read_only += 1,
+                Problem::Unreadable => self.unreadable += 1,
+                _ => self.failed += 1,
+            }
+        }
+    }
+}
+
 impl Library {
     /// Loads the index snapshot from the cache (PRF-1) and starts the
     /// thumbnail workers, one fewer than the processor's threads. The
@@ -138,6 +184,7 @@ impl Library {
             scanning: Mutex::new(()),
             progress: Mutex::new(Progress::default()),
             watcher: Mutex::new(None),
+            downloads: Downloads::default(),
             store: RwLock::new(Store::open(app, cache)),
             ready: Mutex::new(Vec::new()),
             history: Mutex::new(History::default()),
@@ -193,6 +240,112 @@ impl Library {
             self.queue_all(app);
             let _ = LibraryChanged.emit(app);
         }
+    }
+
+    /// Enhances photos, downloading those in the cloud one at a time and
+    /// enhancing each as it arrives (BRW-10, LIB-9). Photos already on the
+    /// computer go first. The whole is one action to undo, recorded once
+    /// it's over, covering the photos it enhanced. One batch at a time: a
+    /// later one waits its turn, and Stop stops those waiting too.
+    pub fn enhance_downloading<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        ids: &[PhotoId],
+    ) -> EnhanceReport {
+        let ticket = self.downloads.ticket();
+        let _turn = self.downloads.turn();
+        let (cloud, here): (Vec<PhotoId>, Vec<PhotoId>) = {
+            for &id in ids {
+                self.downloaded(app, id);
+            }
+            let index = self.index.read().expect("index lock");
+            ids.iter().partition(|id| {
+                index.photo(**id).is_some_and(|photo| {
+                    photo.placeholder
+                        && !index
+                            .folder(photo.folder)
+                            .is_some_and(|folder| folder.read_only)
+                })
+            })
+        };
+        let mut result = EnhanceReport::default();
+        let (mut action, report) = self.enhance_part(app, &here);
+        result.add(&report);
+        let total = cloud.len() as u32;
+        for (done, &id) in cloud.iter().enumerate() {
+            if self.downloads.stopped(ticket) {
+                result.stopped = total - done as u32;
+                break;
+            }
+            let Some(path) = self.index.read().expect("index lock").path(id) else {
+                result.failed += 1;
+                continue;
+            };
+            let event = |downloading| EnhanceDownload {
+                id: id.value(),
+                downloading,
+                at: done as u32 + 1,
+                total,
+                batch: ids.len() > 1,
+            };
+            let _ = event(true).emit(app);
+            let outcome = crate::downloads::download(path, || self.downloads.stopped(ticket));
+            let _ = event(false).emit(app);
+            match outcome {
+                Downloaded::Yes => {
+                    self.downloaded(app, id);
+                    let (part, report) = self.enhance_part(app, &[id]);
+                    action.absorb(part);
+                    result.add(&report);
+                }
+                Downloaded::Failed => result.not_downloaded += 1,
+                Downloaded::Stopped => {
+                    result.stopped = total - done as u32;
+                    break;
+                }
+            }
+        }
+        let mut history = self.history.lock().expect("history lock");
+        history.record(action);
+        crate::menu::history_changed(app, history.next_undo(), history.next_redo());
+        result
+    }
+
+    /// Enhances photos that are on the computer, without recording the
+    /// action, then saves the index and tells the UI, so their thumbnails
+    /// follow one by one.
+    fn enhance_part<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        ids: &[PhotoId],
+    ) -> (seura_library::Action, ChangeReport) {
+        // A photo just read is on the computer, whatever its attributes say
+        // so far.
+        let make = |photo: &std::path::Path, _: bool, loaded: Option<&seura_edit::EditFile>| {
+            crate::editor::quick_action(&Change::Enhance, photo, false, loaded)
+        };
+        let (report, action) = {
+            let _history = self.history.lock().expect("history lock");
+            Index::change_recorded_with(
+                &self.index,
+                ids,
+                &Change::Enhance,
+                Some(&make),
+                crate::editor::WRITER,
+                time::OffsetDateTime::now_utc(),
+                &move_to_trash,
+            )
+        };
+        if !report.changed.is_empty() || !report.problems.is_empty() {
+            self.save();
+            let _ = LibraryChanged.emit(app);
+        }
+        (action, report)
+    }
+
+    /// Stops Enhance's downloads: see [`Downloads::stop`].
+    pub fn stop_downloads(&self) {
+        self.downloads.stop();
     }
 
     /// Changes one photo's edits from the Editor (EDT-11), through the same

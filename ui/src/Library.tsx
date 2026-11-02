@@ -88,6 +88,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
   const folderId = useStore((state) => state.folderId);
   const photos = useStore((state) => state.photos);
   const thumbs = useStore((state) => state.thumbs);
+  const downloading = useStore((state) => state.downloading);
   const rate = useStore((state) => state.rate);
   const openPicker = useStore((state) => state.openPicker);
   const selection = useStore((state) => state.selection);
@@ -417,6 +418,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
                 folder={shown.title}
                 photos={photos}
                 thumbs={thumbs}
+                downloading={downloading}
                 size={thumbnailSize}
                 selection={selection}
                 onSelect={selectPhoto}

@@ -7,6 +7,7 @@
 
 mod about;
 mod commands;
+mod downloads;
 mod editor;
 mod gpu;
 mod library;
@@ -44,6 +45,9 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::set_sidebar_width,
             commands::show_thumbnails,
             commands::change_photos,
+            commands::enhancing,
+            commands::enhance_downloading,
+            commands::stop_downloads,
             commands::start_over,
             commands::deleting,
             commands::delete_photos,
@@ -89,6 +93,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .events(collect_events![
             ThumbnailsReady,
             LibraryChanged,
+            library::EnhanceDownload,
             ScanProgress,
             menu::MenuCommand,
             editor::EditFileChanged

@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConfirmDelete } from "./ConfirmDelete";
+import { ConfirmEnhance } from "./ConfirmEnhance";
 import { ConfirmOpen } from "./ConfirmOpen";
 import { ConfirmRemove } from "./RemoveFolder";
 import type { Deleting, FolderInfo } from "./bindings";
@@ -33,6 +34,20 @@ const dialogs: [string, () => ReactElement, () => void][] = [
     "Open",
     () => <ConfirmOpen />,
     () => useStore.setState({ confirmingOpen: { ids: [1, 2], count: 20, cloudOnly: 0 } }),
+  ],
+  [
+    "Enhance",
+    () => <ConfirmEnhance />,
+    () =>
+      useStore.setState({
+        confirmingEnhance: {
+          ids: [1, 2],
+          cloudOnly: 1,
+          cloudSize: 1000,
+          onComputer: 1,
+          byKey: false,
+        },
+      }),
   ],
   [
     "Remove folder",

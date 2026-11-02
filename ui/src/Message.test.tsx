@@ -1,14 +1,24 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Message } from "./Message";
 import { useStore } from "./store";
 
-vi.mock("./bindings", () => ({ commands: {} }));
+const stopDownloads = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+vi.mock("./bindings", () => ({ commands: { stopDownloads } }));
 
 describe("Message (INT-6)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    useStore.setState({ notice: null, noticeId: 0 });
+    useStore.setState({ notice: null, noticeId: 0, downloadBatch: null });
+  });
+
+  it("keeps a batch's progress and Stop up past the usual time (BRW-10)", () => {
+    useStore.setState({ downloadBatch: { at: 2, total: 5 } });
+    render(<Message since={99} />);
+    act(() => void vi.advanceTimersByTime(60_000));
+    expect(screen.getByText("Downloading 2 of 5…")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(stopDownloads).toHaveBeenCalled();
   });
   afterEach(() => {
     cleanup();

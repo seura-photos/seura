@@ -166,6 +166,7 @@ status-thumbnails = Making thumbnails · { $done } of { $total }
 
 grid-label = Photos in { $folder }
 grid-cloud-only = In the cloud
+grid-downloading = Downloading…
 grid-needs-heif-extensions = Needs Microsoft's HEIF and HEVC extensions
 grid-failed = Can't show this photo
 grid-sort = Sort by
@@ -324,12 +325,42 @@ change-done-enhanced =
         [one] Enhanced 1 photo.
        *[other] Enhanced { $count } photos.
     }
-# Enhance reads each photo, which would download one that's only in the
-# cloud (LIB-9), so those are left alone.
+# Enhance on a selection that includes photos in the cloud (BRW-10, LIB-9).
+enhance-confirm-title =
+    { $count ->
+        [one] Enhance 1 photo?
+       *[other] Enhance { $count } photos?
+    }
+enhance-confirm-body =
+    { $count ->
+        [one] 1 of these photos is in the cloud ({ $size }). Download it to enhance it?
+       *[other] { $count } of these photos are in the cloud ({ $size }). Download them to enhance them?
+    }
+enhance-confirm-download = Download and enhance
+enhance-confirm-on-computer =
+    { $count ->
+        [one] Enhance only the 1 on this computer
+       *[other] Enhance only the { $count } on this computer
+    }
+enhance-confirm-cancel = Cancel
+enhance-downloading = Downloading { $at } of { $total }…
+enhance-stop = Stop
+enhance-done-some = Enhanced { $done } of { $count } photos.
+enhance-stopped =
+    { $count ->
+        [one] 1 photo wasn't downloaded, because you stopped.
+       *[other] { $count } photos weren't downloaded, because you stopped.
+    }
+enhance-not-downloaded =
+    { $count ->
+        [one] 1 photo couldn't be downloaded, so it wasn't enhanced. Check your connection.
+       *[other] { $count } photos couldn't be downloaded, so they weren't enhanced. Check your connection.
+    }
+# Chosen in Enhance's question: only the photos on this computer (BRW-10).
 change-cloud-only =
     { $count ->
-        [one] 1 photo is only in the cloud, so it wasn't enhanced. Open it first to download it.
-       *[other] { $count } photos are only in the cloud, so they weren't enhanced. Open them first to download them.
+        [one] 1 photo is in the cloud, so it wasn't enhanced.
+       *[other] { $count } photos are in the cloud, so they weren't enhanced.
     }
 change-done-added =
     { $count ->

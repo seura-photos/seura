@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
     handlers,
     events: {
       libraryChanged: event("libraryChanged"),
+      enhanceDownload: event("enhanceDownload"),
       thumbnailsReady: event("thumbnailsReady"),
       menuCommand: event("menuCommand"),
       scanProgress: event("scanProgress"),
@@ -35,6 +36,9 @@ const mocks = vi.hoisted(() => {
     undo: vi.fn(() => Promise.resolve({ status: "ok", data: mocks.step })),
     redo: vi.fn(() => Promise.resolve({ status: "ok", data: mocks.step })),
     changePhotos: vi.fn(() => Promise.resolve({ status: "ok", data: mocks.changed })),
+    enhancing: vi.fn(() => Promise.resolve({ cloudOnly: 0, cloudSize: 0, onComputer: 1 })),
+    enhanceDownloading: vi.fn(),
+    stopDownloads: vi.fn(() => Promise.resolve()),
   };
 });
 
@@ -110,6 +114,9 @@ vi.mock("./bindings", () => ({
     addFolder: mocks.addFolder,
     removeFolder: mocks.removeFolder,
     changePhotos: mocks.changePhotos,
+    enhancing: mocks.enhancing,
+    enhanceDownloading: mocks.enhanceDownloading,
+    stopDownloads: mocks.stopDownloads,
     undo: mocks.undo,
     redo: mocks.redo,
     tagChoices: vi.fn(() => Promise.resolve({ onAll: [], onSome: [], others: [], exists: false })),
@@ -420,7 +427,9 @@ describe("App", () => {
       clockwise: false,
     });
     fireEvent.keyDown(window, { key: "a" });
-    expect(mocks.changePhotos).toHaveBeenLastCalledWith([1, 3], { kind: "enhance" });
+    await waitFor(() =>
+      expect(mocks.changePhotos).toHaveBeenLastCalledWith([1, 3], { kind: "enhance" }),
+    );
     fireEvent.click(within(fixes).getByRole("button", { name: "Rotate left" }));
     expect(mocks.changePhotos).toHaveBeenLastCalledWith([1, 3], {
       kind: "rotate",
@@ -437,7 +446,9 @@ describe("App", () => {
       fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
       const cell = await screen.findByRole("gridcell", { name: /IMG_2/ });
       fireEvent.click(within(cell).getByRole("button", { name: "Enhance" }));
-      expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "enhance" });
+      await waitFor(() =>
+        expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "enhance" }),
+      );
       fireEvent.click(within(cell).getByRole("button", { name: "Rotate right" }));
       expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "rotate", clockwise: true });
       expect(useStore.getState().selection.ids.has(2)).toBe(false);
