@@ -164,7 +164,7 @@ The basis of the design test: fix a crooked, dark photo in under five minutes.
 1. Copy edits (Shift+Ctrl+C) copies the current photo's edits.
 2. Select targets, Paste edits (Shift+Ctrl+V): a small dialog with adjustments and effects checked and crop and rotation unchecked.
 3. Save as preset in the Editor asks for a name and the same choices.
-4. Presets in the Editor preview on hover and apply on click; in the Library, the Presets menu applies one to the selection.
+4. Presets in the Editor preview on hover and apply on click; in the Library, the photo's right-click menu has a Presets submenu that applies one to the selection (and, on macOS, the Edit menu).
 
 ### 8. Export (EXP-*)
 

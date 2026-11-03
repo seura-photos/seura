@@ -1,6 +1,6 @@
 # Seura Photos — Technical Design (v1)
 
-Status: approved · Last updated: 2026-10-17
+Status: approved · Last updated: 2026-11-03
 
 This document describes how Seura Photos v1 is built. It implements the [functional spec](functional-spec.md) and follows the [decision records](decisions/); the edit file format is defined in [seura-photos/edit-format](https://github.com/seura-photos/edit-format). Versions are current as of this date and are pinned when the project is scaffolded.
 
@@ -124,7 +124,7 @@ The EXIF orientation tag is applied once, at decode, so everything downstream (t
 No GPL code: exiv2 and gexiv2 are excluded because they're GPL-licensed and Seura is Apache-2.0.
 
 - **Read:** `kamadak-exif` for EXIF in JPEG, HEIF, and PNG (date taken, camera, lens, GPS, orientation, dimensions).
-- **Write on export** (EXP-4): `img-parts` to carry the original EXIF block into the new file, `little_exif` to reset orientation and remove GPS when requested, and `xmp_toolkit` (Adobe's XMP Toolkit, BSD-licensed, via MIT/Apache bindings) to write tags as `dc:subject` keywords and the rating as `xmp:Rating`, which Lightroom, digiKam, Windows, and macOS all read.
+- **Write on export** (EXP-4): `img-parts` to carry the original EXIF block into the new file, `little_exif` to reset orientation and remove GPS when requested, and a small XMP packet written by Seura's own code, with tags as `dc:subject` keywords and `lr:hierarchicalSubject` levels and the rating as `xmp:Rating`, which Lightroom, digiKam, Windows, and macOS all read. Export only writes a new packet with these few fields, never edits an existing one, so Adobe's XMP Toolkit (`xmp_toolkit`) and the C++ build it adds on both platforms aren't needed; tests check that other apps read the result. The original's embedded thumbnail and previews are dropped.
 - Originals are never written.
 
 ### Export (EXP-1 to EXP-6)
