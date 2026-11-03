@@ -1,10 +1,10 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { Cloud, Lock, Plus, Star, X } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { commands, type PhotoDetails, type SelectionSummary, type TagCount } from "./bindings";
 import { formatBytes, formatDateTime, formatDateTimeRange, formatNumber } from "./format";
 import { t } from "./messages";
 import { anchorOf, useStore } from "./store";
+import { ThumbnailImage } from "./ThumbnailImage";
 
 /** Moving through photos quickly asks for details only once it rests. */
 const SETTLE = 80;
@@ -142,14 +142,7 @@ function Photo({
 
   return (
     <>
-      {preview && (
-        <img
-          className="info-preview"
-          src={convertFileSrc(`thumb-${details.id}`, "seura")}
-          alt=""
-          draggable={false}
-        />
-      )}
+      {preview && <ThumbnailImage key={details.id} id={details.id} className="info-preview" />}
       <h2 className="info-name">{details.name}</h2>
       {details.taken != null ? (
         <p className="meta">{formatDateTime(details.taken)}</p>
