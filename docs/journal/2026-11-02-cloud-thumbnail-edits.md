@@ -1,0 +1,8 @@
+# A rotated photo in the cloud shows the turn on its thumbnail
+
+- **Found by Nevada, using the app:** rotating a cloud-only photo in the grid applied the turn, and the Viewer showed it, but the thumbnail didn't. Claude Code had flagged the possibility that day while building Enhance's downloads, and Nevada confirmed it on real cloud photos.
+- **The cause:** a cloud-only photo's thumbnail comes from the system, and that path never applied edits. It has been that way since edited thumbnails arrived, on 2026-10-21.
+- **Why it seemed to have worked before:** Nevada remembered it working. Until the grid's quick actions on 2026-10-30, the only way to rotate was the Editor, which downloads the photo, so its thumbnail came from the file and showed the turn. The history doesn't show a change that broke it; the quick rotate, which needs no download, is what exposed it. That's Claude Code's reading of the history, not something tested on an older build.
+- **The fix:** edits are in the edit file, so they can be rendered onto the system's image without reading the photo, and nothing downloads (LIB-9). Every edit shows, not only the turn, including on a photo that has gone back to the cloud and lost its cached thumbnail.
+- **Thumbnails already made stay wrong unless they're remade,** since an edited photo's cache key follows its files, which haven't changed. Claude Code changed the key for edited photos, so each edited photo's thumbnail is made once more after updating. The old ones go in the usual sweep.
+- **Checked by tests only here.** The scratch copies marked offline get no image from the system, so this needs real cloud photos, for Nevada to try on both machines.
