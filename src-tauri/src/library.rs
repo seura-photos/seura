@@ -120,8 +120,11 @@ pub struct EnhanceReport {
     pub failed: u32,
     /// In the cloud, and the download failed or took too long.
     pub not_downloaded: u32,
-    /// In the cloud, and left there because the user stopped.
+    /// In the cloud, and not enhanced because the user stopped.
     pub stopped: u32,
+    /// The user stopped during a download. Seura stopped waiting, but its
+    /// read goes on, so the photo may arrive anyway, not enhanced.
+    pub still_downloading: bool,
 }
 
 /// How far scanning has got, for the status bar (LIB-3): first looking for
@@ -301,6 +304,7 @@ impl Library {
                 Downloaded::Failed => result.not_downloaded += 1,
                 Downloaded::Stopped => {
                     result.stopped = total - done as u32;
+                    result.still_downloading = true;
                     break;
                 }
             }

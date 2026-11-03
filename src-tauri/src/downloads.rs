@@ -19,8 +19,8 @@ pub enum Downloaded {
     Yes,
     /// It failed, or took longer than the wait.
     Failed,
-    /// The user stopped. What the system then does with the download is up
-    /// to it (LIB-9).
+    /// The user stopped. The read can't be cancelled and goes on, so the
+    /// download may still finish.
     Stopped,
 }
 

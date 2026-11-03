@@ -547,8 +547,13 @@ export type EnhanceReport = {
 	failed: number,
 	/**  In the cloud, and the download failed or took too long. */
 	notDownloaded: number,
-	/**  In the cloud, and left there because the user stopped. */
+	/**  In the cloud, and not enhanced because the user stopped. */
 	stopped: number,
+	/**
+	 *  The user stopped during a download. Seura stopped waiting, but its
+	 *  read goes on, so the photo may arrive anyway, not enhanced.
+	 */
+	stillDownloading: boolean,
 };
 
 /**

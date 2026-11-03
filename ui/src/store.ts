@@ -232,12 +232,13 @@ function changeDone(change: PhotoChange, count: number): string {
 /** What Enhance with downloads did, always said, since the photos may be
  * off screen by the time it's over (BRW-10). */
 function enhanceMessage(count: number, report: EnhanceReport): string {
-  const { readOnly, unreadable, failed, notDownloaded, stopped } = report;
+  const { readOnly, unreadable, failed, notDownloaded, stopped, stillDownloading } = report;
   const done = count - readOnly - unreadable - failed - notDownloaded - stopped;
   return [
     done === count ? t("change-done-enhanced", { count }) : null,
     done > 0 && done < count ? t("enhance-done-some", { done, count }) : null,
     stopped > 0 ? t("enhance-stopped", { count: stopped }) : null,
+    stillDownloading ? t("enhance-still-downloading") : null,
     notDownloaded > 0 ? t("enhance-not-downloaded", { count: notDownloaded }) : null,
     readOnly > 0 ? t("change-read-only-some", { count: readOnly }) : null,
     unreadable > 0 ? t("change-unreadable", { count: unreadable }) : null,

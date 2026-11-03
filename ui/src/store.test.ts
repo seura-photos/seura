@@ -3,7 +3,14 @@ import { commands } from "./bindings";
 import { useStore } from "./store";
 
 const changed = { readOnly: 0, unreadable: 0, failed: 0, cloudOnly: 0 };
-const report = { readOnly: 0, unreadable: 0, failed: 0, notDownloaded: 0, stopped: 0 };
+const report = {
+  readOnly: 0,
+  unreadable: 0,
+  failed: 0,
+  notDownloaded: 0,
+  stopped: 0,
+  stillDownloading: false,
+};
 const mocks = vi.hoisted(() => ({
   enhancing: { cloudOnly: 0, cloudSize: 0, onComputer: 0 },
   finish: Promise.resolve({ status: "ok", data: {} }) as Promise<unknown>,
@@ -84,12 +91,16 @@ describe("store", () => {
 
     it.each([
       [{}, "Enhanced 5 photos."],
-      [{ stopped: 2 }, "Enhanced 3 of 5 photos. 2 photos weren't downloaded, because you stopped."],
+      [{ stopped: 2 }, "Enhanced 3 of 5 photos. 2 photos weren't enhanced, because you stopped."],
+      [
+        { stopped: 2, stillDownloading: true },
+        "Enhanced 3 of 5 photos. 2 photos weren't enhanced, because you stopped. A download already under way may still finish.",
+      ],
       [
         { notDownloaded: 1 },
         "Enhanced 4 of 5 photos. 1 photo couldn't be downloaded, so it wasn't enhanced. Check your connection.",
       ],
-      [{ stopped: 5 }, "5 photos weren't downloaded, because you stopped."],
+      [{ stopped: 5 }, "5 photos weren't enhanced, because you stopped."],
     ])("says what a selection's downloads did: %o", async (fields, message) => {
       mocks.enhancing = { cloudOnly: 5, cloudSize: 1, onComputer: 0 };
       finished(fields);
