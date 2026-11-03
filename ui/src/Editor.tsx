@@ -325,6 +325,7 @@ export function Editor({ id, forceWebgl2, devExport }: Props) {
         else if (result.data.kind === "failed")
           say(t("editor-save-failed", { reason: result.data.reason }));
       });
+      useStore.setState({ editorSaving: saving.current });
       return saving.current;
     },
     [say, saved],
@@ -874,6 +875,10 @@ export function Editor({ id, forceWebgl2, devExport }: Props) {
     useStore.setState({ editorStep: (undo) => fromMenu(undo) });
     return () => useStore.setState({ editorStep: null });
   }, []);
+  useEffect(() => {
+    useStore.setState({ editorFlush: flush });
+    return () => useStore.setState({ editorFlush: null });
+  }, [flush]);
 
   function move(to: number | undefined) {
     if (to === undefined) return;

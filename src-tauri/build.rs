@@ -58,6 +58,7 @@ fn main() {
         "finish_welcome",
         "check_render",
         "finish_render_check",
+        "finish_quit",
         "measure_elapsed",
         "scan_progress",
         "measure_report",

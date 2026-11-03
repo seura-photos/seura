@@ -290,6 +290,8 @@ export const commands = {
 	 *  web view doesn't have are listed, not failed. Does nothing outside the check.
 	 */
 	finishRenderCheck: (skipped: string[], problems: string[]) => __TAURI_INVOKE<void>("finish_render_check", { skipped, problems }),
+	/**  The UI has saved what was waiting, so the app can exit (#174). */
+	finishQuit: () => __TAURI_INVOKE<void>("finish_quit"),
 	/**  Milliseconds since the app started, for the measurement script. */
 	measureElapsed: () => __TAURI_INVOKE<number | null>("measure_elapsed"),
 	/**  How far scanning and thumbnails have got, now, for the measurement script. */
@@ -308,6 +310,7 @@ export const events = {
 	enhanceDownload: makeEvent<EnhanceDownload>("enhance-download"),
 	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
+	quitRequested: makeEvent<QuitRequested>("quit-requested"),
 	scanProgress: makeEvent<ScanProgress>("scan-progress"),
 	thumbnailsReady: makeEvent<ThumbnailsReady>("thumbnails-ready"),
 };
@@ -814,6 +817,9 @@ export type PhotoNotices = {
 	 */
 	originalChanged: boolean,
 };
+
+/**  The user asked to quit: the UI saves what's waiting and calls `finish_quit`. */
+export type QuitRequested = null;
 
 /**
  *  One of `seura.redEye`'s circles: x and y as fractions of the upright

@@ -76,6 +76,10 @@ type State = {
   editedFrom: "viewer" | "library";
   /** The open Editor's undo (`true`) and redo, for the Edit menu's (EDT-9). */
   editorStep: ((undo: boolean) => void) | null;
+  /** Saves the open Editor's waiting change, for quitting (EDT-11). */
+  editorFlush: (() => Promise<unknown>) | null;
+  /** The Editor's latest save, which can outlast leaving the Editor. */
+  editorSaving: Promise<unknown>;
   /** A one-line message about the last action, such as adding a folder. */
   notice: string | null;
   /** Counts notices, so the same message twice is announced twice. */
@@ -159,6 +163,8 @@ type State = {
   enhanceDownload: (event: EnhanceDownload) => void;
   /** Stops Enhance's downloads (BRW-10). */
   stopDownloads: () => Promise<void>;
+  /** Saves what's waiting, then lets the app exit (EDT-11, #174). */
+  quit: () => Promise<void>;
   /** The photos the photo commands act on: the one in the Editor or the
    * Viewer, or the selection. */
   chosenPhotos: () => number[];
@@ -378,6 +384,8 @@ export const useStore = create<State>()((set, get) => ({
   editing: null,
   editedFrom: "library",
   editorStep: null,
+  editorFlush: null,
+  editorSaving: Promise.resolve(),
   notice: null,
   noticeId: 0,
   libraryVersion: 0,
@@ -776,6 +784,12 @@ export const useStore = create<State>()((set, get) => ({
 
   async stopDownloads() {
     await commands.stopDownloads();
+  },
+  async quit() {
+    const { editorFlush, editorSaving } = get();
+    // A save that fails has said so, and doesn't keep the app open.
+    await Promise.allSettled([editorFlush?.(), editorSaving]);
+    await commands.finishQuit();
   },
 
   async openPicker(ids, anchor) {
