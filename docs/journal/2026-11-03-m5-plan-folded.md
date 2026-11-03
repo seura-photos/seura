@@ -1,0 +1,7 @@
+# The M5 plan, with the design session's answers
+
+- **Folded in the answers** to questions 1 to 12 and the embedded thumbnails (#205, edit-format #17). Two differ from what Claude Code suggested: presets live in the right-click menu and the macOS Edit menu, and keywords are written by level.
+- **The crop's rule, Claude Code's choice, as the design session asked:** a ratio-locked crop on a photo of another shape keeps its ratio, its center and its share of the photo's area, shrinking and then moving inward only if it must. A target of the same shape gets exactly the source's crop.
+- **A gap found while choosing it, raised as question 15:** the rule needs the target's shape, and a cloud-only photo's dimensions are known only if it has been decoded before. Answer 5 says pasting never downloads, and the code's own rule is that dimensions never come from a guess. Claude Code suggests leaving that photo's crop as it was and saying so.
+- **The M5 milestone and slice issues** are created now, as the plan is agreed. Slices 0, 1 and 8 use the issues that already exist.
+- **0.3.1's CI:** the macos-latest job on #204 was cancelled after 15 minutes with no steps run, so it never got a runner. Claude Code re-ran it.
