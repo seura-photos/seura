@@ -16,7 +16,7 @@ The working plan for milestone M5 from the [milestone plan](milestone-plan.md): 
 - testing Delete on the Mac with Google Drive and Dropbox (#162), which needs Nevada's hands;
 - the technical design's sentence that an abandoned read stops a download on macOS (section 4), which #202 corrected in the functional spec but not there.
 
-**Not in M5:** Review and its "Export photos rated 4★ or more" (M6); the Settings screen and its default export options (SET-2), so the dialog remembers its own choices until then; next-photo speed (#190), within its target and left for M7's performance audit, as Nevada decided in M4's wrap-up; HDR display (#60). Hover and pressed states for buttons (#184) wait on question 12.
+**Not in M5:** Review and its "Export photos rated 4★ or more" (M6); the Settings screen and its default export options (SET-2), so the dialog remembers its own choices until then; next-photo speed (#190), within its target and left for M7's performance audit, as Nevada decided in M4's wrap-up; HDR display (#60).
 
 **Before M5 starts:** M4's "done when" is still Nevada's to confirm, and #139, #141 and #142 are still open. They'll be closed or carried over against the M4 plan when it's recorded. Nothing in this plan depends on the order, except that the edit format's appendix (#141) isn't touched here.
 
@@ -134,6 +134,6 @@ Questions 1 to 12 are for a design session, and each has a suggestion, which the
 9. **XMP's library.** The technical design names `xmp_toolkit`, which wraps Adobe's C++ toolkit, so it adds a C++ build on both platforms. Export only writes a new, small packet with a few fields. Suggestion: write that packet in Seura's own code, with tests that other apps read it, and keep `xmp_toolkit` out. That's a change to the technical design, so it's asked rather than done.
 10. **Show the result of a one-photo export.** EXP-6 describes a summary for batches. Suggestion: one photo gets the message, with Show in Explorer or Finder, and no separate summary.
 11. **An export into a library folder.** It's a new file there, so the watcher adds it to the library as a photo. Suggestion: that's correct, and nothing special is done, but the default for a first export is the Pictures folder rather than the photo's own.
-12. **Hover and pressed states (#184).** Export and the new dialogs add buttons. Are the states wanted in M5, and are the tokens designed?
+12. **Buttons drawn on the photo.** The hover and pressed states (#184) are designed and built (#186), but the visual design doesn't cover the Viewer's next and previous, the remove button on a red-eye circle, or the thumbnail quick actions, which already have a hover. Suggestion: leave them as they are.
 13. **An interim build (Nevada).** The cloud badge, Enhance's downloads and the thumbnail fixes are on `main` but in no release, and export is several slices away. Nevada's answer (2026-11-03): yes, as version 0.3.1, now. Another build after slice 4 is still open.
 14. **Where #190 goes (Nevada).** Nevada's answer (2026-11-03): M7, as this plan has it.
