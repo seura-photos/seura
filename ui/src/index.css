@@ -1023,6 +1023,17 @@ button {
   background: var(--color-danger);
 }
 
+.badge-cloud {
+  right: 0.375rem;
+  top: 0.375rem;
+}
+
+/* Below the hover actions, which take its corner: it matters most just as
+   Enhance is about to be clicked. */
+.cell:hover .badge-cloud {
+  top: 2.625rem;
+}
+
 .placeholder {
   width: 100%;
   height: 100%;

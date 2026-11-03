@@ -143,5 +143,7 @@ describe("grid cell labels (ACC-2)", () => {
     expect(cellLabel(photo).replace(/\s/g, " ")).toBe("IMG_1.jpg, Jul 12, 2026, 6:42 PM, 4 stars");
     expect(cellLabel({ ...photo, rating: 1 })).toMatch(/, 1 star$/);
     expect(cellLabel({ ...photo, rating: 0 })).not.toMatch(/star/);
+    expect(cellLabel({ ...photo, cloudOnly: true })).toMatch(/, 4 stars, in the cloud$/);
+    expect(cellLabel(photo)).not.toMatch(/cloud/);
   });
 });

@@ -473,6 +473,44 @@ describe("App", () => {
     }
   });
 
+  it("badges photos still in the cloud, until they've downloaded (LIB-9)", async () => {
+    const restore = layOutGrid();
+    try {
+      mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+      mocks.photos = [photo(1), { ...photo(2), cloudOnly: true }, { ...photo(3), cloudOnly: true }];
+      render(<App />);
+      fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+      const cell = await screen.findByRole("gridcell", { name: /IMG_2.*in the cloud/ });
+      const badge = within(cell).getByRole("img", { name: "In the cloud" });
+      expect(badge.title).toBe("In the cloud");
+      // Downloaded photos in synced folders show nothing.
+      const local = screen.getByRole("gridcell", { name: /IMG_1/ });
+      expect(within(local).queryByRole("img", { name: "In the cloud" })).toBeNull();
+      expect(local.getAttribute("aria-label")).not.toMatch(/cloud/);
+      // A tile with no thumbnail says it in words instead.
+      act(() =>
+        useStore
+          .getState()
+          .thumbnailsReady([{ id: 3, cloudOnly: true, needsCodec: false, failed: false }]),
+      );
+      const bare = screen.getByRole("gridcell", { name: /IMG_3/ });
+      expect(bare.textContent).toContain("In the cloud");
+      expect(within(bare).queryByRole("img", { name: "In the cloud" })).toBeNull();
+      // Opening it downloaded it, and the library says so.
+      mocks.photos = [photo(1), photo(2), { ...photo(3), cloudOnly: true }];
+      await act(() => useStore.getState().loadFolders());
+      await waitFor(() =>
+        expect(
+          within(screen.getByRole("gridcell", { name: /IMG_2/ })).queryByRole("img", {
+            name: "In the cloud",
+          }),
+        ).toBeNull(),
+      );
+    } finally {
+      restore();
+    }
+  });
+
   it("rates the selection with 0 to 5, but not while typing (TAG-6)", async () => {
     mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
     mocks.photos = [1, 2, 3].map((id) => photo(id));

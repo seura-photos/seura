@@ -1,0 +1,6 @@
+# The cloud badge (M4 slice 12)
+
+- **From the design session's decision in #195:** Nevada asked for a cloud icon after using 0.3. It's slices 12 and 13 of M4, added after the build: the badge first, then Enhance downloading cloud-only photos.
+- **Keeping it current took less than expected.** The watcher already reports attribute changes and a scan already records them, so a photo's state follows on its own. Claude Code checked that in the real app, on scratch copies marked offline: clearing the mark on one took its badge away within seconds. Seura's own downloads, from opening a photo in the Viewer or Editor, now also update the index directly, so the badge doesn't depend on the watcher.
+- **The hover buttons sit where the badge goes.** The wireframe puts both at the top right, so a hovered photo's buttons would cover the badge and its tooltip could never show, just as the badge matters most, before clicking Enhance. Claude Code moved the badge below the buttons while the photo is hovered. It's a small jump, for Nevada to judge; it can't be checked by automation here, which can't move the mouse.
+- **On a letterboxed photo the badge sits half off it,** since badges are placed on the square cell, as the edited badge and rating already are. Left as it is, to match them.

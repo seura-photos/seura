@@ -184,6 +184,17 @@ impl Library {
         report
     }
 
+    /// After reading a cloud-only photo, which downloads it (LIB-9): the
+    /// grid's badge follows at once, without waiting for the watcher, and a
+    /// tile with no thumbnail gets one.
+    pub fn downloaded<R: Runtime>(&self, app: &AppHandle<R>, id: PhotoId) {
+        if Index::refresh_placeholder(&self.index, id) {
+            self.save();
+            self.queue_all(app);
+            let _ = LibraryChanged.emit(app);
+        }
+    }
+
     /// Changes one photo's edits from the Editor (EDT-11), through the same
     /// path, then saves the index and tells the UI, so the grid's badges
     /// follow. Not one of the Library's actions to undo: the photo's own
