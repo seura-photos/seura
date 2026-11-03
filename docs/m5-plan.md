@@ -1,8 +1,8 @@
 # M5 work plan: Reuse and share
 
-Status: draft for review · Last updated: 2026-11-03
+Status: agreed · Last updated: 2026-11-03
 
-The working plan for milestone M5 from the [milestone plan](milestone-plan.md): getting edited photos out of Seura, and reusing edits on other photos. It breaks the milestone into slices, one pull request each (or a few, lettered), in order. Drafted by Claude Code from the milestone plan, the [functional spec](functional-spec.md), the [user flows](ux/user-flows.md) and [wireframes](ux/wireframes.md), the [visual design](visual-design.md), the [technical design](technical-design.md), and the [edit format](https://github.com/seura-photos/edit-format). The questions it couldn't settle are at the end: most for a design session, and two that Nevada has answered.
+The working plan for milestone M5 from the [milestone plan](milestone-plan.md): getting edited photos out of Seura, and reusing edits on other photos. It breaks the milestone into slices, one pull request each (or a few, lettered), in order. Drafted by Claude Code from the milestone plan, the [functional spec](functional-spec.md), the [user flows](ux/user-flows.md) and [wireframes](ux/wireframes.md), the [visual design](visual-design.md), the [technical design](technical-design.md), and the [edit format](https://github.com/seura-photos/edit-format). The questions it couldn't settle are at the end, with the answers from the design session (#205, edit-format #17) and from Nevada.
 
 **Scope** (milestone plan, M5): copy and paste of edits, and presets (PRE-1 to PRE-5); export (EXP-1 to EXP-6), including sRGB conversion and metadata handling.
 
@@ -55,7 +55,7 @@ New in M5:
 No screens yet: `seura-render`'s export grows from M1's `export_jpeg` into one function taking the options, used by tests and by the dialog in slice 4.
 
 - **Formats:** JPEG with a quality setting, default 90 (`encode_jpeg` already embeds the sRGB profile), or PNG, with an sRGB profile. HEIC originals export as either.
-- **Sizes:** the original, or the long edge limited to 2048, 1600, 1024 or a custom value, applied to the photo as cropped. A photo smaller than the limit keeps its size (question 7). Resizing happens once, after the render.
+- **Sizes:** the original, or the long edge limited to 2048, 1600, 1024 or a custom value, applied to the photo as cropped. A limit never enlarges, so a photo smaller than it keeps its size, and a custom value is a whole number of pixels from 16 up (question 7). Resizing happens once, after the render.
 - **Color** (EXP-5): the wgpu pipeline's existing sRGB output, checked on an iPhone Display P3 photo and on a wide-gamut generated image, in other apps.
 - **Names** (EXP-3): `write_new` is already there and never replaces a file. Tests cover a new extension, taken names, and a name taken meanwhile.
 - **The encoder:** the comparison of `jpeg-encoder` with `mozjpeg` the technical design asks for, at quality 90, on file size and time. `mozjpeg` is C with extra build tools, so it needs a clear win to change; the result goes in `docs/benchmarks/`.
@@ -65,29 +65,31 @@ No screens yet: `seura-render`'s export grows from M1's `export_jpeg` into one f
 
 - **Kept:** the original's EXIF, read from JPEG, HEIC or PNG, carried into the new file with `img-parts`, as the technical design says.
 - **Corrected, since the pixels changed:** orientation reset to 1; pixel dimensions set to the exported size; the color space tag set to sRGB, since iPhone photos say "uncalibrated".
-- **Removed:** the thumbnail embedded in EXIF. It would show the photo unedited and uncropped in some viewers, and it can hold a picture the user cropped out.
+- **Removed:** the thumbnail embedded in EXIF, and any previews, including MPF. They would show the photo unedited and uncropped in some viewers, and can hold a picture the user cropped out. Tested on photos that have both.
 - **Remove location data:** every GPS field. Only EXIF is copied and XMP is written new, so location can't arrive through the original's XMP. Tested by reading the result with a tool Seura doesn't use.
-- **Include tags and rating as keywords:** `dc:subject` and `xmp:Rating` in XMP (questions 8 and 9).
-- **Done when:** date, camera and lens appear in Photos, File Explorer, Preview and Finder for JPEG and PNG exports from JPEG and HEIC originals; location is gone when asked; keywords show in at least one other photo app on each platform.
+- **Include tags and rating as keywords:** in a small XMP packet Seura writes itself, without `xmp_toolkit` (question 9). `dc:subject` gets each level of a tag as its own keyword, without repeats (`family/kids` gives `family` and `kids`); `lr:hierarchicalSubject` gets the whole tag with `|` (`family|kids`); the rating is `xmp:Rating` (question 8).
+- **Done when:** date, camera and lens appear in Photos, File Explorer, Preview and Finder for JPEG and PNG exports from JPEG and HEIC originals; location is gone when asked; keywords and rating are read by Windows Explorer, by Finder or Preview, and by one of Lightroom or digiKam (installing either is Nevada's call).
 
 ### 4. The Export dialog and batches (EXP-1, EXP-6, LIB-9)
 
-- **The dialog** from the wireframe: Save to (path and Choose…); Format beside Size; Details; the sentence about originals and names; Cancel and Export. Export on the toolbars of the Library, Viewer and Editor, and Ctrl+E (Cmd+E). The Editor saves anything waiting first.
-- **Remembered in `settings.json`:** the last folder and the dialog's choices. If the last folder is gone, Save to is empty and Export waits for one. M1's development-only export goes.
+- **The dialog** from the wireframe: Save to (path and Choose…); Format beside Size; Details; the sentence about originals and names; when any photo is only in the cloud, "3 of these photos are in the cloud (24 MB) and will be downloaded." above the buttons, with Export as the confirmation (question 6); Cancel and Export. Export on the toolbars of the Library, Viewer and Editor, and Ctrl+E (Cmd+E). The Editor saves anything waiting first.
+- **Remembered in `settings.json`:** the last folder and the dialog's choices. The first export starts in the Pictures folder; a folder in the library is allowed, and the files simply appear there as new photos (question 11). If the last folder is gone, Save to is empty and Export waits for one. M1's development-only export goes.
 - **Progress with Cancel,** in the batch's message like Enhance's, and off the main thread. One photo at a time, so a 48-megapixel batch holds one photo in memory. Cancel stops between photos and stops waiting for one in progress; files already written stay, and a partly written temporary file is removed (rule 5).
 - **Cloud-only photos** (LIB-9, EXP-6): shown as downloading with their size while the export waits for each, with Stop's behavior already settled in #202: the download may still finish (question 6).
-- **The summary:** how many were exported, which couldn't be and why, and Show in Explorer or Finder.
+- **The summary:** for a batch, how many were exported, which couldn't be and why, and Show in Explorer or Finder. One photo gets a message with Show in Explorer or Finder instead (question 10).
 - **Problems:** a full drive or a folder that can't be written says so and stops; one unreadable photo is reported and the others go on.
 - **Done when:** Nevada exports a mixed selection, some in the cloud, to a local folder on both machines, cancels one, and finds the names, summary and originals as they should be.
 
 ### 5. Copy and paste edits (PRE-1, PRE-2)
 
-- **Copy edits:** Shift+Ctrl+C (Shift+Cmd+C), in the Library, the Viewer and the Editor's toolbar. It copies from the focused photo (question 2), into memory in the core: not the system clipboard, and gone when the app quits.
-- **Paste edits:** Shift+Ctrl+V (Shift+Cmd+V), then the small dialog, with adjustments and effects on, crop and rotation off, and red-eye not offered (question 1). Nothing to paste, or nothing in a group, is shown rather than failing silently.
+- **Copy edits:** Shift+Ctrl+C (Shift+Cmd+C), in the Library, the Viewer and the Editor's toolbar. It copies from the focused photo, and the message names it ("Copied the edits of IMG_1234."). A photo with no edits is refused with a message, and what was copied earlier stays (question 2). The copy is held in memory in the core: not the system clipboard, and gone when the app quits.
+- **Paste edits:** Shift+Ctrl+V (Shift+Cmd+V), then the small dialog: Adjustments (tone and color) and Effects on, Crop and rotation (the whole geometry stage: orient, straighten, crop) off, and red-eye never offered (question 1). Nothing to paste, or nothing in a group, is shown rather than failing silently.
+- **A crop on a photo of another shape:** a crop with a ratio lock keeps its ratio, by the rule Claude Code chose, as the design session asked. The center stays where it was and the crop's share of the photo's area stays the same; if that doesn't fit, it shrinks until it does, then moves inward only as far as it must. In the target's frame W × H, after any pasted orient, with ratio `a` and share `s = width × height`: `width = sqrt(s × a × H / W)`, `height = s / width`. A target of the same shape gets exactly the source's crop. If the pasted straighten would then show empty corners, the crop shrinks as it does in the Editor. A crop with no lock keeps its fractions.
+- **A target whose dimensions aren't known** (cloud-only, never read) isn't downloaded. If the pasted group holds a ratio-locked crop or a straighten angle, which need its shape, that photo keeps its whole crop and rotation group as it was, the other groups paste as usual, and the message says so: "1 photo is in the cloud, so its crop and rotation weren't changed." Rotation and flips, and a crop with no lock and no angle, need no shape and paste as usual (question 15).
 - **Replacing, by stage** (PRE-2; edit format, "Presets"): the chosen stages replace the target's and the others stay. It goes through the one write path, so each photo's history records it, and read-only folders and unreadable edit files are reported as for any change.
 - **Undo:** a paste onto a selection is one action to undo in the Library (BRW-11); in the Editor it's a step in the photo's own history (EDT-9). Pasting nothing into a photo with no edits leaves no edit file; pasting that removes the last edit follows FIL-1.
-- **Other apps' operations** (FIL-5): a target's are kept, and a copied photo's aren't copied (question 3).
-- **Done when:** Nevada copies edits from one photo to a selection of various shapes, some in the cloud, on both machines, and one undo reverses it.
+- **Other apps' operations** (FIL-5): within a stage, Seura replaces only what it understands. A target's others stay, and a copied photo's aren't added (question 3; edit-format #17, with the submodule updated in this slice).
+- **Done when:** Nevada copies edits, including a ratio-locked crop, from one photo to a selection of various shapes, some in the cloud, on both machines, and one undo reverses it.
 
 ### 6. Presets as files (PRE-3, PRE-5)
 
@@ -99,8 +101,8 @@ No screens yet: `seura-render`'s export grows from M1's `export_jpeg` into one f
 ### 7. Applying presets (PRE-4, INT-3)
 
 - **The Editor's Presets section,** last before Revert, per the wireframe. Hovering or focusing a preset previews it on the photo, through the same preview renderer, writing nothing; leaving restores the photo; clicking applies it as one step in the photo's history. The preview has to stay smooth, so PRF-6's measurement gets a preset case.
-- **In the Library:** the selection's Presets menu (question 4), one action to undo.
-- **Stages:** a preset replaces the stages it holds and leaves the others (edit format), including a geometry stage if the file has one.
+- **In the Library:** a Presets submenu in the photo's right-click menu on both platforms, and in the macOS Edit menu, not in the Windows ⋯ menu (question 4). It acts on the selection, as one action to undo, and needs no download (question 5).
+- **Stages:** a preset replaces the stages it holds and leaves the others (edit format), including a geometry stage if the file has one, which follows slice 5's rules for other shapes and unknown dimensions.
 - **Done when:** Nevada previews and applies presets on photos of different shapes on both machines, and applies one to a selection.
 
 ### 8. Explaining a service's deletion notice (#200, FIL-1)
@@ -121,19 +123,20 @@ From the design session's answer in #202: no dialog, no checkbox and no setting.
 
 ## Questions
 
-Questions 1 to 12 are for a design session, and each has a suggestion, which the plan assumes until answered. Questions 13 and 14 were Nevada's, and are answered.
+All are answered: 1 to 12 and 15 by the design session on 2026-11-03 (#205, edit-format #17; journal, `2026-11-03-m5-plan-answers.md`), and 13 and 14 by Nevada.
 
-1. **Paste's groups.** PRE-1 names "adjustments and effects" and "crop and rotation". The format's stages are tone, effects, geometry and retouch. Suggestion: three checkboxes, Adjustments (tone), Effects, and Crop and rotation (geometry, including straighten), with red-eye (retouch) never offered. Is crop and rotation one choice or two?
-2. **What Copy copies from.** With several photos selected, "the current photo" isn't obvious. Suggestion: the focused photo, and the message names it ("Copied the edits of IMG_1234."). A copy of a photo with no edits: suggest it's refused with a message, rather than replacing what was copied earlier.
-3. **Other apps' operations.** The format's stage rule would replace a target's non-core operations in a pasted stage, which conflicts in spirit with keeping what Seura doesn't understand (FIL-5). Suggestion: paste replaces only the core operations in a stage, keeps the target's others, and doesn't copy the source's. Does the format need a sentence on this?
-4. **The Library's Presets menu.** User flows give it, but the wireframe's toolbar has no place for it. Suggestion: a Presets submenu in the photo's right-click menu and in the ⋯ menu, for the selection.
-5. **Pasting and presets on cloud-only photos.** LIB-9 lists editing among what downloads a photo, while BRW-10 says rotating needs no pixels. Pasting and presets need none either. Suggestion: no download, as with rotate, and LIB-9 is worded to say so.
-6. **Exporting many cloud-only photos.** Enhance asks once for a selection, with count and size, because unasked bulk downloads are what LIB-9 rules out. Export is also an action on a selection. Suggestion: the dialog says it, above the buttons ("3 of these photos are in the cloud (24 MB) and will be downloaded."), with no further question, since the dialog is already asking.
-7. **Sizes.** Suggestion: a limit never enlarges; a photo smaller than it keeps its size. A custom value is a whole number of pixels from 16 upwards, remembered with the other choices.
-8. **Slashes in keywords.** A tag is one string, and slashes mark levels for display (TAG-1). As a keyword, `family/kids` could stay as written, or be split for apps that understand levels. Suggestion: `dc:subject` as written, plus Lightroom's hierarchical field (`lr:hierarchicalSubject`, with `|`) if it's cheap, since that's what other apps read for levels.
-9. **XMP's library.** The technical design names `xmp_toolkit`, which wraps Adobe's C++ toolkit, so it adds a C++ build on both platforms. Export only writes a new, small packet with a few fields. Suggestion: write that packet in Seura's own code, with tests that other apps read it, and keep `xmp_toolkit` out. That's a change to the technical design, so it's asked rather than done.
-10. **Show the result of a one-photo export.** EXP-6 describes a summary for batches. Suggestion: one photo gets the message, with Show in Explorer or Finder, and no separate summary.
-11. **An export into a library folder.** It's a new file there, so the watcher adds it to the library as a photo. Suggestion: that's correct, and nothing special is done, but the default for a first export is the Pictures folder rather than the photo's own.
-12. **Buttons drawn on the photo.** The hover and pressed states (#184) are designed and built (#186), but the visual design doesn't cover the Viewer's next and previous, the remove button on a red-eye circle, or the thumbnail quick actions, which already have a hover. Suggestion: leave them as they are.
-13. **An interim build (Nevada).** The cloud badge, Enhance's downloads and the thumbnail fixes are on `main` but in no release, and export is several slices away. Nevada's answer (2026-11-03): yes, as version 0.3.1, now. Another build after slice 4 is still open.
-14. **Where #190 goes (Nevada).** Nevada's answer (2026-11-03): M7, as this plan has it.
+1. **Paste's groups.** Three checkboxes: Adjustments (tone and color) and Effects, on by default, and Crop and rotation (the whole geometry stage), off by default. Red-eye is never pasted. A ratio-locked crop keeps its ratio on a target of another shape, by a rule for Claude Code to choose (slice 5).
+2. **What Copy copies from.** The focused photo, and the message names it. A photo with no edits is refused with a message, and the earlier copy stays.
+3. **Other apps' operations.** Within a stage, an app replaces only the operations it understands. Others stay on the target, and the source's aren't added (edit-format #17).
+4. **The Library's Presets menu.** A Presets submenu in the photo's right-click menu on both platforms, and in the macOS Edit menu. Not in the Windows ⋯ menu, which is for app-wide commands. This differs from the suggestion.
+5. **Pasting and presets on cloud-only photos.** No download. LIB-9 is reworded: only changes that need pixels, such as Enhance, download.
+6. **Exporting many cloud-only photos.** The line sits above the dialog's buttons, and Export is the confirmation.
+7. **Sizes.** Limits never enlarge. A custom value is a whole number of pixels from 16 up. All the choices are remembered.
+8. **Slashes in keywords.** `dc:subject` gets each level as its own keyword, without repeats; `lr:hierarchicalSubject` gets the whole tag with `|`; the rating is `xmp:Rating`. This differs from the suggestion.
+9. **XMP's library.** Seura writes the small packet itself, and `xmp_toolkit` is out (technical design updated). Tests check that Windows Explorer, macOS (Finder or Preview) and one of Lightroom or digiKam read the keywords and rating.
+10. **The result of a one-photo export.** A message with Show in Explorer or Finder, and no separate summary.
+11. **An export into a library folder.** Allowed, with nothing special. The first export defaults to the Pictures folder.
+12. **Buttons drawn on the photo.** They stay as they are.
+13. **An interim build (Nevada).** Yes, as version 0.3.1, now (#204). Another build after slice 4 is still open.
+14. **Where #190 goes (Nevada).** M7, as this plan has it.
+15. **A ratio-locked crop on a cloud-only photo (raised by Claude Code while folding in the answers).** Claude Code's crop rule is confirmed. A target whose dimensions aren't known isn't downloaded. If the pasted group holds a ratio-locked crop or a straighten angle, that photo keeps its whole crop and rotation group as it was, not just its crop, because straightening without the shape could uncover corners under the old crop. This is wider than the suggestion. The other groups paste as usual, it's one undo action (BRW-11), and presets follow the same rule.
