@@ -1,8 +1,8 @@
 # M5 work plan: Reuse and share
 
-Status: draft for review · Last updated: 2026-11-02
+Status: draft for review · Last updated: 2026-11-03
 
-The working plan for milestone M5 from the [milestone plan](milestone-plan.md): getting edited photos out of Seura, and reusing edits on other photos. It breaks the milestone into slices, one pull request each (or a few, lettered), in order. Drafted by Claude Code from the milestone plan, the [functional spec](functional-spec.md), the [user flows](ux/user-flows.md) and [wireframes](ux/wireframes.md), the [visual design](visual-design.md), the [technical design](technical-design.md), and the [edit format](https://github.com/seura-photos/edit-format). The questions it couldn't settle are at the end: most for a design session, and the last few for Nevada.
+The working plan for milestone M5 from the [milestone plan](milestone-plan.md): getting edited photos out of Seura, and reusing edits on other photos. It breaks the milestone into slices, one pull request each (or a few, lettered), in order. Drafted by Claude Code from the milestone plan, the [functional spec](functional-spec.md), the [user flows](ux/user-flows.md) and [wireframes](ux/wireframes.md), the [visual design](visual-design.md), the [technical design](technical-design.md), and the [edit format](https://github.com/seura-photos/edit-format). The questions it couldn't settle are at the end: most for a design session, and two that Nevada has answered.
 
 **Scope** (milestone plan, M5): copy and paste of edits, and presets (PRE-1 to PRE-5); export (EXP-1 to EXP-6), including sRGB conversion and metadata handling.
 
@@ -121,7 +121,7 @@ From the design session's answer in #202: no dialog, no checkbox and no setting.
 
 ## Questions
 
-Questions 1 to 12 are for a design session; 13 and 14 are Nevada's. Each has a suggestion, which the plan assumes until answered.
+Questions 1 to 12 are for a design session, and each has a suggestion, which the plan assumes until answered. Questions 13 and 14 were Nevada's, and are answered.
 
 1. **Paste's groups.** PRE-1 names "adjustments and effects" and "crop and rotation". The format's stages are tone, effects, geometry and retouch. Suggestion: three checkboxes, Adjustments (tone), Effects, and Crop and rotation (geometry, including straighten), with red-eye (retouch) never offered. Is crop and rotation one choice or two?
 2. **What Copy copies from.** With several photos selected, "the current photo" isn't obvious. Suggestion: the focused photo, and the message names it ("Copied the edits of IMG_1234."). A copy of a photo with no edits: suggest it's refused with a message, rather than replacing what was copied earlier.
@@ -135,5 +135,5 @@ Questions 1 to 12 are for a design session; 13 and 14 are Nevada's. Each has a s
 10. **Show the result of a one-photo export.** EXP-6 describes a summary for batches. Suggestion: one photo gets the message, with Show in Explorer or Finder, and no separate summary.
 11. **An export into a library folder.** It's a new file there, so the watcher adds it to the library as a photo. Suggestion: that's correct, and nothing special is done, but the default for a first export is the Pictures folder rather than the photo's own.
 12. **Hover and pressed states (#184).** Export and the new dialogs add buttons. Are the states wanted in M5, and are the tokens designed?
-13. **An interim build (Nevada).** The cloud badge, Enhance's downloads and the thumbnail fixes are on `main` but in no release, and export is several slices away. Suggestion: publish 0.3.1 now, as with 0.2.2 in M4, then 0.4 at the end of M5, or a 0.3.2 after slice 4, since export is what 0.3 most lacks.
-14. **Where #190 goes (Nevada).** This plan leaves it for M7, as your wrap-up decision allowed ("in M5 or in M7"). Say if you'd rather have it here.
+13. **An interim build (Nevada).** The cloud badge, Enhance's downloads and the thumbnail fixes are on `main` but in no release, and export is several slices away. Nevada's answer (2026-11-03): yes, as version 0.3.1, now. Another build after slice 4 is still open.
+14. **Where #190 goes (Nevada).** Nevada's answer (2026-11-03): M7, as this plan has it.
