@@ -1,6 +1,6 @@
 # M4 work plan: Fix
 
-Status: draft for review · Last updated: 2026-10-29
+Status: complete · Last updated: 2026-11-03
 
 The working plan for milestone M4 from the [milestone plan](milestone-plan.md): the full Editor. It breaks the milestone into slices, one pull request each (or a few, lettered), in order. Drafted by Claude Code from the milestone plan, the [functional spec](functional-spec.md), the [user flows](ux/user-flows.md) and [wireframes](ux/wireframes.md), the [visual design](visual-design.md), the [technical design](technical-design.md), and the [edit format](https://github.com/seura-photos/edit-format). The questions it couldn't settle are at the end, for a design session.
 
@@ -159,6 +159,16 @@ Added after 0.3, from Nevada's use of it, and designed in #195.
 - **One photo** downloads without asking, as opening does, and the tile shows it. **A selection** asks once, with the count and total size: Download and enhance, Enhance only the ones on this computer, or Cancel.
 - Downloads run one at a time, each photo enhanced as it arrives, and the whole is one action for undo (BRW-11). A selection's message stays up with its progress and a Stop button, whatever the view. A finished message always says what happened, including photos stopped or not downloaded.
 - **Done when:** Nevada enhances cloud-only photos, one and several, on both machines, and undoes it.
+
+## Status
+
+**The milestone's "done when"** is met: **M4 is complete** (2026-11-03). Nevada confirmed fixing their own photos in Seura on both machines. The edit format is proven by a full implementation: the design session reviewed the whole formulas appendix (edit-format #15), and Seura's shaders match its reference images (`the_shaders_match_the_reference_images`). The freeze itself is in M7.
+
+This records the milestone, not a fresh check of every slice's "done when"; what each slice found is in `docs/journal/`. Builds 0.3.0 and 0.3.1 are published as public pre-releases, 0.3.1 with slices 12 and 13, added after 0.3.0.
+
+**Carried forward:**
+- **To M5:** a change in the last moment before quitting isn't saved (#174), decoding colors in full (#188), explaining a service's deletion notice (#200), Delete with Google Drive and Dropbox on the Mac (#162), and Node 26 (#156).
+- **To M7:** Delete in OneDrive folders on the Mac, retested with Developer ID signing (#112), and next-photo speed in the Viewer (#190), which is within its target.
 
 ## Questions
 
