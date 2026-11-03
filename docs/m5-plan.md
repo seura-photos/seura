@@ -36,7 +36,7 @@ New in M5:
 
 ### 0. Carried in (#174, #156, #162)
 
-- **Saving on quit** (#174, EDT-11): a change still waiting when the window closes or the app quits is saved first. An unsaved rating or edit is the one way left to lose work in the Editor.
+- **Saving on quit** (#174, EDT-11): a change still waiting when the window closes or the app quits is saved first.
 - **Node 26** (#156), once it's allowed on 2026-11-11, so this can land at any point in the milestone.
 - **The technical design's sentence** on abandoned downloads, corrected to match LIB-9 as a small factual fix, said plainly in the pull request.
 - **Mac, with Nevada** (#162): Delete with Google Drive and Dropbox, on test copies, whenever it suits.
@@ -93,7 +93,7 @@ No screens yet: `seura-render`'s export grows from M1's `export_jpeg` into one f
 
 - **Save as preset** in the Editor: a name and the same choices as pasting, saved as `<name>.seura-preset.json` in `Seura Photos/Presets` (edit format, `kind: "preset"`), atomically. Names are cleaned up for the file system on both platforms, and a name in use asks first; nothing is overwritten silently.
 - **The list:** the Presets folder is watched, so files copied in appear without restarting. A file that can't be read is listed with a note and never rewritten (rule 4).
-- **Rename and delete** in the app. Delete goes to the Trash or Recycle Bin (rule 5), which is why it needs no second question beyond a confirmation.
+- **Rename and delete** in the app. Delete goes to the Trash or Recycle Bin (rule 5), after a confirmation.
 - **Done when:** a preset saved on one machine and copied to the other appears and validates with the format's `check.py`.
 
 ### 7. Applying presets (PRE-4, INT-3)
