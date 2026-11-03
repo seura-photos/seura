@@ -971,6 +971,11 @@ button {
   outline-offset: 2px;
 }
 
+/* Loading out of sight: see ThumbnailImage. */
+.thumbnail-loading {
+  display: none;
+}
+
 .cell img {
   max-width: 100%;
   max-height: 100%;

@@ -1,7 +1,7 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { LoaderCircle } from "lucide-react";
 import { formatBytes } from "./format";
 import { t } from "./messages";
+import { ThumbnailImage } from "./ThumbnailImage";
 
 type Props = {
   id: number;
@@ -19,12 +19,7 @@ type Props = {
 export function CloudPhoto({ id, state, onTryAgain }: Props) {
   return (
     <>
-      <img
-        className="viewer-thumbnail"
-        src={convertFileSrc(`thumb-${id}`, "seura")}
-        alt=""
-        draggable={false}
-      />
+      <ThumbnailImage key={id} id={id} className="viewer-thumbnail" />
       <div className="viewer-message" role="status">
         {state.kind === "downloading" && (
           <LoaderCircle className="icon viewer-spinner" aria-hidden />

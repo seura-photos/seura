@@ -874,14 +874,20 @@ describe("Editor", () => {
     await brightness();
     const strip = screen.getByRole("navigation", { name: "Filmstrip" });
     const image = within(strip).getByRole("button", { name: "IMG_7.jpg" }).querySelector("img");
+    fireEvent.load(image as Element);
     act(() => {
       useStore
         .getState()
         .thumbnailsReady([{ id: 7, cloudOnly: false, needsCodec: false, failed: false }]);
     });
-    const after = within(strip).getByRole("button", { name: "IMG_7.jpg" }).querySelector("img");
-    expect(after).toBe(image);
-    expect(after?.getAttribute("src")).toMatch(/\?v=1$/);
+    const cell = within(strip).getByRole("button", { name: "IMG_7.jpg" });
+    // The old image stays until the new one has loaded.
+    expect(cell.querySelector("img")).toBe(image);
+    const next = cell.querySelector("img.thumbnail-loading");
+    expect(next?.getAttribute("src")).toMatch(/\?v=1$/);
+    fireEvent.load(next as Element);
+    expect(cell.querySelectorAll("img")).toHaveLength(1);
+    expect(cell.querySelector("img")).toBe(next);
   });
 
   it("undoes from the photo's own history, saving what's waiting first (EDT-9)", async () => {

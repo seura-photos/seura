@@ -105,7 +105,9 @@ impl ThumbnailCache {
         hasher.update(modified.secs.to_le_bytes());
         hasher.update(modified.nanos.to_le_bytes());
         if let Some((size, modified)) = edit_file {
-            hasher.update(b"edits");
+            // Not the "edits" of 0.3 and before, whose thumbnails of photos
+            // in the cloud left the edits out: those get made again.
+            hasher.update(b"edits-2");
             hasher.update(size.to_le_bytes());
             hasher.update(modified.secs.to_le_bytes());
             hasher.update(modified.nanos.to_le_bytes());
@@ -135,11 +137,7 @@ impl ThumbnailCache {
             Err(seura_image::DecodeError::HeifUnavailable(_)) => return Outcome::NeedsCodec,
             Err(error) => return Outcome::Failed(error.to_string()),
         };
-        let small = decoded.image;
-        let small = match (&self.edits, edited) {
-            (Some(ApplyEdits(apply)), true) => apply(photo, small),
-            _ => small,
-        };
+        let small = self.with_photo_edits(photo, decoded.image, edited);
         let bytes = seura_image::thumbnail(&small);
         if let Err(error) = self.store(key, &bytes) {
             return Outcome::Failed(error.to_string());
@@ -149,6 +147,24 @@ impl ThumbnailCache {
             height: decoded.height,
             taken: decoded.taken,
         }))
+    }
+
+    /// The thumbnail-sized image, with the photo's edits if it's `edited`.
+    fn with_photo_edits(&self, photo: &Path, image: Rgba8, edited: bool) -> Rgba8 {
+        match (&self.edits, edited) {
+            (Some(ApplyEdits(apply)), true) => apply(photo, image),
+            _ => image,
+        }
+    }
+
+    /// Stores the system's image of a cloud-only photo as its thumbnail, with
+    /// its edits: they're in the edit file, so the photo still isn't read.
+    fn store_from_system(&self, job: &Job, image: Rgba8) -> Outcome {
+        let image = self.with_photo_edits(&job.path, image, job.edited);
+        match self.store(&job.key, &seura_image::thumbnail(&image)) {
+            Ok(()) => Outcome::Ready(None),
+            Err(error) => Outcome::Failed(error.to_string()),
+        }
     }
 
     /// Stores thumbnail bytes made elsewhere (the system's, for cloud-only photos).
@@ -358,10 +374,7 @@ fn from_system(cache: &ThumbnailCache, job: &Job) -> Outcome {
     let Some(image) = seura_image::system_thumbnail(&job.path, seura_image::THUMBNAIL_SIZE) else {
         return Outcome::CloudOnly;
     };
-    match cache.store(&job.key, &seura_image::thumbnail(&image)) {
-        Ok(()) => Outcome::Ready(None),
-        Err(error) => Outcome::Failed(error.to_string()),
-    }
+    cache.store_from_system(job, image)
 }
 
 fn work(shared: &(Mutex<Queue>, Condvar), cache: &ThumbnailCache, done: &dyn Fn(PhotoId, Outcome)) {
@@ -459,6 +472,49 @@ mod tests {
         assert_eq!(cache.sweep(&HashSet::new(), Duration::ZERO), 1);
 
         assert!(!folder.path().join(THUMBS_FOLDER).join("dd").exists());
+    }
+
+    /// A cache whose edits show as the image turned on its side.
+    fn turning_cache(folder: &Path) -> ThumbnailCache {
+        ThumbnailCache::new(folder).with_edits(ApplyEdits(Arc::new(|_, image: Rgba8| {
+            Rgba8::new(image.height, image.width, image.pixels)
+        })))
+    }
+
+    /// Rotating a photo in the cloud doesn't download it (BRW-10), so the
+    /// system's image is all there is to show the turn on (LIB-9).
+    #[test]
+    fn a_cloud_only_photo_s_thumbnail_shows_its_edits() {
+        let folder = tempfile::tempdir().unwrap();
+        let cache = turning_cache(folder.path());
+        let job = Job {
+            placeholder: true,
+            edited: true,
+            ..job(1)
+        };
+
+        let outcome = cache.store_from_system(&job, Rgba8::new(40, 20, vec![90; 3200]));
+
+        assert_eq!(outcome, Outcome::Ready(None));
+        let stored = fs::read(cache.path(&job.key)).unwrap();
+        let expected = seura_image::thumbnail(&Rgba8::new(20, 40, vec![90; 3200]));
+        assert_eq!(stored, expected);
+    }
+
+    #[test]
+    fn an_unedited_cloud_only_photo_keeps_the_system_s_image() {
+        let folder = tempfile::tempdir().unwrap();
+        let cache = turning_cache(folder.path());
+        let job = Job {
+            placeholder: true,
+            ..job(1)
+        };
+
+        cache.store_from_system(&job, Rgba8::new(40, 20, vec![90; 3200]));
+
+        let stored = fs::read(cache.path(&job.key)).unwrap();
+        let expected = seura_image::thumbnail(&Rgba8::new(40, 20, vec![90; 3200]));
+        assert_eq!(stored, expected);
     }
 
     #[test]

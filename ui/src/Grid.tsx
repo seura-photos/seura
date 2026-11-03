@@ -1,4 +1,3 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   CircleAlert,
@@ -23,6 +22,7 @@ import { GAP, gridLayout } from "./gridLayout";
 import type { Quick } from "./QuickActions";
 import { t } from "./messages";
 import { moveFocus, type Selection } from "./selection";
+import { ThumbnailImage } from "./ThumbnailImage";
 import { thumbLabel, type ThumbState } from "./thumbState";
 
 type Props = {
@@ -274,10 +274,6 @@ function Thumbnail({
   onMenu,
   onQuick,
 }: ThumbnailProps) {
-  // The version whose image failed to load: a newer version is tried again.
-  const [missingVersion, setMissingVersion] = useState<number | null>(null);
-  const version = state?.version ?? 0;
-  const missing = missingVersion === version;
   const label = thumbLabel(state);
 
   return (
@@ -296,14 +292,13 @@ function Thumbnail({
       onDoubleClick={() => onOpen?.(photo)}
       onContextMenu={onMenu}
     >
-      {label || missing ? (
+      {label ? (
         <div className="placeholder">{label}</div>
       ) : (
-        <img
-          src={`${convertFileSrc(`thumb-${photo.id}`, "seura")}?v=${version}`}
-          alt=""
-          draggable={false}
-          onError={() => setMissingVersion(version)}
+        <ThumbnailImage
+          id={photo.id}
+          version={state?.version ?? 0}
+          placeholder={<div className="placeholder" />}
         />
       )}
       {photo.unreadable && (

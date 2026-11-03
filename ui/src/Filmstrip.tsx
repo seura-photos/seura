@@ -1,9 +1,9 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { PhotoInfo } from "./bindings";
 import { t } from "./messages";
 import { useStore } from "./store";
+import { ThumbnailImage } from "./ThumbnailImage";
 
 /** A cell's width and the gap after it, in CSS pixels (styled mockup). */
 const CELL = 76;
@@ -74,9 +74,6 @@ type CellProps = {
 
 function Cell({ photo, start, version, current, onChoose }: CellProps) {
   const cell = useRef<HTMLButtonElement>(null);
-  // The version whose image failed to load: a newer version is tried again
-  // (as in the grid).
-  const [missingVersion, setMissingVersion] = useState<number | null>(null);
 
   // Focus follows the current photo while it's in the filmstrip, so moving
   // with the arrow keys after a click doesn't leave the clicked cell
@@ -100,17 +97,8 @@ function Cell({ photo, start, version, current, onChoose }: CellProps) {
       tabIndex={current ? 0 : -1}
       onClick={() => onChoose(photo.id)}
     >
-      {/* A new version replaces the image in place, the old one showing
-          until it has loaded, so the cell doesn't flash empty. A thumbnail
-          not made yet leaves the cell empty until it's ready. */}
-      {missingVersion !== version && (
-        <img
-          src={`${convertFileSrc(`thumb-${photo.id}`, "seura")}?v=${String(version)}`}
-          alt=""
-          draggable={false}
-          onError={() => setMissingVersion(version)}
-        />
-      )}
+      {/* A thumbnail not made yet leaves the cell empty until it's ready. */}
+      <ThumbnailImage id={photo.id} version={version} />
     </button>
   );
 }
