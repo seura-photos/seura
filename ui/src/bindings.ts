@@ -52,6 +52,22 @@ export const commands = {
 	 */
 	changePhotos: (ids: number[], change: PhotoChange) => typedError<ChangeResult, string>(__TAURI_INVOKE("change_photos", { ids, change })),
 	/**
+	 *  Asks each photo's file, which only reads its attributes, whether it's in
+	 *  the cloud; the index and grid follow if it has changed. Photos in
+	 *  read-only folders count as neither: Enhance can't change them.
+	 */
+	enhancing: (ids: number[]) => __TAURI_INVOKE<Enhancing>("enhancing", { ids }),
+	/**
+	 *  Enhances photos, downloading those in the cloud (BRW-10, LIB-9). It takes
+	 *  as long as the downloads do; [`stop_downloads`] ends it early.
+	 */
+	enhanceDownloading: (ids: number[]) => typedError<EnhanceReport, string>(__TAURI_INVOKE("enhance_downloading", { ids })),
+	/**
+	 *  Stops Enhance's downloads: nothing more is downloaded, and the photo in
+	 *  progress isn't waited for. Photos already enhanced stay so (BRW-10).
+	 */
+	stopDownloads: () => __TAURI_INVOKE<void>("stop_downloads"),
+	/**
 	 *  Starts photos over from edit files that can't be read, once the user
 	 *  has confirmed with Start over (FIL-4): each old file is kept, unchanged,
 	 *  in `Unreadable edit files` in Seura's folder, named with the time in the
@@ -289,6 +305,7 @@ export const commands = {
 /** Events */
 export const events = {
 	editFileChanged: makeEvent<EditFileChanged>("edit-file-changed"),
+	enhanceDownload: makeEvent<EnhanceDownload>("enhance-download"),
 	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
 	scanProgress: makeEvent<ScanProgress>("scan-progress"),
@@ -326,7 +343,10 @@ export type ChangeResult = {
 	unreadable: number,
 	/**  Couldn't be changed for another reason, such as a full drive. */
 	failed: number,
-	/**  Only in the cloud, so not enhanced: reading would download them. */
+	/**
+	 *  Only in the cloud, so not enhanced: the user chose not to download
+	 *  them (BRW-10).
+	 */
 	cloudOnly: number,
 };
 
@@ -501,6 +521,52 @@ export type EditSteps = {
 	 *  can't edit, which revert keeps and says so (EDT-10).
 	 */
 	otherApps: boolean,
+};
+
+/**  Enhance's download of a cloud-only photo started or ended (BRW-10). */
+export type EnhanceDownload = {
+	id: number,
+	downloading: boolean,
+	/**  Which download of how many, counting from 1. */
+	at: number,
+	total: number,
+	/**
+	 *  For a selection, which shows its progress and Stop; one photo's tile
+	 *  is enough for itself.
+	 */
+	batch: boolean,
+};
+
+/**  What Enhance with downloads did, in numbers of photos. */
+export type EnhanceReport = {
+	/**  In a read-only folder (TAG-7). */
+	readOnly: number,
+	/**  Their edit file can't be read, so it's left alone (FIL-4). */
+	unreadable: number,
+	/**  Couldn't be changed for another reason, such as a full drive. */
+	failed: number,
+	/**  In the cloud, and the download failed or took too long. */
+	notDownloaded: number,
+	/**  In the cloud, and not enhanced because the user stopped. */
+	stopped: number,
+	/**
+	 *  The user stopped during a download. Seura stopped waiting, but its
+	 *  read goes on, so the photo may arrive anyway, not enhanced.
+	 */
+	stillDownloading: boolean,
+};
+
+/**
+ *  What Enhance would involve, for the UI to ask first when a selection
+ *  includes photos in the cloud (BRW-10, LIB-9).
+ */
+export type Enhancing = {
+	/**  In the cloud, so enhancing them downloads them. */
+	cloudOnly: number,
+	/**  Their total size, in bytes. */
+	cloudSize: number | null,
+	/**  On this computer, so enhancing them downloads nothing. */
+	onComputer: number,
 };
 
 /**  What exporting did. */

@@ -14,7 +14,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 
 use crate::editor::{ChangeDetail, EditSteps, Editor};
-use crate::library::{AppSettings, Library, LibraryChanged};
+use crate::library::{AppSettings, EnhanceReport, Library, LibraryChanged};
 use crate::viewer::{Viewer, Wanted};
 use crate::welcome;
 use seura_edit::{Amount, CoreOperation, Strength, Vignette, WhiteBalance};
@@ -717,7 +717,8 @@ pub struct ChangeResult {
     pub unreadable: u32,
     /// Couldn't be changed for another reason, such as a full drive.
     pub failed: u32,
-    /// Only in the cloud, so not enhanced: reading would download them.
+    /// Only in the cloud, so not enhanced: the user chose not to download
+    /// them (BRW-10).
     pub cloud_only: u32,
 }
 
@@ -756,6 +757,72 @@ pub async fn change_photos(
     })
     .await
     .map_err(|error| error.to_string())
+}
+
+/// What Enhance would involve, for the UI to ask first when a selection
+/// includes photos in the cloud (BRW-10, LIB-9).
+#[derive(Clone, Debug, Default, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Enhancing {
+    /// In the cloud, so enhancing them downloads them.
+    pub cloud_only: u32,
+    /// Their total size, in bytes.
+    pub cloud_size: f64,
+    /// On this computer, so enhancing them downloads nothing.
+    pub on_computer: u32,
+}
+
+/// Asks each photo's file, which only reads its attributes, whether it's in
+/// the cloud; the index and grid follow if it has changed. Photos in
+/// read-only folders count as neither: Enhance can't change them.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn enhancing(app: AppHandle, ids: Vec<u32>) -> Enhancing {
+    let library = app.state::<Library>();
+    for id in &ids {
+        library.downloaded(&app, PhotoId::new(*id));
+    }
+    let index = library.index.read().expect("index lock");
+    let mut enhancing = Enhancing::default();
+    for id in ids {
+        let Some(photo) = index.photo(PhotoId::new(id)) else {
+            continue;
+        };
+        if index
+            .folder(photo.folder)
+            .is_some_and(|folder| folder.read_only)
+        {
+            continue;
+        }
+        if photo.placeholder {
+            enhancing.cloud_only += 1;
+            enhancing.cloud_size += photo.size as f64;
+        } else {
+            enhancing.on_computer += 1;
+        }
+    }
+    enhancing
+}
+
+/// Enhances photos, downloading those in the cloud (BRW-10, LIB-9). It takes
+/// as long as the downloads do; [`stop_downloads`] ends it early.
+#[tauri::command]
+#[specta::specta]
+pub async fn enhance_downloading(app: AppHandle, ids: Vec<u32>) -> Result<EnhanceReport, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let ids: Vec<PhotoId> = ids.into_iter().map(PhotoId::new).collect();
+        app.state::<Library>().enhance_downloading(&app, &ids)
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+/// Stops Enhance's downloads: nothing more is downloaded, and the photo in
+/// progress isn't waited for. Photos already enhanced stay so (BRW-10).
+#[tauri::command]
+#[specta::specta]
+pub fn stop_downloads(library: State<'_, Library>) {
+    library.stop_downloads();
 }
 
 /// What the notice bar says about one photo's files (FIL-5, FIL-7).
@@ -1370,7 +1437,7 @@ pub enum ViewedPhoto {
 /// How long the Viewer waits for a cloud-only photo before saying it
 /// couldn't be downloaded. Neither system reports progress (LIB-9), so this
 /// is generous: about 1 Mbit/s for a 20 MB photo.
-const DOWNLOAD_WAIT: Duration = Duration::from_secs(180);
+pub(crate) const DOWNLOAD_WAIT: Duration = Duration::from_secs(180);
 
 /// Shows photo `id` in the Viewer, decoded to fit an area of `width` ×
 /// `height` device pixels (DSP-1), and decodes `neighbors` ahead (PRF-5).

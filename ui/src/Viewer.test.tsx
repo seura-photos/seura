@@ -30,6 +30,7 @@ vi.mock("./bindings", () => ({
     viewRegion: mocks.viewRegion,
     closeViewer: mocks.closeViewer,
     changePhotos: mocks.changePhotos,
+    enhancing: vi.fn(() => Promise.resolve({ cloudOnly: 0, cloudSize: 0, onComputer: 1 })),
     selectionSummary: vi.fn(() => Promise.resolve({ count: 1, readOnly: 0 })),
     photoDetails: vi.fn(() => Promise.resolve({ status: "error", error: "not in the test" })),
     photoNotices: mocks.photoNotices,
@@ -137,7 +138,9 @@ describe("Viewer (BRW-5)", () => {
     fireEvent.keyDown(window, { key: "]" });
     expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "rotate", clockwise: true });
     fireEvent.keyDown(window, { key: "a" });
-    expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "enhance" });
+    await waitFor(() =>
+      expect(mocks.changePhotos).toHaveBeenLastCalledWith([2], { kind: "enhance" }),
+    );
     // The buttons are enabled once the photo is shown, which can come a
     // render after it's drawn.
     const left = within(screen.getByRole("group", { name: "Quick fixes" })).getByRole("button", {

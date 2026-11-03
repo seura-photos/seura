@@ -11,6 +11,8 @@ import {
   type TagInfo,
   type ThumbnailReady,
   type WelcomeInfo,
+  type EnhanceDownload,
+  type EnhanceReport,
 } from "./bindings";
 import { pathTo } from "./folderRows";
 import { setRegion } from "./format";
@@ -138,6 +140,25 @@ type State = {
   closeEditor: () => void;
   /** Opening several photos in the default app, waiting to be confirmed. */
   confirmingOpen: { ids: number[]; count: number; cloudOnly: number } | null;
+  /** Enhance on a selection with photos in the cloud, waiting to be
+   * answered (BRW-10). */
+  confirmingEnhance: {
+    ids: number[];
+    cloudOnly: number;
+    cloudSize: number;
+    onComputer: number;
+    byKey: boolean;
+  } | null;
+  /** The answer to that question. */
+  confirmEnhance: (choice: "download" | "onComputer" | "cancel") => Promise<void>;
+  /** Photos whose tiles show they're downloading for Enhance. */
+  downloading: ReadonlySet<number>;
+  /** A selection's downloads in progress, for their message and Stop. */
+  downloadBatch: { at: number; total: number } | null;
+  /** A download for Enhance started or ended. */
+  enhanceDownload: (event: EnhanceDownload) => void;
+  /** Stops Enhance's downloads (BRW-10). */
+  stopDownloads: () => Promise<void>;
   /** The photos the photo commands act on: the one in the Editor or the
    * Viewer, or the selection. */
   chosenPhotos: () => number[];
@@ -158,7 +179,8 @@ type State = {
   /** Turns photos a quarter (BRW-10); `byKey` as for `change`. */
   rotate: (ids: number[], clockwise: boolean, byKey?: boolean) => Promise<void>;
   /** One-click enhance for photos (BRW-10, EDT-12); `byKey` as for
-   * `change`. */
+   * `change`. One photo in the cloud downloads as opening it does; a
+   * selection with some asks first (LIB-9). */
   enhance: (ids: number[], byKey?: boolean) => Promise<void>;
   /** The tag picker, while it's open (TAG-3): its photos, and the box on
    * screen it's anchored beside (wireframes, section 7). */
@@ -207,6 +229,51 @@ function changeDone(change: PhotoChange, count: number): string {
 }
 
 /** Undoes or redoes, and says what happened (BRW-11). */
+/** What Enhance with downloads did, always said, since the photos may be
+ * off screen by the time it's over (BRW-10). */
+function enhanceMessage(count: number, report: EnhanceReport): string {
+  const { readOnly, unreadable, failed, notDownloaded, stopped, stillDownloading } = report;
+  const done = count - readOnly - unreadable - failed - notDownloaded - stopped;
+  return [
+    done === count ? t("change-done-enhanced", { count }) : null,
+    done > 0 && done < count ? t("enhance-done-some", { done, count }) : null,
+    stopped > 0 ? t("enhance-stopped", { count: stopped }) : null,
+    stillDownloading ? t("enhance-still-downloading") : null,
+    notDownloaded > 0 ? t("enhance-not-downloaded", { count: notDownloaded }) : null,
+    readOnly > 0 ? t("change-read-only-some", { count: readOnly }) : null,
+    unreadable > 0 ? t("change-unreadable", { count: unreadable }) : null,
+    failed > 0 ? t("change-failed", { count: failed }) : null,
+  ]
+    .filter((part) => part !== null)
+    .join(" ");
+}
+
+/** Enhances photos, downloading those in the cloud one at a time. One
+ * photo's tile shows it's downloading from the start, even while another
+ * download finishes first. */
+async function downloadAndEnhance(
+  ids: number[],
+  set: (change: (state: State) => Partial<State>) => void,
+  get: () => State,
+) {
+  const [only] = ids;
+  const alone = ids.length === 1 ? only : undefined;
+  if (alone !== undefined) {
+    set((state) => ({ downloading: new Set(state.downloading).add(alone) }));
+  }
+  const result = await commands.enhanceDownloading(ids);
+  set((state) => {
+    const next = new Set(state.downloading);
+    if (alone !== undefined) next.delete(alone);
+    return { downloading: next, downloadBatch: ids.length > 1 ? null : state.downloadBatch };
+  });
+  get().say(
+    result.status === "ok"
+      ? enhanceMessage(ids.length, result.data)
+      : t("change-failed", { count: ids.length }),
+  );
+}
+
 async function history(say: (notice: string) => void, which: "undo" | "redo") {
   const result = await (which === "undo" ? commands.undo() : commands.redo());
   if (result.status === "error") {
@@ -305,6 +372,9 @@ export const useStore = create<State>()((set, get) => ({
   viewing: null,
   reveal: null,
   confirmingOpen: null,
+  confirmingEnhance: null,
+  downloading: new Set(),
+  downloadBatch: null,
   editing: null,
   editedFrom: "library",
   editorStep: null,
@@ -676,7 +746,36 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   async enhance(ids, byKey = false) {
-    await get().change(ids, { kind: "enhance" }, byKey);
+    if (ids.length === 0) return;
+    const { cloudOnly, cloudSize, onComputer } = await commands.enhancing(ids);
+    if (cloudOnly === 0) await get().change(ids, { kind: "enhance" }, byKey);
+    else if (ids.length === 1) await downloadAndEnhance(ids, set, get);
+    else
+      set({ confirmingEnhance: { ids, cloudOnly, cloudSize: cloudSize ?? 0, onComputer, byKey } });
+  },
+
+  async confirmEnhance(choice) {
+    const confirming = get().confirmingEnhance;
+    set({ confirmingEnhance: null });
+    if (!confirming || choice === "cancel") return;
+    if (choice === "download") await downloadAndEnhance(confirming.ids, set, get);
+    else await get().change(confirming.ids, { kind: "enhance" }, confirming.byKey);
+  },
+
+  enhanceDownload({ id, downloading, at, total, batch }) {
+    set((state) => {
+      const next = new Set(state.downloading);
+      if (downloading) next.add(id);
+      else next.delete(id);
+      return {
+        downloading: next,
+        downloadBatch: batch ? { at, total } : state.downloadBatch,
+      };
+    });
+  },
+
+  async stopDownloads() {
+    await commands.stopDownloads();
   },
 
   async openPicker(ids, anchor) {

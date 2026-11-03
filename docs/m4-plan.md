@@ -156,8 +156,8 @@ Added after 0.3, from Nevada's use of it, and designed in #195.
 
 ### 13. Enhance downloads cloud-only photos (BRW-10, LIB-9)
 
-- **One photo** downloads without asking, as opening does, and the tile shows it. **A selection** asks once, with the count and total size; if declined, only the photos on the computer are enhanced, and the message says how many were left.
-- Downloads run one at a time, each photo enhanced as it arrives, and the whole is one action for undo (BRW-11). A photo that fails to download stays unenhanced, and the message says so.
+- **One photo** downloads without asking, as opening does, and the tile shows it. **A selection** asks once, with the count and total size: Download and enhance, Enhance only the ones on this computer, or Cancel.
+- Downloads run one at a time, each photo enhanced as it arrives, and the whole is one action for undo (BRW-11). A selection's message stays up with its progress and a Stop button, whatever the view. A finished message always says what happened, including photos stopped or not downloaded.
 - **Done when:** Nevada enhances cloud-only photos, one and several, on both machines, and undoes it.
 
 ## Questions

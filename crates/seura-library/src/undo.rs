@@ -65,6 +65,13 @@ impl Action {
         }
     }
 
+    /// Takes in the photos of a later part of the same action: Enhance
+    /// reaches cloud-only photos one at a time, and the whole is one action
+    /// to undo (BRW-10, BRW-11).
+    pub fn absorb(&mut self, part: Action) {
+        self.photos.extend(part.photos);
+    }
+
     /// How many photos it changed.
     pub fn len(&self) -> usize {
         self.photos.len()
@@ -381,6 +388,33 @@ mod tests {
             &|path| session.trash.take(path),
         );
         assert!(report.changed.is_empty());
+    }
+
+    /// Enhance on cloud-only photos: each is changed as it arrives, and the
+    /// parts make one action, covering only the photos it reached.
+    #[test]
+    fn an_action_made_in_parts_is_one_action_to_undo() {
+        let mut session = Session::new(3);
+        let ids = session.ids.clone();
+        let mut parts = ids[..2].iter().map(|id| {
+            Index::change_recorded(
+                &session.index,
+                std::slice::from_ref(id),
+                &Change::Rating(4),
+                WRITER,
+                OffsetDateTime::now_utc(),
+                &|path| session.trash.take(path),
+            )
+            .1
+        });
+        let mut action = parts.next().unwrap();
+        action.absorb(parts.next().unwrap());
+        drop(parts);
+        assert_eq!(action.len(), 2);
+        session.history.record(action);
+        let undone = session.undo().unwrap();
+        assert_eq!((undone.done, undone.skipped), (2, 0));
+        assert!(session.undo().is_none());
     }
 
     #[test]

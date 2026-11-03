@@ -1,4 +1,6 @@
+import { LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
+import { t } from "./messages";
 import { useStore } from "./store";
 
 /** How long a message shows, in milliseconds (INT-6: about 6 seconds). */
@@ -23,8 +25,25 @@ export function Message({ since = -1 }: { since?: number }) {
     return () => window.clearTimeout(timer);
   }, [noticeId]);
   const shown = notice !== null && noticeId > since && noticeId !== ended;
+  // Enhance's downloads: up until they're over, whatever the view (BRW-10).
+  const batch = useStore((state) => state.downloadBatch);
+  const stopDownloads = useStore((state) => state.stopDownloads);
   return (
     <div className="message-region" role="status">
+      {batch && (
+        <div className="message message-progress">
+          <LoaderCircle className="icon viewer-spinner" aria-hidden />
+          <span>{t("enhance-downloading", { at: batch.at, total: batch.total })}</span>
+          <button
+            type="button"
+            className="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => void stopDownloads()}
+          >
+            {t("enhance-stop")}
+          </button>
+        </div>
+      )}
       {shown && (
         <p key={noticeId} className="message">
           {notice}
