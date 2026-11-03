@@ -1,6 +1,6 @@
 # M5 work plan: Reuse and share
 
-Status: agreed, with one question open · Last updated: 2026-11-03
+Status: agreed · Last updated: 2026-11-03
 
 The working plan for milestone M5 from the [milestone plan](milestone-plan.md): getting edited photos out of Seura, and reusing edits on other photos. It breaks the milestone into slices, one pull request each (or a few, lettered), in order. Drafted by Claude Code from the milestone plan, the [functional spec](functional-spec.md), the [user flows](ux/user-flows.md) and [wireframes](ux/wireframes.md), the [visual design](visual-design.md), the [technical design](technical-design.md), and the [edit format](https://github.com/seura-photos/edit-format). The questions it couldn't settle are at the end, with the answers from the design session (#205, edit-format #17) and from Nevada.
 
@@ -84,7 +84,8 @@ No screens yet: `seura-render`'s export grows from M1's `export_jpeg` into one f
 
 - **Copy edits:** Shift+Ctrl+C (Shift+Cmd+C), in the Library, the Viewer and the Editor's toolbar. It copies from the focused photo, and the message names it ("Copied the edits of IMG_1234."). A photo with no edits is refused with a message, and what was copied earlier stays (question 2). The copy is held in memory in the core: not the system clipboard, and gone when the app quits.
 - **Paste edits:** Shift+Ctrl+V (Shift+Cmd+V), then the small dialog: Adjustments (tone and color) and Effects on, Crop and rotation (the whole geometry stage: orient, straighten, crop) off, and red-eye never offered (question 1). Nothing to paste, or nothing in a group, is shown rather than failing silently.
-- **A crop on a photo of another shape:** a crop with a ratio lock keeps its ratio, by the rule Claude Code chose, as the design session asked. The center stays where it was and the crop's share of the photo's area stays the same; if that doesn't fit, it shrinks until it does, then moves inward only as far as it must. In the target's frame W × H, after any pasted orient, with ratio `a` and share `s = width × height`: `width = sqrt(s × a × H / W)`, `height = s / width`. A target of the same shape gets exactly the source's crop. If the pasted straighten would then show empty corners, the crop shrinks as it does in the Editor. A crop with no lock keeps its fractions. A cloud-only target's shape may not be known (question 15).
+- **A crop on a photo of another shape:** a crop with a ratio lock keeps its ratio, by the rule Claude Code chose, as the design session asked. The center stays where it was and the crop's share of the photo's area stays the same; if that doesn't fit, it shrinks until it does, then moves inward only as far as it must. In the target's frame W × H, after any pasted orient, with ratio `a` and share `s = width × height`: `width = sqrt(s × a × H / W)`, `height = s / width`. A target of the same shape gets exactly the source's crop. If the pasted straighten would then show empty corners, the crop shrinks as it does in the Editor. A crop with no lock keeps its fractions.
+- **A target whose dimensions aren't known** (cloud-only, never read) isn't downloaded. If the pasted group holds a ratio-locked crop or a straighten angle, which need its shape, that photo keeps its whole crop and rotation group as it was, the other groups paste as usual, and the message says so: "1 photo is in the cloud, so its crop and rotation weren't changed." Rotation and flips, and a crop with no lock and no angle, need no shape and paste as usual (question 15).
 - **Replacing, by stage** (PRE-2; edit format, "Presets"): the chosen stages replace the target's and the others stay. It goes through the one write path, so each photo's history records it, and read-only folders and unreadable edit files are reported as for any change.
 - **Undo:** a paste onto a selection is one action to undo in the Library (BRW-11); in the Editor it's a step in the photo's own history (EDT-9). Pasting nothing into a photo with no edits leaves no edit file; pasting that removes the last edit follows FIL-1.
 - **Other apps' operations** (FIL-5): within a stage, Seura replaces only what it understands. A target's others stay, and a copied photo's aren't added (question 3; edit-format #17, with the submodule updated in this slice).
@@ -101,7 +102,7 @@ No screens yet: `seura-render`'s export grows from M1's `export_jpeg` into one f
 
 - **The Editor's Presets section,** last before Revert, per the wireframe. Hovering or focusing a preset previews it on the photo, through the same preview renderer, writing nothing; leaving restores the photo; clicking applies it as one step in the photo's history. The preview has to stay smooth, so PRF-6's measurement gets a preset case.
 - **In the Library:** a Presets submenu in the photo's right-click menu on both platforms, and in the macOS Edit menu, not in the Windows ⋯ menu (question 4). It acts on the selection, as one action to undo, and needs no download (question 5).
-- **Stages:** a preset replaces the stages it holds and leaves the others (edit format), including a geometry stage if the file has one, whose crop follows slice 5's rule.
+- **Stages:** a preset replaces the stages it holds and leaves the others (edit format), including a geometry stage if the file has one, which follows slice 5's rules for other shapes and unknown dimensions.
 - **Done when:** Nevada previews and applies presets on photos of different shapes on both machines, and applies one to a selection.
 
 ### 8. Explaining a service's deletion notice (#200, FIL-1)
@@ -122,7 +123,7 @@ From the design session's answer in #202: no dialog, no checkbox and no setting.
 
 ## Questions
 
-Question 15 is open, and the plan assumes its suggestion until answered. The others are answered: 1 to 12 by the design session on 2026-11-03 (#205, edit-format #17; journal, `2026-11-03-m5-plan-answers.md`), and 13 and 14 by Nevada.
+All are answered: 1 to 12 and 15 by the design session on 2026-11-03 (#205, edit-format #17; journal, `2026-11-03-m5-plan-answers.md`), and 13 and 14 by Nevada.
 
 1. **Paste's groups.** Three checkboxes: Adjustments (tone and color) and Effects, on by default, and Crop and rotation (the whole geometry stage), off by default. Red-eye is never pasted. A ratio-locked crop keeps its ratio on a target of another shape, by a rule for Claude Code to choose (slice 5).
 2. **What Copy copies from.** The focused photo, and the message names it. A photo with no edits is refused with a message, and the earlier copy stays.
@@ -138,4 +139,4 @@ Question 15 is open, and the plan assumes its suggestion until answered. The oth
 12. **Buttons drawn on the photo.** They stay as they are.
 13. **An interim build (Nevada).** Yes, as version 0.3.1, now (#204). Another build after slice 4 is still open.
 14. **Where #190 goes (Nevada).** M7, as this plan has it.
-15. **A ratio-locked crop on a cloud-only photo (design session; raised by Claude Code while folding in the answers).** The crop's rule needs the target's shape, but a cloud-only photo's dimensions are known only if it has been decoded before, and answer 5 rules out downloading it. A crop rewritten from a guessed shape could be visibly wrong, and the thumbnail's shape is only approximate. Suggestion: use the dimensions if they're known. If they aren't, paste the rest of the stage, leave that photo's crop as it was, and say so in the message ("1 photo is in the cloud, so its crop wasn't changed."). The same goes for a preset with a geometry stage. A crop with no ratio lock needs no shape and is pasted as usual.
+15. **A ratio-locked crop on a cloud-only photo (raised by Claude Code while folding in the answers).** Claude Code's crop rule is confirmed. A target whose dimensions aren't known isn't downloaded. If the pasted group holds a ratio-locked crop or a straighten angle, that photo keeps its whole crop and rotation group as it was, not just its crop, because straightening without the shape could uncover corners under the old crop. This is wider than the suggestion. The other groups paste as usual, it's one undo action (BRW-11), and presets follow the same rule.
