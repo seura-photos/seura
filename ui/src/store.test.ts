@@ -94,7 +94,7 @@ describe("store", () => {
       [{ stopped: 2 }, "Enhanced 3 of 5 photos. 2 photos weren't enhanced, because you stopped."],
       [
         { stopped: 2, stillDownloading: true },
-        "Enhanced 3 of 5 photos. 2 photos weren't enhanced, because you stopped. A download already under way may still finish.",
+        "Enhanced 3 of 5 photos. 2 photos weren't enhanced, because you stopped. One that was already downloading may still arrive on this computer.",
       ],
       [
         { notDownloaded: 1 },

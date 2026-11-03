@@ -351,7 +351,7 @@ enhance-stopped =
         [one] 1 photo wasn't enhanced, because you stopped.
        *[other] { $count } photos weren't enhanced, because you stopped.
     }
-enhance-still-downloading = A download already under way may still finish.
+enhance-still-downloading = One that was already downloading may still arrive on this computer.
 enhance-not-downloaded =
     { $count ->
         [one] 1 photo couldn't be downloaded, so it wasn't enhanced. Check your connection.
