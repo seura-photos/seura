@@ -44,7 +44,7 @@ New in M5:
 
 ### 1. Decoding colors in full (#188; edit format's decoding paragraph)
 
-- **Unclipped conversion:** moxcms's extended range, so colors outside Display P3, such as pure green from an Adobe RGB profile, survive to the render. Measured first, since moxcms says it costs time, against PRF-3, PRF-5 and the render check. It's a feature change on an existing dependency.
+- **Unclipped conversion:** colors outside Display P3, such as pure green from an Adobe RGB profile, survive to the render. Measuring moxcms's extended range first showed wrong values outside the destination's range and 15 times the time, so Seura applies the profile's curves and matrix itself, which is three times faster than the conversion it replaces. A profile built on lookup tables still goes through moxcms, clipped.
 - **HEIC color descriptions:** the primaries other than Display P3, such as BT.2020, and the transfer characteristics, instead of assuming the sRGB curve.
 - **PNG color chunks:** `cICP`, `sRGB`, and `gAMA` with `cHRM`, as well as `iCCP`.
 - **16-bit PNGs** keep their precision through the conversion, if the cost is small; otherwise this part stays open in #188, since it isn't against the format's SHOULD.

@@ -25,8 +25,9 @@ pub enum Transform {
 pub enum Color {
     /// An embedded ICC profile.
     Icc(Vec<u8>),
-    /// Coded color primaries (ITU-T H.273): 1 is sRGB/BT.709, 12 is Display P3.
-    Primaries(u16),
+    /// Coded primaries and transfer characteristics (ITU-T H.273): 1 and 13
+    /// are sRGB, 12 and 13 Display P3.
+    Coded { primaries: u16, transfer: u16 },
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -154,9 +155,10 @@ fn associations(body: &[u8], item: u32) -> Option<Vec<usize>> {
 fn color(body: &[u8]) -> Option<Color> {
     match body.get(..4)? {
         b"prof" | b"rICC" => Some(Color::Icc(body.get(4..)?.to_vec())),
-        b"nclx" => Some(Color::Primaries(u16::from_be_bytes(
-            body.get(4..6)?.try_into().ok()?,
-        ))),
+        b"nclx" => Some(Color::Coded {
+            primaries: u16::from_be_bytes(body.get(4..6)?.try_into().ok()?),
+            transfer: u16::from_be_bytes(body.get(6..8)?.try_into().ok()?),
+        }),
         _ => None,
     }
 }
@@ -207,7 +209,13 @@ pub(crate) mod tests {
     fn coded_primaries_are_read() {
         let nclx = [b"nclx".as_slice(), &[0, 12, 0, 13, 0, 0, 0x80]].concat();
         let container = read(&head(&[bx(b"colr", &nclx)]));
-        assert_eq!(container.color, Some(Color::Primaries(12)));
+        assert_eq!(
+            container.color,
+            Some(Color::Coded {
+                primaries: 12,
+                transfer: 13
+            })
+        );
         assert!(container.transforms.is_empty());
     }
 
