@@ -152,10 +152,13 @@ fn write_new_after(
     bytes: &[u8],
     mut before_rename: impl FnMut(&Path),
 ) -> Result<PathBuf, ExportError> {
-    let mut temporary = tempfile::Builder::new()
-        .prefix(".seura-export-")
-        .suffix(".tmp")
-        .tempfile_in(folder)?;
+    let mut builder = tempfile::Builder::new();
+    builder.prefix(".seura-export-").suffix(".tmp");
+    // A temporary file is normally for its owner alone. An export is an
+    // ordinary file: the system's mask for new files decides who can read it.
+    #[cfg(unix)]
+    builder.permissions(std::os::unix::fs::PermissionsExt::from_mode(0o666));
+    let mut temporary = builder.tempfile_in(folder)?;
     temporary.write_all(bytes)?;
     temporary.as_file().sync_all()?;
     for n in 0.. {
@@ -244,6 +247,20 @@ mod tests {
         assert_eq!(fs::read(&path).unwrap(), b"new");
         assert_eq!(fs::read(&taken).unwrap(), b"arrived meanwhile");
         assert_eq!(fs::read_dir(folder.path()).unwrap().count(), 2);
+    }
+
+    /// Found on the Mac: an export could be read only by its owner, unlike
+    /// any other new file.
+    #[cfg(unix)]
+    #[test]
+    fn an_export_has_the_permissions_of_any_new_file() {
+        use std::os::unix::fs::PermissionsExt;
+        let folder = tempfile::tempdir().unwrap();
+        let ordinary = folder.path().join("ordinary");
+        fs::write(&ordinary, b"new").unwrap();
+        let path = write_new(folder.path(), "IMG_1", "jpg", b"new").unwrap();
+        let mode = |path: &Path| fs::metadata(path).unwrap().permissions().mode();
+        assert_eq!(mode(&path), mode(&ordinary));
     }
 
     #[test]
