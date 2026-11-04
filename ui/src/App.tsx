@@ -49,6 +49,7 @@ export function App() {
       events.thumbnailsReady.listen(({ payload }) => useStore.getState().thumbnailsReady(payload)),
       events.enhanceDownload.listen(({ payload }) => useStore.getState().enhanceDownload(payload)),
       events.scanProgress.listen(({ payload }) => useStore.setState({ progress: payload })),
+      events.quitRequested.listen(() => void useStore.getState().quit()),
       // Menu commands take the same path as the buttons (ACC-4).
       events.menuCommand.listen(({ payload }) => {
         const store = useStore.getState();

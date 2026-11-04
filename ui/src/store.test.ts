@@ -22,6 +22,7 @@ vi.mock("./bindings", () => ({
     enhancing: vi.fn(() => Promise.resolve(mocks.enhancing)),
     enhanceDownloading: vi.fn(() => mocks.finish),
     stopDownloads: vi.fn(() => Promise.resolve()),
+    finishQuit: vi.fn(() => Promise.resolve()),
   },
 }));
 
@@ -118,6 +119,44 @@ describe("store", () => {
       expect(useStore.getState().downloading.has(1)).toBe(true);
       enhanceDownload({ id: 1, downloading: false, at: 2, total: 5, batch: true });
       expect(useStore.getState().downloading.has(1)).toBe(false);
+    });
+  });
+
+  describe("quitting (EDT-11, #174)", () => {
+    afterEach(() => vi.mocked(commands.finishQuit).mockClear());
+
+    it("exits only after the Editor's waiting change is saved", async () => {
+      let saved: () => void = () => {};
+      const flush = vi.fn(() => new Promise<void>((resolve) => (saved = resolve)));
+      useStore.setState({ editorFlush: flush });
+      const quitting = useStore.getState().quit();
+      await vi.waitFor(() => expect(flush).toHaveBeenCalled());
+      expect(commands.finishQuit).not.toHaveBeenCalled();
+      saved();
+      await quitting;
+      expect(commands.finishQuit).toHaveBeenCalledTimes(1);
+    });
+
+    it("waits for a save still running after leaving the Editor", async () => {
+      let saved: () => void = () => {};
+      useStore.setState({ editorSaving: new Promise<void>((resolve) => (saved = resolve)) });
+      const quitting = useStore.getState().quit();
+      await Promise.resolve();
+      expect(commands.finishQuit).not.toHaveBeenCalled();
+      saved();
+      await quitting;
+      expect(commands.finishQuit).toHaveBeenCalledTimes(1);
+    });
+
+    it("exits even if a save fails", async () => {
+      useStore.setState({ editorFlush: () => Promise.reject(new Error("no")) });
+      await useStore.getState().quit();
+      expect(commands.finishQuit).toHaveBeenCalledTimes(1);
+    });
+
+    it("exits at once with nothing waiting", async () => {
+      await useStore.getState().quit();
+      expect(commands.finishQuit).toHaveBeenCalledTimes(1);
     });
   });
 

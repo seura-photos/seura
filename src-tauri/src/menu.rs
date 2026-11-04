@@ -36,6 +36,7 @@ pub enum MenuCommand {
 }
 
 const ADD_FOLDER: &str = "add-folder";
+const QUIT: &str = "quit";
 const SHOW_IN_FOLDER: &str = "show-in-folder";
 const OPEN_IN_DEFAULT_APP: &str = "open-in-default-app";
 const DELETE: &str = "delete";
@@ -70,7 +71,8 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &PredefinedMenuItem::hide_others(app, Some(t("menu-hide-others").as_str()))?,
             &PredefinedMenuItem::show_all(app, Some(t("menu-show-all").as_str()))?,
             &separator()?,
-            &PredefinedMenuItem::quit(app, Some(t("menu-quit").as_str()))?,
+            // Not the predefined Quit, which exits without waiting for a save (#174).
+            &MenuItem::with_id(app, QUIT, t("menu-quit"), true, Some("CmdOrCtrl+Q"))?,
         ],
     )?;
     // The photo menu's commands, also in the File menu: a context menu is
@@ -153,6 +155,10 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 
 /// Passes Seura's own menu commands to the UI.
 pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
+    if id == QUIT {
+        crate::quitting::request(app);
+        return;
+    }
     let command = match id {
         ADD_FOLDER => MenuCommand::AddFolder,
         SHOW_IN_FOLDER => MenuCommand::ShowInFolder,

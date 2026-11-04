@@ -175,6 +175,17 @@ describe("Editor", () => {
     expect(screen.getByRole("button", { name: "Export…" })).toBeDefined();
   });
 
+  it("saves a waiting change at once when asked, for quitting (#174)", async () => {
+    edit();
+    const slider = await brightness();
+    fireEvent.change(slider, { target: { value: "25" } });
+    expect(mocks.editPhoto).not.toHaveBeenCalled();
+    await act(async () => {
+      await useStore.getState().editorFlush?.();
+    });
+    expect(mocks.editPhoto).toHaveBeenCalledWith(7, { kind: "brightness", ev: 1 });
+  });
+
   it("saves a drag once, when it ends (EDT-11)", async () => {
     edit();
     const slider = await brightness();

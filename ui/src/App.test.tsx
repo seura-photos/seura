@@ -21,6 +21,7 @@ const mocks = vi.hoisted(() => {
       thumbnailsReady: event("thumbnailsReady"),
       menuCommand: event("menuCommand"),
       scanProgress: event("scanProgress"),
+      quitRequested: event("quitRequested"),
     },
     dev: { active: [] as string[] },
     folders: [] as FolderInfo[],

@@ -58,6 +58,7 @@
     "allow-finish-welcome",
     "allow-check-render",
     "allow-finish-render-check",
+    "allow-finish-quit",
     "allow-measure-elapsed",
     "allow-scan-progress",
     "allow-measure-report",

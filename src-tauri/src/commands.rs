@@ -2078,6 +2078,13 @@ pub fn measure_elapsed() -> f64 {
     crate::measure::elapsed_ms()
 }
 
+/// The UI has saved what was waiting, so the app can exit (#174).
+#[tauri::command]
+#[specta::specta]
+pub fn finish_quit(app: AppHandle) {
+    app.exit(0);
+}
+
 /// The measurement script's results, as JSON: written with the core's
 /// memory to `measurement.json` in Seura's folder, and then the app quits.
 /// Only while `SEURA_MEASURE=1`.

@@ -18,13 +18,14 @@ mod menu;
 mod messages;
 mod parts;
 mod protocol;
+mod quitting;
 mod synced;
 mod viewer;
 mod welcome;
 
 use library::{AppSettings, Library, LibraryChanged, ScanProgress, ThumbnailsReady};
 use std::sync::Mutex;
-use tauri::{App, Manager, RunEvent, WebviewWindowBuilder};
+use tauri::{App, Manager, RunEvent, WebviewWindowBuilder, WindowEvent};
 use tauri_specta::{Builder, Event, collect_commands, collect_events};
 
 /// Every command the UI may call and every event it may hear. The same list
@@ -86,6 +87,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::finish_welcome,
             commands::check_render,
             commands::finish_render_check,
+            commands::finish_quit,
             commands::measure_elapsed,
             commands::scan_progress,
             commands::measure_report,
@@ -96,7 +98,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             library::EnhanceDownload,
             ScanProgress,
             menu::MenuCommand,
-            editor::EditFileChanged
+            editor::EditFileChanged,
+            quitting::QuitRequested
         ])
         // Nothing changed, as the preview draws the original (EDT-1).
         .constant(
@@ -190,10 +193,16 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while starting Seura Photos")
-        .run(|app, event| {
-            if let RunEvent::Exit = event {
-                app.state::<Library>().save();
+        .run(|app, event| match event {
+            RunEvent::WindowEvent {
+                event: WindowEvent::CloseRequested { api, .. },
+                ..
+            } => {
+                api.prevent_close();
+                quitting::request(app);
             }
+            RunEvent::Exit => app.state::<Library>().save(),
+            _ => {}
         });
 }
 

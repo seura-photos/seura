@@ -40,7 +40,7 @@ New in M5:
 - **Node 26** (#156), once it's allowed on 2026-11-11, so this can land at any point in the milestone.
 - **The technical design's sentence** on abandoned downloads, corrected to match LIB-9 as a small factual fix, said plainly in the pull request.
 - **Mac, with Nevada** (#162): Delete with Google Drive and Dropbox, on test copies, whenever it suits.
-- **Done when:** a slider moved just before Ctrl+Q or Cmd+Q is there after reopening, on both machines.
+- **Done when:** a slider moved just before closing the window, or Cmd+Q on the Mac, is there after reopening, on both machines.
 
 ### 1. Decoding colors in full (#188; edit format's decoding paragraph)
 
