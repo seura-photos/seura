@@ -15,7 +15,7 @@ use seura_edit::{
 use seura_image::{LinearImage, Rgba8};
 use seura_library::{PhotoId, Problem};
 use seura_render::check::{CHECK_SETTINGS, CHECK_TOLERANCE, check_image, difference};
-use seura_render::{Output, Settings, export_jpeg};
+use seura_render::{ExportOptions, Output, Settings, export};
 use specta::Type;
 use tauri::{AppHandle, Runtime};
 use tauri_specta::Event;
@@ -552,8 +552,16 @@ impl Editor {
                 .ok_or("that photo isn't open")?;
             (session.photo.clone(), saved(&session.photo, None)?.0)
         };
-        crate::gpu::with_renderer(|renderer| export_jpeg(renderer, &photo, &settings, folder))?
-            .map_err(|error| error.to_string())
+        crate::gpu::with_renderer(|renderer| {
+            export(
+                renderer,
+                &photo,
+                &settings,
+                folder,
+                &ExportOptions::default(),
+            )
+        })?
+        .map_err(|error| error.to_string())
     }
 
     /// Compares a preview path's render of the check image with wgpu's, and

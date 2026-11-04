@@ -129,7 +129,7 @@ No GPL code: exiv2 and gexiv2 are excluded because they're GPL-licensed and Seur
 
 ### Export (EXP-1 to EXP-6)
 
-Decode at full resolution → render all operations with the wgpu pipeline in tiles (1440 px squares of the result, each uploading the part of the photo it samples with a few pixels' margin for the filter, which fits the 2048 px texture limit even straightened by 45°; operations that sample neighbors use the guide, below) → convert to sRGB → encode JPEG (`jpeg-encoder` since M1; `mozjpeg` to be benchmarked against it for quality and speed in M2) or PNG → write metadata → write to a temporary file in the destination folder and rename to the final, never-taken name (EXP-3).
+Decode at full resolution → render all operations with the wgpu pipeline in tiles (1440 px squares of the result, each uploading the part of the photo it samples with a few pixels' margin for the filter, which fits the 2048 px texture limit even straightened by 45°; operations that sample neighbors use the guide, below) → convert to sRGB → scale once to the size asked for, in linear light → encode JPEG (`jpeg-encoder`; `mozjpeg` was compared in [M5](benchmarks/m5-export.md) and gave no clear win) or PNG → write metadata → write to a temporary file in the destination folder and rename to the final, never-taken name (EXP-3).
 
 ## 6. Rendering (decision 0004)
 
