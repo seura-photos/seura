@@ -5,6 +5,7 @@
 //! format's working space: linear light with Display P3 primaries, in
 //! floating point ([`decode_linear`]).
 
+mod color;
 mod decode;
 mod encode;
 mod exif;

@@ -299,7 +299,7 @@ pub(crate) fn decode_png(bytes: &[u8]) -> Result<Source, DecodeError> {
     if width > MAX_SIDE || height > MAX_SIDE {
         return Err(DecodeError::TooLarge(width, height));
     }
-    let icc = reader.info().icc_profile.as_ref().map(|icc| icc.to_vec());
+    let icc = png_color(reader.info());
     let exif = reader
         .info()
         .exif_metadata
@@ -321,6 +321,26 @@ pub(crate) fn decode_png(bytes: &[u8]) -> Result<Source, DecodeError> {
         icc,
         taken: exif.taken,
     })
+}
+
+/// A PNG's color information as a profile, in the order the PNG standard
+/// gives them: `cICP`, then `iCCP`, then `sRGB`, then `gAMA` and `cHRM`.
+fn png_color(info: &png::Info) -> Option<Vec<u8>> {
+    if let Some(points) = &info.coding_independent_code_points {
+        return crate::color::from_code_points(points.color_primaries, points.transfer_function);
+    }
+    if let Some(icc) = &info.icc_profile {
+        return Some(icc.to_vec());
+    }
+    if info.srgb.is_some() {
+        return None;
+    }
+    let pair = |(x, y): (png::ScaledFloat, png::ScaledFloat)| (x.into_value(), y.into_value());
+    crate::color::from_gamma_and_chromaticities(
+        info.gama_chunk.map(png::ScaledFloat::into_value),
+        info.chrm_chunk
+            .map(|c| [pair(c.white), pair(c.red), pair(c.green), pair(c.blue)]),
+    )
 }
 
 /// 8-bit gray, gray-alpha, RGB, or RGBA to RGBA.
@@ -349,4 +369,112 @@ fn to_rgba(buffer: &[u8], color: png::ColorType) -> Result<Vec<u8>, DecodeError>
 
 fn damaged(error: &impl std::fmt::Display) -> DecodeError {
     DecodeError::Damaged(error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use png::chunk::ChunkType;
+
+    /// A 1×1 PNG of pure green, with `describe` to set its color chunks and
+    /// `chunks` to add others before the pixels.
+    fn green_png(
+        describe: impl FnOnce(&mut png::Encoder<&mut Vec<u8>>),
+        chunks: &[(&[u8; 4], &[u8])],
+    ) -> Vec<u8> {
+        finished(png::Info::with_size(1, 1), describe, chunks)
+    }
+
+    /// The same, with an ICC profile.
+    fn green_png_with_profile(chunks: &[(&[u8; 4], &[u8])]) -> Vec<u8> {
+        let icc = moxcms::ColorProfile::new_adobe_rgb().encode().unwrap();
+        let mut info = png::Info::with_size(1, 1);
+        info.icc_profile = Some(icc.into());
+        finished(info, |_| {}, chunks)
+    }
+
+    fn finished(
+        info: png::Info<'static>,
+        describe: impl FnOnce(&mut png::Encoder<&mut Vec<u8>>),
+        chunks: &[(&[u8; 4], &[u8])],
+    ) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        let mut encoder = png::Encoder::with_info(&mut bytes, info).unwrap();
+        encoder.set_color(png::ColorType::Rgb);
+        encoder.set_depth(png::BitDepth::Eight);
+        describe(&mut encoder);
+        let mut writer = encoder.write_header().unwrap();
+        for (name, data) in chunks {
+            writer.write_chunk(ChunkType(**name), data).unwrap();
+        }
+        writer.write_image_data(&[0, 255, 0]).unwrap();
+        writer.finish().unwrap();
+        bytes
+    }
+
+    fn linear(bytes: &[u8]) -> [f32; 3] {
+        let source = decode_png(bytes).unwrap();
+        let pixels = source.image.to_linear_p3(source.icc.as_deref()).pixels;
+        [pixels[0].to_f32(), pixels[1].to_f32(), pixels[2].to_f32()]
+    }
+
+    fn close(found: [f32; 3], expected: [f32; 3]) {
+        for (found, expected) in found.iter().zip(expected) {
+            assert!((found - expected).abs() < 0.002, "{found} for {expected}");
+        }
+    }
+
+    /// BT.2020 on the sRGB curve, as a `cICP` chunk gives it.
+    const CICP_BT2020: (&[u8; 4], &[u8]) = (b"cICP", &[9, 13, 0, 1]);
+
+    #[test]
+    fn a_png_without_color_chunks_is_srgb() {
+        close(linear(&green_png(|_| {}, &[])), crate::raster::SRGB_GREEN);
+    }
+
+    #[test]
+    fn a_png_with_code_points_is_converted_from_them() {
+        let bytes = green_png(|_| {}, &[CICP_BT2020]);
+        close(linear(&bytes), crate::raster::BT2020_GREEN);
+    }
+
+    #[test]
+    fn a_png_with_a_profile_is_converted_from_it() {
+        close(
+            linear(&green_png_with_profile(&[])),
+            crate::raster::ADOBE_GREEN,
+        );
+    }
+
+    #[test]
+    fn a_png_with_chromaticities_is_converted_from_them() {
+        let bytes = green_png(
+            |encoder| {
+                encoder.set_source_chromaticities(png::SourceChromaticities::new(
+                    (0.3127, 0.329),
+                    (0.64, 0.33),
+                    (0.21, 0.71),
+                    (0.15, 0.06),
+                ));
+                encoder.set_source_gamma(png::ScaledFloat::new(0.45455));
+            },
+            &[],
+        );
+        close(linear(&bytes), crate::raster::ADOBE_GREEN);
+    }
+
+    #[test]
+    fn png_color_chunks_are_taken_in_the_standard_order() {
+        // Code points before a profile.
+        close(
+            linear(&green_png_with_profile(&[CICP_BT2020])),
+            crate::raster::BT2020_GREEN,
+        );
+        // sRGB before a gamma, which writing `sRGB` adds in its standard form.
+        let bytes = green_png(
+            |encoder| encoder.set_source_srgb(png::SrgbRenderingIntent::Perceptual),
+            &[],
+        );
+        close(linear(&bytes), crate::raster::SRGB_GREEN);
+    }
 }

@@ -54,8 +54,11 @@ pub(crate) fn decode(path: &Path) -> Result<Source, DecodeError> {
     };
     let icc = pixels.icc.or(match container.color {
         Some(Color::Icc(icc)) => Some(icc),
-        Some(Color::Primaries(12)) => Some(DISPLAY_P3.clone()),
-        _ => None,
+        Some(Color::Coded {
+            primaries,
+            transfer,
+        }) => coded_profile(primaries, transfer),
+        None => None,
     });
     // The date taken, from the EXIF item, so HEIC photos sort by it (BRW-2).
     // Its orientation is ignored: the container's applies (see container.rs).
@@ -64,6 +67,15 @@ pub(crate) fn decode(path: &Path) -> Result<Source, DecodeError> {
         icc,
         taken: crate::exif::read_file(path).taken,
     })
+}
+
+/// The profile for HEIC's coded color (`nclx`), or `None` for sRGB.
+fn coded_profile(primaries: u16, transfer: u16) -> Option<Vec<u8>> {
+    let (primaries, transfer) = (u8::try_from(primaries).ok()?, u8::try_from(transfer).ok()?);
+    if (primaries, transfer) == (12, 13) {
+        return Some(DISPLAY_P3.clone());
+    }
+    crate::color::from_code_points(primaries, transfer)
 }
 
 pub(super) static DISPLAY_P3: LazyLock<Vec<u8>> = LazyLock::new(|| {

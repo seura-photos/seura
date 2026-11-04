@@ -155,14 +155,74 @@ impl LinearImage {
 /// buffer of 32-bit floats.
 const CHUNK: usize = 1 << 16;
 
+/// A conversion to the working space that clips nothing, for a profile
+/// described by three curves and a matrix, as nearly all are: each channel
+/// to linear light, then the matrix to Display P3, whose result can be
+/// negative or above 1. moxcms's own option for this gives wrong values
+/// outside the destination's range, and takes 15 times as long (#188).
+struct Shaper {
+    curves: [Box<[f32; 256]>; 3],
+    matrix: [[f32; 3]; 3],
+}
+
+impl Shaper {
+    fn new(source: &ColorProfile, p3: &ColorProfile) -> Option<Shaper> {
+        let tables = source.lut_a_to_b_perceptual.is_some()
+            || source.lut_a_to_b_colorimetric.is_some()
+            || source.lut_a_to_b_saturation.is_some();
+        if !source.is_matrix_shaper() || tables {
+            return None;
+        }
+        let curves = [
+            source.build_r_linearize_table::<u8, 256, 8>(true).ok()?,
+            source.build_g_linearize_table::<u8, 256, 8>(true).ok()?,
+            source.build_b_linearize_table::<u8, 256, 8>(true).ok()?,
+        ];
+        let matrix = source
+            .transform_matrix(p3)
+            .v
+            .map(|row| row.map(|v| v as f32));
+        Some(Shaper { curves, matrix })
+    }
+
+    fn convert(&self, image: &Rgba8) -> Vec<f16> {
+        let [red, green, blue] = &self.curves;
+        let [m0, m1, m2] = &self.matrix;
+        let mut pixels = Vec::with_capacity(image.pixels.len());
+        for pixel in image.pixels.as_chunks::<4>().0 {
+            let (r, g, b) = (
+                red[usize::from(pixel[0])],
+                green[usize::from(pixel[1])],
+                blue[usize::from(pixel[2])],
+            );
+            pixels.extend([
+                f16::from_f32(m0[0] * r + m0[1] * g + m0[2] * b),
+                f16::from_f32(m1[0] * r + m1[1] * g + m1[2] * b),
+                f16::from_f32(m2[0] * r + m2[1] * g + m2[2] * b),
+                f16::from_f32(f32::from(pixel[3]) / 255.0),
+            ]);
+        }
+        pixels
+    }
+}
+
 impl Rgba8 {
     /// Converts from the photo's color profile (sRGB without one, or with
-    /// one that can't be read) to the working space.
+    /// one that can't be read) to the working space, keeping colors outside
+    /// Display P3 (edit format, "Decoding into the working space").
     pub fn to_linear_p3(&self, icc: Option<&[u8]>) -> LinearImage {
         let source = icc
             .and_then(|icc| ColorProfile::new_from_slice(icc).ok())
             .unwrap_or_else(ColorProfile::new_srgb);
         let p3 = ColorProfile::new_display_p3();
+        if let Some(shaper) = Shaper::new(&source, &p3) {
+            return LinearImage {
+                width: self.width,
+                height: self.height,
+                pixels: shaper.convert(self),
+            };
+        }
+        // A profile built on lookup tables, which moxcms converts, clipping.
         let transform = source
             .create_transform_f32(Layout::Rgba, &p3, Layout::Rgba, TransformOptions::default())
             .or_else(|_| {
@@ -214,6 +274,18 @@ pub fn decode_transfer(encoded: f32) -> f32 {
     };
     linear.copysign(encoded)
 }
+
+/// Pure green from other color spaces in linear Display P3, worked out from
+/// each space's primaries and white point, with Bradford adaptation for
+/// ProPhoto's D50, not with moxcms.
+#[cfg(test)]
+pub(crate) const ADOBE_GREEN: [f32; 3] = [-0.1501, 0.9536, 0.0265];
+#[cfg(test)]
+pub(crate) const BT2020_GREEN: [f32; 3] = [-0.2822, 1.0758, -0.0196];
+#[cfg(test)]
+const PROPHOTO_GREEN: [f32; 3] = [-0.3798, 1.1667, -0.0628];
+#[cfg(test)]
+pub(crate) const SRGB_GREEN: [f32; 3] = [0.1775, 0.9668, 0.0724];
 
 #[cfg(test)]
 mod tests {
@@ -335,6 +407,60 @@ mod tests {
             assert!((found - 0.5029).abs() < 0.004, "{values:?}");
         }
         assert!((values[7] - 128.0 / 255.0).abs() < 0.001, "{values:?}");
+    }
+
+    /// A color's values, once converted from `profile`.
+    fn converted(profile: &ColorProfile, color: [u8; 3]) -> [f32; 3] {
+        let icc = profile.encode().unwrap();
+        let image = Rgba8::new(1, 1, vec![color[0], color[1], color[2], 255]);
+        let pixels = image.to_linear_p3(Some(&icc)).pixels;
+        [pixels[0].to_f32(), pixels[1].to_f32(), pixels[2].to_f32()]
+    }
+
+    fn close(found: [f32; 3], expected: [f32; 3]) {
+        for (found, expected) in found.iter().zip(expected) {
+            assert!((found - expected).abs() < 0.002, "{found} for {expected}");
+        }
+    }
+
+    #[test]
+    fn colors_outside_display_p3_stay_outside_it() {
+        close(
+            converted(&ColorProfile::new_adobe_rgb(), [0, 255, 0]),
+            ADOBE_GREEN,
+        );
+        close(
+            converted(&ColorProfile::new_bt2020(), [0, 255, 0]),
+            BT2020_GREEN,
+        );
+        close(
+            converted(&ColorProfile::new_pro_photo_rgb(), [0, 255, 0]),
+            PROPHOTO_GREEN,
+        );
+        assert!(converted(&ColorProfile::new_adobe_rgb(), [0, 255, 0])[0] < -0.1);
+    }
+
+    #[test]
+    fn colors_inside_display_p3_keep_their_values() {
+        close(
+            converted(&ColorProfile::new_display_p3(), [0, 255, 0]),
+            [0.0, 1.0, 0.0],
+        );
+        close(
+            converted(&ColorProfile::new_srgb(), [0, 255, 0]),
+            SRGB_GREEN,
+        );
+        // Gray stays gray, on the sRGB curve as on Adobe RGB's.
+        let gray = decode_transfer(128.0 / 255.0);
+        close(
+            converted(&ColorProfile::new_display_p3(), [128, 128, 128]),
+            [gray, gray, gray],
+        );
+        let gray = (128.0 / 255.0_f32).powf(563.0 / 256.0);
+        close(
+            converted(&ColorProfile::new_adobe_rgb(), [128, 128, 128]),
+            [gray, gray, gray],
+        );
     }
 
     #[test]

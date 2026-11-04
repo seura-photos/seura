@@ -83,6 +83,16 @@ pub fn check_image() -> LinearImage {
                     image.pixels[i + k] = f16::from_f32(value);
                 }
             }
+            // A color outside Display P3, as a wide-gamut photo decodes to:
+            // the preview must take values below zero and above one as
+            // export does (#188).
+            if y >= 56 {
+                let i = ((y * image.width + x) * 4) as usize;
+                let wide = [-0.3 * x as f32 / 96.0, 1.15, -0.06, 1.0];
+                for (k, value) in wide.into_iter().enumerate() {
+                    image.pixels[i + k] = f16::from_f32(value);
+                }
+            }
         }
     }
     image
