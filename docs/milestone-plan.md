@@ -91,6 +91,8 @@ The full editor.
 
 **Done when:** the owner fixes his own photos in Seura instead of another app. The edit format is proven by a full implementation, so the format can be frozen at 1.0 (see M7).
 
+**Status:** complete, 2026-11-03, with Seura as the owner's tool for fixing photos on both machines; see the [M4 work plan's status](m4-plan.md#status).
+
 ## M5. Reuse and share
 
 - Copy and paste edits, and presets: PRE-1 to PRE-5.
