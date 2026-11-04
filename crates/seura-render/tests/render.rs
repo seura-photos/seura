@@ -1408,5 +1408,35 @@ fn the_shaders_match_the_reference_images() {
             &found[at / 3 * 3..at / 3 * 3 + 3],
             &want[at / 3 * 3..at / 3 * 3 + 3],
         );
+
+        // As an export has it: in sRGB, in a PNG, read back without Seura's
+        // decoders (EXP-2, EXP-5).
+        let rendered = renderer
+            .render(&image, &image.guide_image(), &settings, Output::Srgb)
+            .unwrap();
+        let bytes = seura_image::encode_png(&rendered).unwrap();
+        let mut reader = png::Decoder::new(std::io::Cursor::new(bytes))
+            .read_info()
+            .unwrap();
+        let mut found = vec![0; reader.output_buffer_size().unwrap()];
+        reader.next_frame(&mut found).unwrap();
+        let want: Vec<u8> = rows(&case["output"])
+            .iter()
+            .flat_map(|&c| {
+                [0, 1, 2].map(|i| {
+                    let linear: f64 = (0..3).map(|k| P3_TO_SRGB[i][k] * c[k]).sum();
+                    (encode(linear) * 255.0).round() as u8
+                })
+            })
+            .collect();
+        assert_eq!(found.len(), want.len(), "{name}: the PNG's size");
+        let off = found
+            .iter()
+            .zip(&want)
+            .map(|(a, b)| a.abs_diff(*b))
+            .max()
+            .unwrap();
+        eprintln!("{name}: in sRGB, off by at most {off}");
+        assert!(off <= 1, "{name}: in sRGB, off by {off}");
     }
 }

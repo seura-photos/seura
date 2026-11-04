@@ -4113,7 +4113,9 @@ version = "0.3.1"
 dependencies = [
  "bytemuck",
  "half",
+ "moxcms 0.9.1",
  "naga",
+ "png 0.18.1",
  "pollster 1.0.1",
  "serde_json",
  "seura-edit",

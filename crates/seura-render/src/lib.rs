@@ -14,7 +14,7 @@ mod renderer;
 mod settings;
 
 pub use enhance::{Enhanced, enhance};
-pub use export::{ExportError, export_jpeg};
+pub use export::{ExportError, ExportFormat, ExportOptions, ExportSize, MIN_LONG_EDGE, export};
 pub use renderer::{Output, RenderError, Renderer};
 pub use settings::{MAX_RED_EYE, RedEyeRegions, Settings};
 

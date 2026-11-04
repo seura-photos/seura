@@ -457,8 +457,9 @@ fn rules_1_and_2_export_adds_only_new_files_and_replaces_none() {
         exposure_ev: 1.0,
         ..seura_render::Settings::NEUTRAL
     };
-    let first = seura_render::export_jpeg(&renderer, &photo, &settings, folder).unwrap();
-    let second = seura_render::export_jpeg(&renderer, &photo, &settings, folder).unwrap();
+    let options = seura_render::ExportOptions::default();
+    let first = seura_render::export(&renderer, &photo, &settings, folder, &options).unwrap();
+    let second = seura_render::export(&renderer, &photo, &settings, folder, &options).unwrap();
 
     let after = Snapshot::of(library.root());
     assert_eq!(

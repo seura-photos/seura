@@ -18,7 +18,7 @@ pub use decode::{
     DecodeError, Decoded, Linear, MAX_SIDE, Reduced, Upright, decode, decode_linear,
     decode_reduced, decode_upright,
 };
-pub use encode::{JPEG_QUALITY, encode_jpeg};
+pub use encode::{JPEG_QUALITY, encode_jpeg, encode_png, fit_for_export};
 pub use exif::{Details, details};
 pub use raster::{LinearImage, Rgba8, decode_transfer};
 pub use system_thumbnail::system_thumbnail;
