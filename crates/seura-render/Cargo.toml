@@ -25,6 +25,7 @@ half = { workspace = true }
 serde_json = { workspace = true }
 moxcms = { workspace = true }
 png = { workspace = true }
+kamadak-exif = { workspace = true }
 
 [lints]
 workspace = true

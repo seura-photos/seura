@@ -1,14 +1,15 @@
 //! Exporting a photo with its edits (EXP-1 to EXP-5): decode at full size,
 //! render with wgpu in sRGB, scale once to the size asked for, encode JPEG or
-//! PNG, and write it to the destination under a name no file has, never
-//! replacing one (EXP-3).
+//! PNG with the metadata asked for (EXP-4), and write it to the destination
+//! under a name no file has, never replacing one (EXP-3).
 
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use seura_image::{
-    DecodeError, JPEG_QUALITY, decode_linear, encode_jpeg, encode_png, fit_for_export,
+    DecodeError, JPEG_QUALITY, Keywords, decode_linear, encode_jpeg, encode_png, fit_for_export,
+    metadata_for_export,
 };
 
 use crate::{Output, RenderError, Renderer, Settings};
@@ -40,6 +41,8 @@ pub enum ExportSize {
 pub struct ExportOptions {
     pub format: ExportFormat,
     pub size: ExportSize,
+    /// Leaves out every GPS field (EXP-4).
+    pub remove_location: bool,
 }
 
 impl Default for ExportOptions {
@@ -49,6 +52,7 @@ impl Default for ExportOptions {
                 quality: JPEG_QUALITY,
             },
             size: ExportSize::Original,
+            remove_location: false,
         }
     }
 }
@@ -70,13 +74,15 @@ pub enum ExportError {
 }
 
 /// Exports `photo` into `folder` as `options` ask, and returns where it went.
-/// The photo is only read (CLAUDE.md rule 1).
+/// `keywords` are the photo's tags and rating, when they're to be included
+/// (EXP-4). The photo is only read (CLAUDE.md rule 1).
 pub fn export(
     renderer: &Renderer,
     photo: &Path,
     settings: &Settings,
     folder: &Path,
     options: &ExportOptions,
+    keywords: Option<&Keywords>,
 ) -> Result<PathBuf, ExportError> {
     if let ExportFormat::Jpeg { quality } = options.format
         && !(1..=100).contains(&quality)
@@ -98,13 +104,20 @@ pub fn export(
         ExportSize::Original => rendered,
         ExportSize::LongEdge(long_edge) => fit_for_export(rendered, long_edge),
     };
+    let metadata = metadata_for_export(
+        photo,
+        (rendered.width, rendered.height),
+        options.remove_location,
+        keywords,
+        options.format == ExportFormat::Png,
+    );
     let (encoded, extension) = match options.format {
         ExportFormat::Jpeg { quality } => (
-            encode_jpeg(&rendered, quality).map_err(|error| error.to_string()),
+            encode_jpeg(&rendered, quality, &metadata).map_err(|error| error.to_string()),
             "jpg",
         ),
         ExportFormat::Png => (
-            encode_png(&rendered).map_err(|error| error.to_string()),
+            encode_png(&rendered, &metadata).map_err(|error| error.to_string()),
             "png",
         ),
     };

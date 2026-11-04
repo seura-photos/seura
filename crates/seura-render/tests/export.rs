@@ -1,12 +1,13 @@
-//! Whole exports, from a file on disk to a file on disk (EXP-2, EXP-3,
-//! EXP-5), read back as another app would: formats and sizes, the colors
-//! worked out here from the color spaces' definitions, and the original
+//! Whole exports, from a file on disk to a file on disk (EXP-2 to EXP-5),
+//! read back as another app would: formats and sizes, the colors worked out
+//! here from the color spaces' definitions, the metadata, and the original
 //! untouched.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use seura_image::{Rgba8, decode, encode_jpeg, encode_png};
+use exif::{Field, In, Reader, Tag, Value};
+use seura_image::{Keywords, Metadata, Rgba8, decode, encode_jpeg, encode_png};
 use seura_render::{
     ExportError, ExportFormat, ExportOptions, ExportSize, Renderer, Settings, export,
 };
@@ -136,13 +137,18 @@ fn every_format_and_size_exports_the_photo() {
     for (format, extension, tolerance) in [(JPEG, "jpg", 5), (ExportFormat::Png, "png", 2)] {
         for (size, expected) in sizes {
             let out = tempfile::tempdir().unwrap();
-            let options = ExportOptions { format, size };
+            let options = ExportOptions {
+                format,
+                size,
+                ..Default::default()
+            };
             let path = export(
                 &renderer,
                 &photo,
                 &Settings::default(),
                 out.path(),
                 &options,
+                None,
             )
             .unwrap();
             assert_eq!(path, out.path().join(format!("photo.{extension}")));
@@ -181,8 +187,9 @@ fn a_size_applies_to_the_photo_as_cropped() {
         let options = ExportOptions {
             format: ExportFormat::Png,
             size,
+            ..Default::default()
         };
-        let path = export(&renderer, &photo, &settings, out.path(), &options).unwrap();
+        let path = export(&renderer, &photo, &settings, out.path(), &options, None).unwrap();
         let decoded = decode(&path).unwrap();
         (decoded.image.width, decoded.image.height)
     };
@@ -207,8 +214,17 @@ fn the_edits_are_in_the_export() {
     let options = ExportOptions {
         format: ExportFormat::Png,
         size: ExportSize::Original,
+        ..Default::default()
     };
-    let path = export(&renderer(), &photo, &settings, folder.path(), &options).unwrap();
+    let path = export(
+        &renderer(),
+        &photo,
+        &settings,
+        folder.path(),
+        &options,
+        None,
+    )
+    .unwrap();
     let want = srgb_encode(srgb_decode(128) * 2.0);
     let found = decode(&path).unwrap().image.pixels[0];
     assert!(found.abs_diff(want) <= 1, "{found}, expected {want}");
@@ -277,6 +293,7 @@ fn wide_color_photos_are_converted_to_srgb() {
             let options = ExportOptions {
                 format,
                 size: ExportSize::Original,
+                ..Default::default()
             };
             let path = export(
                 &renderer,
@@ -284,6 +301,7 @@ fn wide_color_photos_are_converted_to_srgb() {
                 &Settings::default(),
                 folder.path(),
                 &options,
+                None,
             )
             .unwrap();
             let found = decode(&path).unwrap().image;
@@ -303,12 +321,12 @@ fn the_original_is_never_touched_even_in_its_own_folder() {
     let folder = tempfile::tempdir().unwrap();
     let image = smooth_image(64, 64);
     // A JPEG original, exported as a JPEG beside it: the same name.
-    let bytes = encode_jpeg(&image, 90).unwrap();
+    let bytes = encode_jpeg(&image, 90, &Default::default()).unwrap();
     let jpeg = folder.path().join("IMG_1.jpg");
     fs::write(&jpeg, &bytes).unwrap();
     let modified = fs::metadata(&jpeg).unwrap().modified().unwrap();
     // A PNG original, likewise.
-    let png_bytes = encode_png(&image).unwrap();
+    let png_bytes = encode_png(&image, &Default::default()).unwrap();
     let png = folder.path().join("IMG_2.png");
     fs::write(&png, &png_bytes).unwrap();
     let renderer = renderer();
@@ -321,7 +339,9 @@ fn the_original_is_never_touched_even_in_its_own_folder() {
             &ExportOptions {
                 format,
                 size: ExportSize::Original,
+                ..Default::default()
             },
+            None,
         )
         .unwrap()
     };
@@ -357,7 +377,12 @@ fn options_out_of_range_export_nothing() {
             &photo,
             &Settings::default(),
             folder.path(),
-            &ExportOptions { format, size },
+            &ExportOptions {
+                format,
+                size,
+                ..Default::default()
+            },
+            None,
         )
     };
     for quality in [0, 101] {
@@ -374,4 +399,317 @@ fn options_out_of_range_export_nothing() {
     assert!(exported(ExportFormat::Png, ExportSize::LongEdge(16)).is_ok());
     assert!(exported(ExportFormat::Jpeg { quality: 1 }, ExportSize::Original).is_ok());
     assert!(exported(ExportFormat::Jpeg { quality: 100 }, ExportSize::Original).is_ok());
+}
+
+/// A JPEG photo with everything an export must keep and everything it must
+/// not: EXIF with a location, a thumbnail and a maker note, its own XMP, and a
+/// preview after the image with the MPF segment that points to it. Each thing
+/// that must go says so in its bytes, so the tests can look for it without a
+/// metadata reader. Turned on its side by its orientation tag.
+fn photo_with_metadata(folder: &Path) -> PathBuf {
+    let field = |tag, value| Field {
+        tag,
+        ifd_num: In::PRIMARY,
+        value,
+    };
+    let ascii = |text: &str| Value::Ascii(vec![text.as_bytes().to_vec()]);
+    let fields = [
+        field(Tag::Make, ascii("Apple")),
+        field(Tag::Model, ascii("iPhone 15 Pro")),
+        field(Tag::DateTimeOriginal, ascii("2026:10:18 19:40:12")),
+        field(Tag::LensModel, ascii("iPhone 15 Pro back camera")),
+        field(Tag::Orientation, Value::Short(vec![6])),
+        field(Tag::ColorSpace, Value::Short(vec![65535])),
+        field(Tag::PixelXDimension, Value::Long(vec![48])),
+        field(Tag::PixelYDimension, Value::Long(vec![32])),
+        field(Tag::GPSMapDatum, ascii("GPS-MUST-GO")),
+        field(
+            Tag::MakerNote,
+            Value::Undefined(b"NOTE-MUST-GO".to_vec(), 0),
+        ),
+    ];
+    let mut writer = exif::experimental::Writer::new();
+    for field in &fields {
+        writer.push_field(field);
+    }
+    writer.set_jpeg(b"THUMBNAIL-MUST-GO", In::THUMBNAIL);
+    let mut tiff = std::io::Cursor::new(Vec::new());
+    writer.write(&mut tiff, true).unwrap();
+    let metadata = Metadata {
+        exif: Some(tiff.into_inner()),
+        xmp: Some("<x:xmpmeta>XMP-MUST-GO</x:xmpmeta>".into()),
+    };
+    let mut jpeg = encode_jpeg(&smooth_image(48, 32), 95, &metadata).unwrap();
+    let mpf = b"MPF\0MPF-MUST-GO";
+    let mut segment = vec![0xFF, 0xE2];
+    segment.extend(((mpf.len() + 2) as u16).to_be_bytes());
+    segment.extend(mpf);
+    jpeg.splice(2..2, segment);
+    jpeg.extend(b"\xFF\xD8PREVIEW-MUST-GO\xFF\xD9");
+    let path = folder.join("IMG_1.jpg");
+    fs::write(&path, jpeg).unwrap();
+    path
+}
+
+const MUST_GO: &str = "MUST-GO";
+
+fn holds(bytes: &[u8], text: &str) -> bool {
+    bytes
+        .windows(text.len())
+        .any(|window| window == text.as_bytes())
+}
+
+fn read_exif(path: &Path) -> exif::Exif {
+    Reader::new()
+        .read_from_container(&mut std::io::BufReader::new(fs::File::open(path).unwrap()))
+        .unwrap()
+}
+
+fn text(exif: &exif::Exif, tag: Tag) -> String {
+    match &exif.get_field(tag, In::PRIMARY).unwrap().value {
+        Value::Ascii(parts) => String::from_utf8_lossy(&parts[0]).into_owned(),
+        other => panic!("{tag}: {other:?}"),
+    }
+}
+
+fn number(exif: &exif::Exif, tag: Tag) -> u32 {
+    exif.get_field(tag, In::PRIMARY)
+        .unwrap()
+        .value
+        .get_uint(0)
+        .unwrap()
+}
+
+#[test]
+fn every_export_keeps_the_details_and_corrects_them() {
+    let folder = tempfile::tempdir().unwrap();
+    let photo = photo_with_metadata(folder.path());
+    let renderer = renderer();
+    for format in [JPEG, ExportFormat::Png] {
+        for (size, expected) in [
+            (ExportSize::Original, (32, 48)),
+            (ExportSize::LongEdge(24), (16, 24)),
+        ] {
+            let out = tempfile::tempdir().unwrap();
+            let options = ExportOptions {
+                format,
+                size,
+                ..Default::default()
+            };
+            let path = export(
+                &renderer,
+                &photo,
+                &Settings::default(),
+                out.path(),
+                &options,
+                None,
+            )
+            .unwrap();
+            let exif = read_exif(&path);
+            assert_eq!(text(&exif, Tag::Make), "Apple");
+            assert_eq!(text(&exif, Tag::Model), "iPhone 15 Pro");
+            assert_eq!(text(&exif, Tag::DateTimeOriginal), "2026:10:18 19:40:12");
+            assert_eq!(text(&exif, Tag::LensModel), "iPhone 15 Pro back camera");
+            assert_eq!(number(&exif, Tag::Orientation), 1);
+            assert_eq!(number(&exif, Tag::ColorSpace), 1);
+            assert_eq!(number(&exif, Tag::PixelXDimension), expected.0);
+            assert_eq!(number(&exif, Tag::PixelYDimension), expected.1);
+            // The tag and the pixels agree, in Seura's decoder too.
+            let image = decode(&path).unwrap().image;
+            assert_eq!((image.width, image.height), expected);
+        }
+    }
+}
+
+#[test]
+fn nothing_of_the_original_but_its_details_arrives() {
+    let folder = tempfile::tempdir().unwrap();
+    let photo = photo_with_metadata(folder.path());
+    assert!(holds(&fs::read(&photo).unwrap(), "THUMBNAIL-MUST-GO"));
+    assert!(holds(&fs::read(&photo).unwrap(), "PREVIEW-MUST-GO"));
+    assert!(holds(&fs::read(&photo).unwrap(), "MPF-MUST-GO"));
+    assert!(holds(&fs::read(&photo).unwrap(), "XMP-MUST-GO"));
+    assert!(holds(&fs::read(&photo).unwrap(), "NOTE-MUST-GO"));
+    let renderer = renderer();
+    for format in [JPEG, ExportFormat::Png] {
+        let out = tempfile::tempdir().unwrap();
+        let options = ExportOptions {
+            format,
+            remove_location: true,
+            ..Default::default()
+        };
+        let path = export(
+            &renderer,
+            &photo,
+            &Settings::default(),
+            out.path(),
+            &options,
+            None,
+        )
+        .unwrap();
+        let bytes = fs::read(&path).unwrap();
+        assert!(!holds(&bytes, MUST_GO), "{format:?}");
+        assert!(!holds(&bytes, "MPF\0"), "{format:?}");
+        assert!(!holds(&bytes, "GPS"), "{format:?}");
+        assert_eq!(
+            read_exif(&path)
+                .fields()
+                .filter(|field| field.tag.context() == exif::Context::Gps)
+                .count(),
+            0
+        );
+    }
+}
+
+#[test]
+fn the_location_stays_unless_asked_to_go() {
+    let folder = tempfile::tempdir().unwrap();
+    let photo = photo_with_metadata(folder.path());
+    let renderer = renderer();
+    for format in [JPEG, ExportFormat::Png] {
+        let out = tempfile::tempdir().unwrap();
+        let options = ExportOptions {
+            format,
+            ..Default::default()
+        };
+        let path = export(
+            &renderer,
+            &photo,
+            &Settings::default(),
+            out.path(),
+            &options,
+            None,
+        )
+        .unwrap();
+        assert_eq!(text(&read_exif(&path), Tag::GPSMapDatum), "GPS-MUST-GO");
+    }
+}
+
+#[test]
+fn tags_and_rating_go_in_only_when_asked() {
+    let folder = tempfile::tempdir().unwrap();
+    let photo = write_photo(folder.path(), "photo.png", &smooth_image(32, 32));
+    let renderer = renderer();
+    let keywords = Keywords {
+        tags: vec!["family/kids".into()],
+        rating: 4,
+    };
+    for format in [JPEG, ExportFormat::Png] {
+        let out = tempfile::tempdir().unwrap();
+        let options = ExportOptions {
+            format,
+            ..Default::default()
+        };
+        let with = export(
+            &renderer,
+            &photo,
+            &Settings::default(),
+            out.path(),
+            &options,
+            Some(&keywords),
+        )
+        .unwrap();
+        let bytes = fs::read(&with).unwrap();
+        assert!(holds(&bytes, "<rdf:li>kids</rdf:li>"), "{format:?}");
+        assert!(holds(&bytes, "<rdf:li>family|kids</rdf:li>"), "{format:?}");
+        assert!(holds(&bytes, "<xmp:Rating>4</xmp:Rating>"), "{format:?}");
+        let without = export(
+            &renderer,
+            &photo,
+            &Settings::default(),
+            out.path(),
+            &options,
+            None,
+        )
+        .unwrap();
+        assert!(
+            !holds(&fs::read(&without).unwrap(), "xmpmeta"),
+            "{format:?}"
+        );
+    }
+}
+
+/// File Explorer reads a PNG's XMP but not its EXIF, so the details are in
+/// both. A JPEG's EXIF is enough.
+#[test]
+fn a_png_says_its_date_camera_and_lens_in_xmp_too() {
+    let folder = tempfile::tempdir().unwrap();
+    let photo = photo_with_metadata(folder.path());
+    let renderer = renderer();
+    let exported = |format| {
+        let out = tempfile::tempdir().unwrap();
+        let options = ExportOptions {
+            format,
+            ..Default::default()
+        };
+        let path = export(
+            &renderer,
+            &photo,
+            &Settings::default(),
+            out.path(),
+            &options,
+            None,
+        )
+        .unwrap();
+        fs::read(path).unwrap()
+    };
+    let png = exported(ExportFormat::Png);
+    assert!(holds(&png, "<tiff:Make>Apple</tiff:Make>"));
+    assert!(holds(&png, "<tiff:Model>iPhone 15 Pro</tiff:Model>"));
+    assert!(holds(&png, ">iPhone 15 Pro back camera</exifEX:LensModel>"));
+    assert!(holds(&png, ">2026-10-18T19:40:12</exif:DateTimeOriginal>"));
+    assert!(!holds(&exported(JPEG), "xmpmeta"));
+}
+
+#[test]
+fn a_photo_with_no_exif_gets_none_invented() {
+    let folder = tempfile::tempdir().unwrap();
+    let photo = write_photo(folder.path(), "photo.png", &smooth_image(32, 32));
+    let renderer = renderer();
+    for format in [JPEG, ExportFormat::Png] {
+        let out = tempfile::tempdir().unwrap();
+        let options = ExportOptions {
+            format,
+            ..Default::default()
+        };
+        let path = export(
+            &renderer,
+            &photo,
+            &Settings::default(),
+            out.path(),
+            &options,
+            None,
+        )
+        .unwrap();
+        let bytes = fs::read(&path).unwrap();
+        assert!(!holds(&bytes, "Exif\0\0") && !holds(&bytes, "eXIf"));
+    }
+}
+
+#[test]
+fn tags_too_many_for_a_jpeg_export_nothing_and_fit_a_png() {
+    let folder = tempfile::tempdir().unwrap();
+    let photo = write_photo(folder.path(), "photo.png", &smooth_image(32, 32));
+    let out = tempfile::tempdir().unwrap();
+    let renderer = renderer();
+    let keywords = Keywords {
+        tags: (0..4000).map(|n| format!("tag number {n}")).collect(),
+        rating: 0,
+    };
+    let exported = |format| {
+        export(
+            &renderer,
+            &photo,
+            &Settings::default(),
+            out.path(),
+            &ExportOptions {
+                format,
+                ..Default::default()
+            },
+            Some(&keywords),
+        )
+    };
+    assert!(matches!(exported(JPEG), Err(ExportError::Encode(_))));
+    assert_eq!(fs::read_dir(out.path()).unwrap().count(), 0);
+    assert!(exported(ExportFormat::Png).is_ok());
 }

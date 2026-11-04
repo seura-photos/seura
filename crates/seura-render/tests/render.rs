@@ -1414,7 +1414,7 @@ fn the_shaders_match_the_reference_images() {
         let rendered = renderer
             .render(&image, &image.guide_image(), &settings, Output::Srgb)
             .unwrap();
-        let bytes = seura_image::encode_png(&rendered).unwrap();
+        let bytes = seura_image::encode_png(&rendered, &Default::default()).unwrap();
         let mut reader = png::Decoder::new(std::io::Cursor::new(bytes))
             .read_info()
             .unwrap();

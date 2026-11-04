@@ -17,6 +17,7 @@ pub use enhance::{Enhanced, enhance};
 pub use export::{ExportError, ExportFormat, ExportOptions, ExportSize, MIN_LONG_EDGE, export};
 pub use renderer::{Output, RenderError, Renderer};
 pub use settings::{MAX_RED_EYE, RedEyeRegions, Settings};
+pub use seura_image::Keywords;
 
 /// The shader source: shared color functions, then each stage's
 /// operations, then the luminance guide, then the render pass. WGSL has no includes, so the files
