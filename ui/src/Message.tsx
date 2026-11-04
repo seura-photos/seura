@@ -23,6 +23,9 @@ function exportProgressText(batch: ExportProgress | null): string {
 }
 
 /**
+ * Progress keeps one width, below any other message, so its button stays where
+ * it is as the words change and messages come and go (Nevada, 2026-11-04).
+ *
  * The last action's result, when it isn't visible on its own: "Moved 3
  * photos to the Recycle Bin.", an undo, photos skipped as read-only
  * (INT-6). A brief message near the bottom of the photo area, centred, for
@@ -51,34 +54,6 @@ export function Message({ since = -1 }: { since?: number }) {
   const stopExport = useStore((state) => state.stopExport);
   return (
     <div className="message-region" role="status">
-      {batch && (
-        <div className="message message-progress">
-          <LoaderCircle className="icon viewer-spinner" aria-hidden />
-          <span>{t("enhance-downloading", { at: batch.at, total: batch.total })}</span>
-          <button
-            type="button"
-            className="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => void stopDownloads()}
-          >
-            {t("enhance-stop")}
-          </button>
-        </div>
-      )}
-      {exportRunning && (
-        <div className="message message-progress">
-          <LoaderCircle className="icon viewer-spinner" aria-hidden />
-          <span>{exportProgressText(exporting)}</span>
-          <button
-            type="button"
-            className="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => void stopExport()}
-          >
-            {t("export-cancel")}
-          </button>
-        </div>
-      )}
       {shown &&
         (noticeAction ? (
           <div key={noticeId} className="message message-progress">
@@ -97,6 +72,38 @@ export function Message({ since = -1 }: { since?: number }) {
             {notice}
           </p>
         ))}
+      {batch && (
+        <div className="message message-progress message-steady">
+          <LoaderCircle className="icon viewer-spinner" aria-hidden />
+          <span className="message-text">
+            {t("enhance-downloading", { at: batch.at, total: batch.total })}
+          </span>
+          <button
+            type="button"
+            className="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => void stopDownloads()}
+          >
+            {t("enhance-stop")}
+          </button>
+        </div>
+      )}
+      {exportRunning && (
+        <div className="message message-progress message-steady">
+          <LoaderCircle className="icon viewer-spinner" aria-hidden />
+          <span className="message-text" title={exportProgressText(exporting)}>
+            {exportProgressText(exporting)}
+          </span>
+          <button
+            type="button"
+            className="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => void stopExport()}
+          >
+            {t("export-cancel")}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

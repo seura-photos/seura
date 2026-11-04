@@ -247,7 +247,8 @@ describe("Export (EXP-1 to EXP-6)", () => {
         size: 4_000_000,
       }),
     );
-    expect(screen.getByText(/^Downloading IMG_2.heic \(.+\), 2 of 2…$/)).toBeTruthy();
+    // The count comes first, so a long name can't push it out of the message.
+    expect(screen.getByText(/^Downloading 2 of 2: IMG_2.heic \(.+\)…$/)).toBeTruthy();
     expect(useStore.getState().downloading.has(2)).toBe(true);
     fireEvent.click(button("Cancel"));
     expect(mocks.stopExport).toHaveBeenCalled();
@@ -261,6 +262,26 @@ describe("Export (EXP-1 to EXP-6)", () => {
     expect(
       screen.getByText(/^1 photo wasn't exported, because you canceled. One that was/),
     ).toBeTruthy();
+  });
+
+  it("keeps Cancel in one place as the words change and messages come and go", async () => {
+    let finish: (value: unknown) => void = () => {};
+    mocks.exportPhotos.mockImplementation(() => new Promise((resolve) => (finish = resolve)));
+    await open([1, 2]);
+    fireEvent.click(button("Export"));
+    const cancel = await screen.findByRole("button", { name: "Cancel" });
+    const progress = cancel.parentElement as HTMLElement;
+    // The fixed width comes from this class (index.css).
+    expect(progress.classList.contains("message-steady")).toBe(true);
+    expect(cancel.previousElementSibling?.classList.contains("message-text")).toBe(true);
+    // A message showing is above it, so its going doesn't move it.
+    act(() => useStore.getState().say("Rated 3 photos 3 stars"));
+    const notice = screen.getByText("Rated 3 photos 3 stars");
+    expect(progress.previousElementSibling).toBe(notice);
+    await act(async () => {
+      finish({ status: "ok", data: { ...done, exported: 2 } });
+      await Promise.resolve();
+    });
   });
 
   it("sums up a batch: which couldn't be exported and why, and where they went", async () => {

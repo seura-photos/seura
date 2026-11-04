@@ -365,6 +365,25 @@ button {
   pointer-events: auto;
 }
 
+/* One width, with the button at its right edge, so the button stays under the
+   pointer however long the text is. */
+.message-steady {
+  box-sizing: border-box;
+  width: min(30rem, 100%);
+}
+
+.message-steady .button {
+  flex: none;
+}
+
+.message-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .message {
   max-width: 30rem;
   margin: 0;
