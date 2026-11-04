@@ -1,6 +1,6 @@
 # M5 export: the JPEG encoder, and a 48-megapixel export
 
-Status: recorded 2026-11-03 on the Windows PC · [M5 work plan, slice 2](../m5-plan.md)
+Status: recorded 2026-11-03: the encoder on the Windows PC, the 48-megapixel export on both machines · [M5 work plan, slice 2](../m5-plan.md)
 
 The technical design asks for `jpeg-encoder`, which Seura has used since M1, to be compared with `mozjpeg`. `mozjpeg` is C with extra build tools, so the plan says it needs a clear win to change. It doesn't have one, so Seura keeps `jpeg-encoder`.
 
@@ -31,13 +31,13 @@ Two other settings were measured on `jpeg-encoder`:
 
 ## A 48-megapixel export
 
-One generated 48-megapixel JPEG, exported with no edits on the PC's NVIDIA RTX 4070 SUPER, in a release build. Time covers decoding, rendering, scaling, encoding and writing.
+One generated 48-megapixel JPEG, exported with no edits, in a release build, on the PC's NVIDIA RTX 4070 SUPER and the Mac's M1 Max (32 GB). Time covers decoding, rendering, scaling, encoding and writing.
 
-| Export | Time | File size | Peak memory |
-| --- | --- | --- | --- |
-| JPEG, original size | 1.80 s | 13.2 MB | 1.1 GB |
-| JPEG, 2048 long edge | 1.19 s | 0.8 MB | 1.1 GB |
-| PNG, original size | 10.10 s | 68.7 MB | 1.1 GB |
-| PNG, 2048 long edge | 2.06 s | 4.0 MB | 1.1 GB |
+| Export | File size | Time, PC | Time, Mac | Peak memory, PC | Peak memory, Mac |
+| --- | --- | --- | --- | --- | --- |
+| JPEG, original size | 13.2 MB | 1.80 s | 1.33 s | 1.1 GB | 1.30 GB |
+| JPEG, 2048 long edge | 0.8 MB | 1.19 s | 1.02 s | 1.1 GB | 0.90 GB |
+| PNG, original size | 68.7 MB | 10.10 s | 6.76 s | 1.1 GB | 0.99 GB |
+| PNG, 2048 long edge | 4.0 MB | 2.06 s | 1.59 s | 1.1 GB | 0.90 GB |
 
-Peak memory is the process's peak private memory, sampled about every 50 ms, so a shorter peak could be missed. It's about the same with every option, which suggests the peak comes before scaling and encoding.
+The two machines' memory figures measure different things, so they aren't directly comparable. The PC's is the process's peak private memory, sampled about every 50 ms, so a shorter peak could be missed. The Mac's is the maximum resident set size that `/usr/bin/time -l` reports.
