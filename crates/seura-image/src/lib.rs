@@ -10,6 +10,7 @@ mod decode;
 mod encode;
 mod exif;
 mod heif;
+mod metadata;
 mod raster;
 mod system_thumbnail;
 mod thumbnail;
@@ -20,6 +21,7 @@ pub use decode::{
 };
 pub use encode::{JPEG_QUALITY, encode_jpeg, encode_png, fit_for_export};
 pub use exif::{Details, details};
+pub use metadata::{Keywords, Metadata, metadata_for_export};
 pub use raster::{LinearImage, Rgba8, decode_transfer};
 pub use system_thumbnail::system_thumbnail;
 pub use thumbnail::{Region, THUMBNAIL_SIZE, fit, thumbnail};

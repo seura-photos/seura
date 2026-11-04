@@ -63,7 +63,7 @@ No screens yet: `seura-render`'s export grows from M1's `export_jpeg` into one f
 
 ### 3. Metadata (EXP-4)
 
-- **Kept:** the original's EXIF, read from JPEG, HEIC or PNG, carried into the new file with `img-parts`, as the technical design says.
+- **Kept:** the original's EXIF, read from JPEG, HEIC or PNG, and rebuilt in the new file from a list of standard tags with `kamadak-exif`'s writer (`img-parts` and `little_exif` weren't needed; technical design updated).
 - **Corrected, since the pixels changed:** orientation reset to 1; pixel dimensions set to the exported size; the color space tag set to sRGB, since iPhone photos say "uncalibrated".
 - **Removed:** the thumbnail embedded in EXIF, and any previews, including MPF. They would show the photo unedited and uncropped in some viewers, and can hold a picture the user cropped out. Tested on photos that have both.
 - **Remove location data:** every GPS field. Only EXIF is copied and XMP is written new, so location can't arrive through the original's XMP. Tested by reading the result with a tool Seura doesn't use.

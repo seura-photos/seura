@@ -1,5 +1,6 @@
 //! Encoding exports (EXP-2, EXP-5): JPEG or PNG in sRGB with the sRGB profile
-//! embedded, so every viewer shows the colors as intended.
+//! embedded, so every viewer shows the colors as intended, and with whatever
+//! other metadata the export carries (EXP-4).
 
 use std::sync::LazyLock;
 
@@ -7,11 +8,15 @@ use fast_image_resize::images::{Image, ImageRef};
 use fast_image_resize::{PixelType, ResizeAlg, ResizeOptions, Resizer, create_srgb_mapper};
 use jpeg_encoder::{ColorType, Encoder, EncodingError};
 
+use crate::metadata::Metadata;
 use crate::raster::Rgba8;
 use crate::thumbnail::fitted;
 
 /// The default JPEG quality (EXP-2).
 pub const JPEG_QUALITY: u8 = 90;
+
+/// What starts an XMP packet's JPEG segment.
+const JPEG_XMP_HEADER: &[u8] = b"http://ns.adobe.com/xap/1.0/\0";
 
 static SRGB_PROFILE: LazyLock<Vec<u8>> = LazyLock::new(|| {
     moxcms::ColorProfile::new_srgb()
@@ -19,11 +24,22 @@ static SRGB_PROFILE: LazyLock<Vec<u8>> = LazyLock::new(|| {
         .expect("the built-in sRGB profile encodes")
 });
 
-/// An upright sRGB image as JPEG bytes. Alpha is dropped.
-pub fn encode_jpeg(image: &Rgba8, quality: u8) -> Result<Vec<u8>, EncodingError> {
+/// An upright sRGB image as JPEG bytes. Alpha is dropped. Metadata too large
+/// for a JPEG segment, about 64 KB, is an error rather than quietly lost.
+pub fn encode_jpeg(
+    image: &Rgba8,
+    quality: u8,
+    metadata: &Metadata,
+) -> Result<Vec<u8>, EncodingError> {
     let mut bytes = Vec::new();
     let mut encoder = Encoder::new(&mut bytes, quality);
     encoder.set_optimized_huffman_tables(true);
+    if let Some(exif) = &metadata.exif {
+        encoder.add_exif_metadata(exif)?;
+    }
+    if let Some(xmp) = &metadata.xmp {
+        encoder.add_app_segment(1, [JPEG_XMP_HEADER, xmp.as_bytes()].concat())?;
+    }
     encoder.add_icc_profile(&SRGB_PROFILE)?;
     // Width and height are at most MAX_SIDE, well within JPEG's limit.
     encoder.encode(
@@ -36,11 +52,16 @@ pub fn encode_jpeg(image: &Rgba8, quality: u8) -> Result<Vec<u8>, EncodingError>
 }
 
 /// An upright sRGB image as PNG bytes. Alpha is dropped: a render is opaque.
-pub fn encode_png(image: &Rgba8) -> Result<Vec<u8>, png::EncodingError> {
+pub fn encode_png(image: &Rgba8, metadata: &Metadata) -> Result<Vec<u8>, png::EncodingError> {
     let mut info = png::Info::with_size(image.width, image.height);
     info.color_type = png::ColorType::Rgb;
     info.bit_depth = png::BitDepth::Eight;
     info.icc_profile = Some(SRGB_PROFILE.as_slice().into());
+    info.exif_metadata = metadata.exif.as_deref().map(Into::into);
+    if let Some(xmp) = &metadata.xmp {
+        info.utf8_text
+            .push(png::text_metadata::ITXtChunk::new("XML:com.adobe.xmp", xmp));
+    }
     let mut bytes = Vec::new();
     let mut writer = png::Encoder::with_info(&mut bytes, info)?.write_header()?;
     let rgb: Vec<u8> = image
@@ -93,7 +114,7 @@ mod tests {
     #[test]
     fn exports_decode_back_with_their_srgb_profile() {
         let image = Rgba8::new(16, 8, [200, 100, 50, 255].repeat(16 * 8));
-        let bytes = encode_jpeg(&image, JPEG_QUALITY).unwrap();
+        let bytes = encode_jpeg(&image, JPEG_QUALITY, &Metadata::default()).unwrap();
         let decoded = crate::decode::decode_jpeg(&bytes).unwrap();
         let profile = moxcms::ColorProfile::new_from_slice(decoded.icc.as_deref().unwrap());
         assert!(profile.is_ok(), "the embedded profile reads back");
@@ -112,10 +133,54 @@ mod tests {
     fn png_exports_keep_every_value_and_carry_the_srgb_profile() {
         let pixels: Vec<u8> = (0..=255).flat_map(|v| [v, 255 - v, v / 2, 255]).collect();
         let image = Rgba8::new(16, 16, pixels);
-        let decoded = crate::decode::decode_png(&encode_png(&image).unwrap()).unwrap();
+        let decoded =
+            crate::decode::decode_png(&encode_png(&image, &Metadata::default()).unwrap()).unwrap();
         assert_eq!((decoded.image.width, decoded.image.height), (16, 16));
         assert_eq!(decoded.image.pixels, image.pixels);
         assert_eq!(decoded.icc.as_deref(), Some(SRGB_PROFILE.as_slice()));
+    }
+
+    fn found(bytes: &[u8], text: &[u8]) -> bool {
+        bytes.windows(text.len()).any(|window| window == text)
+    }
+
+    #[test]
+    fn metadata_goes_in_where_other_apps_look_for_it() {
+        let image = Rgba8::new(8, 8, [9, 8, 7, 255].repeat(64));
+        let metadata = Metadata {
+            exif: Some(b"MM\0*\0\0\0\x08\0\0\0\0\0\0".to_vec()),
+            xmp: Some("<packet/>".into()),
+        };
+        let jpeg = encode_jpeg(&image, JPEG_QUALITY, &metadata).unwrap();
+        assert!(found(&jpeg, b"Exif\0\0MM\0*"));
+        assert!(found(&jpeg, b"http://ns.adobe.com/xap/1.0/\0<packet/>"));
+        let png = encode_png(&image, &metadata).unwrap();
+        assert!(found(&png, b"eXIfMM\0*"));
+        assert!(found(&png, b"iTXtXML:com.adobe.xmp\0\0\0\0\0<packet/>"));
+        // Before the pixels in both.
+        let pixels = png.windows(4).position(|window| window == b"IDAT").unwrap();
+        let text = png.windows(4).position(|window| window == b"iTXt").unwrap();
+        assert!(text < pixels);
+    }
+
+    #[test]
+    fn no_metadata_means_no_segments() {
+        let image = Rgba8::new(8, 8, [9, 8, 7, 255].repeat(64));
+        let jpeg = encode_jpeg(&image, JPEG_QUALITY, &Metadata::default()).unwrap();
+        assert!(!found(&jpeg, b"Exif\0\0") && !found(&jpeg, b"ns.adobe.com"));
+        let png = encode_png(&image, &Metadata::default()).unwrap();
+        assert!(!found(&png, b"eXIf") && !found(&png, b"iTXt"));
+    }
+
+    #[test]
+    fn metadata_too_large_for_a_jpeg_is_an_error_and_fine_in_a_png() {
+        let image = Rgba8::new(8, 8, [9, 8, 7, 255].repeat(64));
+        let metadata = Metadata {
+            exif: None,
+            xmp: Some("x".repeat(70_000)),
+        };
+        assert!(encode_jpeg(&image, JPEG_QUALITY, &metadata).is_err());
+        assert!(encode_png(&image, &metadata).is_ok());
     }
 
     #[test]

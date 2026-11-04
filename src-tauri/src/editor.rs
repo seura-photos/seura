@@ -559,6 +559,7 @@ impl Editor {
                 &settings,
                 folder,
                 &ExportOptions::default(),
+                None,
             )
         })?
         .map_err(|error| error.to_string())
@@ -1001,7 +1002,11 @@ mod tests {
         let folder = tempfile::tempdir().unwrap();
         let path = folder.path().join("IMG_1.jpg");
         let image = Rgba8::new(32, 24, [90, 90, 90, 255].repeat(32 * 24));
-        fs::write(&path, seura_image::encode_jpeg(&image, 95).unwrap()).unwrap();
+        fs::write(
+            &path,
+            seura_image::encode_jpeg(&image, 95, &Default::default()).unwrap(),
+        )
+        .unwrap();
         (folder, path)
     }
 
