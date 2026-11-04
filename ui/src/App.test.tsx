@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => {
     events: {
       libraryChanged: event("libraryChanged"),
       enhanceDownload: event("enhanceDownload"),
+      exportProgress: event("exportProgress"),
       thumbnailsReady: event("thumbnailsReady"),
       menuCommand: event("menuCommand"),
       scanProgress: event("scanProgress"),
@@ -82,7 +83,6 @@ vi.mock("./bindings", () => ({
         forceWebgl2: false,
         renderCheck: false,
         checkSettings: { exposureEv: 0.7 },
-        devExport: false,
         pseudoLocale: false,
         active: mocks.dev.active,
       }),

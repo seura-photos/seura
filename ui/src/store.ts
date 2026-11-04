@@ -13,9 +13,15 @@ import {
   type WelcomeInfo,
   type EnhanceDownload,
   type EnhanceReport,
+  type ExportChoices,
+  type ExportProgress,
+  type ExportReport,
+  type ExportStart,
 } from "./bindings";
 import { pathTo } from "./folderRows";
 import { setRegion } from "./format";
+import { exportMessage } from "./exportMessages";
+import { isMac } from "./keys";
 import { setPseudo, t } from "./messages";
 import { emptySelection, keepExisting, type Selection, select, selectAll } from "./selection";
 import { tagPathTo } from "./tagRows";
@@ -26,7 +32,7 @@ import type { ThumbState } from "./thumbState";
  * what's selected and open, and notices. Components read slices of it;
  * everything that talks to the core goes through the actions here.
  */
-type State = {
+export type State = {
   dev: DevOptions | null;
   /** The first run's Welcome screen, while it's shown (SET-1). */
   welcome: WelcomeInfo | null;
@@ -163,6 +169,28 @@ type State = {
   enhanceDownload: (event: EnhanceDownload) => void;
   /** Stops Enhance's downloads (BRW-10). */
   stopDownloads: () => Promise<void>;
+  /** The Export dialog's question, when it's open (EXP-1). */
+  exportAsked: (ExportStart & { ids: number[]; opened: number }) | null;
+  /** The photo a running export has come to (EXP-6); running before it has
+   * come to one. */
+  exportBatch: ExportProgress | null;
+  exportRunning: boolean;
+  /** A finished batch's summary, waiting to be closed (EXP-6). */
+  exportSummary: { count: number; report: ExportReport } | null;
+  /** Opens the Export dialog for photos, once what's waiting is saved. */
+  askExport: (ids: number[]) => Promise<void>;
+  /** Asks for a folder with the system's dialog. */
+  chooseExportFolder: () => Promise<void>;
+  cancelExport: () => void;
+  /** Exports the photos asked about, and says what happened. */
+  runExport: (choices: ExportChoices) => Promise<void>;
+  /** The core's word on how far it's got. */
+  exportProgress: (event: ExportProgress) => void;
+  /** Stops the export (EXP-6). */
+  stopExport: () => Promise<void>;
+  closeExportSummary: () => void;
+  /** Shows the last export's files in Explorer or Finder. */
+  showExported: () => Promise<void>;
   /** Saves what's waiting, then lets the app exit (EDT-11, #174). */
   quit: () => Promise<void>;
   /** The photos the photo commands act on: the one in the Editor or the
@@ -195,8 +223,10 @@ type State = {
    * which a notice then says (TAG-7). */
   openPicker: (ids: number[], anchor: Anchor) => Promise<void>;
   closePicker: () => void;
-  /** Shows a one-line notice. */
-  say: (notice: string) => void;
+  /** Shows a one-line notice, with a button if it offers something. */
+  say: (notice: string, action?: { label: string; run: () => void }) => void;
+  /** The button of the notice showing. */
+  noticeAction: { label: string; run: () => void } | null;
   /** Undoes the Library's last action, whatever is selected now, or redoes
    * the last undone, and says what was done (BRW-11). */
   undo: () => Promise<void>;
@@ -379,6 +409,11 @@ export const useStore = create<State>()((set, get) => ({
   reveal: null,
   confirmingOpen: null,
   confirmingEnhance: null,
+  noticeAction: null,
+  exportAsked: null,
+  exportBatch: null,
+  exportRunning: false,
+  exportSummary: null,
   downloading: new Set(),
   downloadBatch: null,
   editing: null,
@@ -733,8 +768,8 @@ export const useStore = create<State>()((set, get) => ({
     if (result.status === "error") get().say(t("photo-open-failed", { reason: result.error }));
   },
 
-  say(notice) {
-    set(({ noticeId }) => ({ notice, noticeId: noticeId + 1 }));
+  say(notice, action) {
+    set(({ noticeId }) => ({ notice, noticeAction: action ?? null, noticeId: noticeId + 1 }));
   },
 
   async undo() {
@@ -784,6 +819,90 @@ export const useStore = create<State>()((set, get) => ({
 
   async stopDownloads() {
     await commands.stopDownloads();
+  },
+
+  async askExport(ids) {
+    if (ids.length === 0 || get().exportAsked) return;
+    if (get().exportRunning) {
+      get().say(t("export-busy"));
+      return;
+    }
+    // The Editor's change still waiting goes in the export.
+    const { editorFlush, editorSaving } = get();
+    await Promise.allSettled([editorFlush?.(), editorSaving]);
+    const start = await commands.exportStart(ids);
+    set(({ noticeId }) => ({ exportAsked: { ...start, ids, opened: noticeId } }));
+  },
+
+  async chooseExportFolder() {
+    const result = await commands.chooseExportFolder();
+    if (result.status === "error") {
+      get().say(t("export-folder-failed", { reason: result.error }));
+      return;
+    }
+    const folder = result.data;
+    if (folder === null) return;
+    set(({ exportAsked }) => ({ exportAsked: exportAsked && { ...exportAsked, folder } }));
+  },
+
+  cancelExport() {
+    set({ exportAsked: null });
+  },
+
+  async runExport(choices) {
+    const asked = get().exportAsked;
+    if (!asked) return;
+    const { ids } = asked;
+    set({ exportAsked: null, exportRunning: true, exportBatch: null });
+    // One photo's name, for its message, whatever its export says.
+    const result = await commands.exportPhotos(ids, choices);
+    const name = get().exportBatch?.name ?? "";
+    set((state) => {
+      const next = new Set(state.downloading);
+      const batch = state.exportBatch;
+      if (batch) next.delete(batch.id);
+      return { exportRunning: false, exportBatch: null, downloading: next };
+    });
+    if (result.status === "error") {
+      get().say(t("export-failed", { reason: result.error }));
+      return;
+    }
+    const report = result.data;
+    if (ids.length > 1) {
+      set({ exportSummary: { count: ids.length, report } });
+      return;
+    }
+    get().say(
+      exportMessage(name, report),
+      report.exported > 0
+        ? {
+            label: isMac ? t("photo-show-in-finder") : t("photo-show-in-explorer"),
+            run: () => void get().showExported(),
+          }
+        : undefined,
+    );
+  },
+
+  exportProgress(event) {
+    set((state) => {
+      const next = new Set(state.downloading);
+      if (event.downloading) next.add(event.id);
+      else next.delete(event.id);
+      return { exportBatch: event, downloading: next };
+    });
+  },
+
+  async stopExport() {
+    await commands.stopExport();
+  },
+
+  closeExportSummary() {
+    set({ exportSummary: null });
+  },
+
+  async showExported() {
+    const result = await commands.showExported();
+    if (result.status === "error") get().say(t("photo-show-failed", { reason: result.error }));
   },
   async quit() {
     const { editorFlush, editorSaving } = get();

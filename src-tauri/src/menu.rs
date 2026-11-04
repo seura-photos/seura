@@ -29,6 +29,8 @@ pub enum MenuCommand {
     OpenInDefaultApp,
     /// Moves the chosen photos to the Trash, once confirmed (BRW-9).
     Delete,
+    /// Opens the Export dialog for the chosen photos (EXP-1).
+    Export,
     /// The Edit menu's Undo and Redo: the Library's last action (BRW-11),
     /// or, in a text field, the field's own.
     Undo,
@@ -40,13 +42,14 @@ const QUIT: &str = "quit";
 const SHOW_IN_FOLDER: &str = "show-in-folder";
 const OPEN_IN_DEFAULT_APP: &str = "open-in-default-app";
 const DELETE: &str = "delete";
+const EXPORT: &str = "export";
 const UNDO: &str = "undo";
 const REDO: &str = "redo";
 /// The menu bar's commands for the chosen photos, kept so they can be
 /// turned on and off. (A menu's lookup by id searches only its top level,
 /// not the File menu inside it, so they're held rather than looked up.)
 #[cfg(target_os = "macos")]
-struct PhotoCommands<R: Runtime>([MenuItem<R>; 3]);
+struct PhotoCommands<R: Runtime>([MenuItem<R>; 4]);
 
 /// The Edit menu's Undo and Redo, kept so their labels can follow the
 /// Library's history.
@@ -100,10 +103,12 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         false,
         Some("CmdOrCtrl+Backspace"),
     )?;
+    let export = MenuItem::with_id(app, EXPORT, t("menu-export"), false, Some("CmdOrCtrl+E"))?;
     app.manage(PhotoCommands([
         show_in_folder.clone(),
         open_in_default_app.clone(),
         delete.clone(),
+        export.clone(),
     ]));
     let file = Submenu::with_items(
         app,
@@ -114,6 +119,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &separator()?,
             &show_in_folder,
             &open_in_default_app,
+            &export,
             &separator()?,
             &delete,
             &separator()?,
@@ -164,6 +170,7 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
         SHOW_IN_FOLDER => MenuCommand::ShowInFolder,
         OPEN_IN_DEFAULT_APP => MenuCommand::OpenInDefaultApp,
         DELETE => MenuCommand::Delete,
+        EXPORT => MenuCommand::Export,
         UNDO => MenuCommand::Undo,
         REDO => MenuCommand::Redo,
         _ => return,

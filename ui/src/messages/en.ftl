@@ -622,6 +622,82 @@ editor-tools = Tools
 editor-compare = Hold to compare
 editor-done = Done
 # Crop mode (EDT-2, EDT-3; wireframes, "Crop and straighten").
+# The Export dialog, its progress, and its results (EXP-1 to EXP-6).
+toolbar-export = Export
+export-title =
+    { $count ->
+        [one] Export 1 photo
+       *[other] Export { $count } photos
+    }
+export-save-to = Save to
+export-no-folder = Choose a folder
+export-choose = Choose…
+export-format = Format
+export-jpeg = JPEG
+export-png = PNG
+export-quality = Quality
+export-size = Size
+export-size-original = Original size
+export-size-long-edge = Long edge { $edge } px
+export-size-custom = Custom
+export-size-custom-pixels = Custom long edge, in pixels
+export-size-px = px
+export-size-custom-hint = Enter a whole number of pixels, { $min } or more.
+export-details = Details
+export-remove-location = Remove location data
+export-include-keywords = Include tags and rating as keywords
+export-originals = Edits are applied to the exported copies. Originals aren't changed, and existing files are never overwritten: a name that's taken gets a number, like "IMG_4417 (1).jpg".
+export-cloud =
+    { $total ->
+        [one] This photo is in the cloud ({ $size }) and will be downloaded.
+       *[other]
+            { $count ->
+                [one] 1 of these photos is in the cloud ({ $size }) and will be downloaded.
+               *[other] { $count } of these photos are in the cloud ({ $size }) and will be downloaded.
+            }
+    }
+export-cancel = Cancel
+export-go = Export
+export-busy = An export is still running. Wait for it to finish, or cancel it.
+export-folder-failed = The folder dialog couldn't open: { $reason }
+export-failed = The export couldn't run: { $reason }
+export-starting = Getting ready to export…
+export-exporting = Exporting { $at } of { $total }…
+export-exporting-one = Exporting { $name }…
+export-downloading = Downloading { $name } ({ $size }), { $at } of { $total }…
+export-downloading-one = Downloading { $name } ({ $size })…
+export-done-one = Exported { $file }.
+export-failed-one = { $name } couldn't be exported. { $reason }
+export-stopped =
+    { $count ->
+        [one] 1 photo wasn't exported, because you canceled.
+       *[other] { $count } photos weren't exported, because you canceled.
+    }
+export-still-downloading = One that was already downloading may still arrive on this computer.
+export-folder-full = The drive is full, so the export stopped.
+export-folder-notWritable = That folder can't be written to, so the export stopped.
+export-left =
+    { $count ->
+        [one] 1 photo wasn't exported.
+       *[other] { $count } photos weren't exported.
+    }
+export-problem-notDownloaded = It couldn't be downloaded. Check your connection.
+export-problem-unreadable = It's missing, damaged, or not a photo Seura can read.
+export-problem-needsCodec = This computer needs Microsoft's HEIF and HEVC extensions to read it.
+export-problem-editsUnreadable = Its edit file can't be read, so its edits aren't known.
+export-problem-failed = Something went wrong while making the file. Too many tags for a JPEG is one cause; PNG has no such limit.
+export-summary-all =
+    { $count ->
+        [one] Exported 1 photo
+       *[other] Exported { $count } photos
+    }
+export-summary-some = Exported { $done } of { $count } photos
+export-summary-failures =
+    { $count ->
+        [one] 1 photo couldn't be exported:
+       *[other] { $count } photos couldn't be exported:
+    }
+export-summary-ok = OK
 # One-click enhance (EDT-12).
 editor-enhance = Enhance
 # Quick actions in the Library and the Viewer (BRW-10), and on a hovered
@@ -711,10 +787,6 @@ editor-vignette-size = Size
 editor-darker = Darker
 editor-lighter = Lighter
 editor-filmstrip = Filmstrip
-editor-export = Export…
-editor-exporting = Exporting…
-editor-exported = Exported { $file } to { $folder }.
-editor-export-failed = The photo couldn't be exported: { $reason }
 editor-open-failed = This photo couldn't be opened: { $reason }
 editor-no-preview = This computer's graphics can't show the preview.
 editor-save-failed = Your change couldn't be saved: { $reason }

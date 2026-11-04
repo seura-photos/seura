@@ -231,11 +231,25 @@ export const commands = {
 	 *  otherwise loads the other.
 	 */
 	resolveOutsideChange: (id: number, keep: boolean) => typedError<EditStepped, string>(__TAURI_INVOKE("resolve_outside_change", { id, keep })),
+	/**  What the Export dialog opens with (EXP-1, EXP-2, LIB-9). */
+	exportStart: (ids: number[]) => __TAURI_INVOKE<ExportStart>("export_start", { ids }),
 	/**
-	 *  Asks for a folder and exports the open photo there as JPEG (EXP-1, EXP-5):
-	 *  M1's development-only export.
+	 *  Asks for a folder to export to with the system's dialog, starting from the
+	 *  one shown. Returns the new one, or `None` if the user cancels.
 	 */
-	exportPhoto: (id: number) => typedError<ExportResult, string>(__TAURI_INVOKE("export_photo", { id })),
+	chooseExportFolder: () => typedError<string | null, string>(__TAURI_INVOKE("choose_export_folder")),
+	/**
+	 *  Exports photos to the folder chosen (EXP-1, EXP-6). It takes as long as they
+	 *  do; [`stop_export`] ends it early.
+	 */
+	exportPhotos: (ids: number[], choices: ExportChoices) => typedError<ExportReport, string>(__TAURI_INVOKE("export_photos", { ids, choices })),
+	/**
+	 *  Stops the export: nothing more is exported, and a download in progress
+	 *  isn't waited for. Files already written stay (EXP-6).
+	 */
+	stopExport: () => __TAURI_INVOKE<void>("stop_export"),
+	/**  Shows the last export's files in Explorer or Finder (EXP-6). */
+	showExported: () => typedError<null, string>(__TAURI_INVOKE("show_exported")),
 	devOptions: () => __TAURI_INVOKE<DevOptions>("dev_options"),
 	/**
 	 *  The system's text size as a scale, 1 at the default (ACC-3). Windows
@@ -308,6 +322,7 @@ export const commands = {
 export const events = {
 	editFileChanged: makeEvent<EditFileChanged>("edit-file-changed"),
 	enhanceDownload: makeEvent<EnhanceDownload>("enhance-download"),
+	exportProgress: makeEvent<ExportProgress>("export-progress"),
 	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
 	quitRequested: makeEvent<QuitRequested>("quit-requested"),
@@ -443,11 +458,6 @@ export type DevOptions = {
 	pseudoLocale: boolean,
 	/**  The settings the render check uses, so both sides agree. */
 	checkSettings: RenderSettings,
-	/**
-	 *  Whether M1's export is shown in the Editor: in development builds
-	 *  only, until export is built (M5).
-	 */
-	devExport: boolean,
 	/**  `SEURA_MEASURE=1` runs the measurement script (M2 slice 10). */
 	measure: boolean,
 	/**  `SEURA_MEASURE=sliders` runs the Editor's instead (PRF-6). */
@@ -572,10 +582,64 @@ export type Enhancing = {
 	onComputer: number,
 };
 
-/**  What exporting did. */
-export type ExportResult = 
-/**  The user closed the folder dialog. */
-{ kind: "cancelled" } | { kind: "exported"; file: string; folder: string };
+/**  What the dialog asks for, remembered for next time (EXP-2). */
+export type ExportChoices = {
+	png: boolean,
+	/**  1 to 100, for JPEG. */
+	quality: number,
+	/**  The long edge's limit, at least 16; none is the original size. */
+	longEdge: number | null,
+	removeLocation: boolean,
+	includeKeywords: boolean,
+};
+
+export type ExportFailure = {
+	name: string,
+	problem: PhotoProblem,
+};
+
+/**  The photo the export has come to. */
+export type ExportProgress = {
+	id: number,
+	name: string,
+	/**  Counting from 1. */
+	at: number,
+	total: number,
+	/**  Waiting for it to arrive from the cloud (EXP-6), with its size in bytes. */
+	downloading: boolean,
+	size: number | null,
+};
+
+/**  What an export did, for the summary or message (EXP-6). */
+export type ExportReport = {
+	exported: number,
+	/**  The first file's name, which is all one photo's message needs. */
+	file: string | null,
+	failures: ExportFailure[],
+	/**  Not exported because the user canceled. */
+	stopped: number,
+	/**
+	 *  The user canceled during a download. Seura stopped waiting, but its
+	 *  read goes on, so the photo may arrive anyway, not exported.
+	 */
+	stillDownloading: boolean,
+	folderProblem: FolderProblem | null,
+	/**  Not tried because of that problem. */
+	left: number,
+};
+
+/**  What the dialog opens with. */
+export type ExportStart = {
+	/**  The folder, or none if the last one is gone: Export waits for one. */
+	folder: string | null,
+	choices: ExportChoices,
+	/**
+	 *  How many of the photos are only in the cloud, and their total size in
+	 *  bytes (LIB-9).
+	 */
+	cloudOnly: number,
+	cloudSize: number | null,
+};
 
 /**  A folder with photos directly in it. */
 export type FolderInfo = {
@@ -597,6 +661,9 @@ export type FolderInfo = {
 	/**  False when its drive isn't connected (LIB-6). */
 	available: boolean,
 };
+
+/**  Why the export stopped: every photo after this would fail the same way. */
+export type FolderProblem = "full" | "notWritable";
 
 /**  What undo or redo did (BRW-11), for the notice that says so. */
 export type HistoryStep = {
@@ -634,6 +701,8 @@ export type MenuCommand = "addFolder" |
 "showInFolder" | "openInDefaultApp" | 
 /**  Moves the chosen photos to the Trash, once confirmed (BRW-9). */
 "delete" | 
+/**  Opens the Export dialog for the chosen photos (EXP-1). */
+"export" | 
 /**
  *  The Edit menu's Undo and Redo: the Library's last action (BRW-11),
  *  or, in a text field, the field's own.
@@ -817,6 +886,19 @@ export type PhotoNotices = {
 	 */
 	originalChanged: boolean,
 };
+
+/**  Why one photo wasn't exported; the others go on. */
+export type PhotoProblem = 
+/**  In the cloud, and the download failed or took too long. */
+"notDownloaded" | 
+/**  Gone, damaged, or not something Seura can read. */
+"unreadable" | 
+/**  HEIC on Windows without Microsoft's extensions (decision 0014). */
+"needsCodec" | 
+/**  Its edit file can't be read, so its edits aren't known (FIL-4). */
+"editsUnreadable" | 
+/**  Too many tags for a JPEG, or the render failed. */
+"failed";
 
 /**  The user asked to quit: the UI saves what's waiting and calls `finish_quit`. */
 export type QuitRequested = null;

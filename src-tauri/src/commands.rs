@@ -14,6 +14,7 @@ use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 
 use crate::editor::{ChangeDetail, EditSteps, Editor};
+use crate::exporting::{ExportChoices, ExportReport, ExportStart, Exporting};
 use crate::library::{AppSettings, EnhanceReport, Library, LibraryChanged};
 use crate::viewer::{Viewer, Wanted};
 use crate::welcome;
@@ -1936,43 +1937,58 @@ fn stepped(app: &AppHandle, result: Result<crate::editor::Stepped, Problem>) -> 
     }
 }
 
-/// What exporting did.
-#[derive(Clone, Debug, Serialize, Type)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-pub enum ExportResult {
-    /// The user closed the folder dialog.
-    Cancelled,
-    Exported {
-        file: String,
-        folder: String,
-    },
+/// What the Export dialog opens with (EXP-1, EXP-2, LIB-9).
+#[tauri::command(async)]
+#[specta::specta]
+pub fn export_start(app: AppHandle, ids: Vec<u32>) -> ExportStart {
+    let ids: Vec<PhotoId> = ids.into_iter().map(PhotoId::new).collect();
+    app.state::<Exporting>().start(&app, &ids)
 }
 
-/// Asks for a folder and exports the open photo there as JPEG (EXP-1, EXP-5):
-/// M1's development-only export.
+/// Asks for a folder to export to with the system's dialog, starting from the
+/// one shown. Returns the new one, or `None` if the user cancels.
 #[tauri::command]
 #[specta::specta]
-pub async fn export_photo(app: AppHandle, id: u32) -> Result<ExportResult, String> {
-    // Development builds only, until export is built (M5).
-    if !cfg!(debug_assertions) {
-        return Err("export isn't available in this build".into());
-    }
-    let Some(folder) = pick_folder(&app).await? else {
-        return Ok(ExportResult::Cancelled);
+pub async fn choose_export_folder(app: AppHandle) -> Result<Option<String>, String> {
+    let from = app.state::<Exporting>().destination();
+    let Some(folder) = pick_folder_from(&app, from).await? else {
+        return Ok(None);
     };
+    let shown = display(&folder);
+    app.state::<Exporting>().choose(folder);
+    Ok(Some(shown))
+}
+
+/// Exports photos to the folder chosen (EXP-1, EXP-6). It takes as long as they
+/// do; [`stop_export`] ends it early.
+#[tauri::command]
+#[specta::specta]
+pub async fn export_photos(
+    app: AppHandle,
+    ids: Vec<u32>,
+    choices: ExportChoices,
+) -> Result<ExportReport, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let path = app.state::<Editor>().export(id, &folder)?;
-        Ok(ExportResult::Exported {
-            file: path
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .into_owned(),
-            folder: display(&folder),
-        })
+        let ids: Vec<PhotoId> = ids.into_iter().map(PhotoId::new).collect();
+        app.state::<Exporting>().run(&app, &ids, &choices)
     })
     .await
     .map_err(|error| error.to_string())?
+}
+
+/// Stops the export: nothing more is exported, and a download in progress
+/// isn't waited for. Files already written stay (EXP-6).
+#[tauri::command]
+#[specta::specta]
+pub fn stop_export(exporting: State<'_, Exporting>) {
+    exporting.stop();
+}
+
+/// Shows the last export's files in Explorer or Finder (EXP-6).
+#[tauri::command(async)]
+#[specta::specta]
+pub fn show_exported(exporting: State<'_, Exporting>) -> Result<(), String> {
+    tauri_plugin_opener::reveal_items_in_dir(exporting.written()).map_err(|error| error.to_string())
 }
 
 /// The system's text size as a scale, 1 at the default (ACC-3). Windows
@@ -2016,9 +2032,6 @@ pub struct DevOptions {
     pub pseudo_locale: bool,
     /// The settings the render check uses, so both sides agree.
     pub check_settings: RenderSettings,
-    /// Whether M1's export is shown in the Editor: in development builds
-    /// only, until export is built (M5).
-    pub dev_export: bool,
     /// `SEURA_MEASURE=1` runs the measurement script (M2 slice 10).
     pub measure: bool,
     /// `SEURA_MEASURE=sliders` runs the Editor's instead (PRF-6).
@@ -2057,7 +2070,6 @@ pub fn dev_options() -> DevOptions {
         render_check: render_check_mode(),
         pseudo_locale: crate::locale::pseudo(),
         check_settings: seura_render::check::CHECK_SETTINGS.into(),
-        dev_export: cfg!(debug_assertions),
         measure: crate::measure::active(),
         measure_sliders: crate::measure::sliders(),
         active: active_switches(),
@@ -2187,10 +2199,23 @@ pub async fn finish_welcome(
 
 /// The system's folder dialog (ACC-4), or `None` if the user cancels.
 async fn pick_folder(app: &AppHandle) -> Result<Option<PathBuf>, String> {
+    pick_folder_from(app, None).await
+}
+
+/// The system's folder dialog, starting from `from`, if it's still there.
+async fn pick_folder_from(
+    app: &AppHandle,
+    from: Option<PathBuf>,
+) -> Result<Option<PathBuf>, String> {
     // Native dialogs must run on the main thread (macOS requires it).
     let (send, receive) = std::sync::mpsc::channel();
     app.run_on_main_thread(move || {
-        let _ = send.send(rfd::FileDialog::new().pick_folder());
+        let dialog = rfd::FileDialog::new();
+        let dialog = match from.filter(|folder| folder.is_dir()) {
+            Some(folder) => dialog.set_directory(folder),
+            None => dialog,
+        };
+        let _ = send.send(dialog.pick_folder());
     })
     .map_err(|error| error.to_string())?;
     tauri::async_runtime::spawn_blocking(move || receive.recv().ok().flatten())

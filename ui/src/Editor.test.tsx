@@ -58,7 +58,6 @@ vi.mock("./bindings", () => ({
     cropAspect: mocks.cropAspect,
     revertPhoto: mocks.revertPhoto,
     resolveOutsideChange: mocks.resolveOutsideChange,
-    exportPhoto: vi.fn(),
     photoNotices: vi.fn(() =>
       Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
     ),
@@ -126,7 +125,7 @@ function edit(from: "library" | "viewer" = "library") {
     editedFrom: from,
     viewing: null,
   });
-  return render(<Editor id={7} forceWebgl2={false} devExport={false} />);
+  return render(<Editor id={7} forceWebgl2={false} />);
 }
 
 /** The Brightness slider, once the photo is shown. */
@@ -167,12 +166,12 @@ describe("Editor", () => {
     expect(screen.getByText("Edits saved automatically")).toBeDefined();
   });
 
-  it("shows M1's export in development builds only, until export is built", async () => {
-    const { rerender } = edit();
-    await brightness();
-    expect(screen.queryByRole("button", { name: "Export…" })).toBeNull();
-    rerender(<Editor id={7} forceWebgl2={false} devExport />);
-    expect(screen.getByRole("button", { name: "Export…" })).toBeDefined();
+  it("exports the photo from the toolbar, once it shows (EXP-1)", async () => {
+    const askExport = vi.fn(() => Promise.resolve());
+    useStore.setState({ askExport });
+    edit();
+    fireEvent.click(await screen.findByRole("button", { name: "Export" }));
+    expect(askExport).toHaveBeenCalledWith([7]);
   });
 
   it("saves a waiting change at once when asked, for quitting (#174)", async () => {
@@ -664,7 +663,7 @@ describe("Editor", () => {
     expect(screen.getAllByRole("button", { name: /^Correction/ })).toHaveLength(1);
     press(overlay, [100, 100]);
     useStore.setState({ editing: 8 });
-    rerender(<Editor id={8} forceWebgl2={false} devExport={false} />);
+    rerender(<Editor id={8} forceWebgl2={false} />);
     await waitFor(() => expect(savedCircles()).toHaveLength(3));
   });
 
@@ -772,7 +771,7 @@ describe("Editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "1:1" }));
     // Another photo opened from elsewhere: crop mode's work is kept.
     useStore.setState({ editing: 8 });
-    rerender(<Editor id={8} forceWebgl2={false} devExport={false} />);
+    rerender(<Editor id={8} forceWebgl2={false} />);
     await waitFor(() =>
       expect(mocks.editPhoto).toHaveBeenCalledWith(7, {
         kind: "crop",
@@ -874,7 +873,7 @@ describe("Editor", () => {
     fireEvent.keyDown(window, { key: "ArrowRight" });
     expect(useStore.getState().editing).toBe(8);
     // As App does, the Editor follows the store.
-    rerender(<Editor id={8} forceWebgl2={false} devExport={false} />);
+    rerender(<Editor id={8} forceWebgl2={false} />);
     const next = within(strip).getByRole("button", { name: "IMG_8.jpg" });
     await waitFor(() => expect(document.activeElement).toBe(next));
     expect(within(strip).getByRole("button", { name: "IMG_7.jpg" }).tabIndex).toBe(-1);

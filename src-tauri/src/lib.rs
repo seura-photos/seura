@@ -9,6 +9,7 @@ mod about;
 mod commands;
 mod downloads;
 mod editor;
+mod exporting;
 mod gpu;
 mod library;
 mod locale;
@@ -77,7 +78,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::step_edit,
             commands::revert_photo,
             commands::resolve_outside_change,
-            commands::export_photo,
+            commands::export_start,
+            commands::choose_export_folder,
+            commands::export_photos,
+            commands::stop_export,
+            commands::show_exported,
             commands::dev_options,
             commands::text_scale,
             commands::region,
@@ -96,6 +101,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             ThumbnailsReady,
             LibraryChanged,
             library::EnhanceDownload,
+            exporting::ExportProgress,
             ScanProgress,
             menu::MenuCommand,
             editor::EditFileChanged,
@@ -151,6 +157,7 @@ pub fn run() {
                 origin == locations::Origin::FirstRun || welcome::forced(),
             ));
             app.manage(editor::Editor::default());
+            app.manage(exporting::Exporting::default());
             app.manage(viewer::Viewer::default());
             // Show the snapshot at once (PRF-1), then catch up with the disk.
             app.state::<Library>().start_watching(app.handle());
