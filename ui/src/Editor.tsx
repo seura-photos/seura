@@ -63,6 +63,7 @@ import {
   type LinearImage,
 } from "./preview";
 import { Effects } from "./Effects";
+import { PresetsSection } from "./Presets";
 import { RedEyeOverlay } from "./RedEyeOverlay";
 import { RedEyePanel } from "./RedEyePanel";
 import {
@@ -1521,6 +1522,8 @@ export function Editor({ id, forceWebgl2 }: Props) {
                   )}
                 </div>
               </section>
+
+              <PresetsSection id={id} canSave={editable && edited} />
 
               {problem !== null && (
                 <p className="editor-note" role="note">

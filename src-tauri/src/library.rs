@@ -250,32 +250,38 @@ impl Library {
     /// copied before. They stay in memory: not on the system clipboard, and
     /// gone when the app quits. A photo with no edits leaves that as it was.
     pub fn copy_edits(&self, id: PhotoId) -> CopiedResult {
+        match self.edits_of(id) {
+            Ok((name, Some(edits))) => {
+                *self.copied.lock().expect("copied lock") = Some(Copied {
+                    name: name.clone(),
+                    edits,
+                });
+                CopiedResult::Copied { name }
+            }
+            Ok((name, None)) => CopiedResult::NoEdits { name },
+            Err(result) => result,
+        }
+    }
+
+    /// A photo's name and what can be copied from its edits, if anything,
+    /// for copying (PRE-1) or saving a preset (PRE-3). The error is
+    /// [`CopiedResult::Gone`] or [`CopiedResult::Unreadable`].
+    pub fn edits_of(
+        &self,
+        id: PhotoId,
+    ) -> Result<(String, Option<seura_edit::CopiedEdits>), CopiedResult> {
         let (path, name, upright) = {
             let index = self.index.read().expect("index lock");
-            let Some(photo) = index.photo(id) else {
-                return CopiedResult::Gone;
-            };
+            let photo = index.photo(id).ok_or(CopiedResult::Gone)?;
             let (name, upright) = (photo.name.to_string(), photo.dimensions);
-            match index.path(id) {
-                Some(path) => (path, name, upright),
-                None => return CopiedResult::Gone,
-            }
+            (index.path(id).ok_or(CopiedResult::Gone)?, name, upright)
         };
         match seura_edit::EditFile::load(&seura_edit::edit_file_path(&path)) {
-            Err(_) => CopiedResult::Unreadable { name },
+            Err(_) => Err(CopiedResult::Unreadable { name }),
             Ok(file) => {
                 let edits =
                     file.and_then(|file| seura_edit::CopiedEdits::of(&file.document, upright));
-                match edits {
-                    Some(edits) => {
-                        *self.copied.lock().expect("copied lock") = Some(Copied {
-                            name: name.clone(),
-                            edits,
-                        });
-                        CopiedResult::Copied { name }
-                    }
-                    None => CopiedResult::NoEdits { name },
-                }
+                Ok((name, edits))
             }
         }
     }

@@ -665,6 +665,69 @@ paste-cloud-kept =
         [one] 1 photo is in the cloud, so its crop and rotation weren't changed.
        *[other] { $count } photos are in the cloud, so their crop and rotation weren't changed.
     }
+# Presets in the Editor (PRE-3, PRE-5; wireframes, "Editor", item 9).
+# A preset's name is its file's name. $system is "mac" or "windows".
+presets-title = Presets
+presets-none = No presets yet.
+presets-save = Save current edits as a preset…
+presets-unreadable = Can't be read
+presets-rename = Rename…
+presets-delete =
+    { $system ->
+        [mac] Move to Trash…
+       *[other] Move to Recycle Bin…
+    }
+presets-nothing-to-save = This photo has no edits to save as a preset.
+presets-save-title = Save as preset
+presets-name = Name
+presets-group-empty = None in this photo's edits.
+presets-cancel = Cancel
+presets-save-go = Save
+presets-replace = Replace
+presets-name-in-use = A preset named “{ $name }” already exists. Replace it, or choose another name.
+presets-name-in-use-unreadable = A preset named “{ $name }” already exists and can't be read, so it isn't replaced. Choose another name.
+presets-name-invalid = That name can't be used for a file. Use some letters or numbers.
+presets-save-failed = Couldn't save the preset: { $reason }
+presets-saved = Saved the preset “{ $name }”.
+presets-replaced = Replaced the preset “{ $name }”.
+# The name had characters a file name can't hold, which were changed.
+presets-saved-as = Saved the preset as “{ $name }”, since file names can't hold some characters.
+presets-rename-title = Rename preset
+presets-rename-go = Rename
+presets-rename-in-use = A preset named “{ $name }” already exists. Choose another name.
+presets-rename-failed = Couldn't rename the preset: { $reason }
+presets-renamed-as = Renamed the preset “{ $name }”, since file names can't hold some characters.
+presets-gone = The preset “{ $name }” is no longer in the Presets folder.
+presets-delete-title =
+    { $system ->
+        [mac] Move the preset “{ $name }” to the Trash?
+       *[other] Move the preset “{ $name }” to the Recycle Bin?
+    }
+presets-delete-body =
+    { $system ->
+        [mac] You can restore it from the Trash.
+       *[other] You can restore it from the Recycle Bin.
+    }
+presets-delete-go =
+    { $system ->
+        [mac] Move to Trash
+       *[other] Move to Recycle Bin
+    }
+presets-deleted =
+    { $system ->
+        [mac] Moved the preset “{ $name }” to the Trash.
+       *[other] Moved the preset “{ $name }” to the Recycle Bin.
+    }
+presets-delete-no-trash =
+    { $system ->
+        [mac] The preset “{ $name }” is on a drive with no Trash, so it's left as it is.
+       *[other] The preset “{ $name }” is on a drive with no Recycle Bin, so it's left as it is.
+    }
+presets-delete-failed =
+    { $system ->
+        [mac] Couldn't move the preset to the Trash: { $reason }
+       *[other] Couldn't move the preset to the Recycle Bin: { $reason }
+    }
 export-title =
     { $count ->
         [one] Export 1 photo

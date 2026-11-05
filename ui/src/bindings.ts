@@ -255,6 +255,35 @@ export const commands = {
 	 *  BRW-11). Each chosen group replaces the photo's.
 	 */
 	pasteEdits: (ids: number[], choices: PasteChoices) => typedError<PasteResult, string>(__TAURI_INVOKE("paste_edits", { ids, choices })),
+	/**  The presets in the Presets folder, by name (PRE-5). */
+	presets: () => typedError<PresetSummary[], string>(__TAURI_INVOKE("presets")),
+	/**
+	 *  What a photo's edits could save as a preset, for its dialog (PRE-3):
+	 *  whether there's anything in each group. `None` if there's nothing to
+	 *  save, or its edit file can't be read.
+	 */
+	presetSource: (id: number) => typedError<{
+	name: string,
+	adjustments: boolean,
+	effects: boolean,
+	geometry: boolean,
+} | null, string>(__TAURI_INVOKE("preset_source", { id })),
+	/**
+	 *  Saves a photo's edits in the chosen groups as a preset named `name`
+	 *  (PRE-3), atomically. A name in use is replaced only with `replace`,
+	 *  which the user is asked for first.
+	 */
+	savePreset: (id: number, name: string, choices: PasteChoices, replace: boolean) => typedError<PresetOutcome, string>(__TAURI_INVOKE("save_preset", { id, name, choices, replace })),
+	/**
+	 *  Renames a preset (PRE-5). Another preset's name is refused, so nothing
+	 *  is replaced.
+	 */
+	renamePreset: (from: string, to: string) => typedError<PresetOutcome, string>(__TAURI_INVOKE("rename_preset", { from, to })),
+	/**
+	 *  Moves a preset to the Recycle Bin or Trash, once confirmed (PRE-5;
+	 *  CLAUDE.md rule 5).
+	 */
+	deletePreset: (name: string) => typedError<PresetOutcome, string>(__TAURI_INVOKE("delete_preset", { name })),
 	/**
 	 *  Exports photos to the folder chosen (EXP-1, EXP-6). It takes as long as they
 	 *  do; [`stop_export`] ends it early.
@@ -342,6 +371,7 @@ export const events = {
 	exportProgress: makeEvent<ExportProgress>("export-progress"),
 	libraryChanged: makeEvent<LibraryChanged>("library-changed"),
 	menuCommand: makeEvent<MenuCommand>("menu-command"),
+	presetsChanged: makeEvent<PresetsChanged>("presets-changed"),
 	quitRequested: makeEvent<QuitRequested>("quit-requested"),
 	scanProgress: makeEvent<ScanProgress>("scan-progress"),
 	thumbnailsReady: makeEvent<ThumbnailsReady>("thumbnails-ready"),
@@ -972,6 +1002,43 @@ export type PhotoProblem =
 "editsUnreadable" | 
 /**  Too many tags for a JPEG, or the render failed. */
 "failed";
+
+/**  What saving, renaming, or removing a preset did. */
+export type PresetOutcome = 
+/**  Done, under this name. */
+{ kind: "done"; name: string } | 
+/**
+ *  Another preset has the name, ignoring letter case; `readable` is
+ *  whether it could be replaced.
+ */
+{ kind: "nameInUse"; name: string; readable: boolean } | 
+/**  Nothing a file name can hold is left of the name. */
+{ kind: "invalidName" } | 
+/**  Nothing in the chosen groups to save. */
+{ kind: "nothingToSave" } | 
+/**  The photo's edit file, or the preset, can't be read (rule 4). */
+{ kind: "unreadable" } | 
+/**  The photo or the preset is no longer there. */
+{ kind: "gone" } | 
+/**  The drive has no Recycle Bin or Trash, so the preset was left as it is. */
+{ kind: "noTrash" };
+
+/**  One preset in the list (PRE-5). */
+export type PresetSummary = {
+	/**  Its file's name, without the suffix. */
+	name: string,
+	adjustments: boolean,
+	effects: boolean,
+	geometry: boolean,
+	/**  Why it can't be read, if it can't (rule 4). */
+	problem: string | null,
+};
+
+/**
+ *  The Presets folder changed: a preset was saved, renamed, removed, or
+ *  copied in.
+ */
+export type PresetsChanged = null;
 
 /**  The user asked to quit: the UI saves what's waiting and calls `finish_quit`. */
 export type QuitRequested = null;
