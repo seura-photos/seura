@@ -1,6 +1,7 @@
 import { LoaderCircle } from "lucide-react";
 import { formatBytes } from "./format";
 import { t } from "./messages";
+import { useStore } from "./store";
 import { ThumbnailImage } from "./ThumbnailImage";
 
 type Props = {
@@ -17,9 +18,10 @@ type Props = {
  * moving on is how a download is abandoned.
  */
 export function CloudPhoto({ id, state, onTryAgain }: Props) {
+  const thumbnail = useStore((store) => store.thumbs.get(id)?.version ?? 0);
   return (
     <>
-      <ThumbnailImage key={id} id={id} className="viewer-thumbnail" />
+      <ThumbnailImage key={id} id={id} version={thumbnail} className="viewer-thumbnail" />
       <div className="viewer-message" role="status">
         {state.kind === "downloading" && (
           <LoaderCircle className="icon viewer-spinner" aria-hidden />

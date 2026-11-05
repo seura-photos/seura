@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PhotoDetails } from "./bindings";
 import { InfoPanel } from "./InfoPanel";
@@ -57,6 +57,42 @@ describe("Info panel (BRW-6)", () => {
     cleanup();
     vi.clearAllMocks();
     useStore.setState(useStore.getInitialState(), true);
+  });
+
+  it("shows a photo's new thumbnail once an edit has made one", async () => {
+    mocks.photoDetails.mockResolvedValue({ status: "ok", data: details() });
+    const { container } = render(<InfoPanel ids={[7]} version={0} preview />);
+    await screen.findByText("IMG_4417.HEIC");
+    const image = container.querySelector("img.info-preview");
+    expect(image?.getAttribute("src")).toMatch(/\?v=0$/);
+    fireEvent.load(image as Element);
+    act(() => {
+      useStore
+        .getState()
+        .thumbnailsReady([{ id: 7, cloudOnly: false, needsCodec: false, failed: false }]);
+    });
+    // The old image stays until the new one has loaded.
+    expect(container.querySelector("img.info-preview")).toBe(image);
+    const next = container.querySelector("img.thumbnail-loading");
+    expect(next?.getAttribute("src")).toMatch(/\?v=1$/);
+    fireEvent.load(next as Element);
+    const shown = container.querySelectorAll("img");
+    expect(shown).toHaveLength(1);
+    expect(shown[0]?.getAttribute("src")).toMatch(/\?v=1$/);
+  });
+
+  it("shows a thumbnail that wasn't made yet when the photo was selected", async () => {
+    mocks.photoDetails.mockResolvedValue({ status: "ok", data: details() });
+    const { container } = render(<InfoPanel ids={[7]} version={0} preview />);
+    await screen.findByText("IMG_4417.HEIC");
+    fireEvent.error(container.querySelector("img") as Element);
+    expect(container.querySelector("img")).toBeNull();
+    act(() => {
+      useStore
+        .getState()
+        .thumbnailsReady([{ id: 7, cloudOnly: false, needsCodec: false, failed: false }]);
+    });
+    expect(container.querySelector("img")?.getAttribute("src")).toMatch(/\?v=1$/);
   });
 
   it("shows one photo's details, as in the mockup", async () => {

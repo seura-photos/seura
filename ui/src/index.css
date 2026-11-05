@@ -1134,8 +1134,9 @@ button {
   outline-offset: 2px;
 }
 
-/* Loading out of sight: see ThumbnailImage. */
-.thumbnail-loading {
+/* Loading out of sight: see ThumbnailImage. Stronger than one class, so an image's
+   own class can't show it by setting display, as .info-preview's did. */
+img.thumbnail-loading {
   display: none;
 }
 
