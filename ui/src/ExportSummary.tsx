@@ -38,6 +38,7 @@ export function ExportSummary() {
             {exportFolderProblem(report.folderProblem)} {t("export-left", { count: report.left })}
           </p>
         )}
+        {report.renamed > 0 && <p>{t("export-renamed", { count: report.renamed })}</p>}
         {report.stopped > 0 && <p>{exportStoppedParts(report).join(" ")}</p>}
         {report.failures.length > 0 && (
           <>

@@ -32,7 +32,10 @@ export function exportStoppedParts(report: ExportReport): string[] {
 
 /** One photo's result, which is a message rather than a summary (EXP-6). */
 export function exportMessage(name: string, report: ExportReport): string {
-  if (report.exported > 0) return t("export-done-one", { file: report.file ?? name });
+  if (report.exported > 0) {
+    const done = t("export-done-one", { file: report.file ?? name });
+    return report.renamed > 0 ? `${done} ${t("export-renamed-one")}` : done;
+  }
   if (report.folderProblem) return exportFolderProblem(report.folderProblem);
   const [failure] = report.failures;
   if (failure) return t("export-failed-one", { name, reason: exportProblem(failure.problem) });

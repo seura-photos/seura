@@ -613,6 +613,11 @@ export type ExportProgress = {
 /**  What an export did, for the summary or message (EXP-6). */
 export type ExportReport = {
 	exported: number,
+	/**
+	 *  Of those, how many got a number because their name was taken (EXP-3),
+	 *  which is worth saying: exporting again makes copies (Nevada, 2026-11-04).
+	 */
+	renamed: number,
 	/**  The first file's name, which is all one photo's message needs. */
 	file: string | null,
 	failures: ExportFailure[],

@@ -31,6 +31,7 @@ const start: ExportStart = {
 
 const done: ExportReport = {
   exported: 1,
+  renamed: 0,
   file: "IMG_1.jpg",
   failures: [],
   stopped: 0,
@@ -192,6 +193,34 @@ describe("Export (EXP-1 to EXP-6)", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     fireEvent.click(button("Show in Explorer"));
     expect(mocks.showExported).toHaveBeenCalled();
+  });
+
+  it("says when a photo got a number because its name was taken (EXP-3)", async () => {
+    mocks.exportPhotos.mockResolvedValue({
+      status: "ok",
+      data: { ...done, renamed: 1, file: "IMG_1 (1).jpg" },
+    });
+    await open([1]);
+    fireEvent.click(button("Export"));
+    await screen.findByText(
+      "Exported IMG_1 (1).jpg. That name was already taken in the folder, so nothing was replaced.",
+    );
+  });
+
+  it("says in the summary how many names were taken, and nothing when none were", async () => {
+    mocks.exportPhotos.mockResolvedValue({
+      status: "ok",
+      data: { ...done, exported: 3, renamed: 2 },
+    });
+    await open([1, 2, 3]);
+    fireEvent.click(button("Export"));
+    await screen.findByText(/^2 names were already taken in that folder/);
+    fireEvent.click(button("OK"));
+    mocks.exportPhotos.mockResolvedValue({ status: "ok", data: { ...done, exported: 3 } });
+    await act(() => useStore.getState().askExport([1, 2, 3]));
+    fireEvent.click(button("Export"));
+    await screen.findByRole("heading", { name: "Exported 3 photos" });
+    expect(screen.queryByText(/already taken/)).toBeNull();
   });
 
   it("says when one photo couldn't be exported, and why, without offering to show it", async () => {

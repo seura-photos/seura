@@ -147,6 +147,9 @@ pub struct ExportFailure {
 #[serde(rename_all = "camelCase")]
 pub struct ExportReport {
     pub exported: u32,
+    /// Of those, how many got a number because their name was taken (EXP-3),
+    /// which is worth saying: exporting again makes copies (Nevada, 2026-11-04).
+    pub renamed: u32,
     /// The first file's name, which is all one photo's message needs.
     pub file: Option<String>,
     pub failures: Vec<ExportFailure>,
@@ -209,6 +212,9 @@ fn run_batch(
         match write(item) {
             Ok(path) => {
                 report.exported += 1;
+                if path.file_stem() != item.path.file_stem() {
+                    report.renamed += 1;
+                }
                 if report.file.is_none() {
                     report.file = path
                         .file_name()
@@ -457,6 +463,25 @@ mod tests {
         assert_eq!(report.exported, 2);
         assert_eq!(report.file.as_deref(), Some("a"));
         assert_eq!(written, [PathBuf::from("out/a"), PathBuf::from("out/b")]);
+    }
+
+    #[test]
+    fn photos_whose_names_were_taken_are_counted_exp_3() {
+        let items = [item("IMG_1.heic", false), item("IMG_2.heic", false)];
+        let (report, _) = run_batch(
+            &items,
+            || false,
+            |_, _, _| {},
+            |_| Downloaded::Yes,
+            |item| {
+                Ok(PathBuf::from(if item.name == "IMG_1.heic" {
+                    "out/IMG_1 (1).jpg"
+                } else {
+                    "out/IMG_2.jpg"
+                }))
+            },
+        );
+        assert_eq!((report.exported, report.renamed), (2, 1));
     }
 
     #[test]

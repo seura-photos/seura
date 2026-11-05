@@ -697,6 +697,12 @@ export-summary-failures =
         [one] 1 photo couldn't be exported:
        *[other] { $count } photos couldn't be exported:
     }
+export-renamed =
+    { $count ->
+        [one] 1 name was already taken in that folder, so that file got a number. Nothing was replaced, so you may have two copies of that photo.
+       *[other] { $count } names were already taken in that folder, so those files got a number. Nothing was replaced, so you may have two copies of those photos.
+    }
+export-renamed-one = That name was already taken in the folder, so nothing was replaced.
 export-summary-ok = OK
 # One-click enhance (EDT-12).
 editor-enhance = Enhance
