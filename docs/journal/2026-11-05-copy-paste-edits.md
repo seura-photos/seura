@@ -9,3 +9,11 @@ M5 slice 5 (#210; PRE-1, PRE-2). Nevada said to go ahead and stepped away, so Cl
 - **Paste has only its key on Windows, and the menu on the Mac.** That's what the wireframes draw: Copy edits on the Editor's toolbar, and keys otherwise. It meant the real app couldn't be driven with UI Automation, so Claude Code drove a scratch build through the web view's debug port, with page events rather than OS-level input. That also gave multi-select for the first time, which export's tests had to go without.
 - **A mistake caught by the tests:** the Editor's paste hook first went after an early return, which would have changed the order of hooks. The whole Editor test file failed at once, which made it plain.
 - **The edit format's submodule moved to include #17,** which says an app replaces only the operations it understands within a stage.
+
+## Checks and Nevada's answers
+
+- **The Mac session checked the paste in the real app** through the accessibility API, while Nevada pressed Cmd+A. It checked the Edit menu's items, the copy messages, crops on three shapes, "Undo Paste Edits (3 photos)", and the originals' SHA-256 before and after. All passed. It also found that Edit > Select All, chosen from the menu, selects nothing in the grid. Nevada confirmed this with a real click (#227).
+- **CI's `macos-latest` job was cancelled twice** with no steps run, because no runner was assigned. The third try passed.
+- **Nevada tested on Windows with real keys.** Shift+Ctrl+C and Shift+Ctrl+V worked. A paste onto a cloud-only photo updated its thumbnail without downloading it.
+- **Empty groups clear (Nevada's decision).** Nevada said that if a group is pasted, the target should match the source, even if that removes a setting. Their example: contrast set on the target but not on the source is removed. PRE-2 now says so.
+- **Copying from a selection takes the focused photo (Nevada's decision).** Nevada noticed that Copy uses the photo selected most recently. They weighed refusing to copy from a selection and kept the current behavior, since the message names the photo. They asked for it to be written down, so PRE-1 now says what "focused" means: the photo last clicked or reached with the arrow keys.
