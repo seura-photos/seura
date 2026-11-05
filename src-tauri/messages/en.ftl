@@ -14,6 +14,8 @@ menu-file = File
 menu-add-folder = Add Folder…
 menu-show-in-finder = Show in Finder
 menu-export = Export…
+menu-copy-edits = Copy Edits
+menu-paste-edits = Paste Edits…
 menu-open-in-default-app = Open in Default App
 menu-move-to-trash = Move to Trash…
 menu-close-window = Close Window
@@ -28,6 +30,7 @@ menu-undo-action =
         [rotateLeft] Undo Rotate Left
         [rotateRight] Undo Rotate Right
         [enhance] Undo Enhance
+        [paste] Undo Paste Edits
         [addTag] Undo Add Tag “{ $tag }”
        *[removeTag] Undo Remove Tag “{ $tag }”
     } ({ $count ->
@@ -40,6 +43,7 @@ menu-redo-action =
         [rotateLeft] Redo Rotate Left
         [rotateRight] Redo Rotate Right
         [enhance] Redo Enhance
+        [paste] Redo Paste Edits
         [addTag] Redo Add Tag “{ $tag }”
        *[removeTag] Redo Remove Tag “{ $tag }”
     } ({ $count ->

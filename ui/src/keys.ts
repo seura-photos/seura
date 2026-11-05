@@ -35,6 +35,16 @@ export function historyKey(event: KeyboardEvent): "undo" | "redo" | null {
   return null;
 }
 
+/** Whether a key press is Copy edits or Paste edits (PRE-1; user flows,
+ * "Keyboard"): Shift+Ctrl+C and Shift+Ctrl+V, outside a text field. Windows
+ * only: on a Mac, they go to the Edit menu, which passes them on. */
+export function editsKey(event: KeyboardEvent): "copy" | "paste" | null {
+  if (isMac || !event.ctrlKey || !event.shiftKey || event.altKey || event.metaKey) return null;
+  if (isTyping(event)) return null;
+  const key = event.key.toLowerCase();
+  return key === "c" ? "copy" : key === "v" ? "paste" : null;
+}
+
 /** Whether a key press is Export (user flows, "Keyboard"): Ctrl+E. Windows
  * only: on a Mac, Cmd+E goes to the File menu's Export, which passes it on, so
  * it happens once. */

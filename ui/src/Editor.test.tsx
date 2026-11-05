@@ -174,6 +174,40 @@ describe("Editor", () => {
     expect(askExport).toHaveBeenCalledWith([7]);
   });
 
+  it("copies the photo's edits from the toolbar, once it shows (PRE-1)", async () => {
+    const copyEdits = vi.fn(() => Promise.resolve());
+    useStore.setState({ copyEdits });
+    edit();
+    fireEvent.click(await screen.findByRole("button", { name: "Copy edits" }));
+    expect(copyEdits).toHaveBeenCalled();
+  });
+
+  it("pastes as one change the core works out, and shows it (PRE-1, EDT-9)", async () => {
+    const pasted = { exposureEv: 0.6 };
+    mocks.editPhoto.mockImplementation(() =>
+      Promise.resolve({
+        status: "ok",
+        data: { kind: "saved", steps: { undo: "Paste edits", redo: null }, settings: pasted },
+      }),
+    );
+    edit();
+    const slider = await brightness();
+    const choices = { adjustments: true, effects: true, geometry: false };
+    await act(async () => {
+      await useStore.getState().editorPaste?.(choices);
+    });
+    expect(mocks.editPhoto).toHaveBeenCalledWith(7, { kind: "paste", choices });
+    await waitFor(() => expect(slider.value).toBe("15"));
+  });
+
+  it("takes no paste while the photo can't be edited or a mode is open (PRE-1)", async () => {
+    edit();
+    await brightness();
+    expect(useStore.getState().editorPaste).not.toBeNull();
+    fireEvent.keyDown(window, { key: "c" });
+    await waitFor(() => expect(useStore.getState().editorPaste).toBeNull());
+  });
+
   it("saves a waiting change at once when asked, for quitting (#174)", async () => {
     edit();
     const slider = await brightness();

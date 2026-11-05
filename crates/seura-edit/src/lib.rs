@@ -14,6 +14,7 @@
 mod document;
 mod file;
 mod operations;
+mod paste;
 mod validate;
 
 pub use document::{
@@ -25,3 +26,4 @@ pub use operations::{
     Amount, CORE_VERSION, CoreOpId, CoreOperation, Crop, Exposure, Orient, RedEye, RedEyeRegion,
     Stage, Straighten, Strength, Vignette, WhiteBalance,
 };
+pub use paste::{CopiedEdits, PASTE, PasteGroups, Pasted, on_pixels, paste_action};

@@ -41,6 +41,8 @@ pub struct Library {
     /// tags and ratings are written, so two changes never interleave on a
     /// photo.
     history: Mutex<History>,
+    /// The edits last copied (PRE-1).
+    copied: Mutex<Option<Copied>>,
     /// When decoding first learned something the saved index doesn't have,
     /// such as a date taken; `None` when it's all saved (#99).
     unsaved_details: Mutex<Option<Instant>>,
@@ -88,6 +90,32 @@ pub struct ThumbnailReady {
     /// Microsoft's extensions (decision 0014).
     pub needs_codec: bool,
     pub failed: bool,
+}
+
+/// The edits last copied, and the photo they came from (PRE-1).
+#[derive(Clone, Debug)]
+pub struct Copied {
+    pub name: String,
+    pub edits: seura_edit::CopiedEdits,
+}
+
+/// What copying a photo's edits did (PRE-1). Only `Copied` changes what's
+/// held.
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum CopiedResult {
+    Copied {
+        name: String,
+    },
+    NoEdits {
+        name: String,
+    },
+    /// Its edit file can't be read (FIL-4).
+    Unreadable {
+        name: String,
+    },
+    /// It's no longer in the library.
+    Gone,
 }
 
 /// The library's folders or photos changed, after a scan.
@@ -191,6 +219,7 @@ impl Library {
             store: RwLock::new(Store::open(app, cache)),
             ready: Mutex::new(Vec::new()),
             history: Mutex::new(History::default()),
+            copied: Mutex::new(None),
             unsaved_details: Mutex::new(None),
         }
     }
@@ -206,12 +235,106 @@ impl Library {
     ) -> ChangeReport {
         // Rotate and Enhance work out each photo's action from its own
         // edits and pixels (BRW-10).
-        let quick =
-            |photo: &std::path::Path, cloud_only: bool, loaded: Option<&seura_edit::EditFile>| {
-                crate::editor::quick_action(change, photo, cloud_only, loaded)
-            };
+        let quick = |photo: &std::path::Path,
+                     cloud_only: bool,
+                     _: Option<(u32, u32)>,
+                     loaded: Option<&seura_edit::EditFile>| {
+            crate::editor::quick_action(change, photo, cloud_only, loaded)
+        };
         let make: Option<seura_library::MakeAction<'_>> =
             matches!(change, Change::Rotate { .. } | Change::Enhance).then_some(&quick);
+        self.change_made(app, ids, change, make)
+    }
+
+    /// Copies a photo's edits to paste later (PRE-1), replacing what was
+    /// copied before. They stay in memory: not on the system clipboard, and
+    /// gone when the app quits. A photo with no edits leaves that as it was.
+    pub fn copy_edits(&self, id: PhotoId) -> CopiedResult {
+        let (path, name, upright) = {
+            let index = self.index.read().expect("index lock");
+            let Some(photo) = index.photo(id) else {
+                return CopiedResult::Gone;
+            };
+            let (name, upright) = (photo.name.to_string(), photo.dimensions);
+            match index.path(id) {
+                Some(path) => (path, name, upright),
+                None => return CopiedResult::Gone,
+            }
+        };
+        match seura_edit::EditFile::load(&seura_edit::edit_file_path(&path)) {
+            Err(_) => CopiedResult::Unreadable { name },
+            Ok(file) => {
+                let edits =
+                    file.and_then(|file| seura_edit::CopiedEdits::of(&file.document, upright));
+                match edits {
+                    Some(edits) => {
+                        *self.copied.lock().expect("copied lock") = Some(Copied {
+                            name: name.clone(),
+                            edits,
+                        });
+                        CopiedResult::Copied { name }
+                    }
+                    None => CopiedResult::NoEdits { name },
+                }
+            }
+        }
+    }
+
+    /// What was last copied, if anything.
+    pub fn copied(&self) -> Option<Copied> {
+        self.copied.lock().expect("copied lock").clone()
+    }
+
+    /// Pastes what was copied onto photos, as one action to undo (PRE-1,
+    /// PRE-2; BRW-11). `None` if nothing was. A photo only in the cloud is
+    /// never downloaded for this (LIB-9); one on the computer whose size
+    /// isn't known yet is read for it. Also says how many kept their crop and
+    /// rotation because their shape was needed and isn't known.
+    pub fn paste<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        ids: &[PhotoId],
+        groups: seura_edit::PasteGroups,
+    ) -> Option<(ChangeReport, u32)> {
+        let copied = self.copied()?.edits;
+        let kept = std::cell::Cell::new(0);
+        let make = |photo: &std::path::Path,
+                    cloud_only: bool,
+                    dimensions: Option<(u32, u32)>,
+                    loaded: Option<&seura_edit::EditFile>| {
+            let dimensions = match dimensions {
+                None if copied.needs_shape(groups) && !cloud_only => {
+                    let decoded =
+                        seura_image::decode_linear(photo, Some(seura_image::GUIDE_LONG_EDGE))
+                            .map_err(|error| Problem::Failed(error.to_string()))?;
+                    Some((decoded.width, decoded.height))
+                }
+                dimensions => dimensions,
+            };
+            let pasted = seura_edit::paste_action(
+                &copied,
+                groups,
+                loaded.map(|file| &file.document),
+                dimensions,
+            );
+            if pasted.kept_geometry {
+                kept.set(kept.get() + 1);
+            }
+            Ok(pasted.action)
+        };
+        let report = self.change_made(app, ids, &Change::Paste, Some(&make));
+        Some((report, kept.get()))
+    }
+
+    /// Makes a change through the one path for the Library's writes, as one
+    /// action to undo, then saves the index and tells the UI.
+    fn change_made<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        ids: &[PhotoId],
+        change: &Change,
+        make: Option<seura_library::MakeAction<'_>>,
+    ) -> ChangeReport {
         let report = {
             let mut history = self.history.lock().expect("history lock");
             let (report, action) = Index::change_recorded_with(
@@ -325,7 +448,10 @@ impl Library {
     ) -> (seura_library::Action, ChangeReport) {
         // A photo just read is on the computer, whatever its attributes say
         // so far.
-        let make = |photo: &std::path::Path, _: bool, loaded: Option<&seura_edit::EditFile>| {
+        let make = |photo: &std::path::Path,
+                    _: bool,
+                    _: Option<(u32, u32)>,
+                    loaded: Option<&seura_edit::EditFile>| {
             crate::editor::quick_action(&Change::Enhance, photo, false, loaded)
         };
         let (report, action) = {

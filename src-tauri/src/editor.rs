@@ -377,6 +377,21 @@ impl Editor {
             Change::Turn(turn) => turn_action(&session.mine, *turn),
             Change::Crop(crop) => crop_action(&session.mine, session.full, crop),
             Change::Enhance => enhance_action(&session.mine, &session.guide_image),
+            // One step in the photo's own history (EDT-9).
+            Change::Paste(groups) => {
+                let copied = library
+                    .copied()
+                    .ok_or_else(|| Problem::Failed("nothing is copied".into()))?;
+                let document =
+                    current(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
+                seura_edit::paste_action(
+                    &copied.edits,
+                    *groups,
+                    document.as_ref(),
+                    Some(session.full),
+                )
+                .action
+            }
         };
         library.edit_with(app, PhotoId::new(id), &mut session.kept, |_| action.clone())?;
         let document = current(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
@@ -646,6 +661,7 @@ pub enum Change {
     Turn(Turn),
     Crop(CropEdit),
     Enhance,
+    Paste(seura_edit::PasteGroups),
 }
 
 /// Enhance (EDT-12) as one record in the photo's history, "Enhance": the
@@ -700,17 +716,8 @@ const ANGLE_RANGE: (f64, f64) = (-45.0, 45.0);
 pub fn crop_action(mine: &Mine, full: (u32, u32), crop: &CropEdit) -> Action {
     let (across, down) = mine.settings().oriented_size(full.0, full.1);
     let (across, down) = (f64::from(across.max(1)), f64::from(down.max(1)));
-    // A hair of slack, so an edge already on a pixel stays there.
-    let inward = |start: f64, length: f64, size: f64| {
-        let first = ((start.clamp(0.0, 1.0) * size) - 1e-6).ceil().max(0.0);
-        let last = (((start + length).clamp(0.0, 1.0) * size) + 1e-6)
-            .floor()
-            .min(size)
-            .max(first + 1.0);
-        (first / size, (last - first) / size)
-    };
-    let (x, width) = inward(crop.x, crop.width, across);
-    let (y, height) = inward(crop.y, crop.height, down);
+    let (x, width) = seura_edit::on_pixels(crop.x, crop.width, across);
+    let (y, height) = seura_edit::on_pixels(crop.y, crop.height, down);
     let angle = (crop.angle.clamp(ANGLE_RANGE.0, ANGLE_RANGE.1) * 10.0).round() / 10.0;
     let cropped = Crop {
         x,
