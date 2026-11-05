@@ -48,8 +48,11 @@ vi.mock("./bindings", () => ({
         return Promise.resolve(() => {});
       },
     },
+    presetsChanged: { listen: () => Promise.resolve(() => {}) },
   },
   commands: {
+    // The Presets section has its own tests.
+    presets: () => Promise.resolve({ status: "ok", data: [] }),
     openPhoto: mocks.openPhoto,
     closePhoto: mocks.closePhoto,
     editorRegion: mocks.editorRegion,

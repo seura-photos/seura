@@ -1744,6 +1744,45 @@ img.thumbnail-loading {
   gap: 0.75rem;
 }
 
+/* Presets in the Editor (wireframes, "Editor", item 9): one row each, the
+   name cut short if it must; right-click for Rename and Delete. */
+.preset-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.preset-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: var(--size-tier1-target);
+  padding: 0 0.5rem;
+  border-radius: var(--radius-control);
+}
+
+.preset-row:hover {
+  background-image: linear-gradient(var(--color-hover-overlay), var(--color-hover-overlay));
+}
+
+.preset-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-section p.preset-empty {
+  margin: 0;
+}
+
+.preset-dialog .preset-field {
+  width: 100%;
+}
+
 .red-eye-panel p {
   margin: 0;
 }

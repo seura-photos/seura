@@ -193,6 +193,44 @@ impl EditDocument {
         }
     }
 
+    /// A new preset with no operations yet, in format 1.0 (edit format,
+    /// "Presets").
+    pub fn new_preset(name: &str) -> EditDocument {
+        let mut root = Map::new();
+        root.insert("$schema".into(), json!(SCHEMA_URL));
+        root.insert("format".into(), json!("seura-edit"));
+        root.insert("formatVersion".into(), json!("1.0"));
+        root.insert("kind".into(), json!("preset"));
+        root.insert("name".into(), json!(name));
+        EditDocument {
+            root,
+            newer_minor: false,
+        }
+    }
+
+    /// A preset's name, from its `name` field.
+    pub fn preset_name(&self) -> Option<&str> {
+        match self.kind() {
+            Kind::Preset => self.root.get("name").and_then(Value::as_str),
+            Kind::Photo => None,
+        }
+    }
+
+    /// Renames a preset. Not a user action on a photo, so nothing is
+    /// recorded; a preset has no history.
+    pub fn set_preset_name(&mut self, name: &str) -> Result<(), EditError> {
+        if self.kind() != Kind::Preset {
+            return Err(EditError::Invalid(vec!["only a preset has a name".into()]));
+        }
+        let before = self.root.clone();
+        self.insert_field("name", json!(name));
+        if let Err(error) = self.check() {
+            self.root = before;
+            return Err(error);
+        }
+        Ok(())
+    }
+
     /// The document as written to disk: UTF-8 JSON, two-space indent, final
     /// newline. Fails rather than produce an invalid file.
     pub fn to_bytes(&self) -> Result<Vec<u8>, EditError> {

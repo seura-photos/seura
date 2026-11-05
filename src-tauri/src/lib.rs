@@ -18,6 +18,7 @@ mod measure;
 mod menu;
 mod messages;
 mod parts;
+mod presets;
 mod protocol;
 mod quitting;
 mod synced;
@@ -83,6 +84,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::copy_edits,
             commands::copied_edits,
             commands::paste_edits,
+            commands::presets,
+            commands::preset_source,
+            commands::save_preset,
+            commands::rename_preset,
+            commands::delete_preset,
             commands::export_photos,
             commands::stop_export,
             commands::show_exported,
@@ -108,6 +114,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             ScanProgress,
             menu::MenuCommand,
             editor::EditFileChanged,
+            presets::PresetsChanged,
             quitting::QuitRequested
         ])
         // Nothing changed, as the preview draws the original (EDT-1).
@@ -162,6 +169,9 @@ pub fn run() {
             app.manage(editor::Editor::default());
             app.manage(exporting::Exporting::default());
             app.manage(viewer::Viewer::default());
+            app.manage(presets::Presets::new(&seura));
+            // Files copied into the Presets folder appear without restarting (PRE-5).
+            app.state::<presets::Presets>().watch(app.handle());
             // Show the snapshot at once (PRF-1), then catch up with the disk.
             app.state::<Library>().start_watching(app.handle());
             // Finished thumbnails reach the UI in batches.

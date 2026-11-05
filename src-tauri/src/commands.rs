@@ -16,6 +16,7 @@ use tauri_specta::Event;
 use crate::editor::{ChangeDetail, EditSteps, Editor};
 use crate::exporting::{ExportChoices, ExportReport, ExportStart, Exporting};
 use crate::library::{AppSettings, CopiedResult, EnhanceReport, Library, LibraryChanged};
+use crate::presets::{PresetOutcome, PresetSummary, Presets};
 use crate::viewer::{Viewer, Wanted};
 use crate::welcome;
 use seura_edit::{Amount, CoreOperation, Strength, Vignette, WhiteBalance};
@@ -925,6 +926,127 @@ pub async fn paste_edits(
             }
         }
         Ok::<_, String>(result)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// The presets in the Presets folder, by name (PRE-5).
+#[tauri::command]
+#[specta::specta]
+pub async fn presets(app: AppHandle) -> Result<Vec<PresetSummary>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let presets = app.state::<Presets>();
+        presets.watch(&app);
+        crate::presets::summaries(&presets.folder).map_err(|error| error.to_string())
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// What a photo's edits could save as a preset, for its dialog (PRE-3):
+/// whether there's anything in each group. `None` if there's nothing to
+/// save, or its edit file can't be read.
+#[tauri::command]
+#[specta::specta]
+pub async fn preset_source(app: AppHandle, id: u32) -> Result<Option<CopiedSummary>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (name, edits) = app.state::<Library>().edits_of(PhotoId::new(id)).ok()?;
+        let edits = edits?;
+        Some(CopiedSummary {
+            adjustments: edits.holds(seura_edit::Stage::Tone),
+            effects: edits.holds(seura_edit::Stage::Effects),
+            geometry: edits.holds(seura_edit::Stage::Geometry),
+            name,
+        })
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+/// Saves a photo's edits in the chosen groups as a preset named `name`
+/// (PRE-3), atomically. A name in use is replaced only with `replace`,
+/// which the user is asked for first.
+#[tauri::command]
+#[specta::specta]
+pub async fn save_preset(
+    app: AppHandle,
+    id: u32,
+    name: String,
+    choices: PasteChoices,
+    replace: bool,
+) -> Result<PresetOutcome, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let edits = match app.state::<Library>().edits_of(PhotoId::new(id)) {
+            Ok((_, Some(edits))) => edits,
+            Ok((_, None)) => return Ok(PresetOutcome::NothingToSave),
+            Err(CopiedResult::Unreadable { .. }) => return Ok(PresetOutcome::Unreadable),
+            Err(_) => return Ok(PresetOutcome::Gone),
+        };
+        let Some(clean) = seura_edit::clean_preset_name(&name) else {
+            return Ok(PresetOutcome::InvalidName);
+        };
+        let Some(preset) = edits.preset(&clean, choices.into()) else {
+            return Ok(PresetOutcome::NothingToSave);
+        };
+        let presets = app.state::<Presets>();
+        let saved = presets.folder.save(
+            &clean,
+            preset,
+            replace,
+            crate::editor::WRITER,
+            time::OffsetDateTime::now_utc(),
+        );
+        // The first preset makes the folder.
+        presets.watch(&app);
+        match saved {
+            Ok(name) => Ok(PresetOutcome::Done { name }),
+            Err(error) => crate::presets::outcome(error),
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// Renames a preset (PRE-5). Another preset's name is refused, so nothing
+/// is replaced.
+#[tauri::command]
+#[specta::specta]
+pub async fn rename_preset(
+    app: AppHandle,
+    from: String,
+    to: String,
+) -> Result<PresetOutcome, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let renamed = app.state::<Presets>().folder.rename(
+            &from,
+            &to,
+            crate::editor::WRITER,
+            time::OffsetDateTime::now_utc(),
+        );
+        match renamed {
+            Ok(name) => Ok(PresetOutcome::Done { name }),
+            Err(error) => crate::presets::outcome(error),
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+/// Moves a preset to the Recycle Bin or Trash, once confirmed (PRE-5;
+/// CLAUDE.md rule 5).
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_preset(app: AppHandle, name: String) -> Result<PresetOutcome, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        match app
+            .state::<Presets>()
+            .folder
+            .remove(&name, seura_library::move_to_trash)
+        {
+            Ok(()) => Ok(PresetOutcome::Done { name }),
+            Err(error) => crate::presets::outcome(error),
+        }
     })
     .await
     .map_err(|error| error.to_string())?

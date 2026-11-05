@@ -69,6 +69,39 @@ impl CopiedEdits {
         groups.geometry && (self.lock().is_some() || self.angle() != 0.0)
     }
 
+    /// A preset named `name` holding the copied stages in `groups` (PRE-3),
+    /// as they are: a crop is fitted to each photo the preset is applied to.
+    /// `None` if none of those stages holds anything, since such a preset
+    /// would change nothing.
+    pub fn preset(&self, name: &str, groups: PasteGroups) -> Option<EditDocument> {
+        let chosen = |stage: Stage| match stage {
+            Stage::Tone => groups.adjustments,
+            Stage::Effects => groups.effects,
+            Stage::Geometry => groups.geometry,
+            Stage::Retouch => false,
+        };
+        let edits: Vec<Edit> = self
+            .operations
+            .iter()
+            .filter(|core| chosen(core.id().stage()))
+            .cloned()
+            .map(Edit::Set)
+            .collect();
+        if edits.is_empty() {
+            return None;
+        }
+        let mut preset = EditDocument::new_preset(name);
+        let action = Action {
+            label: String::new(),
+            edits,
+        };
+        // A preset records no history, so the time isn't used.
+        preset
+            .apply(&action, time::OffsetDateTime::UNIX_EPOCH)
+            .ok()?;
+        Some(preset)
+    }
+
     fn get(&self, id: CoreOpId) -> Option<&CoreOperation> {
         self.operations.iter().find(|core| core.id() == id)
     }
@@ -420,6 +453,44 @@ mod tests {
 
     fn close(found: f64, expected: f64) {
         assert!((found - expected).abs() < 1e-9, "{found} isn't {expected}");
+    }
+
+    #[test]
+    fn a_preset_holds_the_chosen_stages_as_they_are_pre_3() {
+        let locked = crop(0.1, 0.1, 0.6, 0.6, Some("3:2"));
+        let copied = CopiedEdits::of(
+            &document(vec![locked.clone(), exposure(0.5), sepia()]),
+            Some((4000, 3000)),
+        )
+        .unwrap();
+
+        let preset = copied.preset("Warm", DEFAULTS).unwrap();
+        assert_eq!(preset.kind(), crate::Kind::Preset);
+        assert_eq!(preset.preset_name(), Some("Warm"));
+        assert_eq!(preset.core(CoreOpId::Exposure), Some(exposure(0.5)));
+        assert_eq!(preset.core(CoreOpId::Sepia), Some(sepia()));
+        assert_eq!(preset.core(CoreOpId::Crop), None);
+        assert_eq!(preset.history_len(), 0);
+        let bytes = preset.to_bytes().unwrap();
+        assert!(EditDocument::parse(&bytes).is_ok());
+
+        // The crop isn't fitted to anything yet.
+        let with_crop = copied.preset("Framed", ALL).unwrap();
+        assert_eq!(with_crop.core(CoreOpId::Crop), Some(locked));
+
+        // Only stages with nothing in them: no preset.
+        let effects_only = PasteGroups {
+            adjustments: false,
+            effects: false,
+            geometry: false,
+        };
+        assert_eq!(copied.preset("Empty", effects_only).map(|_| ()), None);
+        let tone_only = CopiedEdits::of(&document(vec![exposure(0.5)]), None).unwrap();
+        let effects = PasteGroups {
+            effects: true,
+            ..effects_only
+        };
+        assert!(tone_only.preset("Empty", effects).is_none());
     }
 
     #[test]

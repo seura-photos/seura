@@ -15,6 +15,7 @@ mod document;
 mod file;
 mod operations;
 mod paste;
+mod preset;
 mod validate;
 
 pub use document::{
@@ -27,3 +28,4 @@ pub use operations::{
     Stage, Straighten, Strength, Vignette, WhiteBalance,
 };
 pub use paste::{CopiedEdits, PASTE, PasteGroups, Pasted, on_pixels, paste_action};
+pub use preset::{PRESET_SUFFIX, Preset, PresetError, PresetsFolder, clean_preset_name};
