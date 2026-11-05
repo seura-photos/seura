@@ -365,6 +365,25 @@ button {
   pointer-events: auto;
 }
 
+/* One width, with the button at its right edge, so the button stays under the
+   pointer however long the text is. */
+.message-steady {
+  box-sizing: border-box;
+  width: min(30rem, 100%);
+}
+
+.message-steady .button {
+  flex: none;
+}
+
+.message-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .message {
   max-width: 30rem;
   margin: 0;
@@ -732,6 +751,141 @@ button {
 
 .dialog-actions .button.primary {
   min-height: var(--size-tier1-target);
+}
+
+/* The Export dialog (wireframes, "Export"): wider than a question, and able
+   to scroll in a short window or with large text. */
+
+.export-dialog {
+  width: min(40rem, calc(100% - 2rem));
+  max-height: calc(100% - 2rem);
+  overflow-y: auto;
+}
+
+.export-label {
+  display: block;
+  padding: 0;
+  margin: 0 0 0.375rem;
+  font-weight: 600;
+}
+
+.export-dialog .dialog-title + .export-label {
+  margin-top: 1rem;
+}
+
+.export-columns,
+.export-columns + .export-group {
+  margin-top: 1rem;
+}
+
+.export-group {
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.export-folder {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.export-field {
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--size-tier1-target);
+  padding: 0 0.625rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.export-folder .export-field {
+  flex: 1;
+  background: var(--color-panel);
+  color: var(--color-text-secondary);
+  text-overflow: ellipsis;
+}
+
+.export-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0 1.5rem;
+}
+
+.export-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2rem;
+}
+
+.export-quality {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem;
+  padding: 0 0 0.5rem 1.5rem;
+  color: var(--color-text-secondary);
+}
+
+.export-quality input {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: var(--color-accent);
+}
+
+.export-quality:has(input:disabled) {
+  opacity: 0.55;
+}
+
+.export-custom {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.export-custom .export-field {
+  width: 5.5rem;
+}
+
+.dialog p.export-size-note {
+  margin: 0.25rem 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.875em;
+}
+
+.dialog p.export-hint {
+  margin: 0.25rem 0 0;
+  color: var(--color-danger);
+  font-size: 0.875em;
+}
+
+.export-dialog .dialog-aside {
+  margin-top: 1rem;
+}
+
+.export-cloud {
+  font-weight: 600;
+}
+
+.dialog .export-cloud {
+  margin-top: 0.75rem;
+}
+
+.export-failures {
+  max-height: 12rem;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  overflow-y: auto;
+  list-style: none;
+  line-height: 1.5;
+}
+
+.export-failure-name {
+  overflow-wrap: anywhere;
+  font-weight: 600;
 }
 
 /* The Welcome screen: one centered card (wireframe). */
@@ -1107,7 +1261,7 @@ img.thumbnail-loading {
   margin-left: auto;
 }
 
-.editor-export + .more-button {
+.toolbar-export + .more-button {
   margin-left: 0;
 }
 

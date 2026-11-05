@@ -1,7 +1,7 @@
 //! The photo open in the Editor: its preview in the working space, the
 //! changes the Editor makes (saved through the Library's one write path,
-//! EDT-11), and M1's development-only export. Also the render check that
-//! compares the preview with export (M1 slice 5).
+//! EDT-11). Also the render check that compares the preview with export (M1
+//! slice 5).
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -15,7 +15,7 @@ use seura_edit::{
 use seura_image::{LinearImage, Rgba8};
 use seura_library::{PhotoId, Problem};
 use seura_render::check::{CHECK_SETTINGS, CHECK_TOLERANCE, check_image, difference};
-use seura_render::{ExportOptions, Output, Settings, export};
+use seura_render::{Keywords, Output, Settings};
 use specta::Type;
 use tauri::{AppHandle, Runtime};
 use tauri_specta::Event;
@@ -542,29 +542,6 @@ impl Editor {
         session.as_ref().map(|session| Arc::clone(&session.guide))
     }
 
-    /// Exports the open photo with its edits into `folder` (EXP-1).
-    pub fn export(&self, id: u32, folder: &Path) -> Result<PathBuf, String> {
-        let (photo, settings) = {
-            let session = self.session.lock().expect("editor lock");
-            let session = session
-                .as_ref()
-                .filter(|session| session.id == id)
-                .ok_or("that photo isn't open")?;
-            (session.photo.clone(), saved(&session.photo, None)?.0)
-        };
-        crate::gpu::with_renderer(|renderer| {
-            export(
-                renderer,
-                &photo,
-                &settings,
-                folder,
-                &ExportOptions::default(),
-                None,
-            )
-        })?
-        .map_err(|error| error.to_string())
-    }
-
     /// Compares a preview path's render of the check image with wgpu's, and
     /// records the result. Returns the largest difference.
     pub fn check_render(
@@ -620,6 +597,26 @@ fn saved(photo: &Path, kept: Option<&EditDocument>) -> Result<(Settings, EditSte
             .map(Settings::from_document)
             .unwrap_or_default(),
         EditSteps::of(document.as_ref()),
+    ))
+}
+
+/// What exporting a photo needs from its edit file: its edits, tags, and
+/// rating (EXP-4). An error if the file can't be read: the photo's edits
+/// aren't known then, and it isn't exported without them (FIL-4).
+pub fn export_edits(photo: &Path) -> Result<(Settings, Keywords), String> {
+    let document = current(photo, None)?;
+    let keywords = document
+        .as_ref()
+        .map_or_else(Keywords::default, |document| Keywords {
+            tags: document.tags(),
+            rating: document.rating(),
+        });
+    Ok((
+        document
+            .as_ref()
+            .map(Settings::from_document)
+            .unwrap_or_default(),
+        keywords,
     ))
 }
 
@@ -1398,24 +1395,6 @@ mod tests {
         assert!(editor.preview().is_some());
         editor.close(2);
         assert!(editor.preview().is_none());
-    }
-
-    #[test]
-    fn export_uses_the_saved_exposure() {
-        let (folder, photo) = photo();
-        save_exposure(&photo, 1.0);
-        let editor = Editor::default();
-        editor.open(1, photo, (16, 16), None).unwrap();
-        let out = tempfile::tempdir().unwrap();
-
-        let exported = editor.export(1, out.path()).unwrap();
-
-        assert_eq!(exported, out.path().join("IMG_1.jpg"));
-        let pixel = seura_image::decode(&exported).unwrap().image.pixels[..3].to_vec();
-        // sRGB 90, one stop brighter, is about 125 (JPEG adds a little error).
-        assert!(pixel.iter().all(|v| v.abs_diff(125) <= 3), "{pixel:?}");
-        // Nothing was written beside the photo but its edit file.
-        assert_eq!(fs::read_dir(folder.path()).unwrap().count(), 2);
     }
 
     #[test]

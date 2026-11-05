@@ -14,7 +14,7 @@ export function isTyping(event: KeyboardEvent): boolean {
   );
 }
 
-const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
+export const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
 
 /** Whether a key press is Select All: Ctrl+A, or Cmd+A on a Mac, outside a
  * text field, where it selects the text as usual. */
@@ -33,6 +33,20 @@ export function historyKey(event: KeyboardEvent): "undo" | "redo" | null {
   if (key === "z") return event.shiftKey ? "redo" : "undo";
   if (key === "y" && !event.shiftKey) return "redo";
   return null;
+}
+
+/** Whether a key press is Export (user flows, "Keyboard"): Ctrl+E. Windows
+ * only: on a Mac, Cmd+E goes to the File menu's Export, which passes it on, so
+ * it happens once. */
+export function isExport(event: KeyboardEvent): boolean {
+  return (
+    !isMac &&
+    event.ctrlKey &&
+    !event.altKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    event.key.toLowerCase() === "e"
+  );
 }
 
 /** Whether a key press is Find: Ctrl+F, or Cmd+F on a Mac (FND-2). */

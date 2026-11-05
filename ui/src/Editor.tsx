@@ -7,6 +7,7 @@ import {
   TrianglesCenterlineDashedHorizontal,
   TrianglesCenterlineDashedVertical,
   Undo2,
+  Upload,
 } from "lucide-react";
 import {
   type PointerEvent,
@@ -90,8 +91,6 @@ type Props = {
   /** The photo being edited. */
   id: number;
   forceWebgl2: boolean;
-  /** M1's export, in development builds only until export is built (M5). */
-  devExport: boolean;
 };
 
 /** What undo or redo did, for the message: a rating or tag change says
@@ -136,7 +135,8 @@ type Status = { id: number } & (
  * Tools arrive slice by slice in M4; until then the panel has Brightness,
  * M1's exposure (EDT-5).
  */
-export function Editor({ id, forceWebgl2, devExport }: Props) {
+export function Editor({ id, forceWebgl2 }: Props) {
+  const askExport = useStore((state) => state.askExport);
   const photos = useStore((state) => state.photos);
   const openEditor = useStore((state) => state.openEditor);
   const closeEditor = useStore((state) => state.closeEditor);
@@ -196,7 +196,6 @@ export function Editor({ id, forceWebgl2, devExport }: Props) {
   const [selectedCircle, setSelectedCircle] = useState<number | null>(null);
   // A click's circle, in CSS pixels across ([ and ]).
   const [brush, setBrush] = useState(brushMemory.across);
-  const [exporting, setExporting] = useState(false);
   // A finished change waiting to be saved, and the saves in progress.
   const pending = useRef<{ timer: number; id: number; edit: PhotoEdit } | null>(null);
   const saving = useRef<Promise<unknown>>(Promise.resolve());
@@ -1060,16 +1059,6 @@ export function Editor({ id, forceWebgl2, devExport }: Props) {
     setComparing(true);
   }
 
-  async function exportPhoto() {
-    setExporting(true);
-    await flush();
-    const result = await commands.exportPhoto(id);
-    setExporting(false);
-    if (result.status === "error") say(t("editor-export-failed", { reason: result.error }));
-    else if (result.data.kind === "exported")
-      say(t("editor-exported", { file: result.data.file, folder: result.data.folder }));
-  }
-
   if (!photo) return null;
 
   const inCloud = current?.kind === "downloading" || current?.kind === "downloadFailed";
@@ -1156,17 +1145,15 @@ export function Editor({ id, forceWebgl2, devExport }: Props) {
             </button>
           </div>
           <ZoomControls zoom={zoom} shown={shown !== null} />
-          {/* M1's development-only export, until export is built (M5). */}
-          {devExport && (
-            <button
-              type="button"
-              className="button editor-export"
-              disabled={!shown || exporting}
-              onClick={() => void exportPhoto()}
-            >
-              {exporting ? t("editor-exporting") : t("editor-export")}
-            </button>
-          )}
+          <button
+            type="button"
+            className="button toolbar-export"
+            disabled={!shown}
+            onClick={() => void askExport([id])}
+          >
+            <Upload className="icon" aria-hidden />
+            {t("toolbar-export")}
+          </button>
           <MoreButton />
         </header>
       )}

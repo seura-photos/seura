@@ -41,9 +41,47 @@ pub struct Settings {
     pub sort: Sort,
     /// Whether to check for updates (SET-4); asked on first run, used from M7.
     pub check_for_updates: bool,
+    /// The Export dialog's last folder and choices (EXP-1, EXP-2).
+    pub export: ExportSettings,
     /// Fields from a newer version, kept as they were.
     #[serde(flatten)]
     pub unknown: Map<String, Value>,
+}
+
+/// What the Export dialog remembers.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ExportSettings {
+    /// The last folder used; until there is one, the Pictures folder.
+    pub folder: Option<PathBuf>,
+    pub format: ExportFileFormat,
+    /// JPEG's quality, 1 to 100, kept while PNG is chosen.
+    pub quality: u8,
+    /// The long edge's limit; none is the original size.
+    pub long_edge: Option<u32>,
+    pub remove_location: bool,
+    pub include_keywords: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ExportFileFormat {
+    #[default]
+    Jpeg,
+    Png,
+}
+
+impl Default for ExportSettings {
+    fn default() -> ExportSettings {
+        ExportSettings {
+            folder: None,
+            format: ExportFileFormat::Jpeg,
+            quality: 90,
+            long_edge: None,
+            remove_location: false,
+            include_keywords: true,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -81,6 +119,7 @@ impl Default for Settings {
             sidebar_width: None,
             sort: Sort::default(),
             check_for_updates: true,
+            export: ExportSettings::default(),
             unknown: Map::new(),
         }
     }

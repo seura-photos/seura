@@ -5,6 +5,9 @@ import { ConfirmDelete } from "./ConfirmDelete";
 import { ConfirmEnhance } from "./ConfirmEnhance";
 import { ConfirmOpen } from "./ConfirmOpen";
 import { Editor } from "./Editor";
+import { ExportDialog } from "./ExportDialog";
+import { ExportSummary } from "./ExportSummary";
+import { isExport } from "./keys";
 import { Library } from "./Library";
 import { measure, measureSliders } from "./measure";
 import { t } from "./messages";
@@ -48,6 +51,7 @@ export function App() {
       // Finished thumbnails arrive in batches, about ten a second.
       events.thumbnailsReady.listen(({ payload }) => useStore.getState().thumbnailsReady(payload)),
       events.enhanceDownload.listen(({ payload }) => useStore.getState().enhanceDownload(payload)),
+      events.exportProgress.listen(({ payload }) => useStore.getState().exportProgress(payload)),
       events.scanProgress.listen(({ payload }) => useStore.setState({ progress: payload })),
       events.quitRequested.listen(() => void useStore.getState().quit()),
       // Menu commands take the same path as the buttons (ACC-4).
@@ -73,13 +77,27 @@ export function App() {
             focused.setRangeText("", 0, focused.selectionEnd ?? 0, "start");
             focused.dispatchEvent(new Event("input", { bubbles: true }));
           } else void store.askDelete(store.chosenPhotos());
-        } else if (payload === "showInFolder") void store.showInFolder(store.chosenPhotos());
+        } else if (payload === "export") void store.askExport(store.chosenPhotos());
+        else if (payload === "showInFolder") void store.showInFolder(store.chosenPhotos());
         else void store.openInDefaultApp(store.chosenPhotos());
       }),
     ];
     return () => {
       for (const subscription of subscriptions) void subscription.then((stop) => stop());
     };
+  }, []);
+
+  // Ctrl+E, in every view (user flows, "Keyboard"). Dialogs keep their keys to
+  // themselves, so this doesn't reach one that's open (dialogKeys).
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!isExport(event)) return;
+      event.preventDefault();
+      const store = useStore.getState();
+      void store.askExport(store.chosenPhotos());
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   // The macOS menu bar's photo commands are on while a photo is chosen (BRW-8).
@@ -116,14 +134,14 @@ export function App() {
           {viewing !== null && editing === null && (
             <Viewer folder={folderName} forceWebgl2={dev.forceWebgl2} />
           )}
-          {editing !== null && (
-            <Editor id={editing} forceWebgl2={dev.forceWebgl2} devExport={dev.devExport} />
-          )}
+          {editing !== null && <Editor id={editing} forceWebgl2={dev.forceWebgl2} />}
         </div>
       )}
       <ConfirmOpen />
       <ConfirmEnhance />
       <ConfirmDelete />
+      <ExportDialog />
+      <ExportSummary />
       <TagPicker />
       <About />
     </div>

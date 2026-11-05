@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Upload } from "lucide-react";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { commands, type RenderSettings } from "./bindings";
 import { CloudPhoto } from "./CloudPhoto";
@@ -52,6 +52,7 @@ type Status =
  * and + and − zoom; dragging pans.
  */
 export function Viewer({ folder, forceWebgl2 }: Props) {
+  const askExport = useStore((state) => state.askExport);
   const photos = useStore((state) => state.photos);
   const viewing = useStore((state) => state.viewing);
   const view = useStore((state) => state.view);
@@ -361,6 +362,15 @@ export function Viewer({ folder, forceWebgl2 }: Props) {
           onClick={() => openEditor(photo.id)}
         >
           {t("viewer-edit")}
+        </button>
+        <button
+          type="button"
+          className="button toolbar-export"
+          disabled={shown === null}
+          onClick={() => void askExport([photo.id])}
+        >
+          <Upload className="icon" aria-hidden />
+          {t("toolbar-export")}
         </button>
         <MoreButton />
       </header>

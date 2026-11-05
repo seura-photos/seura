@@ -5,6 +5,7 @@ import {
   Funnel,
   Plus,
   Search,
+  Upload,
 } from "lucide-react";
 import {
   useCallback,
@@ -84,6 +85,7 @@ function ScanStatus({ progress }: { progress: ScanProgress }) {
  * the Info panel arrive with their slices.
  */
 export function Library({ inert = false }: { inert?: boolean }) {
+  const askExport = useStore((state) => state.askExport);
   const folders = useStore((state) => state.folders);
   const folderId = useStore((state) => state.folderId);
   const photos = useStore((state) => state.photos);
@@ -271,6 +273,15 @@ export function Library({ inert = false }: { inert?: boolean }) {
           onClick={edit}
         >
           {t("library-edit")}
+        </button>
+        <button
+          type="button"
+          className="button toolbar-export"
+          disabled={selection.ids.size === 0}
+          onClick={() => void askExport([...selection.ids])}
+        >
+          <Upload className="icon" aria-hidden />
+          {t("toolbar-export")}
         </button>
         <MoreButton />
       </header>
