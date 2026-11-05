@@ -1,0 +1,7 @@
+# 2026-11-04: The Info panel's picture didn't follow edits
+
+- **Nevada found it.** Editing a photo in the Library, such as rotating it, changed the grid but often not the picture at the top of the Info panel. Selecting another photo and coming back sometimes fixed it on Windows, and on the Mac it looked as if it never updated.
+- **The cause:** each thumbnail has a version that goes up when a new one is made, and the address the image is asked for includes it. The grid and the filmstrip use the version. The Info panel never did, so it asked for the same address forever, and the web view could answer from what it already had. It has been that way since the panel was added in M2. Claude Code reproduced it on Windows: after a rotate, the panel stayed unrotated even after selecting away and back, so reselecting isn't a reliable cure on Windows either.
+- **A second symptom, same cause:** a thumbnail not made yet when the photo is selected fails to load, and with no new version to try, the panel showed no picture until the photo was selected again.
+- **The fix:** the panel uses the version too, and the old picture stays up until the new one has loaded, as in the grid. The cloud photo's stand-in image had the same omission and got the same fix.
+- **Not known:** why the Mac looked worse. WebKit answering more readily from its memory is a likely reason, but nobody has measured it, and the fix doesn't depend on it.

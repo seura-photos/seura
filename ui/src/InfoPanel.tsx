@@ -86,6 +86,7 @@ function Photo({
   preview: boolean;
   folder: boolean;
 }) {
+  const thumbnail = useStore((state) => state.thumbs.get(details.id)?.version ?? 0);
   const decimal = (value: number, digits: number) =>
     formatNumber(value, { maximumFractionDigits: digits });
   const size =
@@ -142,7 +143,14 @@ function Photo({
 
   return (
     <>
-      {preview && <ThumbnailImage key={details.id} id={details.id} className="info-preview" />}
+      {preview && (
+        <ThumbnailImage
+          key={details.id}
+          id={details.id}
+          version={thumbnail}
+          className="info-preview"
+        />
+      )}
       <h2 className="info-name">{details.name}</h2>
       {details.taken != null ? (
         <p className="meta">{formatDateTime(details.taken)}</p>
