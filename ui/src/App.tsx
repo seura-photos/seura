@@ -58,7 +58,10 @@ export function App() {
       // Menu commands take the same path as the buttons (ACC-4).
       events.menuCommand.listen(({ payload }) => {
         const store = useStore.getState();
-        if (payload === "addFolder") void store.addFolder();
+        if (typeof payload === "object") {
+          // A preset from the Edit menu (PRE-4), onto the chosen photos.
+          void store.applyPreset(store.chosenPhotos(), payload.applyPreset);
+        } else if (payload === "addFolder") void store.addFolder();
         else if (payload === "undo" || payload === "redo") {
           // In the Editor, the photo's own history (EDT-9).
           if (store.editing !== null) {

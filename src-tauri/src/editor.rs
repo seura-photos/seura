@@ -392,6 +392,19 @@ impl Editor {
                 )
                 .action
             }
+            Change::Preset(copied, groups) => {
+                let document =
+                    current(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
+                let mut action = seura_edit::paste_action(
+                    copied,
+                    *groups,
+                    document.as_ref(),
+                    Some(session.full),
+                )
+                .action;
+                action.label = seura_edit::APPLY_PRESET.into();
+                action
+            }
         };
         library.edit_with(app, PhotoId::new(id), &mut session.kept, |_| action.clone())?;
         let document = current(&session.photo, session.kept.as_ref()).map_err(Problem::Failed)?;
@@ -403,6 +416,25 @@ impl Editor {
             session.mine = Mine::of(document.as_ref());
         }
         Ok((EditSteps::of(document.as_ref()), session.mine.settings()))
+    }
+
+    /// The settings photo `id` would show with `copied`'s `groups` applied,
+    /// as a preset's preview (PRE-4): worked out as applying it would, from
+    /// what the Editor shows, and written nowhere. `None` if it isn't open.
+    pub fn preset_preview(
+        &self,
+        id: u32,
+        copied: &seura_edit::CopiedEdits,
+        groups: seura_edit::PasteGroups,
+    ) -> Option<Settings> {
+        let session = self.session.lock().expect("editor lock");
+        let session = session.as_ref().filter(|session| session.id == id)?;
+        let document = current(&session.photo, session.kept.as_ref()).ok()?;
+        let action =
+            seura_edit::paste_action(copied, groups, document.as_ref(), Some(session.full)).action;
+        let mut previewed = session.mine.clone();
+        previewed.apply(&action);
+        Some(previewed.settings())
     }
 
     /// The watcher read these photos' edit files again (FIL-3): if one is
@@ -662,6 +694,8 @@ pub enum Change {
     Crop(CropEdit),
     Enhance,
     Paste(seura_edit::PasteGroups),
+    /// A preset, as what it pastes and the groups it changes (PRE-4).
+    Preset(seura_edit::CopiedEdits, seura_edit::PasteGroups),
 }
 
 /// Enhance (EDT-12) as one record in the photo's history, "Enhance": the

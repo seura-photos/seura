@@ -303,6 +303,33 @@ impl Library {
         groups: seura_edit::PasteGroups,
     ) -> Option<(ChangeReport, u32)> {
         let copied = self.copied()?.edits;
+        Some(self.paste_edits(app, ids, &copied, groups, &Change::Paste))
+    }
+
+    /// Applies a preset to photos, as a paste of the stages it holds, and as
+    /// one action to undo (PRE-4; BRW-11). Nothing is downloaded (LIB-9).
+    pub fn apply_preset<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        ids: &[PhotoId],
+        name: &str,
+        copied: &seura_edit::CopiedEdits,
+        groups: seura_edit::PasteGroups,
+    ) -> (ChangeReport, u32) {
+        self.paste_edits(app, ids, copied, groups, &Change::Preset(name.into()))
+    }
+
+    /// Pastes `copied`'s `groups` onto photos as `change`, and says how many
+    /// kept their crop and rotation because their shape was needed and
+    /// isn't known.
+    fn paste_edits<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        ids: &[PhotoId],
+        copied: &seura_edit::CopiedEdits,
+        groups: seura_edit::PasteGroups,
+        change: &Change,
+    ) -> (ChangeReport, u32) {
         let kept = std::cell::Cell::new(0);
         let make = |photo: &std::path::Path,
                     cloud_only: bool,
@@ -317,8 +344,8 @@ impl Library {
                 }
                 dimensions => dimensions,
             };
-            let pasted = seura_edit::paste_action(
-                &copied,
+            let mut pasted = seura_edit::paste_action(
+                copied,
                 groups,
                 loaded.map(|file| &file.document),
                 dimensions,
@@ -326,10 +353,11 @@ impl Library {
             if pasted.kept_geometry {
                 kept.set(kept.get() + 1);
             }
+            pasted.action.label = change.label().into();
             Ok(pasted.action)
         };
-        let report = self.change_made(app, ids, &Change::Paste, Some(&make));
-        Some((report, kept.get()))
+        let report = self.change_made(app, ids, change, Some(&make));
+        (report, kept.get())
     }
 
     /// Makes a change through the one path for the Library's writes, as one

@@ -50,7 +50,8 @@ export async function measure(): Promise<void> {
  * effects are turned on first, so their sliders are there and every drag
  * draws them (M4 slice 6), and off again after: those are saved, in the
  * edit files beside the measurement's own generated photos, before the
- * drags begin.
+ * drags begin. Then a preset of them is previewed over and over, as
+ * hovering along the list does (M5 slice 7).
  */
 export async function measureSliders(): Promise<void> {
   const dev = useStore.getState().dev;
@@ -113,6 +114,14 @@ async function editPhoto(folder: number) {
   }
   // Saved within a second (EDT-11), so not during a drag.
   await sleep(1_500);
+  // A preset of the effects, in the measurement's own Seura folder, for
+  // the preset case below (M5 slice 7).
+  await commands.savePreset(
+    photo.id,
+    PRESET,
+    { adjustments: false, effects: true, geometry: false },
+    true,
+  );
   const inputs = document.querySelectorAll<HTMLInputElement>('.editor-panel input[type="range"]');
   for (const input of inputs) {
     // Effects' sliders share names ("Strength"), so they're named by group.
@@ -120,6 +129,9 @@ async function editPhoto(folder: number) {
     const label = input.labels?.[0]?.textContent ?? input.id;
     sliders[group ? `${group}: ${label}` : label] = await drag(input, 2_000);
   }
+  // The sliders' drags weren't saved, so the preset looks different from
+  // what's shown, and each preview redraws the photo.
+  sliders[`Preset: ${PRESET}`] = await previewPreset(photo.id, 2_000);
   for (const effect of turned) {
     effect.click();
     await nextFrame();
@@ -134,6 +146,42 @@ async function editPhoto(folder: number) {
     openMs: round(openMs),
     sliders,
   };
+}
+
+/** The preset the Editor's script saves and previews. */
+const PRESET = "Measure";
+
+/** Focuses the preset and leaves it again, every few frames, as moving
+ * along the list does, for `duration` ms: each time, the Editor asks the
+ * core for the preview and draws it, or draws the photo's own edits again
+ * (PRE-4). Focus takes the same path as hovering. Also times the core's
+ * answer on its own, the slowest of ten. */
+async function previewPreset(id: number, duration: number) {
+  const row = () =>
+    [...document.querySelectorAll<HTMLButtonElement>(".preset-row")].find(
+      (each) => each.querySelector(".preset-name")?.textContent === PRESET,
+    );
+  await waitFor(() => row() !== undefined, 10_000);
+  const answers: number[] = [];
+  for (let i = 0; i < 10; i++) {
+    const asked = performance.now();
+    await commands.presetPreview(id, PRESET);
+    answers.push(performance.now() - asked);
+  }
+  const frames: number[] = [];
+  let last = await nextFrame();
+  const end = last + duration;
+  let count = 0;
+  while (last < end) {
+    if (count % 6 === 0) row()?.focus();
+    else if (count % 6 === 3) row()?.blur();
+    count += 1;
+    const now = await nextFrame();
+    frames.push(now - last);
+    last = now;
+  }
+  row()?.blur();
+  return { ...frameStats(frames, duration), slowestAnswerMs: round(Math.max(...answers)) };
 }
 
 /** Moves a slider back and forth across its range, a step every frame, as

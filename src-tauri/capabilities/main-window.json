@@ -58,6 +58,8 @@
     "allow-save-preset",
     "allow-rename-preset",
     "allow-delete-preset",
+    "allow-apply-preset",
+    "allow-preset-preview",
     "allow-export-photos",
     "allow-stop-export",
     "allow-show-exported",

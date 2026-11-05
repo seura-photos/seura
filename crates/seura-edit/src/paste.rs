@@ -9,6 +9,9 @@ use crate::operations::{CoreOpId, CoreOperation, Crop, Orient, Stage, Straighten
 /// The label recorded in each edit file's history.
 pub const PASTE: &str = "Paste edits";
 
+/// The label recorded when a preset is applied (PRE-4).
+pub const APPLY_PRESET: &str = "Apply preset";
+
 /// How close two frames' shapes must be to count as the same, as a share of
 /// their ratio: closer than the rounding of a crop's edges would notice.
 const SAME_SHAPE: f64 = 1e-3;
@@ -54,6 +57,21 @@ impl CopiedEdits {
         };
         copied.frame = upright.map(|upright| oriented(upright, copied.orient()));
         Some(copied)
+    }
+
+    /// What applying `preset` pastes, and the groups it changes: the stages
+    /// it holds operations in that this app can apply (PRE-4; edit format,
+    /// "Presets"). The others are left alone. Its crop is fitted to each
+    /// photo as a pasted one is, from the preset's own ratio, center and
+    /// share of the photo. `None` if there's nothing in it to apply.
+    pub fn from_preset(preset: &EditDocument) -> Option<(CopiedEdits, PasteGroups)> {
+        let copied = CopiedEdits::of(preset, None)?;
+        let groups = PasteGroups {
+            adjustments: copied.holds(Stage::Tone),
+            effects: copied.holds(Stage::Effects),
+            geometry: copied.holds(Stage::Geometry),
+        };
+        Some((copied, groups))
     }
 
     /// Whether anything copied is in `stage`.
@@ -491,6 +509,66 @@ mod tests {
             ..effects_only
         };
         assert!(tone_only.preset("Empty", effects).is_none());
+    }
+
+    #[test]
+    fn applying_a_preset_changes_only_the_stages_it_holds_pre_4() {
+        let source = CopiedEdits::of(&document(vec![exposure(0.5)]), None).unwrap();
+        let preset = source.preset("Bright", DEFAULTS).unwrap();
+        let (copied, groups) = CopiedEdits::from_preset(&preset).unwrap();
+        assert_eq!(
+            groups,
+            PasteGroups {
+                adjustments: true,
+                effects: false,
+                geometry: false,
+            }
+        );
+
+        let contrast = CoreOperation::Contrast(Amount { amount: 30.0 });
+        let locked = crop(0.0, 0.0, 0.75, 1.0, Some("3:4"));
+        let mut target = document(vec![locked.clone(), contrast, sepia()]);
+        let pasted = paste_action(&copied, groups, Some(&target), Some((1200, 800)));
+        target
+            .apply(&pasted.action, OffsetDateTime::UNIX_EPOCH)
+            .unwrap();
+        // The tone stage is the preset's; effects and the crop are as they were.
+        assert_eq!(target.core(CoreOpId::Exposure), Some(exposure(0.5)));
+        assert_eq!(target.core(CoreOpId::Contrast), None);
+        assert_eq!(target.core(CoreOpId::Sepia), Some(sepia()));
+        assert_eq!(target.core(CoreOpId::Crop), Some(locked));
+    }
+
+    #[test]
+    fn a_preset_s_locked_crop_fits_each_shape_and_returns_on_the_same_shape_pre_4() {
+        let locked = crop(0.1, 0.1, 0.6, 0.6, Some("3:2"));
+        let source = CopiedEdits::of(&document(vec![locked]), Some((1200, 800))).unwrap();
+        let preset = source.preset("Framed", ALL).unwrap();
+        let (copied, groups) = CopiedEdits::from_preset(&preset).unwrap();
+        assert!(groups.geometry && !groups.adjustments && !groups.effects);
+
+        let apply = |upright| {
+            let mut target = document(Vec::new());
+            let pasted = paste_action(&copied, groups, Some(&target), upright);
+            target
+                .apply(&pasted.action, OffsetDateTime::UNIX_EPOCH)
+                .unwrap();
+            (target, pasted.kept_geometry)
+        };
+        // The same shape as the photo it was saved from: the same crop.
+        let (same, _) = apply(Some((1200, 800)));
+        let same = crop_of(&same);
+        close(same.x, 0.1);
+        close(same.width, 0.6);
+        // A tall photo: still 3:2, as a pasted crop is.
+        let (tall, _) = apply(Some((600, 1200)));
+        let tall = crop_of(&tall);
+        // Within the rounding of its edges to whole pixels.
+        let ratio = (tall.width * 600.0) / (tall.height * 1200.0);
+        assert!((ratio - 1.5).abs() < 1e-3, "{ratio} isn't 3:2");
+        // Its shape unknown: its own crop and rotation stay.
+        let (_, kept) = apply(None);
+        assert!(kept);
     }
 
     #[test]

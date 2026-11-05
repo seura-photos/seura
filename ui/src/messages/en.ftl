@@ -273,6 +273,7 @@ history-undid =
         [rotateRight] Undid rotating right
         [enhance] Undid Enhance
         [paste] Undid pasting edits
+        [preset] Undid the preset “{ $tag }”
         [addTag] Undid adding “{ $tag }”
        *[removeTag] Undid removing “{ $tag }”
     } on { $count ->
@@ -286,6 +287,7 @@ history-redid =
         [rotateRight] Redid rotating right
         [enhance] Redid Enhance
         [paste] Redid pasting edits
+        [preset] Redid the preset “{ $tag }”
         [addTag] Redid adding “{ $tag }”
        *[removeTag] Redid removing “{ $tag }”
     } on { $count ->
@@ -409,6 +411,9 @@ photo-open-cloud =
     }
 photo-open-confirm = Open
 photo-open-cancel = Cancel
+# The photo menu's Presets submenu (PRE-4), and its note when there are none.
+photo-presets = Presets
+photo-no-presets = No presets
 # The photo menu's Delete (BRW-9). $system is "mac" or "windows".
 photo-delete =
     { $system ->
@@ -723,6 +728,20 @@ presets-delete-no-trash =
         [mac] The preset “{ $name }” is on a drive with no Trash, so it's left as it is.
        *[other] The preset “{ $name }” is on a drive with no Recycle Bin, so it's left as it is.
     }
+# Applying a preset (PRE-4), from the Library or the Editor.
+preset-applied =
+    { $count ->
+        [one] Applied “{ $name }” to 1 photo.
+       *[other] Applied “{ $name }” to { $count } photos.
+    }
+preset-no-change =
+    { $count ->
+        [one] Nothing changed: that photo already looks like this preset.
+       *[other] Nothing changed: those photos already look like this preset.
+    }
+preset-gone = The preset “{ $name }” is no longer in the Presets folder.
+preset-unreadable = The preset “{ $name }” can't be read, so it wasn't applied.
+preset-empty = The preset “{ $name }” has nothing Seura can apply.
 presets-delete-failed =
     { $system ->
         [mac] Couldn't move the preset to the Trash: { $reason }

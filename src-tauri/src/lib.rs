@@ -89,6 +89,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::save_preset,
             commands::rename_preset,
             commands::delete_preset,
+            commands::apply_preset,
+            commands::preset_preview,
             commands::export_photos,
             commands::stop_export,
             commands::show_exported,
@@ -172,6 +174,8 @@ pub fn run() {
             app.manage(presets::Presets::new(&seura));
             // Files copied into the Presets folder appear without restarting (PRE-5).
             app.state::<presets::Presets>().watch(app.handle());
+            // The Edit menu's Presets submenu starts from the folder (PRE-4).
+            presets::changed(app.handle());
             // Show the snapshot at once (PRF-1), then catch up with the disk.
             app.state::<Library>().start_watching(app.handle());
             // Finished thumbnails reach the UI in batches.

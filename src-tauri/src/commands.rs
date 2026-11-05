@@ -16,7 +16,7 @@ use tauri_specta::Event;
 use crate::editor::{ChangeDetail, EditSteps, Editor};
 use crate::exporting::{ExportChoices, ExportReport, ExportStart, Exporting};
 use crate::library::{AppSettings, CopiedResult, EnhanceReport, Library, LibraryChanged};
-use crate::presets::{PresetOutcome, PresetSummary, Presets};
+use crate::presets::{PresetOutcome, PresetProblem, PresetSummary, Presets};
 use crate::viewer::{Viewer, Wanted};
 use crate::welcome;
 use seura_edit::{Amount, CoreOperation, Strength, Vignette, WhiteBalance};
@@ -913,22 +913,84 @@ pub async fn paste_edits(
             .state::<Library>()
             .paste(&app, &ids, choices.into())
             .ok_or("nothing is copied")?;
-        let mut result = PasteResult {
-            changed: report.changed.len() as u32,
-            kept_geometry,
-            ..PasteResult::default()
-        };
-        for (_, problem) in &report.problems {
-            match problem {
-                Problem::ReadOnly => result.read_only += 1,
-                Problem::Unreadable => result.unreadable += 1,
-                _ => result.failed += 1,
-            }
-        }
-        Ok::<_, String>(result)
+        Ok::<_, String>(paste_result(&report, kept_geometry))
     })
     .await
     .map_err(|error| error.to_string())?
+}
+
+/// A paste's report, in numbers of photos.
+fn paste_result(report: &seura_library::ChangeReport, kept_geometry: u32) -> PasteResult {
+    let mut result = PasteResult {
+        changed: report.changed.len() as u32,
+        kept_geometry,
+        ..PasteResult::default()
+    };
+    for (_, problem) in &report.problems {
+        match problem {
+            Problem::ReadOnly => result.read_only += 1,
+            Problem::Unreadable => result.unreadable += 1,
+            _ => result.failed += 1,
+        }
+    }
+    result
+}
+
+/// What applying a preset did (PRE-4).
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum PresetApplied {
+    /// Applied, in numbers of photos, as a paste reports it.
+    Applied { result: PasteResult },
+    /// The preset couldn't be applied; nothing changed.
+    Problem { problem: PresetProblem },
+}
+
+/// Applies a preset to photos from the Library, as one action to undo
+/// (PRE-4; BRW-11). The stages it holds replace the photos' and the others
+/// stay; nothing is downloaded (LIB-9).
+#[tauri::command]
+#[specta::specta]
+pub async fn apply_preset(
+    app: AppHandle,
+    ids: Vec<u32>,
+    name: String,
+) -> Result<PresetApplied, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (copied, groups) = match app.state::<Presets>().load(&name) {
+            Ok(loaded) => loaded,
+            Err(problem) => return PresetApplied::Problem { problem },
+        };
+        let ids: Vec<PhotoId> = ids.into_iter().map(PhotoId::new).collect();
+        let (report, kept_geometry) = app
+            .state::<Library>()
+            .apply_preset(&app, &ids, &name, &copied, groups);
+        PresetApplied::Applied {
+            result: paste_result(&report, kept_geometry),
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+/// The open photo's settings with a preset applied, for the Editor to show
+/// while the preset is hovered or focused (PRE-4). Nothing is written.
+/// `None` if the preset can't be applied, or the photo isn't open.
+#[tauri::command]
+#[specta::specta]
+pub async fn preset_preview(
+    app: AppHandle,
+    id: u32,
+    name: String,
+) -> Result<Option<RenderSettings>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (copied, groups) = app.state::<Presets>().load(&name).ok()?;
+        app.state::<Editor>()
+            .preset_preview(id, &copied, groups)
+            .map(RenderSettings::from)
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 /// The presets in the Presets folder, by name (PRE-5).
@@ -1000,7 +1062,10 @@ pub async fn save_preset(
         // The first preset makes the folder.
         presets.watch(&app);
         match saved {
-            Ok(name) => Ok(PresetOutcome::Done { name }),
+            Ok(name) => {
+                crate::presets::changed(&app);
+                Ok(PresetOutcome::Done { name })
+            }
             Err(error) => crate::presets::outcome(error),
         }
     })
@@ -1025,7 +1090,10 @@ pub async fn rename_preset(
             time::OffsetDateTime::now_utc(),
         );
         match renamed {
-            Ok(name) => Ok(PresetOutcome::Done { name }),
+            Ok(name) => {
+                crate::presets::changed(&app);
+                Ok(PresetOutcome::Done { name })
+            }
             Err(error) => crate::presets::outcome(error),
         }
     })
@@ -1044,7 +1112,10 @@ pub async fn delete_preset(app: AppHandle, name: String) -> Result<PresetOutcome
             .folder
             .remove(&name, seura_library::move_to_trash)
         {
-            Ok(()) => Ok(PresetOutcome::Done { name }),
+            Ok(()) => {
+                crate::presets::changed(&app);
+                Ok(PresetOutcome::Done { name })
+            }
             Err(error) => crate::presets::outcome(error),
         }
     })
@@ -1254,6 +1325,7 @@ impl From<seura_library::UndoReport> for HistoryStep {
             Change::Rotate { clockwise: false } => ("rotateLeft", None),
             Change::Enhance => ("enhance", None),
             Change::Paste => ("paste", None),
+            Change::Preset(name) => ("preset", Some(name)),
         };
         HistoryStep {
             kind: kind.into(),
@@ -1912,6 +1984,9 @@ pub fn close_photo(app: AppHandle, editor: State<'_, Editor>, id: u32) {
 pub enum PhotoEdit {
     /// What's copied, onto this photo (PRE-1): a step in its own history.
     Paste { choices: PasteChoices },
+    /// The preset with this name, onto this photo (PRE-4): a step in its
+    /// own history.
+    Preset { name: String },
     /// `seura.exposure`, in stops.
     Brightness { ev: f64 },
     /// `seura.contrast`, −100 to 100.
@@ -1962,6 +2037,8 @@ pub enum EditSaved {
     /// Anything else, such as a full drive, or the file changing on disk
     /// meanwhile.
     Failed { reason: String },
+    /// The preset to apply can't be; nothing changed (PRE-4).
+    Preset { problem: PresetProblem },
 }
 
 /// Saves a change to photo `id`'s edits (EDT-11), through the one write
@@ -1978,6 +2055,10 @@ pub async fn edit_photo(app: AppHandle, id: u32, edit: PhotoEdit) -> Result<Edit
             PhotoEdit::Crop { crop } => crate::editor::Change::Crop(crop),
             PhotoEdit::Enhance => crate::editor::Change::Enhance,
             PhotoEdit::Paste { choices } => crate::editor::Change::Paste(choices.into()),
+            PhotoEdit::Preset { name } => match app.state::<Presets>().load(&name) {
+                Ok((copied, groups)) => crate::editor::Change::Preset(copied, groups),
+                Err(problem) => return EditSaved::Preset { problem },
+            },
             PhotoEdit::RedEye { regions } => change(crate::editor::red_eye_action(
                 &regions
                     .iter()

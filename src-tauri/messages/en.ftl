@@ -16,6 +16,10 @@ menu-show-in-finder = Show in Finder
 menu-export = Export…
 menu-copy-edits = Copy Edits
 menu-paste-edits = Paste Edits…
+# The Edit menu's submenu of presets to apply (PRE-4), and its note when
+# there are none.
+menu-presets = Presets
+menu-no-presets = No Presets
 menu-open-in-default-app = Open in Default App
 menu-move-to-trash = Move to Trash…
 menu-close-window = Close Window
@@ -31,6 +35,7 @@ menu-undo-action =
         [rotateRight] Undo Rotate Right
         [enhance] Undo Enhance
         [paste] Undo Paste Edits
+        [preset] Undo Apply Preset “{ $tag }”
         [addTag] Undo Add Tag “{ $tag }”
        *[removeTag] Undo Remove Tag “{ $tag }”
     } ({ $count ->
@@ -44,6 +49,7 @@ menu-redo-action =
         [rotateRight] Redo Rotate Right
         [enhance] Redo Enhance
         [paste] Redo Paste Edits
+        [preset] Redo Apply Preset “{ $tag }”
         [addTag] Redo Add Tag “{ $tag }”
        *[removeTag] Redo Remove Tag “{ $tag }”
     } ({ $count ->
