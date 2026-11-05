@@ -850,6 +850,12 @@ button {
   width: 5.5rem;
 }
 
+.dialog p.export-size-note {
+  margin: 0.25rem 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.875em;
+}
+
 .dialog p.export-hint {
   margin: 0.25rem 0 0;
   color: var(--color-danger);

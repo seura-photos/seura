@@ -74,16 +74,24 @@ describe("Export (EXP-1 to EXP-6)", () => {
     expect(screen.getByRole("heading", { name: "Export 3 photos" })).toBeTruthy();
     expect(screen.getByRole<HTMLInputElement>("radio", { name: "PNG" }).checked).toBe(true);
     expect(screen.getByRole<HTMLInputElement>("slider", { name: "Quality" }).value).toBe("70");
-    expect(screen.getByRole<HTMLInputElement>("radio", { name: "Long edge 1600 px" }).checked).toBe(
-      true,
-    );
+    expect(
+      screen.getByRole<HTMLInputElement>("radio", { name: "Long edge up to 1600 px" }).checked,
+    ).toBe(true);
     expect(screen.getByRole<HTMLInputElement>("checkbox", { name: /location/ }).checked).toBe(true);
     expect(document.activeElement).toBe(button("Export"));
   });
 
+  it("says a size is a maximum that never enlarges, whichever is chosen (EXP-2)", async () => {
+    await open([1]);
+    const note = "Photos smaller than the limit keep their size and aren't enlarged.";
+    expect(screen.getByRole("group", { name: "Size", description: note })).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "Long edge up to 1024 px" }));
+    expect(screen.getByText(note)).toBeTruthy();
+  });
+
   it("sends what's chosen, and closes", async () => {
     await open([1, 2]);
-    fireEvent.click(screen.getByRole("radio", { name: "Long edge 1024 px" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Long edge up to 1024 px" }));
     fireEvent.click(screen.getByRole("checkbox", { name: /location/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /keywords/ }));
     fireEvent.change(screen.getByRole("slider", { name: "Quality" }), { target: { value: "75" } });
@@ -122,7 +130,7 @@ describe("Export (EXP-1 to EXP-6)", () => {
 
   it("takes a custom long edge from 16 up, and says what's wrong otherwise (EXP-2)", async () => {
     await open([1]);
-    const field = screen.getByRole("textbox", { name: "Custom long edge, in pixels" });
+    const field = screen.getByRole("textbox", { name: "Custom maximum long edge, in pixels" });
     fireEvent.focus(field);
     expect(button("Export").disabled).toBe(true);
     fireEvent.change(field, { target: { value: "15" } });
@@ -138,9 +146,12 @@ describe("Export (EXP-1 to EXP-6)", () => {
 
   it("shows a remembered long edge that isn't one of the named ones as custom", async () => {
     await open([1], { choices: { ...start.choices, longEdge: 3000 } });
-    expect(screen.getByRole<HTMLInputElement>("radio", { name: "Custom" }).checked).toBe(true);
+    expect(screen.getByRole<HTMLInputElement>("radio", { name: "Custom, up to" }).checked).toBe(
+      true,
+    );
     expect(
-      screen.getByRole<HTMLInputElement>("textbox", { name: "Custom long edge, in pixels" }).value,
+      screen.getByRole<HTMLInputElement>("textbox", { name: "Custom maximum long edge, in pixels" })
+        .value,
     ).toBe("3000");
   });
 
@@ -183,7 +194,7 @@ describe("Export (EXP-1 to EXP-6)", () => {
     expect(seen.has(button("Cancel"))).toBe(true);
     // The size's chosen radio button, not the ones beside it.
     expect(seen.has(screen.getByRole("radio", { name: "Original size" }))).toBe(true);
-    expect(seen.has(screen.getByRole("radio", { name: "Long edge 2048 px" }))).toBe(false);
+    expect(seen.has(screen.getByRole("radio", { name: "Long edge up to 2048 px" }))).toBe(false);
   });
 
   it("gives one photo a message with Show in Explorer (EXP-6, INT-6)", async () => {

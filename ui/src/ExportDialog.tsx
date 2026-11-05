@@ -147,7 +147,7 @@ function Dialog({ asked }: { asked: NonNullable<State["exportAsked"]> }) {
             </label>
           </fieldset>
 
-          <fieldset className="export-group">
+          <fieldset className="export-group" aria-describedby={`${id}-size-note`}>
             <legend className="export-label">{t("export-size")}</legend>
             {sizeRadio("original", t("export-size-original"))}
             {LONG_EDGES.map((edge) => (
@@ -178,6 +178,10 @@ function Dialog({ asked }: { asked: NonNullable<State["exportAsked"]> }) {
               />
               <span>{t("export-size-px")}</span>
             </div>
+            {/* Always shown, so choosing a size doesn't move what's below (Nevada, 2026-11-04). */}
+            <p id={`${id}-size-note`} className="export-size-note">
+              {t("export-size-note")}
+            </p>
             {size === "custom" && !sizeUsable && (
               <p id={`${id}-custom-hint`} className="export-hint">
                 {t("export-size-custom-hint", { min: MIN_LONG_EDGE })}
