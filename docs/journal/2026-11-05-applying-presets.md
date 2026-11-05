@@ -1,0 +1,18 @@
+# 2026-11-05: Applying presets
+
+M5 slice 7 (#212; PRE-4): the Editor's preview and apply, and the Presets submenus. Nevada said to start it; the choices below are Claude Code's, listed in the PR for review.
+
+- **A preset applies as a paste of the stages it holds.** In the core, a preset becomes copied edits without a source shape, with the groups set to the stages it holds. It then goes through slice 5's rules: a locked crop keeps its ratio, center and share of the photo, and fits each shape. A photo of the same shape as the one the preset was saved from gets the same crop, since keeping the share and the center gives it back. A cloud-only photo whose shape is needed keeps its crop and rotation and isn't downloaded. Other apps' operations stay. A stage counts as held when the preset has an operation in it that Seura can apply; one with only another app's operations isn't, so it's left alone.
+- **The Editor's preview is worked out by the core and written nowhere.** Hovering or focusing a preset asks the core for the photo's settings with the preset applied. That runs the same paste rules on what the Editor shows, and the preview renderer draws the result. The sliders and toggles keep showing the photo's own settings, as Lightroom does. A change still waiting is saved first, so the preview starts from it. Clicking applies the preset as one step, "Apply preset", and the preview stays until the photo shows the saved result, so nothing flickers back in between.
+- **A preset that can't be applied stays focusable,** for its right-click menu. That covers one that can't be read, and every preset while crop or red-eye mode is open. Its row is marked unavailable instead of being disabled, because a disabled button gets no right-click.
+- **The Library's Presets submenu** opens from the photo menu with a click, Enter, Space or →, and ← closes it. Applying to a selection is one action to undo, named "Undo Apply Preset “Framed” (3 photos)" in the Mac's Edit menu. On the Mac, the Edit menu has the same submenu, kept up to date from the Presets folder. In the Editor it applies to the open photo, as Paste does.
+- **PRF-6's measurement gets a preset case.** On each photo, the script saves an effects preset in the measurement's own Seura folder, then focuses it and leaves it every few frames for two seconds, timing the frames. It also reports the slowest of ten preview answers from the core.
+- **Checked in the real app on Windows** through the web view's debug port, on a scratch library:
+  - **"Framed"** (a 3:2 locked crop and brightness), from the photo menu, onto three photos:
+    - 4:3: 508 × 338 px, still 3:2.
+    - Tall: shrank to the full width.
+    - The preset's own shape: exactly 0.6 × 0.6.
+  - **What else changed:** one photo's contrast was replaced, ratings were kept, and one undo reversed all three.
+  - **In the Editor:** hovering "Sepia" and "Framed" showed them without writing anything, and leaving restored the photo. A click applied one step, and undo left no edit file.
+  - **Focus-driven preview** couldn't be checked this way. The scratch window didn't have the system's focus, so the browser sent no focus events. The unit tests cover it.
+- **A mistake Claude Code caught:** writing the new photo menu tests replaced the existing `PhotoMenu.test.tsx` from main. The test count showed it: 300 tests where about 307 were expected. Main's seven tests were restored, with the new ones added beside them.
