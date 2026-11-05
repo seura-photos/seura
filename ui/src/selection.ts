@@ -10,6 +10,16 @@ export const emptySelection: Selection = { ids: new Set(), anchor: null };
 
 export type Modifiers = { toggle: boolean; range: boolean };
 
+/** The focused photo of a selection, for what takes one photo from several
+ * (PRE-1): the one with the keyboard's focus, `active`, if it's selected, or
+ * the last one clicked. */
+export function focusedIn(selection: Selection, active: number | null): number | null {
+  if (active !== null && selection.ids.has(active)) return active;
+  if (selection.anchor !== null && selection.ids.has(selection.anchor)) return selection.anchor;
+  const [first = null] = selection.ids;
+  return first;
+}
+
 /** The selection after clicking (or moving the keyboard focus to) `id`. */
 export function select(
   selection: Selection,

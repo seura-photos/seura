@@ -37,6 +37,9 @@ pub enum Change {
     /// One-click enhance for each photo (BRW-10, EDT-12), from its own
     /// pixels, which the app reads: see [`Index::change_recorded_with`].
     Enhance,
+    /// The copied edits, onto each photo (PRE-1, PRE-2). Each photo's action
+    /// depends on its edits and shape: see [`Index::change_recorded_with`].
+    Paste,
 }
 
 impl Change {
@@ -49,6 +52,7 @@ impl Change {
             Change::Rotate { clockwise: true } => "Rotate right",
             Change::Rotate { clockwise: false } => "Rotate left",
             Change::Enhance => "Enhance",
+            Change::Paste => seura_edit::PASTE,
         }
     }
 }
@@ -141,8 +145,9 @@ impl Index {
 
     /// As [`Index::change_recorded`], with each photo's action made by
     /// `make` when given: from the photo's path, whether it's only in the
-    /// cloud, and its edit file as loaded. Rotate and Enhance need it, since
-    /// what they do depends on each photo's edits and pixels.
+    /// cloud, its upright size if known, and its edit file as loaded. Rotate,
+    /// Enhance and Paste need it, since what they do depends on each photo's
+    /// edits, pixels and shape.
     pub fn change_recorded_with(
         index: &RwLock<Index>,
         ids: &[PhotoId],
@@ -187,11 +192,12 @@ impl Index {
             }
             let path = target.path.clone();
             let placeholder = target.placeholder;
+            let dimensions = target.dimensions;
             match write(
                 &target,
                 None,
                 |loaded| match make {
-                    Some(make) => make(&path, placeholder, loaded),
+                    Some(make) => make(&path, placeholder, dimensions, loaded),
                     None => Ok(action_for(change, loaded)),
                 },
                 writer,
@@ -461,7 +467,7 @@ fn action_for(change: &Change, loaded: Option<&EditFile>) -> Action {
         }
         // Made by the app for each photo (`change_recorded_with`); without
         // it, nothing changes.
-        Change::Rotate { .. } | Change::Enhance => {
+        Change::Rotate { .. } | Change::Enhance | Change::Paste => {
             return Action {
                 label: change.label().into(),
                 edits: Vec::new(),
@@ -475,8 +481,10 @@ fn action_for(change: &Change, loaded: Option<&EditFile>) -> Action {
 }
 
 /// Makes one photo's action for [`Index::change_recorded_with`]: from its
-/// path, whether it's only in the cloud, and its edit file as loaded.
-pub type MakeAction<'a> = &'a dyn Fn(&Path, bool, Option<&EditFile>) -> Result<Action, Problem>;
+/// path, whether it's only in the cloud, its upright size if known, and its
+/// edit file as loaded.
+pub type MakeAction<'a> =
+    &'a dyn Fn(&Path, bool, Option<(u32, u32)>, Option<&EditFile>) -> Result<Action, Problem>;
 
 /// Changes one photo's edit file with the action `make` gives for the file
 /// as it's loaded now. `None` if the action changes nothing.

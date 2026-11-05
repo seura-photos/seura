@@ -15,7 +15,7 @@ use tauri_specta::Event;
 
 use crate::editor::{ChangeDetail, EditSteps, Editor};
 use crate::exporting::{ExportChoices, ExportReport, ExportStart, Exporting};
-use crate::library::{AppSettings, EnhanceReport, Library, LibraryChanged};
+use crate::library::{AppSettings, CopiedResult, EnhanceReport, Library, LibraryChanged};
 use crate::viewer::{Viewer, Wanted};
 use crate::welcome;
 use seura_edit::{Amount, CoreOperation, Strength, Vignette, WhiteBalance};
@@ -826,6 +826,110 @@ pub fn stop_downloads(library: State<'_, Library>) {
     library.stop_downloads();
 }
 
+/// Which groups to paste (PRE-1).
+#[derive(Clone, Copy, Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PasteChoices {
+    pub adjustments: bool,
+    pub effects: bool,
+    pub geometry: bool,
+}
+
+impl From<PasteChoices> for seura_edit::PasteGroups {
+    fn from(choices: PasteChoices) -> seura_edit::PasteGroups {
+        seura_edit::PasteGroups {
+            adjustments: choices.adjustments,
+            effects: choices.effects,
+            geometry: choices.geometry,
+        }
+    }
+}
+
+/// What's held to paste, for the dialog (PRE-1): the photo it came from, and
+/// whether there's anything in each group.
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CopiedSummary {
+    pub name: String,
+    pub adjustments: bool,
+    pub effects: bool,
+    pub geometry: bool,
+}
+
+/// What a paste did, in numbers of photos (PRE-1).
+#[derive(Clone, Debug, Default, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PasteResult {
+    /// Their edit files were written, created, or moved to the Trash.
+    pub changed: u32,
+    /// In a read-only folder (TAG-7).
+    pub read_only: u32,
+    /// Their edit file can't be read, so it's left alone (FIL-4).
+    pub unreadable: u32,
+    /// Couldn't be changed for another reason, such as a full drive.
+    pub failed: u32,
+    /// Their shape was needed and isn't known, since they're only in the
+    /// cloud, so their crop and rotation weren't changed (LIB-9).
+    pub kept_geometry: u32,
+}
+
+/// Copies a photo's edits, for pasting (PRE-1). The copy stays in memory in
+/// the core, and a photo with no edits leaves the last copy as it was.
+#[tauri::command]
+#[specta::specta]
+pub async fn copy_edits(app: AppHandle, id: u32) -> Result<CopiedResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<Library>().copy_edits(PhotoId::new(id))
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+/// What's held to paste, if anything (PRE-1).
+#[tauri::command]
+#[specta::specta]
+pub fn copied_edits(library: State<'_, Library>) -> Option<CopiedSummary> {
+    library.copied().map(|copied| CopiedSummary {
+        adjustments: copied.edits.holds(seura_edit::Stage::Tone),
+        effects: copied.edits.holds(seura_edit::Stage::Effects),
+        geometry: copied.edits.holds(seura_edit::Stage::Geometry),
+        name: copied.name,
+    })
+}
+
+/// Pastes what's held onto photos, as one action to undo (PRE-1, PRE-2;
+/// BRW-11). Each chosen group replaces the photo's.
+#[tauri::command]
+#[specta::specta]
+pub async fn paste_edits(
+    app: AppHandle,
+    ids: Vec<u32>,
+    choices: PasteChoices,
+) -> Result<PasteResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let ids: Vec<PhotoId> = ids.into_iter().map(PhotoId::new).collect();
+        let (report, kept_geometry) = app
+            .state::<Library>()
+            .paste(&app, &ids, choices.into())
+            .ok_or("nothing is copied")?;
+        let mut result = PasteResult {
+            changed: report.changed.len() as u32,
+            kept_geometry,
+            ..PasteResult::default()
+        };
+        for (_, problem) in &report.problems {
+            match problem {
+                Problem::ReadOnly => result.read_only += 1,
+                Problem::Unreadable => result.unreadable += 1,
+                _ => result.failed += 1,
+            }
+        }
+        Ok::<_, String>(result)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
 /// What the notice bar says about one photo's files (FIL-5, FIL-7).
 #[derive(Clone, Debug, Default, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -1006,8 +1110,8 @@ fn choose_tags(index: &seura_library::Index, ids: &[u32], text: String) -> TagCh
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct HistoryStep {
-    /// `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`, or
-    /// `enhance`.
+    /// `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`,
+    /// `enhance`, or `paste`.
     pub kind: String,
     /// The tag added or removed.
     pub tag: Option<String>,
@@ -1027,6 +1131,7 @@ impl From<seura_library::UndoReport> for HistoryStep {
             Change::Rotate { clockwise: true } => ("rotateRight", None),
             Change::Rotate { clockwise: false } => ("rotateLeft", None),
             Change::Enhance => ("enhance", None),
+            Change::Paste => ("paste", None),
         };
         HistoryStep {
             kind: kind.into(),
@@ -1683,6 +1788,8 @@ pub fn close_photo(app: AppHandle, editor: State<'_, Editor>, id: u32) {
 #[derive(Clone, Debug, Deserialize, Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum PhotoEdit {
+    /// What's copied, onto this photo (PRE-1): a step in its own history.
+    Paste { choices: PasteChoices },
     /// `seura.exposure`, in stops.
     Brightness { ev: f64 },
     /// `seura.contrast`, −100 to 100.
@@ -1748,6 +1855,7 @@ pub async fn edit_photo(app: AppHandle, id: u32, edit: PhotoEdit) -> Result<Edit
             PhotoEdit::Turn { turn } => crate::editor::Change::Turn(turn),
             PhotoEdit::Crop { crop } => crate::editor::Change::Crop(crop),
             PhotoEdit::Enhance => crate::editor::Change::Enhance,
+            PhotoEdit::Paste { choices } => crate::editor::Change::Paste(choices.into()),
             PhotoEdit::RedEye { regions } => change(crate::editor::red_eye_action(
                 &regions
                     .iter()

@@ -7,7 +7,8 @@ import { ConfirmOpen } from "./ConfirmOpen";
 import { Editor } from "./Editor";
 import { ExportDialog } from "./ExportDialog";
 import { ExportSummary } from "./ExportSummary";
-import { isExport } from "./keys";
+import { PasteDialog } from "./PasteDialog";
+import { editsKey, isExport } from "./keys";
 import { Library } from "./Library";
 import { measure, measureSliders } from "./measure";
 import { t } from "./messages";
@@ -78,6 +79,8 @@ export function App() {
             focused.dispatchEvent(new Event("input", { bubbles: true }));
           } else void store.askDelete(store.chosenPhotos());
         } else if (payload === "export") void store.askExport(store.chosenPhotos());
+        else if (payload === "copyEdits") void store.copyEdits();
+        else if (payload === "pasteEdits") void store.askPaste(store.chosenPhotos());
         else if (payload === "showInFolder") void store.showInFolder(store.chosenPhotos());
         else void store.openInDefaultApp(store.chosenPhotos());
       }),
@@ -87,14 +90,21 @@ export function App() {
     };
   }, []);
 
-  // Ctrl+E, in every view (user flows, "Keyboard"). Dialogs keep their keys to
-  // themselves, so this doesn't reach one that's open (dialogKeys).
+  // Ctrl+E and copying and pasting edits, in every view (user flows,
+  // "Keyboard"). Dialogs keep their keys to themselves, so these don't reach
+  // one that's open (dialogKeys).
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!isExport(event)) return;
-      event.preventDefault();
       const store = useStore.getState();
-      void store.askExport(store.chosenPhotos());
+      const edits = editsKey(event);
+      if (edits) {
+        event.preventDefault();
+        if (edits === "copy") void store.copyEdits();
+        else void store.askPaste(store.chosenPhotos());
+      } else if (isExport(event)) {
+        event.preventDefault();
+        void store.askExport(store.chosenPhotos());
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -142,6 +152,7 @@ export function App() {
       <ConfirmDelete />
       <ExportDialog />
       <ExportSummary />
+      <PasteDialog />
       <TagPicker />
       <About />
     </div>

@@ -272,6 +272,7 @@ history-undid =
         [rotateLeft] Undid rotating left
         [rotateRight] Undid rotating right
         [enhance] Undid Enhance
+        [paste] Undid pasting edits
         [addTag] Undid adding “{ $tag }”
        *[removeTag] Undid removing “{ $tag }”
     } on { $count ->
@@ -284,6 +285,7 @@ history-redid =
         [rotateLeft] Redid rotating left
         [rotateRight] Redid rotating right
         [enhance] Redid Enhance
+        [paste] Redid pasting edits
         [addTag] Redid adding “{ $tag }”
        *[removeTag] Redid removing “{ $tag }”
     } on { $count ->
@@ -624,6 +626,45 @@ editor-done = Done
 # Crop mode (EDT-2, EDT-3; wireframes, "Crop and straighten").
 # The Export dialog, its progress, and its results (EXP-1 to EXP-6).
 toolbar-export = Export
+toolbar-copy-edits = Copy edits
+# Copying and pasting edits (PRE-1, PRE-2).
+copy-done = Copied the edits of { $name }.
+copy-no-edits = { $name } has no edits to copy, so what you copied before stays.
+copy-unreadable = The edits of { $name } can't be read, so what you copied before stays.
+copy-failed = Couldn't copy those edits: { $reason }
+paste-title =
+    { $count ->
+        [one] Paste edits onto 1 photo
+       *[other] Paste edits onto { $count } photos
+    }
+paste-from = Copied from { $name }.
+paste-adjustments = Adjustments (tone and color)
+paste-effects = Effects
+paste-geometry = Crop and rotation
+paste-none = None copied.
+paste-none-removes =
+    { $count ->
+        [one] None copied, so this photo's will be removed.
+       *[other] None copied, so these photos' will be removed.
+    }
+paste-cancel = Cancel
+paste-go = Paste
+paste-nothing = Nothing is copied yet. Copy a photo's edits first, with { $key }.
+paste-done =
+    { $count ->
+        [one] Pasted edits onto 1 photo.
+       *[other] Pasted edits onto { $count } photos.
+    }
+paste-no-change =
+    { $count ->
+        [one] Nothing changed: that photo already has these edits.
+       *[other] Nothing changed: those photos already have these edits.
+    }
+paste-cloud-kept =
+    { $count ->
+        [one] 1 photo is in the cloud, so its crop and rotation weren't changed.
+       *[other] { $count } photos are in the cloud, so their crop and rotation weren't changed.
+    }
 export-title =
     { $count ->
         [one] Export 1 photo

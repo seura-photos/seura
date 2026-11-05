@@ -13,6 +13,8 @@ import {
   type WelcomeInfo,
   type EnhanceDownload,
   type EnhanceReport,
+  type PasteChoices,
+  type CopiedSummary,
   type ExportChoices,
   type ExportProgress,
   type ExportReport,
@@ -23,7 +25,14 @@ import { setRegion } from "./format";
 import { exportMessage } from "./exportMessages";
 import { isMac } from "./keys";
 import { setPseudo, t } from "./messages";
-import { emptySelection, keepExisting, type Selection, select, selectAll } from "./selection";
+import {
+  emptySelection,
+  focusedIn,
+  keepExisting,
+  type Selection,
+  select,
+  selectAll,
+} from "./selection";
 import { tagPathTo } from "./tagRows";
 import type { ThumbState } from "./thumbState";
 
@@ -84,6 +93,9 @@ export type State = {
   editorStep: ((undo: boolean) => void) | null;
   /** Saves the open Editor's waiting change, for quitting (EDT-11). */
   editorFlush: (() => Promise<unknown>) | null;
+  /** Pastes into the open photo, as a step in its own history (EDT-9); none
+   * while the Editor can't take a change, as in crop mode. */
+  editorPaste: ((choices: PasteChoices) => Promise<unknown>) | null;
   /** The Editor's latest save, which can outlast leaving the Editor. */
   editorSaving: Promise<unknown>;
   /** A one-line message about the last action, such as adding a folder. */
@@ -179,6 +191,14 @@ export type State = {
   exportSummary: { count: number; report: ExportReport } | null;
   /** Opens the Export dialog for photos, once what's waiting is saved. */
   askExport: (ids: number[]) => Promise<void>;
+  /** Paste edits' dialog, asking which groups (PRE-1); `opened` makes each
+   * question start from the defaults. */
+  pasteAsked: { ids: number[]; copied: CopiedSummary; opened: number } | null;
+  /** Copies the focused photo's edits (PRE-1). */
+  copyEdits: () => Promise<void>;
+  askPaste: (ids: number[]) => Promise<void>;
+  cancelPaste: () => void;
+  runPaste: (choices: PasteChoices) => Promise<void>;
   /** Asks for a folder with the system's dialog. */
   chooseExportFolder: () => Promise<void>;
   cancelExport: () => void;
@@ -420,6 +440,7 @@ export const useStore = create<State>()((set, get) => ({
   editedFrom: "library",
   editorStep: null,
   editorFlush: null,
+  editorPaste: null,
   editorSaving: Promise.resolve(),
   notice: null,
   noticeId: 0,
@@ -819,6 +840,81 @@ export const useStore = create<State>()((set, get) => ({
 
   async stopDownloads() {
     await commands.stopDownloads();
+  },
+
+  pasteAsked: null,
+
+  async copyEdits() {
+    const { editing, viewing, selection, editorFlush, editorSaving } = get();
+    const active = document.activeElement?.closest("[data-photo]")?.getAttribute("data-photo");
+    const id = editing ?? viewing ?? focusedIn(selection, active ? Number(active) : null);
+    if (id === null) return;
+    // The Editor's change still waiting is part of what's copied.
+    await Promise.allSettled([editorFlush?.(), editorSaving]);
+    const result = await commands.copyEdits(id);
+    if (result.status === "error") {
+      get().say(t("copy-failed", { reason: result.error }));
+      return;
+    }
+    const copied = result.data;
+    if (copied.kind === "copied") get().say(t("copy-done", { name: copied.name }));
+    else if (copied.kind === "noEdits") get().say(t("copy-no-edits", { name: copied.name }));
+    else if (copied.kind === "unreadable") get().say(t("copy-unreadable", { name: copied.name }));
+  },
+
+  async askPaste(ids) {
+    const { pasteAsked, editing, editorPaste, editorFlush, editorSaving } = get();
+    if (ids.length === 0 || pasteAsked) return;
+    if (editing !== null && editorPaste === null) return;
+    // The Editor's change still waiting comes before the paste, as its own step.
+    await Promise.allSettled([editorFlush?.(), editorSaving]);
+    const copied = await commands.copiedEdits();
+    if (!copied) {
+      get().say(t("paste-nothing", { key: isMac ? "Shift+Cmd+C" : "Shift+Ctrl+C" }));
+      return;
+    }
+    set(({ noticeId }) => ({ pasteAsked: { ids, copied, opened: noticeId } }));
+  },
+
+  cancelPaste() {
+    set({ pasteAsked: null });
+  },
+
+  async runPaste(choices) {
+    const { pasteAsked, editing, editorPaste } = get();
+    if (!pasteAsked) return;
+    set({ pasteAsked: null });
+    const { ids } = pasteAsked;
+    // In the Editor, it shows on the photo, and the Editor reports a problem.
+    if (editing !== null) {
+      await editorPaste?.(choices);
+      return;
+    }
+    const result = await commands.pasteEdits(ids, choices);
+    if (result.status === "error") {
+      get().say(t("change-failed", { count: ids.length }));
+      return;
+    }
+    const { changed, readOnly, unreadable, failed, keptGeometry } = result.data;
+    const problems = readOnly + unreadable + failed;
+    get().say(
+      [
+        changed > 0 ? t("paste-done", { count: changed }) : null,
+        changed === 0 && problems === 0 && keptGeometry === 0
+          ? t("paste-no-change", { count: ids.length })
+          : null,
+        keptGeometry > 0 ? t("paste-cloud-kept", { count: keptGeometry }) : null,
+        readOnly === ids.length
+          ? t("read-only-folder")
+          : readOnly > 0
+            ? t("change-read-only-some", { count: readOnly })
+            : null,
+        unreadable > 0 ? t("change-unreadable", { count: unreadable }) : null,
+        failed > 0 ? t("change-failed", { count: failed }) : null,
+      ]
+        .filter((part) => part !== null)
+        .join(" "),
+    );
   },
 
   async askExport(ids) {

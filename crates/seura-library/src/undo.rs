@@ -341,7 +341,7 @@ mod tests {
     fn a_change_made_photo_by_photo_is_one_action_to_undo() {
         let mut session = Session::new(2);
         let ids = session.ids.clone();
-        let turn = |_: &Path, _: bool, _: Option<&EditFile>| {
+        let turn = |_: &Path, _: bool, _: Option<(u32, u32)>, _: Option<&EditFile>| {
             Ok(seura_edit::Action {
                 label: "Rotate right".into(),
                 edits: vec![seura_edit::Edit::Set(seura_edit::CoreOperation::Orient(
@@ -388,6 +388,66 @@ mod tests {
             &|path| session.trash.take(path),
         );
         assert!(report.changed.is_empty());
+    }
+
+    /// A paste onto a selection is one action to undo, in each photo's own
+    /// history (PRE-1, BRW-11), and undoing it takes away a file it created.
+    #[test]
+    fn a_paste_is_one_action_to_undo() {
+        let mut session = Session::new(3);
+        let ids = session.ids.clone();
+        let mut source = EditDocument::new_for_photo(&seura_edit::PhotoIdentity {
+            file: "source.jpg".into(),
+            size: 1,
+            sha256: None,
+            width: None,
+            height: None,
+        });
+        let exposure = seura_edit::CoreOperation::Exposure(seura_edit::Exposure { ev: 1.0 });
+        source
+            .apply(
+                &seura_edit::Action {
+                    label: "Brightness".into(),
+                    edits: vec![seura_edit::Edit::Set(exposure.clone())],
+                },
+                OffsetDateTime::now_utc(),
+            )
+            .unwrap();
+        let copied = seura_edit::CopiedEdits::of(&source, None).unwrap();
+        let groups = seura_edit::PasteGroups {
+            adjustments: true,
+            effects: true,
+            geometry: false,
+        };
+        let make =
+            |_: &Path, _: bool, dimensions: Option<(u32, u32)>, loaded: Option<&EditFile>| {
+                let target = loaded.map(|file| &file.document);
+                Ok(seura_edit::paste_action(&copied, groups, target, dimensions).action)
+            };
+        let (report, action) = Index::change_recorded_with(
+            &session.index,
+            &ids,
+            &Change::Paste,
+            Some(&make),
+            WRITER,
+            OffsetDateTime::now_utc(),
+            &|path| session.trash.take(path),
+        );
+        assert_eq!(report.changed.len(), 3);
+        session.history.record(action);
+        let files: Vec<PathBuf> = (0..3).map(|n| session.edit_file(n)).collect();
+        for file in &files {
+            let document = EditDocument::parse(&fs::read(file).unwrap()).unwrap();
+            assert_eq!(
+                document.core(seura_edit::CoreOpId::Exposure),
+                Some(exposure.clone())
+            );
+            assert_eq!(document.last_change().unwrap()["label"], seura_edit::PASTE);
+        }
+        let undone = session.undo().unwrap();
+        assert_eq!((undone.change, undone.done), (Change::Paste, 3));
+        // Nothing else was in them, so they've gone to the Trash (FIL-1).
+        assert!(files.iter().all(|file| !file.exists()));
     }
 
     /// Enhance on cloud-only photos: each is changed as it arrives, and the

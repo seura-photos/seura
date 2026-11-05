@@ -113,8 +113,8 @@ export const commands = {
 	 */
 	undo: () => typedError<{
 	/**
-	 *  `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`, or
-	 *  `enhance`.
+	 *  `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`,
+	 *  `enhance`, or `paste`.
 	 */
 	kind: string,
 	/**  The tag added or removed. */
@@ -130,8 +130,8 @@ export const commands = {
 	/**  Redoes the last action undone (BRW-11). */
 	redo: () => typedError<{
 	/**
-	 *  `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`, or
-	 *  `enhance`.
+	 *  `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`,
+	 *  `enhance`, or `paste`.
 	 */
 	kind: string,
 	/**  The tag added or removed. */
@@ -238,6 +238,23 @@ export const commands = {
 	 *  one shown. Returns the new one, or `None` if the user cancels.
 	 */
 	chooseExportFolder: () => typedError<string | null, string>(__TAURI_INVOKE("choose_export_folder")),
+	/**
+	 *  Copies a photo's edits, for pasting (PRE-1). The copy stays in memory in
+	 *  the core, and a photo with no edits leaves the last copy as it was.
+	 */
+	copyEdits: (id: number) => typedError<CopiedResult, string>(__TAURI_INVOKE("copy_edits", { id })),
+	/**  What's held to paste, if anything (PRE-1). */
+	copiedEdits: () => __TAURI_INVOKE<{
+	name: string,
+	adjustments: boolean,
+	effects: boolean,
+	geometry: boolean,
+} | null>("copied_edits"),
+	/**
+	 *  Pastes what's held onto photos, as one action to undo (PRE-1, PRE-2;
+	 *  BRW-11). Each chosen group replaces the photo's.
+	 */
+	pasteEdits: (ids: number[], choices: PasteChoices) => typedError<PasteResult, string>(__TAURI_INVOKE("paste_edits", { ids, choices })),
 	/**
 	 *  Exports photos to the folder chosen (EXP-1, EXP-6). It takes as long as they
 	 *  do; [`stop_export`] ends it early.
@@ -375,6 +392,27 @@ export type Choice = {
 	path: string,
 	/**  The service that syncs it, if any (for a cache location). */
 	syncedTo: string | null,
+};
+
+/**
+ *  What copying a photo's edits did (PRE-1). Only `Copied` changes what's
+ *  held.
+ */
+export type CopiedResult = { kind: "copied"; name: string } | { kind: "noEdits"; name: string } | 
+/**  Its edit file can't be read (FIL-4). */
+{ kind: "unreadable"; name: string } | 
+/**  It's no longer in the library. */
+{ kind: "gone" };
+
+/**
+ *  What's held to paste, for the dialog (PRE-1): the photo it came from, and
+ *  whether there's anything in each group.
+ */
+export type CopiedSummary = {
+	name: string,
+	adjustments: boolean,
+	effects: boolean,
+	geometry: boolean,
 };
 
 /**
@@ -673,8 +711,8 @@ export type FolderProblem = "full" | "notWritable";
 /**  What undo or redo did (BRW-11), for the notice that says so. */
 export type HistoryStep = {
 	/**
-	 *  `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`, or
-	 *  `enhance`.
+	 *  `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`,
+	 *  `enhance`, or `paste`.
 	 */
 	kind: string,
 	/**  The tag added or removed. */
@@ -708,6 +746,10 @@ export type MenuCommand = "addFolder" |
 "delete" | 
 /**  Opens the Export dialog for the chosen photos (EXP-1). */
 "export" | 
+/**  Copies the focused photo's edits (PRE-1). */
+"copyEdits" | 
+/**  Asks what to paste onto the chosen photos (PRE-1). */
+"pasteEdits" | 
 /**
  *  The Edit menu's Undo and Redo: the Library's last action (BRW-11),
  *  or, in a text field, the field's own.
@@ -748,6 +790,30 @@ export type Opening = {
 	 *  them downloads them.
 	 */
 	cloudOnly: number,
+};
+
+/**  Which groups to paste (PRE-1). */
+export type PasteChoices = {
+	adjustments: boolean,
+	effects: boolean,
+	geometry: boolean,
+};
+
+/**  What a paste did, in numbers of photos (PRE-1). */
+export type PasteResult = {
+	/**  Their edit files were written, created, or moved to the Trash. */
+	changed: number,
+	/**  In a read-only folder (TAG-7). */
+	readOnly: number,
+	/**  Their edit file can't be read, so it's left alone (FIL-4). */
+	unreadable: number,
+	/**  Couldn't be changed for another reason, such as a full drive. */
+	failed: number,
+	/**
+	 *  Their shape was needed and isn't known, since they're only in the
+	 *  cloud, so their crop and rotation weren't changed (LIB-9).
+	 */
+	keptGeometry: number,
 };
 
 /**  A change to photos' tags or rating (TAG-3, TAG-4, TAG-6). */
@@ -804,6 +870,8 @@ export type PhotoDetails = {
 
 /**  A change made in the Editor (EDT-5). */
 export type PhotoEdit = 
+/**  What's copied, onto this photo (PRE-1): a step in its own history. */
+{ kind: "paste"; choices: PasteChoices } | 
 /**  `seura.exposure`, in stops. */
 { kind: "brightness"; ev: number | null } | 
 /**  `seura.contrast`, −100 to 100. */

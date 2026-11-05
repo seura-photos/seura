@@ -6,6 +6,7 @@ import {
   TriangleAlert,
   TrianglesCenterlineDashedHorizontal,
   TrianglesCenterlineDashedVertical,
+  Copy,
   Undo2,
   Upload,
 } from "lucide-react";
@@ -137,6 +138,7 @@ type Status = { id: number } & (
  */
 export function Editor({ id, forceWebgl2 }: Props) {
   const askExport = useStore((state) => state.askExport);
+  const copyEdits = useStore((state) => state.copyEdits);
   const photos = useStore((state) => state.photos);
   const openEditor = useStore((state) => state.openEditor);
   const closeEditor = useStore((state) => state.closeEditor);
@@ -315,7 +317,10 @@ export function Editor({ id, forceWebgl2 }: Props) {
           // A turn or a crop is the core's to finish, so the Editor shows
           // what it made; a slider's setting is already shown.
           const settings =
-            edit.kind === "turn" || edit.kind === "crop" || edit.kind === "enhance"
+            edit.kind === "turn" ||
+            edit.kind === "crop" ||
+            edit.kind === "enhance" ||
+            edit.kind === "paste"
               ? result.data.settings
               : null;
           if (result.data.steps) saved(photoId, result.data.steps, settings ?? undefined);
@@ -878,6 +883,14 @@ export function Editor({ id, forceWebgl2 }: Props) {
     useStore.setState({ editorFlush: flush });
     return () => useStore.setState({ editorFlush: null });
   }, [flush]);
+  // Pasting changes the settings a mode is working from, so it waits for it.
+  const pasteReady = shown !== null && !shown.problem && !croppingNow && !redEyeNow;
+  useEffect(() => {
+    useStore.setState({
+      editorPaste: pasteReady ? (choices) => save(id, { kind: "paste", choices }) : null,
+    });
+    return () => useStore.setState({ editorPaste: null });
+  }, [pasteReady, id, save]);
 
   function move(to: number | undefined) {
     if (to === undefined) return;
@@ -1145,6 +1158,15 @@ export function Editor({ id, forceWebgl2 }: Props) {
             </button>
           </div>
           <ZoomControls zoom={zoom} shown={shown !== null} />
+          <button
+            type="button"
+            className="button toolbar-export"
+            disabled={!shown}
+            onClick={() => void copyEdits()}
+          >
+            <Copy className="icon" aria-hidden />
+            {t("toolbar-copy-edits")}
+          </button>
           <button
             type="button"
             className="button toolbar-export"

@@ -31,6 +31,10 @@ pub enum MenuCommand {
     Delete,
     /// Opens the Export dialog for the chosen photos (EXP-1).
     Export,
+    /// Copies the focused photo's edits (PRE-1).
+    CopyEdits,
+    /// Asks what to paste onto the chosen photos (PRE-1).
+    PasteEdits,
     /// The Edit menu's Undo and Redo: the Library's last action (BRW-11),
     /// or, in a text field, the field's own.
     Undo,
@@ -43,13 +47,15 @@ const SHOW_IN_FOLDER: &str = "show-in-folder";
 const OPEN_IN_DEFAULT_APP: &str = "open-in-default-app";
 const DELETE: &str = "delete";
 const EXPORT: &str = "export";
+const COPY_EDITS: &str = "copy-edits";
+const PASTE_EDITS: &str = "paste-edits";
 const UNDO: &str = "undo";
 const REDO: &str = "redo";
 /// The menu bar's commands for the chosen photos, kept so they can be
 /// turned on and off. (A menu's lookup by id searches only its top level,
 /// not the File menu inside it, so they're held rather than looked up.)
 #[cfg(target_os = "macos")]
-struct PhotoCommands<R: Runtime>([MenuItem<R>; 4]);
+struct PhotoCommands<R: Runtime>([MenuItem<R>; 6]);
 
 /// The Edit menu's Undo and Redo, kept so their labels can follow the
 /// Library's history.
@@ -104,11 +110,27 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         Some("CmdOrCtrl+Backspace"),
     )?;
     let export = MenuItem::with_id(app, EXPORT, t("menu-export"), false, Some("CmdOrCtrl+E"))?;
+    let copy_edits = MenuItem::with_id(
+        app,
+        COPY_EDITS,
+        t("menu-copy-edits"),
+        false,
+        Some("Shift+CmdOrCtrl+C"),
+    )?;
+    let paste_edits = MenuItem::with_id(
+        app,
+        PASTE_EDITS,
+        t("menu-paste-edits"),
+        false,
+        Some("Shift+CmdOrCtrl+V"),
+    )?;
     app.manage(PhotoCommands([
         show_in_folder.clone(),
         open_in_default_app.clone(),
         delete.clone(),
         export.clone(),
+        copy_edits.clone(),
+        paste_edits.clone(),
     ]));
     let file = Submenu::with_items(
         app,
@@ -145,6 +167,9 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &PredefinedMenuItem::copy(app, Some(t("menu-copy").as_str()))?,
             &PredefinedMenuItem::paste(app, Some(t("menu-paste").as_str()))?,
             &PredefinedMenuItem::select_all(app, Some(t("menu-select-all").as_str()))?,
+            &separator()?,
+            &copy_edits,
+            &paste_edits,
         ],
     )?;
     let window = Submenu::with_items(
@@ -171,6 +196,8 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
         OPEN_IN_DEFAULT_APP => MenuCommand::OpenInDefaultApp,
         DELETE => MenuCommand::Delete,
         EXPORT => MenuCommand::Export,
+        COPY_EDITS => MenuCommand::CopyEdits,
+        PASTE_EDITS => MenuCommand::PasteEdits,
         UNDO => MenuCommand::Undo,
         REDO => MenuCommand::Redo,
         _ => return,
@@ -214,6 +241,7 @@ pub fn history_changed<R: Runtime>(
                 Change::Rotate { clockwise: true } => ("rotateRight", ""),
                 Change::Rotate { clockwise: false } => ("rotateLeft", ""),
                 Change::Enhance => ("enhance", ""),
+                Change::Paste => ("paste", ""),
             };
             t_with(
                 id,
