@@ -7,23 +7,45 @@ Build first, from ui/:
     Windows: npm run tauri -- build --debug --no-bundle
     macOS:   npm run tauri -- build --debug --bundles app
 Then, from the repository root:
-    python3 scripts/app_data_audit.py [seconds]
+    python3 scripts/app_data_audit.py [seconds] [--release] [--export]
 
 Files whose path names the app are listed, and the audit fails if any of them
 is outside ~/Seura Photos (decision 0015). Documents/Seura Photos, where M1
 builds wrote, is checked too, so writing there again fails. Other new files are only counted per folder,
 since other programs write there too; check those by eye when the list changes.
+
+--release audits the release build instead (build it without --debug).
+--export audits a run that saves a preset, applies it, and exports (#225):
+the app runs SEURA_MEASURE=export on a small scratch library, with a scratch
+Seura folder (SEURA_DATA) and an export folder of its own, all in
+target/audit, so the real library and settings are never touched. It quits
+by itself when it's done, and the files it wrote there are counted too.
 """
 
+import argparse
+import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import time
 from collections import defaultdict
 from pathlib import Path
 
-SECONDS = int(sys.argv[1]) if len(sys.argv) > 1 else 15
+PARSER = argparse.ArgumentParser(description="List every file the app writes.")
+PARSER.add_argument("seconds", nargs="?", type=int, default=15,
+                    help="how long the app runs before it's quit (not with --export)")
+PARSER.add_argument("--release", action="store_true", help="the release build")
+PARSER.add_argument("--export", action="store_true",
+                    help="save a preset, apply it, and export, on a scratch library")
+ARGS = PARSER.parse_args()
+SECONDS = ARGS.seconds
+BUILD = "release" if ARGS.release else "debug"
+# The export run's scratch library, Seura folder, and export folder.
+AUDIT = Path("target/audit")
+# How long the export run may take before it's counted as failed.
+EXPORT_LIMIT = 300
 HOME = Path.home()
 # Names the app's files and folders carry: product name, binary, and
 # identifier. WebView2's EBWebView folder always sits under one of them.
@@ -50,16 +72,71 @@ def require_running(system):
         sys.exit("The app isn't running, so the audit would prove nothing.")
 
 
+def export_scratch():
+    """The export run's scratch library, Seura folder, and export folder, in
+    target/audit, with the switches that point the app at them. The Seura
+    and export folders start empty; the library is made once."""
+    library, data, exported = AUDIT / "library", AUDIT / "data", AUDIT / "exported"
+    for folder in (data, exported):
+        if folder.exists():
+            shutil.rmtree(folder)
+        folder.mkdir(parents=True)
+    if not (library / ".complete").exists():
+        if library.exists():
+            shutil.rmtree(library)
+        subprocess.run(
+            ["cargo", "run", "--quiet", "--release", "-p", "seura-library",
+             "--example", "make_library", "--", str(library), "3", "1200", "900"],
+            check=True,
+        )
+        (library / ".complete").write_text("")
+    (data / "settings.json").write_text(json.dumps({
+        "libraryFolders": [str(library.resolve())],
+        "checkForUpdates": False,
+        "export": {"folder": str(exported.resolve())},
+    }))
+    env = {**os.environ, "SEURA_DATA": str(data.resolve()), "SEURA_MEASURE": "export"}
+    return env, data, exported
+
+
+def run_export(binary):
+    """Runs the export script, which quits the app when it's done, and fails
+    if it didn't save, apply, and export."""
+    env, data, exported = export_scratch()
+    try:
+        subprocess.run([str(binary)], env=env, timeout=EXPORT_LIMIT, check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        sys.exit(f"The export run didn't finish within {EXPORT_LIMIT} seconds.")
+    measured = data / "measurement.json"
+    if not measured.exists():
+        sys.exit("The export run wrote no measurement.json, so the audit would prove nothing.")
+    report = json.loads(measured.read_text())
+    if "error" in report:
+        sys.exit(f"The export run failed: {report['error']}")
+    return data, exported
+
+
 def launch_and_quit():
     if platform.system() == "Darwin":
-        app = Path("target/debug/bundle/macos/Seura Photos.app")
-        subprocess.run(["open", str(app)], check=True)
-        time.sleep(SECONDS)
-        require_running("Darwin")
-        subprocess.run(["osascript", "-e", 'quit app "Seura Photos"'], check=False)
+        app = Path(f"target/{BUILD}/bundle/macos/Seura Photos.app")
+        if ARGS.export:
+            run_export(app / "Contents" / "MacOS" / "seura-photos")
+        else:
+            subprocess.run(["open", str(app)], check=True)
+            time.sleep(SECONDS)
+            require_running("Darwin")
+            subprocess.run(["osascript", "-e", 'quit app "Seura Photos"'], check=False)
         roots = [HOME / "Library"]
+    elif platform.system() == "Windows" and ARGS.export:
+        run_export(Path(f"target/{BUILD}/seura-photos.exe"))
+        roots = [
+            Path(os.environ["LOCALAPPDATA"]),
+            Path(os.environ["APPDATA"]),
+            HOME / "AppData" / "LocalLow",
+        ]
     elif platform.system() == "Windows":
-        process = subprocess.Popen([str(Path("target/debug/seura-photos.exe"))])
+        process = subprocess.Popen([str(Path(f"target/{BUILD}/seura-photos.exe"))])
         time.sleep(SECONDS)
         require_running("Windows")
         # Without /F, taskkill asks the window to close, like a user would.
@@ -111,12 +188,21 @@ def main():
         else:
             others[root / Path(*relative.parts[: min(2, len(relative.parts) - 1) or 1])] += 1
 
-    lines = [f"## What the app wrote ({platform.system()}, {SECONDS} s run)", ""]
+    run = "saving a preset, applying it, and exporting" if ARGS.export else f"{SECONDS} s run"
+    lines = [f"## What the app wrote ({platform.system()}, {BUILD} build, {run})", ""]
     lines += ["Paths that mention Seura:", ""]
     lines += [f"- `{key}`: {n} files, {size // 1024} KB" for key, (n, size) in sorted(ours.items())]
     lines += [] if ours else ["- none"]
     lines += ["", "Other new files (any program), by folder:", ""]
     lines += [f"- `{key}`: {n}" for key, n in sorted(others.items())]
+    if ARGS.export:
+        # Where the run was told to write: its Seura folder and export folder.
+        lines += ["", "In the run's own folders, as it was told to write:", ""]
+        for folder in ("data", "exported"):
+            files = sorted(path.relative_to(AUDIT / folder).as_posix()
+                           for path in (AUDIT / folder).rglob("*") if path.is_file())
+            top = sorted({name.split("/")[0] for name in files})
+            lines.append(f"- `{AUDIT / folder}`: {len(files)} files ({', '.join(top)})")
     report = "\n".join(lines)
     print(report)
 

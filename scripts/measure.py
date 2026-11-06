@@ -15,19 +15,24 @@ measure itself and quit:
 4. one photo each of 12, 24 and 48 megapixels: dragging each of the
    Editor's sliders, and previewing a preset over and over (PRF-6), once on
    WebGPU and once on WebGL2 (the preview macOS 13 to 15 use), with
-   SEURA_MEASURE=sliders.
+   SEURA_MEASURE=sliders;
+5. 20 photos of 12 megapixels in one folder: saving a preset, applying it to
+   them all, and exporting them as JPEGs at their own size, timed, with
+   SEURA_MEASURE=export and an export folder of its own in the work folder.
+   The spec sets no target for exporting.
 
 Build first, from ui/:
     Windows: npm run tauri -- build --no-bundle
     macOS:   npm run tauri -- build --bundles app
 Then, from the repository root:
-    python3 scripts/measure.py [--work FOLDER] [--small] [--sliders]
+    python3 scripts/measure.py [--work FOLDER] [--small] [--sliders] [--export]
 
 The libraries take about 5 GB in the work folder (by default
 `target/measure`), are made once, and are reused by later runs; delete the
 folder to free the space. --small uses 1,000 photos of 3 megapixels and 10,000
 small ones instead, for a quick check; --sliders measures only the Editor's
-sliders (4), as each M4 slice adds operations. Prints the results as a Markdown
+sliders (4), as each M4 slice adds operations, without the export (5); and
+--export only the export (5). Prints the results as a Markdown
 table and saves them, with every number, as results.json in the work folder.
 """
 
@@ -75,15 +80,17 @@ def make_library(folder: Path, photos: int, width: int, height: int, per_folder:
     done.write_text("")
 
 
-def run(data: Path, library: Path, fresh: bool, label: str, switches: dict | None = None) -> dict:
+def run(data: Path, library: Path, fresh: bool, label: str, switches: dict | None = None,
+        settings: dict | None = None) -> dict:
     """Runs the app measuring itself on `library`, with Seura's folder at
-    `data`, emptied first when `fresh`, and any other developer switches."""
+    `data`, emptied first when `fresh`, any other developer switches, and
+    any other settings."""
     if fresh and data.exists():
         shutil.rmtree(data)
     data.mkdir(parents=True, exist_ok=True)
-    (data / "settings.json").write_text(
-        json.dumps({"libraryFolders": [str(library.resolve())], "checkForUpdates": False})
-    )
+    (data / "settings.json").write_text(json.dumps({
+        "libraryFolders": [str(library.resolve())], "checkForUpdates": False, **(settings or {}),
+    }))
     results = data / "measurement.json"
     results.unlink(missing_ok=True)
     print(f"{label}...", flush=True)
@@ -125,6 +132,14 @@ def table(results: dict) -> str:
                 f"Dragging the Editor's sliders, 12 to 48 MP, {results[key]['preview']}",
                 "at least 30 frames a second", sliders_row(results[key]),
             ))
+    if "export" in results:
+        export = results["export"]["export"]
+        rows.append((
+            "Export", f"{export['photos']} photos of {export['megapixels']:.0f} MP with edits, "
+            f"JPEG quality {export['quality']}, original size", "no target",
+            f"{export['seconds']:.1f} s, {export['msPerPhoto']:.0f} ms a photo"
+            + (f"; {export['failures']} failed" if export["failures"] else ""),
+        ))
     lines = ["| Target | Measure | Goal | Result |", "| --- | --- | --- | --- |"]
     lines += [f"| {a} | {b} | {c} | {d} |" for a, b, c, d in rows]
     return "\n".join(lines)
@@ -164,6 +179,7 @@ def main():
     parser.add_argument("--small", action="store_true", help="smaller libraries, for a quick check")
     parser.add_argument("--sliders", action="store_true",
                         help="only the Editor's sliders (PRF-6), as each M4 slice adds operations")
+    parser.add_argument("--export", action="store_true", help="only exporting")
     args = parser.parse_args()
     if not APP.exists():
         sys.exit(f"No release build at {APP}; see the instructions at the top of this script.")
@@ -173,7 +189,7 @@ def main():
         subprocess.Popen(["caffeinate", "-d", "-w", str(os.getpid())])
 
     results = {"machine": f"{platform.system()} {platform.release()} ({platform.machine()})"}
-    if not args.sliders:
+    if not args.sliders and not args.export:
         folder_photos, folder_size = (1_000, (2016, 1512)) if args.small else (1_000, (4032, 3024))
         # At least FND-3's 10,000, for the search.
         large_photos = 10_000 if args.small else 50_000
@@ -188,15 +204,30 @@ def main():
         results["warm"] = run(data, folder_library, False, "Browsing, cache built")
         results["large"] = run(args.work / "data-large", large_library, True, "Large library")
 
-    # One photo of each size, a folder each (PRF-6: 12 to 48 megapixels).
-    sliders_library = args.work / "sliders"
-    for megapixels, size in ((12, (4032, 3024)), (24, (6000, 4000)), (48, (8064, 6048))):
-        make_library(sliders_library / f"{megapixels} MP", 1, *size, None)
-    sliders_data = args.work / "data-sliders"
-    results["sliders"] = run(sliders_data, sliders_library, True, "Editor sliders",
-                             {"SEURA_MEASURE": "sliders"})
-    results["slidersWebgl2"] = run(sliders_data, sliders_library, False, "Editor sliders, WebGL2",
-                                   {"SEURA_MEASURE": "sliders", "SEURA_PREVIEW": "webgl2"})
+    if not args.export:
+        # One photo of each size, a folder each (PRF-6: 12 to 48 megapixels).
+        sliders_library = args.work / "sliders"
+        for megapixels, size in ((12, (4032, 3024)), (24, (6000, 4000)), (48, (8064, 6048))):
+            make_library(sliders_library / f"{megapixels} MP", 1, *size, None)
+        sliders_data = args.work / "data-sliders"
+        results["sliders"] = run(sliders_data, sliders_library, True, "Editor sliders",
+                                 {"SEURA_MEASURE": "sliders"})
+        results["slidersWebgl2"] = run(
+            sliders_data, sliders_library, False, "Editor sliders, WebGL2",
+            {"SEURA_MEASURE": "sliders", "SEURA_PREVIEW": "webgl2"})
+
+    if not args.sliders:
+        # Exporting edited photos (M5 slice 9): the spec sets no target. A
+        # new export folder each time, since an export never replaces a file.
+        export_library = args.work / "export"
+        make_library(export_library, 20, 4032, 3024, None)
+        exported = args.work / "exported"
+        if exported.exists():
+            shutil.rmtree(exported)
+        exported.mkdir(parents=True)
+        results["export"] = run(args.work / "data-export", export_library, True, "Export",
+                                {"SEURA_MEASURE": "export"},
+                                {"export": {"folder": str(exported.resolve())}})
     (args.work / "results.json").write_text(json.dumps(results, indent=2))
     print()
     print(table(results))

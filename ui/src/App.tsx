@@ -10,7 +10,7 @@ import { ExportSummary } from "./ExportSummary";
 import { PasteDialog } from "./PasteDialog";
 import { editsKey, isExport } from "./keys";
 import { Library } from "./Library";
-import { measure, measureSliders } from "./measure";
+import { measure, measureExport, measureSliders } from "./measure";
 import { t } from "./messages";
 import { RenderCheck } from "./RenderCheck";
 import { TagPicker } from "./TagPicker";
@@ -39,9 +39,11 @@ export function App() {
       .start()
       .then(() => {
         // SEURA_MEASURE=1: the release build measures itself (M2 slice 10);
-        // SEURA_MEASURE=sliders, the Editor's sliders (PRF-6).
+        // SEURA_MEASURE=sliders, the Editor's sliders (PRF-6); and
+        // SEURA_MEASURE=export, exporting (M5 slice 9).
         const dev = useStore.getState().dev;
         if (dev?.measureSliders) void measureSliders();
+        else if (dev?.measureExport) void measureExport();
         else if (dev?.measure) void measure();
       });
     const subscriptions = [

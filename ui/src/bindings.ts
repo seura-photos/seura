@@ -578,6 +578,11 @@ export type DevOptions = {
 	/**  `SEURA_MEASURE=sliders` runs the Editor's instead (PRF-6). */
 	measureSliders: boolean,
 	/**
+	 *  `SEURA_MEASURE=export` saves a preset, applies it, and exports,
+	 *  timing the export (M5 slice 9).
+	 */
+	measureExport: boolean,
+	/**
 	 *  Every switch that changes how the app behaves, as `NAME=value`, so
 	 *  the UI can say they're on: they're easy to leave set by accident.
 	 */
