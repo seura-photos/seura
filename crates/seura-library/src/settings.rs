@@ -43,6 +43,10 @@ pub struct Settings {
     pub check_for_updates: bool,
     /// The Export dialog's last folder and choices (EXP-1, EXP-2).
     pub export: ExportSettings,
+    /// The cloud services, by name, whose deletion notice has been explained:
+    /// the first time an edit file goes to the Trash from a folder one syncs,
+    /// the message says the photo isn't affected, once per service (FIL-1).
+    pub explained_services: Vec<String>,
     /// Fields from a newer version, kept as they were.
     #[serde(flatten)]
     pub unknown: Map<String, Value>,
@@ -120,6 +124,7 @@ impl Default for Settings {
             sort: Sort::default(),
             check_for_updates: true,
             export: ExportSettings::default(),
+            explained_services: Vec::new(),
             unknown: Map::new(),
         }
     }
@@ -221,11 +226,13 @@ mod tests {
         let mut file = SettingsFile::new(folder.path(), Settings::default());
         file.settings.library_folders = vec![PathBuf::from("/photos/2026")];
         file.settings.sort.by = SortBy::FileName;
+        file.settings.explained_services = vec!["OneDrive".into()];
         file.save().unwrap();
 
         let text = fs::read_to_string(folder.path().join(SETTINGS_FILE)).unwrap();
         assert!(text.contains("\"libraryFolders\""), "{text}");
         assert!(text.contains("\"fileName\""), "{text}");
+        assert!(text.contains("\"explainedServices\""), "{text}");
         let loaded = SettingsFile::load(folder.path()).unwrap().unwrap();
         assert_eq!(loaded.settings, file.settings);
     }
@@ -240,6 +247,8 @@ mod tests {
         assert_eq!(file.settings.thumbnail_size, THUMBNAIL_SIZES.1);
         assert_eq!(file.settings.sidebar_width, Some(SIDEBAR_WIDTHS.0));
         assert!(file.settings.check_for_updates);
+        // No service explained yet (FIL-1).
+        assert!(file.settings.explained_services.is_empty());
         file.save().unwrap();
         let text = fs::read_to_string(folder.path().join(SETTINGS_FILE)).unwrap();
         assert!(text.contains("\"fromTheFuture\""), "{text}");

@@ -55,6 +55,9 @@ export function App() {
       events.exportProgress.listen(({ payload }) => useStore.getState().exportProgress(payload)),
       events.scanProgress.listen(({ payload }) => useStore.setState({ progress: payload })),
       events.quitRequested.listen(() => void useStore.getState().quit()),
+      events.deletionExplained.listen(({ payload }) =>
+        useStore.getState().explainDeletion(payload),
+      ),
       // Menu commands take the same path as the buttons (ACC-4).
       events.menuCommand.listen(({ payload }) => {
         const store = useStore.getState();

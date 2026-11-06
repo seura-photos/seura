@@ -1,8 +1,109 @@
 //! Whether a folder is synced to a cloud service (SET-1; decision 0015;
 //! `docs/research/cloud-photo-sources.md`). Seura's cache shouldn't be: it's
-//! large, rewritten constantly, and specific to one computer.
+//! large, rewritten constantly, and specific to one computer. Also the
+//! one-time explanation when an edit file first goes to the Trash from such
+//! a folder (FIL-1, #200).
 
-use std::path::Path;
+use std::io;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
+use serde::Serialize;
+use specta::Type;
+use tauri::{AppHandle, Manager, Runtime};
+use tauri_specta::Event;
+
+use crate::library::AppSettings;
+
+/// What the change that removed the edit files was, for the message's
+/// words: "Removing this photo's last rating…".
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum Removal {
+    /// A rating cleared.
+    Rating,
+    /// A tag removed.
+    Tag,
+    /// Anything else: an edit reset, undo, redo, revert, or a paste.
+    Other,
+}
+
+impl Removal {
+    pub fn of(change: &seura_library::Change) -> Removal {
+        match change {
+            seura_library::Change::Rating(0) => Removal::Rating,
+            seura_library::Change::RemoveTag(_) => Removal::Tag,
+            _ => Removal::Other,
+        }
+    }
+}
+
+/// The first time edit files went to the Trash from a folder this service
+/// syncs (FIL-1): the message says the service may report a deletion, and
+/// the photos aren't affected. Once per service, ever, and one for a batch.
+#[derive(Clone, Debug, Serialize, Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct DeletionExplained {
+    pub service: String,
+    pub removal: Removal,
+    /// The photos in that service's folders whose edit files went.
+    pub count: u32,
+}
+
+/// The edit files a change moved to the Trash, as it moves them.
+#[derive(Default)]
+pub struct Trashed(Mutex<Vec<PathBuf>>);
+
+impl Trashed {
+    /// Moves `path` to the Recycle Bin or Trash, and notes it if it went.
+    pub fn trash(&self, path: &Path) -> io::Result<()> {
+        seura_library::move_to_trash(path)?;
+        self.0
+            .lock()
+            .expect("trashed lock")
+            .push(path.to_path_buf());
+        Ok(())
+    }
+
+    /// Explains, if any of them was in a folder a cloud service syncs that
+    /// hasn't been explained yet (FIL-1). The service is remembered in the
+    /// settings, so it's said once.
+    pub fn explain<R: Runtime>(self, app: &AppHandle<R>, removal: Removal) {
+        let paths = self.0.into_inner().expect("trashed lock");
+        if paths.is_empty() {
+            return;
+        }
+        let services: Vec<String> = paths.iter().filter_map(|path| sync_service(path)).collect();
+        let Some(settings) = app.try_state::<AppSettings>() else {
+            return;
+        };
+        let mut file = settings.0.lock().expect("settings lock");
+        let Some(service) = first_unexplained(&services, &file.settings.explained_services) else {
+            return;
+        };
+        let count = services.iter().filter(|each| **each == service).count() as u32;
+        file.settings.explained_services.push(service.clone());
+        // A settings file that can't be saved says so elsewhere; then it's
+        // explained again after a restart, which does no harm.
+        let _ = file.save();
+        drop(file);
+        let _ = DeletionExplained {
+            service,
+            removal,
+            count,
+        }
+        .emit(app);
+    }
+}
+
+/// The first of `services` not yet in `explained`: one message per batch,
+/// and another service waits for its own next time.
+fn first_unexplained(services: &[String], explained: &[String]) -> Option<String> {
+    services
+        .iter()
+        .find(|service| !explained.contains(service))
+        .cloned()
+}
 
 /// The sync service that holds `path`, such as "OneDrive", or `None` if it
 /// isn't synced. A path that doesn't exist yet is judged by the nearest
@@ -80,6 +181,31 @@ fn platform_service(_path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn each_service_is_explained_once_and_one_per_batch() {
+        let names = |list: &[&str]| list.iter().map(|each| each.to_string()).collect::<Vec<_>>();
+        let batch = names(&["OneDrive", "OneDrive", "iCloud Drive"]);
+        assert_eq!(first_unexplained(&batch, &[]).as_deref(), Some("OneDrive"));
+        assert_eq!(
+            first_unexplained(&batch, &names(&["OneDrive"])).as_deref(),
+            Some("iCloud Drive")
+        );
+        assert_eq!(
+            first_unexplained(&batch, &names(&["OneDrive", "iCloud Drive"])),
+            None
+        );
+        assert_eq!(first_unexplained(&[], &[]), None);
+    }
+
+    #[test]
+    fn the_message_says_what_removed_the_files() {
+        use seura_library::Change;
+        assert_eq!(Removal::of(&Change::Rating(0)), Removal::Rating);
+        assert_eq!(Removal::of(&Change::Rating(3)), Removal::Other);
+        assert_eq!(Removal::of(&Change::RemoveTag("x".into())), Removal::Tag);
+        assert_eq!(Removal::of(&Change::Paste), Removal::Other);
+    }
 
     #[test]
     fn a_temporary_folder_isn_t_synced() {

@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
       menuCommand: event("menuCommand"),
       scanProgress: event("scanProgress"),
       quitRequested: event("quitRequested"),
+      deletionExplained: event("deletionExplained"),
     },
     dev: { active: [] as string[] },
     folders: [] as FolderInfo[],
