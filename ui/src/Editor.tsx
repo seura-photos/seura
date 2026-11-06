@@ -77,7 +77,7 @@ import {
 } from "./redeye";
 import { ScrollArea } from "./ScrollArea";
 import { Slider } from "./Slider";
-import { useStore } from "./store";
+import { presetProblemText, useStore } from "./store";
 import { orientedSize, type Size } from "./preview/geometry";
 import { useZoom } from "./useZoom";
 import { ZoomControls } from "./ZoomControls";
@@ -215,6 +215,13 @@ export function Editor({ id, forceWebgl2 }: Props) {
   const outsideNow = outside === id;
   // The photo whose revert is being confirmed (EDT-10).
   const [confirming, setConfirming] = useState<number | null>(null);
+  // The settings a hovered or focused preset would give the photo (PRE-4),
+  // and the preset last asked for, so a late answer for another is dropped.
+  const [previewing, setPreviewing] = useState<{
+    id: number;
+    settings: RenderSettings;
+  } | null>(null);
+  const previewWanted = useRef<string | null>(null);
   const confirmingNow = confirming === id;
   const cancelRevert = useRef<HTMLButtonElement>(null);
   // How many times the shown edits have been replaced as a whole, by undo,
@@ -321,7 +328,8 @@ export function Editor({ id, forceWebgl2 }: Props) {
             edit.kind === "turn" ||
             edit.kind === "crop" ||
             edit.kind === "enhance" ||
-            edit.kind === "paste"
+            edit.kind === "paste" ||
+            edit.kind === "preset"
               ? result.data.settings
               : null;
           if (result.data.steps) saved(photoId, result.data.steps, settings ?? undefined);
@@ -329,6 +337,7 @@ export function Editor({ id, forceWebgl2 }: Props) {
         else if (result.data.kind === "unreadable") say(t("editor-save-unreadable"));
         else if (result.data.kind === "failed")
           say(t("editor-save-failed", { reason: result.data.reason }));
+        else if (edit.kind === "preset") say(presetProblemText(result.data.problem, edit.name));
       });
       useStore.setState({ editorSaving: saving.current });
       return saving.current;
@@ -442,6 +451,8 @@ export function Editor({ id, forceWebgl2 }: Props) {
   const cropAngle = croppingNow?.now.angle ?? null;
   const redEyeNow = redEye?.id === id ? redEye : null;
   const redEyeCircles = redEyeNow?.now ?? null;
+  // A preset hovered or focused shows on the photo, saving nothing (PRE-4).
+  const previewSettings = previewing?.id === id ? previewing.settings : null;
   const drawnSettings = useMemo(
     () =>
       settings &&
@@ -453,8 +464,8 @@ export function Editor({ id, forceWebgl2 }: Props) {
             { ...settings, redEye: redEyeCircles }
           : comparing
             ? { ...NEUTRAL_SETTINGS, redEye: [], ...geometryOf(settings) }
-            : settings),
-    [settings, comparing, cropAngle, redEyeCircles],
+            : (previewSettings ?? settings)),
+    [settings, comparing, cropAngle, redEyeCircles, previewSettings],
   );
   // The preview's upright size, for sizing the canvas as it's turned.
   const previewWidth = shown?.width ?? 0;
@@ -892,6 +903,44 @@ export function Editor({ id, forceWebgl2 }: Props) {
     });
     return () => useStore.setState({ editorPaste: null });
   }, [pasteReady, id, save]);
+  // A preset too, from the panel or the Edit menu (PRE-4).
+  const presetFromMenu = useEffectEvent((name: string) => applyPreset(name));
+  useEffect(() => {
+    useStore.setState({
+      editorPreset: pasteReady ? (name) => presetFromMenu(name) ?? Promise.resolve() : null,
+    });
+    return () => useStore.setState({ editorPreset: null });
+  }, [pasteReady]);
+
+  /** Shows a preset on the photo while it's hovered or focused, or the
+   * photo's own edits again with `null` (PRE-4). Nothing is saved. A change
+   * still waiting is saved first, so the preview starts from it. */
+  function previewPreset(name: string | null) {
+    previewWanted.current = name;
+    if (name === null) {
+      setPreviewing(null);
+      return;
+    }
+    const photoId = id;
+    void flush().then(async () => {
+      const result = await commands.presetPreview(photoId, name);
+      if (previewWanted.current !== name || idNow.current !== photoId) return;
+      if (result.status === "ok" && result.data)
+        setPreviewing({ id: photoId, settings: result.data });
+    });
+  }
+
+  /** Applies a preset as one step in the photo's history (PRE-4). Its
+   * preview stays until the photo shows the saved result, so nothing
+   * flickers back in between. */
+  function applyPreset(name: string) {
+    if (!pasteReady) return;
+    previewWanted.current = null;
+    void flush();
+    return save(id, { kind: "preset", name }).then(() => {
+      if (previewWanted.current === null) setPreviewing(null);
+    });
+  }
 
   function move(to: number | undefined) {
     if (to === undefined) return;
@@ -1523,7 +1572,13 @@ export function Editor({ id, forceWebgl2 }: Props) {
                 </div>
               </section>
 
-              <PresetsSection id={id} canSave={editable && edited} />
+              <PresetsSection
+                id={id}
+                canSave={editable && edited}
+                canApply={pasteReady && !outsideNow}
+                onPreview={previewPreset}
+                onApply={(name) => void applyPreset(name)}
+              />
 
               {problem !== null && (
                 <p className="editor-note" role="note">

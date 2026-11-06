@@ -27,5 +27,5 @@ pub use operations::{
     Amount, CORE_VERSION, CoreOpId, CoreOperation, Crop, Exposure, Orient, RedEye, RedEyeRegion,
     Stage, Straighten, Strength, Vignette, WhiteBalance,
 };
-pub use paste::{CopiedEdits, PASTE, PasteGroups, Pasted, on_pixels, paste_action};
+pub use paste::{APPLY_PRESET, CopiedEdits, PASTE, PasteGroups, Pasted, on_pixels, paste_action};
 pub use preset::{PRESET_SUFFIX, Preset, PresetError, PresetsFolder, clean_preset_name};

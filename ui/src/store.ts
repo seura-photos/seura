@@ -14,6 +14,8 @@ import {
   type EnhanceDownload,
   type EnhanceReport,
   type PasteChoices,
+  type PasteResult,
+  type PresetProblem,
   type CopiedSummary,
   type ExportChoices,
   type ExportProgress,
@@ -96,6 +98,9 @@ export type State = {
   /** Pastes into the open photo, as a step in its own history (EDT-9); none
    * while the Editor can't take a change, as in crop mode. */
   editorPaste: ((choices: PasteChoices) => Promise<unknown>) | null;
+  /** Applies a preset to the open photo, as a step in its own history
+   * (PRE-4); none while the Editor can't take a change. */
+  editorPreset: ((name: string) => Promise<unknown>) | null;
   /** The Editor's latest save, which can outlast leaving the Editor. */
   editorSaving: Promise<unknown>;
   /** A one-line message about the last action, such as adding a folder. */
@@ -199,6 +204,8 @@ export type State = {
   askPaste: (ids: number[]) => Promise<void>;
   cancelPaste: () => void;
   runPaste: (choices: PasteChoices) => Promise<void>;
+  /** Applies a preset to photos, or the photo in the Editor (PRE-4). */
+  applyPreset: (ids: number[], name: string) => Promise<void>;
   /** Asks for a folder with the system's dialog. */
   chooseExportFolder: () => Promise<void>;
   cancelExport: () => void;
@@ -401,6 +408,41 @@ export const CONFIRM_OPEN_ABOVE = 15;
  * `DEFAULT_THUMBNAIL_SIZE`. */
 export const DEFAULT_THUMBNAIL_SIZE = 160;
 
+/** What a paste, or a preset applied, did to `count` photos (PRE-1, PRE-4). */
+function pasteMessage(
+  result: PasteResult,
+  count: number,
+  done: (changed: number) => string,
+  noChange: string,
+): string {
+  const { changed, readOnly, unreadable, failed, keptGeometry } = result;
+  const problems = readOnly + unreadable + failed;
+  return [
+    changed > 0 ? done(changed) : null,
+    changed === 0 && problems === 0 && keptGeometry === 0 ? t(noChange, { count }) : null,
+    keptGeometry > 0 ? t("paste-cloud-kept", { count: keptGeometry }) : null,
+    readOnly === count
+      ? t("read-only-folder")
+      : readOnly > 0
+        ? t("change-read-only-some", { count: readOnly })
+        : null,
+    unreadable > 0 ? t("change-unreadable", { count: unreadable }) : null,
+    failed > 0 ? t("change-failed", { count: failed }) : null,
+  ]
+    .filter((part) => part !== null)
+    .join(" ");
+}
+
+/** Why the preset `name` couldn't be applied (PRE-4). */
+export function presetProblemText(problem: PresetProblem, name: string): string {
+  const key = {
+    gone: "preset-gone",
+    unreadable: "preset-unreadable",
+    empty: "preset-empty",
+  }[problem];
+  return t(key, { name });
+}
+
 /** Windows says Recycle Bin, macOS Trash. */
 export const system =
   typeof navigator !== "undefined" && /Mac/.test(navigator.platform) ? "mac" : "windows";
@@ -441,6 +483,7 @@ export const useStore = create<State>()((set, get) => ({
   editorStep: null,
   editorFlush: null,
   editorPaste: null,
+  editorPreset: null,
   editorSaving: Promise.resolve(),
   notice: null,
   noticeId: 0,
@@ -895,25 +938,41 @@ export const useStore = create<State>()((set, get) => ({
       get().say(t("change-failed", { count: ids.length }));
       return;
     }
-    const { changed, readOnly, unreadable, failed, keptGeometry } = result.data;
-    const problems = readOnly + unreadable + failed;
     get().say(
-      [
-        changed > 0 ? t("paste-done", { count: changed }) : null,
-        changed === 0 && problems === 0 && keptGeometry === 0
-          ? t("paste-no-change", { count: ids.length })
-          : null,
-        keptGeometry > 0 ? t("paste-cloud-kept", { count: keptGeometry }) : null,
-        readOnly === ids.length
-          ? t("read-only-folder")
-          : readOnly > 0
-            ? t("change-read-only-some", { count: readOnly })
-            : null,
-        unreadable > 0 ? t("change-unreadable", { count: unreadable }) : null,
-        failed > 0 ? t("change-failed", { count: failed }) : null,
-      ]
-        .filter((part) => part !== null)
-        .join(" "),
+      pasteMessage(
+        result.data,
+        ids.length,
+        (count) => t("paste-done", { count }),
+        "paste-no-change",
+      ),
+    );
+  },
+
+  async applyPreset(ids, name) {
+    const { editing, editorPreset, editorFlush, editorSaving } = get();
+    // In the Editor, it's a step in the photo's own history, and shows on it.
+    if (editing !== null) {
+      await editorPreset?.(name);
+      return;
+    }
+    if (ids.length === 0) return;
+    await Promise.allSettled([editorFlush?.(), editorSaving]);
+    const result = await commands.applyPreset(ids, name);
+    if (result.status === "error") {
+      get().say(t("change-failed", { count: ids.length }));
+      return;
+    }
+    if (result.data.kind === "problem") {
+      get().say(presetProblemText(result.data.problem, name));
+      return;
+    }
+    get().say(
+      pasteMessage(
+        result.data.result,
+        ids.length,
+        (count) => t("preset-applied", { name, count }),
+        "preset-no-change",
+      ),
     );
   },
 

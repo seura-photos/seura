@@ -58,6 +58,8 @@ fn main() {
         "save_preset",
         "rename_preset",
         "delete_preset",
+        "apply_preset",
+        "preset_preview",
         "export_photos",
         "stop_export",
         "show_exported",

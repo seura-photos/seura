@@ -28,16 +28,25 @@ type Props = {
   /** Whether its edits can be saved as a preset: it has some, and they can
    * be read. */
   canSave: boolean;
+  /** Whether a preset can be applied now: not while the photo can't be
+   * changed, or crop or red-eye mode is open. */
+  canApply: boolean;
+  /** A preset hovered or focused, to show on the photo; `null` when it's
+   * left (PRE-4). */
+  onPreview: (name: string | null) => void;
+  /** A preset clicked, to apply as one step (PRE-4). */
+  onApply: (name: string) => void;
 };
 
 /**
- * The Editor's Presets section (wireframes, "Editor", item 9; PRE-3, PRE-5):
- * the presets in the Presets folder, kept up to date as files are copied in,
- * then "Save current edits as a preset…". Right-click, the context-menu key,
- * or Shift+F10 on a preset gives Rename and Delete (Nevada's choice,
- * 2026-11-05). A preset's name is its file's.
+ * The Editor's Presets section (wireframes, "Editor", item 9; PRE-3 to
+ * PRE-5): the presets in the Presets folder, kept up to date as files are
+ * copied in, then "Save current edits as a preset…". Hovering or focusing a
+ * preset shows it on the photo, and clicking applies it. Right-click, the
+ * context-menu key, or Shift+F10 on a preset gives Rename and Delete
+ * (Nevada's choice, 2026-11-05). A preset's name is its file's.
  */
-export function PresetsSection({ id, canSave }: Props) {
+export function PresetsSection({ id, canSave, canApply, onPreview, onApply }: Props) {
   const say = useStore((state) => state.say);
   const [presets, setPresets] = useState<PresetSummary[] | null>(null);
   const [menu, setMenu] = useState<{ preset: PresetSummary; x: number; y: number } | null>(null);
@@ -74,7 +83,7 @@ export function PresetsSection({ id, canSave }: Props) {
     else say(t("presets-nothing-to-save"));
   }
 
-  function onKeyDown(event: KeyboardEvent<HTMLLIElement>, preset: PresetSummary) {
+  function onKeyDown(event: KeyboardEvent<HTMLButtonElement>, preset: PresetSummary) {
     if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
       event.preventDefault();
       const box = event.currentTarget.getBoundingClientRect();
@@ -89,24 +98,34 @@ export function PresetsSection({ id, canSave }: Props) {
       </h2>
       {presets && presets.length > 0 && (
         <ul className="preset-list">
-          {presets.map((preset) => (
-            <li
-              key={preset.name}
-              className="preset-row"
-              tabIndex={0}
-              aria-haspopup="menu"
-              aria-description={preset.problem ? t("presets-unreadable") : undefined}
-              title={preset.problem ?? preset.name}
-              onKeyDown={(event) => onKeyDown(event, preset)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                setMenu({ preset, x: event.clientX, y: event.clientY });
-              }}
-            >
-              <span className="preset-name">{preset.name}</span>
-              {preset.problem && <span className="meta">{t("presets-unreadable")}</span>}
-            </li>
-          ))}
+          {presets.map((preset) => {
+            // Still focusable when it can't be applied, for its menu.
+            const off = !canApply || preset.problem !== null;
+            return (
+              <li key={preset.name}>
+                <button
+                  type="button"
+                  className="preset-row"
+                  aria-disabled={off || undefined}
+                  aria-description={preset.problem ? t("presets-unreadable") : undefined}
+                  title={preset.problem ?? preset.name}
+                  onKeyDown={(event) => onKeyDown(event, preset)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setMenu({ preset, x: event.clientX, y: event.clientY });
+                  }}
+                  onPointerEnter={() => !off && onPreview(preset.name)}
+                  onPointerLeave={() => onPreview(null)}
+                  onFocus={() => !off && onPreview(preset.name)}
+                  onBlur={() => onPreview(null)}
+                  onClick={() => !off && onApply(preset.name)}
+                >
+                  <span className="preset-name">{preset.name}</span>
+                  {preset.problem && <span className="meta">{t("presets-unreadable")}</span>}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
       {presets && presets.length === 0 && <p className="meta preset-empty">{t("presets-none")}</p>}

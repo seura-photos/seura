@@ -40,6 +40,9 @@ pub enum Change {
     /// The copied edits, onto each photo (PRE-1, PRE-2). Each photo's action
     /// depends on its edits and shape: see [`Index::change_recorded_with`].
     Paste,
+    /// The preset with this name, onto each photo (PRE-4), made as a paste
+    /// is: see [`Index::change_recorded_with`].
+    Preset(String),
 }
 
 impl Change {
@@ -53,6 +56,7 @@ impl Change {
             Change::Rotate { clockwise: false } => "Rotate left",
             Change::Enhance => "Enhance",
             Change::Paste => seura_edit::PASTE,
+            Change::Preset(_) => seura_edit::APPLY_PRESET,
         }
     }
 }
@@ -146,8 +150,8 @@ impl Index {
     /// As [`Index::change_recorded`], with each photo's action made by
     /// `make` when given: from the photo's path, whether it's only in the
     /// cloud, its upright size if known, and its edit file as loaded. Rotate,
-    /// Enhance and Paste need it, since what they do depends on each photo's
-    /// edits, pixels and shape.
+    /// Enhance, Paste and Preset need it, since what they do depends on each
+    /// photo's edits, pixels and shape.
     pub fn change_recorded_with(
         index: &RwLock<Index>,
         ids: &[PhotoId],
@@ -467,7 +471,7 @@ fn action_for(change: &Change, loaded: Option<&EditFile>) -> Action {
         }
         // Made by the app for each photo (`change_recorded_with`); without
         // it, nothing changes.
-        Change::Rotate { .. } | Change::Enhance | Change::Paste => {
+        Change::Rotate { .. } | Change::Enhance | Change::Paste | Change::Preset(_) => {
             return Action {
                 label: change.label().into(),
                 edits: Vec::new(),

@@ -17,4 +17,14 @@ M5 slice 6 (#211; PRE-3, PRE-5): saving a preset, the Presets folder as a list, 
   - deleting to the Recycle Bin, with Cancel focused.
 
   The saved file passed the format's `check.py`, and the broken file was unchanged at the end. The deleted test preset is in Nevada's Recycle Bin.
+- **The plan's "done when", by Nevada:** a preset saved on Windows and copied to the Mac through OneDrive appeared in the Mac's list. The Mac session found it passes `check.py`. Its mode there was 0700, which the copy set, not Seura.
+- **Checked in the real app on the Mac** by the Mac session through the accessibility API, with Nevada's OK, on a scratch Seura folder:
+  - saving, with the name cleaned;
+  - the file's mode, 0644;
+  - `check.py`;
+  - the name-in-use question and Replace;
+  - renaming;
+  - Move to Trash, which put the file in the Trash unchanged.
+
+  All passed, and #228 was merged.
 - **A mistake caught at once:** one edit to the save dialog inserted a long run of empty event handlers into the file. Claude Code spotted it in the edit's result and replaced the block before building.

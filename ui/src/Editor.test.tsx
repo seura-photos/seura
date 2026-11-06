@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   closePhoto: vi.fn(() => Promise.resolve(null)),
   editorRegion: vi.fn(() => Promise.resolve({ status: "ok", data: { width: 4, height: 3 } })),
   draw: vi.fn(),
+  presets: vi.fn<() => Promise<unknown>>(),
+  presetPreview: vi.fn<(id: number, name: string) => Promise<unknown>>(),
   // Saved settings beside brightness, which the slider must keep.
   opened: {
     kind: "opened",
@@ -51,8 +53,9 @@ vi.mock("./bindings", () => ({
     presetsChanged: { listen: () => Promise.resolve(() => {}) },
   },
   commands: {
-    // The Presets section has its own tests.
-    presets: () => Promise.resolve({ status: "ok", data: [] }),
+    // The Presets section has its own tests; these are for its preview.
+    presets: mocks.presets,
+    presetPreview: mocks.presetPreview,
     openPhoto: mocks.openPhoto,
     closePhoto: mocks.closePhoto,
     editorRegion: mocks.editorRegion,
@@ -140,6 +143,7 @@ async function brightness() {
 
 describe("Editor", () => {
   beforeEach(() => {
+    mocks.presets.mockResolvedValue({ status: "ok", data: [] });
     mocks.opened.problem = null;
     mocks.opened.settings = { exposureEv: 0.4, contrast: 20 };
     mocks.opened.steps = { undo: null, redo: null };
@@ -201,6 +205,57 @@ describe("Editor", () => {
     });
     expect(mocks.editPhoto).toHaveBeenCalledWith(7, { kind: "paste", choices });
     await waitFor(() => expect(slider.value).toBe("15"));
+  });
+
+  it("shows a hovered preset without saving, and applies it as one change (PRE-4)", async () => {
+    mocks.presets.mockResolvedValue({
+      status: "ok",
+      data: [{ name: "Golden", adjustments: true, effects: false, geometry: false, problem: null }],
+    });
+    mocks.presetPreview.mockResolvedValue({ status: "ok", data: { exposureEv: 1.2 } });
+    edit();
+    await brightness();
+    const golden = (await screen.findByText("Golden")).closest("button");
+    if (!golden) throw new Error("no row");
+
+    fireEvent.pointerEnter(golden);
+    await waitFor(() => expect(mocks.draw).toHaveBeenLastCalledWith({ exposureEv: 1.2 }));
+    expect(mocks.presetPreview).toHaveBeenCalledWith(7, "Golden");
+    expect(mocks.editPhoto).not.toHaveBeenCalled();
+    // Leaving shows the photo's own edits again.
+    fireEvent.pointerLeave(golden);
+    await waitFor(() =>
+      expect(mocks.draw).toHaveBeenLastCalledWith({ exposureEv: 0.4, contrast: 20 }),
+    );
+
+    mocks.editPhoto.mockResolvedValue({
+      status: "ok",
+      data: {
+        kind: "saved",
+        steps: { undo: "Apply preset", redo: null },
+        settings: { exposureEv: 1.2 },
+      },
+    });
+    fireEvent.click(golden);
+    await waitFor(() =>
+      expect(mocks.editPhoto).toHaveBeenCalledWith(7, { kind: "preset", name: "Golden" }),
+    );
+    await waitFor(() => expect(mocks.draw).toHaveBeenLastCalledWith({ exposureEv: 1.2 }));
+  });
+
+  it("says when a preset can't be applied (PRE-4)", async () => {
+    mocks.editPhoto.mockResolvedValue({
+      status: "ok",
+      data: { kind: "preset", problem: "unreadable" },
+    });
+    edit();
+    await brightness();
+    await act(async () => {
+      await useStore.getState().editorPreset?.("Broken");
+    });
+    expect(
+      await screen.findByText("The preset “Broken” can't be read, so it wasn't applied."),
+    ).toBeTruthy();
   });
 
   it("takes no paste while the photo can't be edited or a mode is open (PRE-1)", async () => {

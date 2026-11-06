@@ -9,7 +9,7 @@ use serde::Serialize;
 use seura_edit::{PresetError, PresetsFolder, Stage};
 use seura_library::Watcher;
 use specta::Type;
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 use tauri_specta::Event;
 
 /// The Presets folder changed: a preset was saved, renamed, removed, or
@@ -43,13 +43,50 @@ impl Presets {
             return;
         }
         let handle = app.clone();
-        let Ok(mut started) = Watcher::start(Vec::new(), move |_| {
-            let _ = PresetsChanged.emit(&handle);
-        }) else {
+        let Ok(mut started) = Watcher::start(Vec::new(), move |_| changed(&handle)) else {
             return;
         };
         started.watch(&[self.folder.path().to_path_buf()]);
         *watcher = Some(started);
+    }
+
+    /// What applying the preset `name` pastes, and the groups it changes
+    /// (PRE-4), read from its file now.
+    pub fn load(
+        &self,
+        name: &str,
+    ) -> Result<(seura_edit::CopiedEdits, seura_edit::PasteGroups), PresetProblem> {
+        let preset = self
+            .folder
+            .list()
+            .map_err(|_| PresetProblem::Gone)?
+            .into_iter()
+            .find(|preset| preset.name == name)
+            .ok_or(PresetProblem::Gone)?;
+        let document = preset.document.map_err(|_| PresetProblem::Unreadable)?;
+        seura_edit::CopiedEdits::from_preset(&document).ok_or(PresetProblem::Empty)
+    }
+}
+
+/// Why a preset can't be applied.
+#[derive(Clone, Copy, Debug, Serialize, Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum PresetProblem {
+    /// It's no longer in the Presets folder.
+    Gone,
+    /// Its file can't be read (rule 4).
+    Unreadable,
+    /// It holds nothing Seura can apply, such as only another app's operations.
+    Empty,
+}
+
+/// Tells the UI, and the Mac's Edit menu, that the Presets folder changed.
+pub fn changed<R: Runtime>(app: &AppHandle<R>) {
+    let _ = PresetsChanged.emit(app);
+    if let Some(presets) = app.try_state::<Presets>()
+        && let Ok(list) = summaries(&presets.folder)
+    {
+        crate::menu::presets_changed(app, &list);
     }
 }
 

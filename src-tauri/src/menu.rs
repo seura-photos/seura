@@ -35,6 +35,9 @@ pub enum MenuCommand {
     CopyEdits,
     /// Asks what to paste onto the chosen photos (PRE-1).
     PasteEdits,
+    /// Applies the preset with this name to the chosen photos, or the photo
+    /// in the Editor (PRE-4).
+    ApplyPreset(String),
     /// The Edit menu's Undo and Redo: the Library's last action (BRW-11),
     /// or, in a text field, the field's own.
     Undo,
@@ -51,6 +54,8 @@ const COPY_EDITS: &str = "copy-edits";
 const PASTE_EDITS: &str = "paste-edits";
 const UNDO: &str = "undo";
 const REDO: &str = "redo";
+/// Each preset's item in the Edit menu: this, then its name.
+const APPLY_PRESET: &str = "apply-preset:";
 /// The menu bar's commands for the chosen photos, kept so they can be
 /// turned on and off. (A menu's lookup by id searches only its top level,
 /// not the File menu inside it, so they're held rather than looked up.)
@@ -61,6 +66,11 @@ struct PhotoCommands<R: Runtime>([MenuItem<R>; 6]);
 /// Library's history.
 #[cfg(target_os = "macos")]
 struct HistoryCommands<R: Runtime>([MenuItem<R>; 2]);
+
+/// The Edit menu's Presets submenu, kept so its items can follow the
+/// Presets folder (PRE-4).
+#[cfg(target_os = "macos")]
+struct PresetsMenu<R: Runtime>(Submenu<R>);
 
 #[cfg(target_os = "macos")]
 pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
@@ -154,6 +164,10 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let undo = MenuItem::with_id(app, UNDO, t("menu-undo"), true, Some("CmdOrCtrl+Z"))?;
     let redo = MenuItem::with_id(app, REDO, t("menu-redo"), true, Some("Shift+CmdOrCtrl+Z"))?;
     app.manage(HistoryCommands([undo.clone(), redo.clone()]));
+    // Presets for the chosen photos (PRE-4), filled in from the folder by
+    // `presets_changed`; off until a photo is chosen.
+    let presets = Submenu::new(app, t("menu-presets"), false)?;
+    app.manage(PresetsMenu(presets.clone()));
     // Text fields need these on macOS, where shortcuts come from the menu.
     let edit = Submenu::with_items(
         app,
@@ -170,6 +184,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &separator()?,
             &copy_edits,
             &paste_edits,
+            &presets,
         ],
     )?;
     let window = Submenu::with_items(
@@ -200,7 +215,10 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
         PASTE_EDITS => MenuCommand::PasteEdits,
         UNDO => MenuCommand::Undo,
         REDO => MenuCommand::Redo,
-        _ => return,
+        _ => match id.strip_prefix(APPLY_PRESET) {
+            Some(name) => MenuCommand::ApplyPreset(name.into()),
+            None => return,
+        },
     };
     let _ = command.emit(app);
 }
@@ -214,10 +232,48 @@ pub fn photos_chosen<R: Runtime>(app: &AppHandle<R>, chosen: bool) {
             let _ = item.set_enabled(chosen);
         }
     }
+    if let Some(presets) = app.try_state::<PresetsMenu<R>>() {
+        let _ = presets.0.set_enabled(chosen);
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
 pub fn photos_chosen<R: Runtime>(_app: &AppHandle<R>, _chosen: bool) {}
+
+/// Fills the Edit menu's Presets submenu from the Presets folder: one item
+/// each, by name, off for one that can't be read, or a note that there are
+/// none. Windows has no menu bar.
+#[cfg(target_os = "macos")]
+pub fn presets_changed<R: Runtime>(app: &AppHandle<R>, presets: &[crate::presets::PresetSummary]) {
+    let Some(menu) = app.try_state::<PresetsMenu<R>>() else {
+        return;
+    };
+    if let Ok(items) = menu.0.items() {
+        for item in items {
+            let _ = menu.0.remove(&item);
+        }
+    }
+    if presets.is_empty() {
+        if let Ok(none) = MenuItem::new(app, t("menu-no-presets"), false, None::<&str>) {
+            let _ = menu.0.append(&none);
+        }
+        return;
+    }
+    for preset in presets {
+        let id = format!("{APPLY_PRESET}{}", preset.name);
+        let readable = preset.problem.is_none();
+        if let Ok(item) = MenuItem::with_id(app, id, &preset.name, readable, None::<&str>) {
+            let _ = menu.0.append(&item);
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn presets_changed<R: Runtime>(
+    _app: &AppHandle<R>,
+    _presets: &[crate::presets::PresetSummary],
+) {
+}
 
 /// Names the Library's next undo and redo in the Edit menu, "Undo Rating (5
 /// photos)", or plain "Undo" when there's nothing (BRW-11). Windows has no
@@ -242,6 +298,7 @@ pub fn history_changed<R: Runtime>(
                 Change::Rotate { clockwise: false } => ("rotateLeft", ""),
                 Change::Enhance => ("enhance", ""),
                 Change::Paste => ("paste", ""),
+                Change::Preset(name) => ("preset", name.as_str()),
             };
             t_with(
                 id,

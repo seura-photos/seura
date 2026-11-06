@@ -620,6 +620,9 @@ button {
 }
 
 .menu {
+  /* Its padding and border count in the height it's given to fit the
+     window (Menu). */
+  box-sizing: border-box;
   position: fixed;
   min-width: 12rem;
   padding: 0.25rem;
@@ -643,6 +646,14 @@ button {
 .menu-item:hover,
 .menu-item:focus-visible {
   background: var(--color-accent-subtle);
+}
+
+/* An item that opens a submenu, such as Presets, with › at its end. */
+.menu-item-submenu {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .menu-item:disabled {
@@ -1745,7 +1756,8 @@ img.thumbnail-loading {
 }
 
 /* Presets in the Editor (wireframes, "Editor", item 9): one row each, the
-   name cut short if it must; right-click for Rename and Delete. */
+   name cut short if it must; hover or focus shows it on the photo, a click
+   applies it, and right-click gives Rename and Delete. */
 .preset-list {
   display: flex;
   flex-direction: column;
@@ -1755,16 +1767,31 @@ img.thumbnail-loading {
 }
 
 .preset-row {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
   min-height: var(--size-tier1-target);
   padding: 0 0.5rem;
+  border: 0;
   border-radius: var(--radius-control);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
 }
 
-.preset-row:hover {
+.preset-row:hover:not([aria-disabled="true"]) {
   background-image: linear-gradient(var(--color-hover-overlay), var(--color-hover-overlay));
+}
+
+.preset-row:active:not([aria-disabled="true"]) {
+  background-image: linear-gradient(var(--color-pressed-overlay), var(--color-pressed-overlay));
+}
+
+.preset-row[aria-disabled="true"] {
+  color: var(--color-text-secondary);
 }
 
 .preset-name {

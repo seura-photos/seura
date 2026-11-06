@@ -13,8 +13,9 @@ measure itself and quit:
 3. 50,000 small photos in 50 folders: memory (PRF-7), after the first scan,
    and searching as you type (FND-3);
 4. one photo each of 12, 24 and 48 megapixels: dragging each of the
-   Editor's sliders (PRF-6), once on WebGPU and once on WebGL2 (the preview
-   macOS 13 to 15 use), with SEURA_MEASURE=sliders.
+   Editor's sliders, and previewing a preset over and over (PRF-6), once on
+   WebGPU and once on WebGL2 (the preview macOS 13 to 15 use), with
+   SEURA_MEASURE=sliders.
 
 Build first, from ui/:
     Windows: npm run tauri -- build --no-bundle

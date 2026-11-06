@@ -44,15 +44,31 @@ function box(name: string | RegExp) {
   return screen.getByRole<HTMLInputElement>("checkbox", { name });
 }
 
-async function show(list: PresetSummary[], canSave = true) {
+const onPreview = vi.fn();
+const onApply = vi.fn();
+
+async function show(list: PresetSummary[], canSave = true, canApply = true) {
   mocks.presets.mockResolvedValue({ status: "ok", data: list });
   render(
     <>
-      <PresetsSection id={7} canSave={canSave} />
+      <PresetsSection
+        id={7}
+        canSave={canSave}
+        canApply={canApply}
+        onPreview={onPreview}
+        onApply={onApply}
+      />
       <Message />
     </>,
   );
   await waitFor(() => expect(mocks.presets).toHaveBeenCalled());
+}
+
+/** A preset's row, which previews and applies it. */
+async function row(name: string) {
+  const found = (await screen.findByText(name)).closest("button");
+  if (!found) throw new Error(`no row for ${name}`);
+  return found;
 }
 
 async function openSave() {
@@ -65,7 +81,7 @@ function type(text: string) {
   fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value: text } });
 }
 
-describe("Presets in the Editor (PRE-3, PRE-5)", () => {
+describe("Presets in the Editor (PRE-3 to PRE-5)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.changed = null;
@@ -85,6 +101,42 @@ describe("Presets in the Editor (PRE-3, PRE-5)", () => {
     await act(async () => mocks.changed?.());
     expect(await screen.findByText("Warm")).toBeTruthy();
     expect(screen.queryByText("Broken")).toBeNull();
+  });
+
+  it("previews a preset while it's hovered or focused, and applies it on a click (PRE-4)", async () => {
+    await show([preset("Warm")]);
+    const warm = await row("Warm");
+    fireEvent.pointerEnter(warm);
+    expect(onPreview).toHaveBeenLastCalledWith("Warm");
+    fireEvent.pointerLeave(warm);
+    expect(onPreview).toHaveBeenLastCalledWith(null);
+    fireEvent.focus(warm);
+    expect(onPreview).toHaveBeenLastCalledWith("Warm");
+    fireEvent.click(warm);
+    expect(onApply).toHaveBeenCalledWith("Warm");
+    fireEvent.blur(warm);
+    expect(onPreview).toHaveBeenLastCalledWith(null);
+  });
+
+  it("neither previews nor applies one that can't be read, or while the photo can't change", async () => {
+    await show([preset("Broken", "oops")]);
+    const broken = await row("Broken");
+    expect(broken.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.pointerEnter(broken);
+    fireEvent.click(broken);
+    expect(onPreview).not.toHaveBeenCalledWith("Broken");
+    expect(onApply).not.toHaveBeenCalled();
+    cleanup();
+
+    await show([preset("Warm")], true, false);
+    const warm = await row("Warm");
+    fireEvent.pointerEnter(warm);
+    fireEvent.click(warm);
+    expect(onPreview).not.toHaveBeenCalledWith("Warm");
+    expect(onApply).not.toHaveBeenCalled();
+    // Its menu still opens, for Rename and Delete.
+    fireEvent.contextMenu(warm);
+    expect(screen.getByRole("menuitem", { name: "Rename…" })).toBeTruthy();
   });
 
   it("says when there are none, and saving waits for edits", async () => {
@@ -187,9 +239,7 @@ describe("Presets in the Editor (PRE-3, PRE-5)", () => {
 
   it("opens the menu from the keyboard, and a preset that can't be read can only be deleted", async () => {
     await show([preset("Broken", "oops")]);
-    const row = (await screen.findByText("Broken")).closest("li");
-    expect(row).not.toBeNull();
-    if (row) fireEvent.keyDown(row, { key: "F10", shiftKey: true });
+    fireEvent.keyDown(await row("Broken"), { key: "F10", shiftKey: true });
     expect(screen.getByRole<HTMLButtonElement>("menuitem", { name: "Rename…" }).disabled).toBe(
       true,
     );

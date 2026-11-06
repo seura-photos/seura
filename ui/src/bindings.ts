@@ -285,6 +285,40 @@ export const commands = {
 	 */
 	deletePreset: (name: string) => typedError<PresetOutcome, string>(__TAURI_INVOKE("delete_preset", { name })),
 	/**
+	 *  Applies a preset to photos from the Library, as one action to undo
+	 *  (PRE-4; BRW-11). The stages it holds replace the photos' and the others
+	 *  stay; nothing is downloaded (LIB-9).
+	 */
+	applyPreset: (ids: number[], name: string) => typedError<PresetApplied, string>(__TAURI_INVOKE("apply_preset", { ids, name })),
+	/**
+	 *  The open photo's settings with a preset applied, for the Editor to show
+	 *  while the preset is hovered or focused (PRE-4). Nothing is written.
+	 *  `None` if the preset can't be applied, or the photo isn't open.
+	 */
+	presetPreview: (id: number, name: string) => typedError<{
+	rotate: number,
+	flipH: boolean,
+	flipV: boolean,
+	straighten: number | null,
+	cropX: number | null,
+	cropY: number | null,
+	cropWidth: number | null,
+	cropHeight: number | null,
+	exposureEv: number | null,
+	temperature: number | null,
+	tint: number | null,
+	highlights: number | null,
+	shadows: number | null,
+	contrast: number | null,
+	saturation: number | null,
+	blackAndWhite: number | null,
+	sepia: number | null,
+	vignetteAmount: number | null,
+	vignetteSize: number | null,
+	/**  `seura.redEye`'s circles (EDT-7). */
+	redEye: RedEyeCircle[],
+} | null, string>(__TAURI_INVOKE("preset_preview", { id, name })),
+	/**
 	 *  Exports photos to the folder chosen (EXP-1, EXP-6). It takes as long as they
 	 *  do; [`stop_export`] ends it early.
 	 */
@@ -565,7 +599,9 @@ export type EditSaved =
  *  Anything else, such as a full drive, or the file changing on disk
  *  meanwhile.
  */
-{ kind: "failed"; reason: string };
+{ kind: "failed"; reason: string } | 
+/**  The preset to apply can't be; nothing changed (PRE-4). */
+{ kind: "preset"; problem: PresetProblem };
 
 /**  What undo or redo in the Editor did (EDT-9). */
 export type EditStepped = 
@@ -781,6 +817,11 @@ export type MenuCommand = "addFolder" |
 /**  Asks what to paste onto the chosen photos (PRE-1). */
 "pasteEdits" | 
 /**
+ *  Applies the preset with this name to the chosen photos, or the photo
+ *  in the Editor (PRE-4).
+ */
+{ applyPreset: string } | 
+/**
  *  The Edit menu's Undo and Redo: the Library's last action (BRW-11),
  *  or, in a text field, the field's own.
  */
@@ -902,6 +943,11 @@ export type PhotoDetails = {
 export type PhotoEdit = 
 /**  What's copied, onto this photo (PRE-1): a step in its own history. */
 { kind: "paste"; choices: PasteChoices } | 
+/**
+ *  The preset with this name, onto this photo (PRE-4): a step in its
+ *  own history.
+ */
+{ kind: "preset"; name: string } | 
 /**  `seura.exposure`, in stops. */
 { kind: "brightness"; ev: number | null } | 
 /**  `seura.contrast`, −100 to 100. */
@@ -1003,6 +1049,13 @@ export type PhotoProblem =
 /**  Too many tags for a JPEG, or the render failed. */
 "failed";
 
+/**  What applying a preset did (PRE-4). */
+export type PresetApplied = 
+/**  Applied, in numbers of photos, as a paste reports it. */
+{ kind: "applied"; result: PasteResult } | 
+/**  The preset couldn't be applied; nothing changed. */
+{ kind: "problem"; problem: PresetProblem };
+
 /**  What saving, renaming, or removing a preset did. */
 export type PresetOutcome = 
 /**  Done, under this name. */
@@ -1022,6 +1075,15 @@ export type PresetOutcome =
 { kind: "gone" } | 
 /**  The drive has no Recycle Bin or Trash, so the preset was left as it is. */
 { kind: "noTrash" };
+
+/**  Why a preset can't be applied. */
+export type PresetProblem = 
+/**  It's no longer in the Presets folder. */
+"gone" | 
+/**  Its file can't be read (rule 4). */
+"unreadable" | 
+/**  It holds nothing Seura can apply, such as only another app's operations. */
+"empty";
 
 /**  One preset in the list (PRE-5). */
 export type PresetSummary = {
