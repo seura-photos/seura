@@ -4,7 +4,9 @@
 //! `ui/src/measure.ts`) and report what it measured here; the core adds its
 //! own memory use, writes `measurement.json` to Seura's folder, and quits.
 //! `SEURA_MEASURE=sliders` runs the Editor's script instead: dragging its
-//! sliders (PRF-6, M4 slice 3).
+//! sliders (PRF-6, M4 slice 3). `SEURA_MEASURE=export` saves a preset,
+//! applies it, and exports, timing the export (M5 slice 9), to the export
+//! folder `scripts/measure.py` puts in the settings.
 //! Meant to be run with `SEURA_DATA` pointing at a folder of its own, by
 //! `scripts/measure.py`, so a real library is never touched.
 
@@ -27,7 +29,7 @@ pub fn start() {
 pub fn active() -> bool {
     matches!(
         std::env::var(MEASURE_SWITCH).as_deref(),
-        Ok("1" | "sliders")
+        Ok("1" | "sliders" | "export")
     )
 }
 
@@ -35,6 +37,11 @@ pub fn active() -> bool {
 /// build.
 pub fn sliders() -> bool {
     std::env::var(MEASURE_SWITCH).as_deref() == Ok("sliders")
+}
+
+/// Whether it's the export script.
+pub fn export() -> bool {
+    std::env::var(MEASURE_SWITCH).as_deref() == Ok("export")
 }
 
 /// Milliseconds since the app started.

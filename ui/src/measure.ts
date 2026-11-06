@@ -90,6 +90,64 @@ export async function measureSliders(): Promise<void> {
   await commands.measureReport(JSON.stringify(report));
 }
 
+/**
+ * The export script (M5 slice 9), run with `SEURA_MEASURE=export` on a
+ * library of one folder, with the export folder `scripts/measure.py` puts in
+ * the settings. Once the thumbnails are made, it enhances the first photo,
+ * saves its edits as a preset, applies that to every photo, and exports them
+ * all as JPEGs at their own size, timing the export: the spec sets no target
+ * for it. It also leaves the measurement's Seura folder holding a preset, and
+ * its export folder the exported files, for the app-data audit (#225).
+ */
+export async function measureExport(): Promise<void> {
+  const report: Record<string, unknown> = {};
+  try {
+    await waitFor(() => document.querySelector('[role="treeitem"]') !== null, 60_000);
+    await firstScan();
+    const [folder] = useStore
+      .getState()
+      .folders.filter((each) => each.id !== null && each.photos > 0);
+    if (folder?.id == null) throw new Error("no photos to export");
+    await useStore.getState().selectFolder(folder.id);
+    const ids = useStore.getState().photos.map((photo) => photo.id);
+    const [first] = ids;
+    if (first === undefined) throw new Error("an empty folder");
+    const enhanced = await commands.enhanceDownloading([first]);
+    if (enhanced.status === "error") throw new Error(enhanced.error);
+    const saved = await commands.savePreset(
+      first,
+      PRESET,
+      { adjustments: true, effects: true, geometry: false },
+      true,
+    );
+    if (saved.status === "error" || saved.data.kind !== "done")
+      throw new Error(`the preset wasn't saved: ${JSON.stringify(saved)}`);
+    const applied = await commands.applyPreset(ids, PRESET);
+    if (applied.status === "error" || applied.data.kind !== "applied")
+      throw new Error(`the preset wasn't applied: ${JSON.stringify(applied)}`);
+    const start = await commands.exportStart(ids);
+    if (start.folder === null) throw new Error("no export folder in the settings");
+    const choices = { ...start.choices, png: false, longEdge: null };
+    const started = performance.now();
+    const exported = await commands.exportPhotos(ids, choices);
+    const ms = performance.now() - started;
+    if (exported.status === "error") throw new Error(exported.error);
+    const { width, height } = useStore.getState().photos[0] ?? {};
+    report.export = {
+      photos: ids.length,
+      megapixels: round(((width ?? 0) * (height ?? 0)) / 1e6),
+      exported: exported.data.exported,
+      failures: exported.data.failures.length,
+      seconds: round(ms / 1000),
+      msPerPhoto: round(ms / ids.length),
+      quality: choices.quality,
+    };
+  } catch (error) {
+    report.error = String(error);
+  }
+  await commands.measureReport(JSON.stringify(report));
+}
+
 /** Opens the folder's first photo in the Editor, drags each slider for two
  * seconds, and closes it again. */
 async function editPhoto(folder: number) {

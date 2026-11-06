@@ -2347,6 +2347,9 @@ pub struct DevOptions {
     pub measure: bool,
     /// `SEURA_MEASURE=sliders` runs the Editor's instead (PRF-6).
     pub measure_sliders: bool,
+    /// `SEURA_MEASURE=export` saves a preset, applies it, and exports,
+    /// timing the export (M5 slice 9).
+    pub measure_export: bool,
     /// Every switch that changes how the app behaves, as `NAME=value`, so
     /// the UI can say they're on: they're easy to leave set by accident.
     pub active: Vec<String>,
@@ -2383,6 +2386,7 @@ pub fn dev_options() -> DevOptions {
         check_settings: seura_render::check::CHECK_SETTINGS.into(),
         measure: crate::measure::active(),
         measure_sliders: crate::measure::sliders(),
+        measure_export: crate::measure::export(),
         active: active_switches(),
     }
 }
