@@ -411,6 +411,44 @@ photo-open-cloud =
     }
 photo-open-confirm = Open
 photo-open-cancel = Cancel
+# Said once per cloud service, the first time an edit file goes to the Trash
+# from a folder it syncs (FIL-1): the service may report a deletion of its
+# own. $removal is "rating", "tag", or "other" (an edit reset, undo, redo,
+# revert, or paste); $service is its name, such as "OneDrive"; $system is
+# "mac" or "windows".
+deletion-explained =
+    { $count ->
+        [one]
+            { $removal ->
+                [rating] Removing this photo's last rating moved its small edit file to the { $system ->
+                        [mac] Trash
+                       *[other] Recycle Bin
+                    }.
+                [tag] Removing this photo's last tag moved its small edit file to the { $system ->
+                        [mac] Trash
+                       *[other] Recycle Bin
+                    }.
+               *[other] This photo has no edits, tags or rating left, so its small edit file moved to the { $system ->
+                        [mac] Trash
+                       *[other] Recycle Bin
+                    }.
+            } { $service } may say a file was deleted; the photo itself isn't affected.
+       *[other]
+            { $removal ->
+                [rating] Removing these photos' ratings moved { $count } small edit files to the { $system ->
+                        [mac] Trash
+                       *[other] Recycle Bin
+                    }.
+                [tag] Removing these photos' tags moved { $count } small edit files to the { $system ->
+                        [mac] Trash
+                       *[other] Recycle Bin
+                    }.
+               *[other] { $count } photos have no edits, tags or ratings left, so their small edit files moved to the { $system ->
+                        [mac] Trash
+                       *[other] Recycle Bin
+                    }.
+            } { $service } may say files were deleted; the photos themselves aren't affected.
+    }
 # The photo menu's Presets submenu (PRE-4), and its note when there are none.
 photo-presets = Presets
 photo-no-presets = No presets

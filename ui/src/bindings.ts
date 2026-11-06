@@ -400,6 +400,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	deletionExplained: makeEvent<DeletionExplained>("deletion-explained"),
 	editFileChanged: makeEvent<EditFileChanged>("edit-file-changed"),
 	enhanceDownload: makeEvent<EnhanceDownload>("enhance-download"),
 	exportProgress: makeEvent<ExportProgress>("export-progress"),
@@ -542,6 +543,18 @@ export type Deleting = {
 	 */
 	fileProvider: number[],
 	fileProviderService: string | null,
+};
+
+/**
+ *  The first time edit files went to the Trash from a folder this service
+ *  syncs (FIL-1): the message says the service may report a deletion, and
+ *  the photos aren't affected. Once per service, ever, and one for a batch.
+ */
+export type DeletionExplained = {
+	service: string,
+	removal: Removal,
+	/**  The photos in that service's folders whose edit files went. */
+	count: number,
 };
 
 /**  Developer switches, from environment variables. */
@@ -1120,6 +1133,18 @@ export type RegionSize = {
 	width: number,
 	height: number,
 };
+
+/**
+ *  What the change that removed the edit files was, for the message's
+ *  words: "Removing this photo's last rating…".
+ */
+export type Removal = 
+/**  A rating cleared. */
+"rating" | 
+/**  A tag removed. */
+"tag" | 
+/**  Anything else: an edit reset, undo, redo, revert, or a paste. */
+"other";
 
 /**
  *  A photo's edits as the preview renders them: every core operation's

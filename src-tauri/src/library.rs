@@ -17,6 +17,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use tauri_specta::Event;
 
 use crate::downloads::{Downloaded, Downloads};
+use crate::synced::{Removal, Trashed};
 
 pub struct Library {
     pub index: RwLock<Index>,
@@ -369,6 +370,7 @@ impl Library {
         change: &Change,
         make: Option<seura_library::MakeAction<'_>>,
     ) -> ChangeReport {
+        let trashed = Trashed::default();
         let report = {
             let mut history = self.history.lock().expect("history lock");
             let (report, action) = Index::change_recorded_with(
@@ -378,7 +380,7 @@ impl Library {
                 make,
                 crate::editor::WRITER,
                 time::OffsetDateTime::now_utc(),
-                &move_to_trash,
+                &|path| trashed.trash(path),
             );
             history.record(action);
             crate::menu::history_changed(app, history.next_undo(), history.next_redo());
@@ -388,6 +390,7 @@ impl Library {
             self.save();
             let _ = LibraryChanged.emit(app);
         }
+        trashed.explain(app, Removal::of(change));
         report
     }
 
@@ -526,6 +529,7 @@ impl Library {
         make: impl FnOnce(Option<&seura_edit::EditFile>) -> seura_edit::Action,
     ) -> Result<bool, Problem> {
         // One write at a time, as with the Library's changes.
+        let trashed = Trashed::default();
         let changed = {
             let _history = self.history.lock().expect("history lock");
             Index::edit_photo_with(
@@ -535,13 +539,14 @@ impl Library {
                 make,
                 crate::editor::WRITER,
                 time::OffsetDateTime::now_utc(),
-                &move_to_trash,
+                &|path| trashed.trash(path),
             )?
         };
         if changed {
             self.save();
             let _ = LibraryChanged.emit(app);
         }
+        trashed.explain(app, Removal::Other);
         Ok(changed)
     }
 
@@ -556,6 +561,7 @@ impl Library {
         kept: &mut Option<seura_edit::EditDocument>,
     ) -> Result<seura_edit::Step, Problem> {
         // One write at a time, as with the Library's changes.
+        let trashed = Trashed::default();
         let step = {
             let _history = self.history.lock().expect("history lock");
             Index::step_photo(
@@ -565,13 +571,14 @@ impl Library {
                 kept,
                 crate::editor::WRITER,
                 time::OffsetDateTime::now_utc(),
-                &move_to_trash,
+                &|path| trashed.trash(path),
             )?
         };
         if step != seura_edit::Step::Nothing {
             self.save();
             let _ = LibraryChanged.emit(app);
         }
+        trashed.explain(app, Removal::Other);
         Ok(step)
     }
 
@@ -594,13 +601,15 @@ impl Library {
     }
 
     fn step<R: Runtime>(&self, app: &AppHandle<R>, undo: bool) -> Option<UndoReport> {
+        let trashed = Trashed::default();
+        let trash = |path: &Path| trashed.trash(path);
         let report = {
             let mut history = self.history.lock().expect("history lock");
             let now = time::OffsetDateTime::now_utc();
             let report = if undo {
-                history.undo(&self.index, crate::editor::WRITER, now, &move_to_trash)
+                history.undo(&self.index, crate::editor::WRITER, now, &trash)
             } else {
-                history.redo(&self.index, crate::editor::WRITER, now, &move_to_trash)
+                history.redo(&self.index, crate::editor::WRITER, now, &trash)
             };
             crate::menu::history_changed(app, history.next_undo(), history.next_redo());
             report
@@ -609,6 +618,7 @@ impl Library {
             self.save();
             let _ = LibraryChanged.emit(app);
         }
+        trashed.explain(app, Removal::Other);
         report
     }
 

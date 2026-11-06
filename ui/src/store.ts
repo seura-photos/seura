@@ -16,6 +16,7 @@ import {
   type PasteChoices,
   type PasteResult,
   type PresetProblem,
+  type DeletionExplained,
   type CopiedSummary,
   type ExportChoices,
   type ExportProgress,
@@ -105,6 +106,11 @@ export type State = {
   editorSaving: Promise<unknown>;
   /** A one-line message about the last action, such as adding a folder. */
   notice: string | null;
+  /** When the message was last set, in milliseconds since 1970. */
+  noticeAt: number;
+  /** The deletion explanation shown last, and when (FIL-1), so the action's
+   * own message, arriving just after it, joins it. */
+  explained: { text: string; at: number } | null;
   /** Counts notices, so the same message twice is announced twice. */
   noticeId: number;
   /** Counts the core's word that the library changed: photos' edits may
@@ -252,6 +258,10 @@ export type State = {
   closePicker: () => void;
   /** Shows a one-line notice, with a button if it offers something. */
   say: (notice: string, action?: { label: string; run: () => void }) => void;
+  /** Explains, once per cloud service, that its notice of a deleted file
+   * was an edit file going to the Trash, and the photo isn't affected
+   * (FIL-1). The action's own message, before or after, joins it. */
+  explainDeletion: (explained: DeletionExplained) => void;
   /** The button of the notice showing. */
   noticeAction: { label: string; run: () => void } | null;
   /** Undoes the Library's last action, whatever is selected now, or redoes
@@ -408,6 +418,16 @@ export const CONFIRM_OPEN_ABOVE = 15;
  * `DEFAULT_THUMBNAIL_SIZE`. */
 export const DEFAULT_THUMBNAIL_SIZE = 160;
 
+/** How close together a deletion explanation and its action's own message
+ * come, to be shown as one: both are sent as the change finishes. */
+const JOIN_WITHIN_MS = 1500;
+
+/** The deletion explanation's words (FIL-1): what removed the edit files,
+ * how many, and the service. */
+export function deletionText({ service, removal, count }: DeletionExplained): string {
+  return t("deletion-explained", { service, removal, count, system });
+}
+
 /** What a paste, or a preset applied, did to `count` photos (PRE-1, PRE-4). */
 function pasteMessage(
   result: PasteResult,
@@ -486,6 +506,8 @@ export const useStore = create<State>()((set, get) => ({
   editorPreset: null,
   editorSaving: Promise.resolve(),
   notice: null,
+  noticeAt: 0,
+  explained: null,
   noticeId: 0,
   libraryVersion: 0,
   kept: null,
@@ -833,7 +855,29 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   say(notice, action) {
-    set(({ noticeId }) => ({ notice, noticeAction: action ?? null, noticeId: noticeId + 1 }));
+    // The action's own message joins the deletion explanation just shown,
+    // rather than replacing it (FIL-1).
+    const { explained } = get();
+    const joined =
+      explained && Date.now() - explained.at < JOIN_WITHIN_MS && notice !== explained.text
+        ? `${notice} ${explained.text}`
+        : notice;
+    set(({ noticeId }) => ({
+      notice: joined,
+      noticeAction: action ?? null,
+      noticeId: noticeId + 1,
+      noticeAt: Date.now(),
+      explained: joined === notice ? explained : null,
+    }));
+  },
+
+  explainDeletion(explained) {
+    const text = deletionText(explained);
+    const { notice, noticeAt } = get();
+    // After the action's own message, if it came first.
+    const after = notice !== null && Date.now() - noticeAt < JOIN_WITHIN_MS;
+    get().say(after ? `${notice} ${text}` : text);
+    set({ explained: after ? null : { text, at: Date.now() } });
   },
 
   async undo() {

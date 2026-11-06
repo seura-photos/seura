@@ -117,6 +117,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             menu::MenuCommand,
             editor::EditFileChanged,
             presets::PresetsChanged,
+            synced::DeletionExplained,
             quitting::QuitRequested
         ])
         // Nothing changed, as the preview draws the original (EDT-1).
