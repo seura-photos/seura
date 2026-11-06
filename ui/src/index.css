@@ -620,6 +620,9 @@ button {
 }
 
 .menu {
+  /* Its padding and border count in the height it's given to fit the
+     window (Menu). */
+  box-sizing: border-box;
   position: fixed;
   min-width: 12rem;
   padding: 0.25rem;

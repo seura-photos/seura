@@ -155,6 +155,18 @@ describe("The photo menu's Presets submenu (PRE-4)", () => {
     expect(mocks.applyPreset).toHaveBeenCalledWith([1, 2, 3], "Warm");
   });
 
+  it("opens on hover without taking the focus, and closes on another item", async () => {
+    open();
+    const presets = item("Presets");
+    fireEvent.pointerEnter(presets);
+    await screen.findByRole("menuitem", { name: "Cool" });
+    // The focus stays in the photo menu, on its first item.
+    expect(document.activeElement).toBe(item("Show in Explorer"));
+    fireEvent.pointerEnter(item("Open 3 in default app"));
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: "Cool" })).toBeNull());
+    expect(mocks.presets).toHaveBeenCalledTimes(1);
+  });
+
   it("opens with → and closes with ←, back to Presets", async () => {
     open();
     const presets = item("Presets");
