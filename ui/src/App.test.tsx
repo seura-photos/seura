@@ -653,7 +653,19 @@ describe("App", () => {
     act(() => menu({ payload: "delete" }));
     expect(askDelete).toHaveBeenCalledTimes(1);
 
-    act(() => useStore.setState({ reviewing: { title: "", photos: [photo(1)], id: 1 } }));
+    act(() =>
+      useStore.setState({
+        reviewing: {
+          title: "",
+          photos: [photo(1)],
+          id: 1,
+          since: 0,
+          summary: false,
+          tried: false,
+          moved: 0,
+        },
+      }),
+    );
     act(() => menu({ payload: "delete" }));
     expect(askDelete).toHaveBeenCalledTimes(1);
   });

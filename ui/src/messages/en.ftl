@@ -697,6 +697,38 @@ review-left-marked =
        *[other] { $count } photos are still marked for deletion. Review them again to finish.
     }
 mark-failed = Couldn't save that mark: { $reason }
+# The summary after a review's last photo (REV-5).
+review-summary-title = End of review
+review-summary-rated = Rated
+review-summary-edited = Edited
+review-summary-tagged = Tagged
+review-summary-marked = Marked for deletion
+review-summary-saved = Everything is saved, and nothing has been deleted yet.
+review-summary-still-marked =
+    { $count ->
+        [one] 1 marked photo couldn't be moved, and stays marked.
+       *[other] { $count } marked photos couldn't be moved, and stay marked.
+    }
+review-summary-move =
+    { $count ->
+        [one]
+            { $system ->
+                [mac] Move 1 marked photo to the Trash
+               *[other] Move 1 marked photo to the Recycle Bin
+            }
+       *[other]
+            { $system ->
+                [mac] Move { $count } marked photos to the Trash
+               *[other] Move { $count } marked photos to the Recycle Bin
+            }
+    }
+review-summary-export =
+    { $count ->
+        [0] No photos to export
+        [one] Export 1 photo
+       *[other] Export { $count } photos
+    }
+review-summary-library = Back to the Library
 # X in the Library or Viewer with no marked photo chosen (REV-6).
 mark-outside-review =
     Marking for deletion happens in Review. To move photos to { $platform ->

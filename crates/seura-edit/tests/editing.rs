@@ -3,7 +3,7 @@
 
 use serde_json::{Value, json};
 use seura_edit::{
-    Action, Amount, CoreOpId, CoreOperation, Edit, EditDocument, EditError, Exposure,
+    Action, Amount, ChangedSince, CoreOpId, CoreOperation, Edit, EditDocument, EditError, Exposure,
     HISTORY_LIMIT, PhotoIdentity, Step, Vignette, clean_tags, tag_key,
 };
 use time::OffsetDateTime;
@@ -41,6 +41,45 @@ fn ids(document: &EditDocument) -> Vec<String> {
 
 fn parse(value: Value) -> EditDocument {
     EditDocument::parse(&serde_json::to_vec(&value).unwrap()).unwrap()
+}
+
+#[test]
+fn changed_since_says_what_changed_from_that_moment_on_rev_5() {
+    let later = now() + time::Duration::seconds(60);
+    let mut document = EditDocument::new_for_photo(&photo());
+    document
+        .apply(&act("Rating", vec![Edit::Rating(2)]), now())
+        .unwrap();
+    assert_eq!(document.changed_since(later), ChangedSince::default());
+
+    document
+        .apply(&act("Exposure", vec![exposure(0.5)]), later)
+        .unwrap();
+    document
+        .apply(&act("Tags", vec![Edit::Tags(vec!["beach".into()])]), later)
+        .unwrap();
+    assert_eq!(
+        document.changed_since(later),
+        ChangedSince {
+            rating: false,
+            tags: true,
+            look: true,
+        }
+    );
+    assert!(document.changed_since(now()).rating);
+}
+
+#[test]
+fn changed_since_leaves_out_what_was_undone_rev_5() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    document
+        .apply(&act("Exposure", vec![exposure(0.5)]), now())
+        .unwrap();
+    assert!(document.changed_since(now()).look);
+    document.undo().unwrap();
+    assert_eq!(document.changed_since(now()), ChangedSince::default());
+    document.redo().unwrap();
+    assert!(document.changed_since(now()).look);
 }
 
 #[test]

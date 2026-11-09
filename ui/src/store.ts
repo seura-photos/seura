@@ -93,7 +93,18 @@ export type State = {
   /** The review under way (REV-2): its own copy of the batch's photos, in
    * the order it started with, since a rating or a tag can take a photo out
    * of the grid's filter, and the photo shown, by id. */
-  reviewing: { title: string; photos: PhotoInfo[]; id: number } | null;
+  reviewing: {
+    title: string;
+    photos: PhotoInfo[];
+    id: number;
+    /** When it began, in seconds since 1970: its counts start here (REV-5). */
+    since: number;
+    /** Past the last photo, on the summary (REV-5). */
+    summary: boolean;
+    /** The marked photos have been sent to the Trash, once at least. */
+    tried: boolean;
+    moved: number;
+  } | null;
   /** Where Done goes back to: the Viewer, a review, or the grid (user
    * flows, flow 4). */
   editedFrom: "viewer" | "review" | "library";
@@ -183,6 +194,8 @@ export type State = {
   /** Leaves the review: back to the grid with the last photo selected, and
    * a message if any of its photos are still marked (REV-6). */
   closeReview: () => void;
+  /** Past the last photo, to the summary (REV-5). */
+  finishReview: () => void;
   /** Marks photos for deletion, or unmarks them, in a review (REV-4).
    * Nothing moves. */
   setMarked: (ids: number[], marked: boolean) => Promise<void>;
@@ -850,11 +863,21 @@ export const useStore = create<State>()((set, get) => ({
       : search !== null
         ? t("review-title-search")
         : t("review-title", { name });
-    set({ reviewing: { title, photos: chosen, id: first.id } });
+    set({
+      reviewing: {
+        title,
+        photos: chosen,
+        id: first.id,
+        since: Date.now() / 1000,
+        summary: false,
+        tried: false,
+        moved: 0,
+      },
+    });
   },
 
   reviewTo(id) {
-    set(({ reviewing }) => (reviewing ? { reviewing: { ...reviewing, id } } : {}));
+    set(({ reviewing }) => (reviewing ? { reviewing: { ...reviewing, id, summary: false } } : {}));
   },
 
   async refreshReview() {
@@ -877,6 +900,10 @@ export const useStore = create<State>()((set, get) => ({
       id = after?.id ?? photos[photos.length - 1]?.id ?? id;
     }
     set({ reviewing: { ...now, photos, id } });
+  },
+
+  finishReview() {
+    set(({ reviewing }) => (reviewing ? { reviewing: { ...reviewing, summary: true } } : {}));
   },
 
   closeReview() {
@@ -953,7 +980,7 @@ export const useStore = create<State>()((set, get) => ({
   chosenPhotos() {
     const { editing, reviewing, viewing, selection } = get();
     if (editing !== null) return [editing];
-    if (reviewing) return [reviewing.id];
+    if (reviewing) return reviewing.summary ? [] : [reviewing.id];
     return viewing !== null ? [viewing] : [...selection.ids];
   },
 
@@ -1304,6 +1331,8 @@ export const useStore = create<State>()((set, get) => ({
     set({ confirmingDelete: null });
     if (!yes || !confirming) return;
     const { ids } = confirming;
+    // Before the photos go, so a review's summary keeps counting them.
+    set(({ reviewing }) => (reviewing ? { reviewing: { ...reviewing, tried: true } } : {}));
     // The Viewer goes on to the next photo, or the one before at the end.
     const { viewing, photos } = get();
     const gone = new Set(ids);
@@ -1321,6 +1350,11 @@ export const useStore = create<State>()((set, get) => ({
     const { deleted, readOnly, cloudOnly, noTrash, fileProvider, failed, failedReason } =
       result.data;
     const service = confirming.summary.fileProviderService ?? t("delete-cloud-service");
+    if (deleted > 0) {
+      set(({ reviewing }) =>
+        reviewing ? { reviewing: { ...reviewing, moved: reviewing.moved + deleted } } : {},
+      );
+    }
     if (deleted > 0 && viewing !== null && gone.has(viewing)) {
       set({ viewing: (after ?? before)?.id ?? null });
     }

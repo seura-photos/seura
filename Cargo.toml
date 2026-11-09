@@ -28,7 +28,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 # content is saved back in place (edit format: "Preserving the unknown").
 serde_json = { version = "1.0.151", features = ["preserve_order"] }
 thiserror = "2.0.21"
-time = { version = "0.3.55", features = ["formatting"] }
+time = { version = "0.3.55", features = ["formatting", "parsing"] }
 # No default features: they include fetching remote schemas over HTTP.
 jsonschema = { version = "0.58.5", default-features = false }
 tempfile = "3.27.0"

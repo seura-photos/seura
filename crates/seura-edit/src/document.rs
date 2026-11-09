@@ -122,6 +122,15 @@ pub enum Edit {
     Rating(u8),
 }
 
+/// What a file's history says was changed from a moment on (REV-5).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ChangedSince {
+    pub rating: bool,
+    pub tags: bool,
+    /// Any operation: anything that changes how the photo looks.
+    pub look: bool,
+}
+
 /// The result of [`EditDocument::undo`] or [`EditDocument::redo`].
 #[derive(Clone, Debug, PartialEq)]
 pub enum Step {
@@ -400,6 +409,34 @@ impl EditDocument {
                 .iter()
                 .any(|r| !is_undone(r) && r.get("label").and_then(Value::as_str) == Some(label))
         })
+    }
+
+    /// What was changed at or after this moment, from the history: a change
+    /// that was undone doesn't count (REV-5).
+    pub fn changed_since(&self, since: OffsetDateTime) -> ChangedSince {
+        let mut changed = ChangedSince::default();
+        let records = self.history().into_iter().flatten();
+        for record in records.filter(|record| !is_undone(record)) {
+            let at = record
+                .get("at")
+                .and_then(Value::as_str)
+                .and_then(|at| OffsetDateTime::parse(at, &Rfc3339).ok());
+            if at.is_none_or(|at| at < since) {
+                continue;
+            }
+            let changes = record.get("changes").and_then(Value::as_array);
+            for change in changes.into_iter().flatten() {
+                if change.get("op").is_some() {
+                    changed.look = true;
+                }
+                match change.get("field").and_then(Value::as_str) {
+                    Some("rating") => changed.rating = true,
+                    Some("tags") => changed.tags = true,
+                    _ => {}
+                }
+            }
+        }
+        changed
     }
 
     /// The change [`EditDocument::undo`] would undo next: the last history

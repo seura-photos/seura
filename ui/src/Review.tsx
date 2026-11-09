@@ -17,6 +17,7 @@ import { Message } from "./Message";
 import { t } from "./messages";
 import { NoticeBar } from "./NoticeBar";
 import type { Quick } from "./QuickActions";
+import { ReviewSummary } from "./ReviewSummary";
 import { Stars } from "./Stars";
 import { anchorOf, useStore } from "./store";
 import { useShownPhoto } from "./useShownPhoto";
@@ -26,15 +27,22 @@ type Props = {
   forceWebgl2: boolean;
 };
 
+/** A review: its photos, then the summary after the last of them (REV-5). */
+export function Review({ forceWebgl2 }: Props) {
+  const summary = useStore((state) => state.reviewing?.summary ?? false);
+  return summary ? <ReviewSummary /> : <ReviewPhotos forceWebgl2={forceWebgl2} />;
+}
+
 /**
  * Review (REV-2; wireframes, section 3): a guided pass through a batch, one
  * photo at a time, as large as the window allows. The batch is fixed when the
  * review starts. Shows photos as the Viewer does (`useShownPhoto`), always
  * fitted. Esc leaves.
  */
-export function Review({ forceWebgl2 }: Props) {
+function ReviewPhotos({ forceWebgl2 }: Props) {
   const review = useStore((state) => state.reviewing);
   const reviewTo = useStore((state) => state.reviewTo);
+  const finishReview = useStore((state) => state.finishReview);
   const closeReview = useStore((state) => state.closeReview);
   const openEditor = useStore((state) => state.openEditor);
   const openPicker = useStore((state) => state.openPicker);
@@ -106,6 +114,12 @@ export function Review({ forceWebgl2 }: Props) {
     if (photo) void setMarked([photo.id], !photo.marked);
   }
 
+  /** On to the next photo, or from the last to the summary (REV-5). */
+  function forward() {
+    if (next) reviewTo(next.id);
+    else if (photo) finishReview();
+  }
+
   /** Jumps to the part of the batch that was clicked (REV-2). */
   function jump(event: MouseEvent<HTMLDivElement>) {
     const bar = event.currentTarget.getBoundingClientRect();
@@ -132,7 +146,7 @@ export function Review({ forceWebgl2 }: Props) {
     const stars = ratingKey(event);
     const quick = quickKey(event);
     if (event.key === "ArrowLeft" && previous) reviewTo(previous.id);
-    else if (event.key === "ArrowRight" && next) reviewTo(next.id);
+    else if (event.key === "ArrowRight") forward();
     else if (event.key === "Home" && first) reviewTo(first.id);
     else if (event.key === "End" && last) reviewTo(last.id);
     else if (event.key === "Escape") closeReview();
@@ -332,8 +346,7 @@ export function Review({ forceWebgl2 }: Props) {
         <button
           type="button"
           className="button primary review-action review-next"
-          disabled={!next}
-          onClick={() => next && reviewTo(next.id)}
+          onClick={forward}
         >
           <ArrowRight className="icon" aria-hidden />
           {t("review-next")}

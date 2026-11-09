@@ -126,7 +126,7 @@ export function App() {
   const anyChosen = useStore(
     (state) =>
       state.editing !== null ||
-      state.reviewing !== null ||
+      (state.reviewing !== null && !state.reviewing.summary) ||
       state.viewing !== null ||
       state.selection.ids.size > 0,
   );
