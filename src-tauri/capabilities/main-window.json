@@ -29,6 +29,7 @@
     "allow-tags",
     "allow-tag-photos",
     "allow-search-photos",
+    "allow-review-photos",
     "allow-undo",
     "allow-redo",
     "allow-show-in-folder",

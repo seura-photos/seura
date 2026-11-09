@@ -13,19 +13,21 @@ import { Library } from "./Library";
 import { measure, measureExport, measureSliders } from "./measure";
 import { t } from "./messages";
 import { RenderCheck } from "./RenderCheck";
+import { Review } from "./Review";
 import { TagPicker } from "./TagPicker";
 import { useStore } from "./store";
 import { Viewer } from "./Viewer";
 import { Welcome } from "./Welcome";
 
 /**
- * The window's views: the Library, with the Viewer or the Editor over it.
+ * The window's views: the Library, with Review, the Viewer or the Editor over it.
  */
 export function App() {
   const dev = useStore((state) => state.dev);
   const editing = useStore((state) => state.editing);
   const welcome = useStore((state) => state.welcome);
   const viewing = useStore((state) => state.viewing);
+  const reviewing = useStore((state) => state.reviewing !== null);
   // What the Viewer goes back to: the folder, or the tag (TAG-5).
   const folderName = useStore((state) =>
     state.search !== null
@@ -120,7 +122,11 @@ export function App() {
 
   // The macOS menu bar's photo commands are on while a photo is chosen (BRW-8).
   const anyChosen = useStore(
-    (state) => state.editing !== null || state.viewing !== null || state.selection.ids.size > 0,
+    (state) =>
+      state.editing !== null ||
+      state.reviewing !== null ||
+      state.viewing !== null ||
+      state.selection.ids.size > 0,
   );
   useEffect(() => {
     void commands.photosChosen(anyChosen);
@@ -148,7 +154,8 @@ export function App() {
         // (BRW-5). While the Editor is open, the Viewer it came from waits
         // closed, and opens again on the photo the Editor ends on.
         <div className="views">
-          <Library inert={viewing !== null || editing !== null} />
+          <Library inert={reviewing || viewing !== null || editing !== null} />
+          {reviewing && editing === null && <Review forceWebgl2={dev.forceWebgl2} />}
           {viewing !== null && editing === null && (
             <Viewer folder={folderName} forceWebgl2={dev.forceWebgl2} />
           )}
