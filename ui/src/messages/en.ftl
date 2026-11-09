@@ -657,6 +657,32 @@ viewer-edit = Edit
 viewer-failed = This photo can't be shown: { $reason }
 viewer-no-preview = This computer's graphics can't show photos here.
 
+# Review (REV-1 to REV-6). The toolbar's button and its tooltips.
+review-start = Review
+review-start-all = Sort through these photos one at a time
+review-start-selection =
+    { $count ->
+        [one] Sort through the selected photo
+       *[other] Sort through the { $count } selected photos
+    }
+# Above the photo: what's being reviewed. $name is a folder or tag.
+review-title = Reviewing { $name }
+review-title-search = Reviewing search results
+review-title-selection =
+    { $count ->
+        [one] Reviewing 1 photo
+       *[other] Reviewing { $count } photos
+    }
+review-exit = Exit review
+review-back = Back
+review-next = Next
+# The rating, shown as stars under the photo.
+review-rating =
+    { $stars ->
+        [one] 1 star
+       *[other] { $stars } stars
+    }
+
 ## The Editor (EDT-*)
 
 editor-saved-automatically = Edits saved automatically

@@ -108,6 +108,12 @@ export const commands = {
 	 */
 	searchPhotos: (text: string, filter: PhotoFilter) => __TAURI_INVOKE<PhotoInfo[]>("search_photos", { text, filter }),
 	/**
+	 *  The photos of a review's batch that are still in the library, in the
+	 *  order given (REV-2). The grid's list won't do: a rating or a tag can take
+	 *  a photo out of what the grid shows.
+	 */
+	reviewPhotos: (ids: number[]) => __TAURI_INVOKE<PhotoInfo[]>("review_photos", { ids }),
+	/**
 	 *  Undoes the Library's last action, whatever is selected now (BRW-11).
 	 *  `None` when there's nothing to undo.
 	 */

@@ -90,6 +90,10 @@ export type State = {
   reveal: { id: number } | null;
   /** The photo open in the Editor (EDT-1), by id. */
   editing: number | null;
+  /** The review under way (REV-2): its own copy of the batch's photos, in
+   * the order it started with, since a rating or a tag can take a photo out
+   * of the grid's filter, and the photo shown, by id. */
+  reviewing: { title: string; photos: PhotoInfo[]; id: number } | null;
   /** Where Done goes back to: the Viewer, or the grid (user flows, flow 4). */
   editedFrom: "viewer" | "library";
   /** The open Editor's undo (`true`) and redo, for the Edit menu's (EDT-9). */
@@ -167,6 +171,16 @@ export type State = {
   view: (id: number) => void;
   /** Closes the Viewer: back to the grid with the last photo selected. */
   closeViewer: () => void;
+  /** Starts a review (REV-1): of the selection if it's two or more photos,
+   * otherwise of everything the grid shows, at its first photo (REV-2). */
+  startReview: () => void;
+  /** Moves the review to one of its photos. */
+  reviewTo: (id: number) => void;
+  /** Brings the batch up to date: a photo that has gone is skipped, and if
+   * none are left the review ends. */
+  refreshReview: () => Promise<void>;
+  /** Leaves the review: back to the grid with the last photo selected. */
+  closeReview: () => void;
   /** Opens the Editor on a photo, or moves it to another (the filmstrip). */
   openEditor: (id: number) => void;
   /** Closes the Editor: back where it was opened, on the photo it ends on. */
@@ -488,6 +502,7 @@ export const useStore = create<State>()((set, get) => ({
   thumbnailSize: 160,
   sidebarWidth: null,
   viewing: null,
+  reviewing: null,
   reveal: null,
   confirmingOpen: null,
   confirmingEnhance: null,
@@ -802,6 +817,62 @@ export const useStore = create<State>()((set, get) => ({
     }));
   },
 
+  startReview() {
+    const { photos, selection, tag, search, folders, folderId } = get();
+    const several = selection.ids.size >= 2;
+    const chosen = several ? photos.filter((photo) => selection.ids.has(photo.id)) : photos;
+    const first = chosen[0];
+    if (!first) return;
+    const name = tag ?? folders.find((folder) => folder.id === folderId)?.name ?? "";
+    const title = several
+      ? t("review-title-selection", { count: chosen.length })
+      : search !== null
+        ? t("review-title-search")
+        : t("review-title", { name });
+    set({ reviewing: { title, photos: chosen, id: first.id } });
+  },
+
+  reviewTo(id) {
+    set(({ reviewing }) => (reviewing ? { reviewing: { ...reviewing, id } } : {}));
+  },
+
+  async refreshReview() {
+    const asked = get().reviewing;
+    if (!asked) return;
+    const photos = await commands.reviewPhotos(asked.photos.map((photo) => photo.id));
+    const now = get().reviewing;
+    if (!now || now.photos !== asked.photos) return;
+    if (photos.length === 0) {
+      set({ reviewing: null });
+      return;
+    }
+    // If the photo shown has gone, the one that took its place.
+    let id = now.id;
+    if (!photos.some((photo) => photo.id === id)) {
+      const from = now.photos.findIndex((photo) => photo.id === id);
+      const after = now.photos
+        .slice(from + 1)
+        .find((photo) => photos.some((p) => p.id === photo.id));
+      id = after?.id ?? photos[photos.length - 1]?.id ?? id;
+    }
+    set({ reviewing: { ...now, photos, id } });
+  },
+
+  closeReview() {
+    const id = get().reviewing?.id;
+    if (id === undefined) return;
+    set(({ photos }) => ({
+      reviewing: null,
+      reveal: { id },
+      selection: select(
+        emptySelection,
+        photos.map((photo) => photo.id),
+        id,
+        { toggle: false, range: false },
+      ),
+    }));
+  },
+
   openEditor(id) {
     const { editing, viewing } = get();
     if (editing !== null) set({ editing: id });
@@ -833,8 +904,9 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   chosenPhotos() {
-    const { editing, viewing, selection } = get();
+    const { editing, reviewing, viewing, selection } = get();
     if (editing !== null) return [editing];
+    if (reviewing) return [reviewing.id];
     return viewing !== null ? [viewing] : [...selection.ids];
   },
 

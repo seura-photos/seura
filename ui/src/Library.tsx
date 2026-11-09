@@ -86,6 +86,7 @@ function ScanStatus({ progress }: { progress: ScanProgress }) {
  */
 export function Library({ inert = false }: { inert?: boolean }) {
   const askExport = useStore((state) => state.askExport);
+  const startReview = useStore((state) => state.startReview);
   const folders = useStore((state) => state.folders);
   const folderId = useStore((state) => state.folderId);
   const photos = useStore((state) => state.photos);
@@ -261,6 +262,20 @@ export function Library({ inert = false }: { inert?: boolean }) {
             }}
           />
         </label>
+        {/* The selection if it's two or more photos, or the grid (REV-1). */}
+        <button
+          type="button"
+          className="button"
+          disabled={photos.length === 0}
+          title={
+            selection.ids.size >= 2
+              ? t("review-start-selection", { count: selection.ids.size })
+              : t("review-start-all")
+          }
+          onClick={startReview}
+        >
+          {t("review-start")}
+        </button>
         {/* The selection's quick fixes, then Edit (wireframes, Library). */}
         <QuickActions
           disabled={selection.ids.size === 0}

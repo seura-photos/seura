@@ -399,6 +399,16 @@ pub fn search_photos(
     photo_infos(&index, ids)
 }
 
+/// The photos of a review's batch that are still in the library, in the
+/// order given (REV-2). The grid's list won't do: a rating or a tag can take
+/// a photo out of what the grid shows.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn review_photos(library: State<'_, Library>, ids: Vec<u32>) -> Vec<PhotoInfo> {
+    let index = library.index.read().expect("index lock");
+    photo_infos(&index, ids.into_iter().map(PhotoId::new).collect())
+}
+
 /// Photos as the grid needs them.
 fn photo_infos(index: &seura_library::Index, ids: Vec<PhotoId>) -> Vec<PhotoInfo> {
     ids.into_iter()
