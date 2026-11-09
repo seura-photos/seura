@@ -97,11 +97,11 @@ describe("Paste edits (PRE-1, PRE-2)", () => {
     await open([1], { effects: false, geometry: false });
     const effects = box("Effects");
     expect(effects.getAttribute("aria-describedby")).toBeTruthy();
-    expect(screen.getByText("None copied, so this photo's will be removed.")).toBeTruthy();
+    expect(screen.getByText("None copied, so pasting removes any on this photo.")).toBeTruthy();
     // Crop and rotation is off, so nothing would be removed.
     expect(screen.getByText("None copied.")).toBeTruthy();
     fireEvent.click(effects);
-    expect(screen.queryByText("None copied, so this photo's will be removed.")).toBeNull();
+    expect(screen.queryByText("None copied, so pasting removes any on this photo.")).toBeNull();
     expect(screen.getAllByText("None copied.")).toHaveLength(2);
   });
 
