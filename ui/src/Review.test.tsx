@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
     Promise.resolve({ status: "ok", data: { deleted: 0 } }),
   ),
   exportStart: vi.fn(() => Promise.resolve({ choices: {}, folder: null })),
+  copyEdits: vi.fn(() => Promise.resolve({ status: "ok", data: { kind: "noEdits", name: "" } })),
   details: { enhanced: false, readOnly: false },
   photoDetails: vi.fn((id: number): Promise<unknown> =>
     Promise.resolve({ status: "error", error: String(id) }),
@@ -35,6 +36,7 @@ vi.mock("./bindings", () => ({
     deleting: mocks.deleting,
     deletePhotos: mocks.deletePhotos,
     exportStart: mocks.exportStart,
+    copyEdits: mocks.copyEdits,
     photoDetails: mocks.photoDetails,
     photoNotices: vi.fn(() =>
       Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
@@ -638,6 +640,20 @@ describe("Review (REV-1, REV-2)", () => {
       toEnd();
       await act(() => Promise.resolve());
       expect(useStore.getState().chosenPhotos()).toEqual([]);
+    });
+
+    it("copies edits from the photo shown, not the Library's selection", async () => {
+      useStore.setState({ folderId: 7, folders: [], photos: [photo(1), photo(2), photo(3)] });
+      useStore.getState().selectPhoto(3, { toggle: false, range: false });
+      useStore.getState().startReview();
+      render(<Review forceWebgl2={false} />);
+      await act(() => useStore.getState().copyEdits());
+      expect(mocks.copyEdits).toHaveBeenCalledExactlyOnceWith(1);
+
+      mocks.copyEdits.mockClear();
+      toEnd();
+      await act(() => useStore.getState().copyEdits());
+      expect(mocks.copyEdits).not.toHaveBeenCalled();
     });
   });
 });

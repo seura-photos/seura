@@ -103,6 +103,7 @@ vi.mock("./bindings", () => ({
     setThumbnailSize: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
     showThumbnails: vi.fn(() => Promise.resolve()),
     photosChosen: vi.fn(() => Promise.resolve(null)),
+    reviewCounts: vi.fn(() => Promise.resolve({ rated: 0, edited: 0, tagged: 0 })),
     photoDetails: vi.fn(() => Promise.resolve({ status: "error", error: "not in the test" })),
     selectionSummary: vi.fn(() =>
       Promise.resolve({
@@ -668,6 +669,15 @@ describe("App", () => {
     );
     act(() => menu({ payload: "delete" }));
     expect(askDelete).toHaveBeenCalledTimes(1);
+
+    // On the summary no photo is showing, whatever the Library has selected.
+    vi.mocked(commands).photosChosen.mockClear();
+    act(() =>
+      useStore.setState(({ reviewing }) => ({
+        reviewing: reviewing && { ...reviewing, summary: true },
+      })),
+    );
+    expect(vi.mocked(commands).photosChosen).toHaveBeenLastCalledWith(false);
   });
 
   describe("R and X in the Library (REV-1, REV-6)", () => {

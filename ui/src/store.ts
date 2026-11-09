@@ -1078,9 +1078,12 @@ export const useStore = create<State>()((set, get) => ({
   pasteAsked: null,
 
   async copyEdits() {
-    const { editing, viewing, selection, editorFlush, editorSaving } = get();
+    const { editing, reviewing, viewing, selection, editorFlush, editorSaving } = get();
+    // The summary shows no photo, and the Library's selection is out of sight.
+    if (editing === null && reviewing?.summary) return;
     const active = document.activeElement?.closest("[data-photo]")?.getAttribute("data-photo");
-    const id = editing ?? viewing ?? focusedIn(selection, active ? Number(active) : null);
+    const id =
+      editing ?? reviewing?.id ?? viewing ?? focusedIn(selection, active ? Number(active) : null);
     if (id === null) return;
     // The Editor's change still waiting is part of what's copied.
     await Promise.allSettled([editorFlush?.(), editorSaving]);

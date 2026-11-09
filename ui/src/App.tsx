@@ -126,9 +126,10 @@ export function App() {
   const anyChosen = useStore(
     (state) =>
       state.editing !== null ||
-      (state.reviewing !== null && !state.reviewing.summary) ||
-      state.viewing !== null ||
-      state.selection.ids.size > 0,
+      // A review hides the Library's selection, and its summary shows no photo.
+      (state.reviewing
+        ? !state.reviewing.summary
+        : state.viewing !== null || state.selection.ids.size > 0),
   );
   useEffect(() => {
     void commands.photosChosen(anyChosen);
