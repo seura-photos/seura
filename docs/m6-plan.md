@@ -1,6 +1,6 @@
 # M6 work plan: Review
 
-Status: draft for review · Last updated: 2026-11-09
+Status: agreed · Last updated: 2026-11-09
 
 The working plan for milestone M6 from the [milestone plan](milestone-plan.md): a guided pass through a batch of photos, one at a time, with one-key actions. It breaks the milestone into slices, one pull request each (or a few, lettered), in order. Drafted by Claude Code from the milestone plan, the [functional spec](functional-spec.md), the [user flows](ux/user-flows.md) and [wireframes](ux/wireframes.md), the [mockups](ux/mockups/), the [visual design](visual-design.md) and the [technical design](technical-design.md). The questions it couldn't settle are at the end, with the design session's answers (#240).
 
