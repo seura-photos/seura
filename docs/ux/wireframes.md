@@ -24,7 +24,8 @@ A single centered card: title; two sentences (what the app does; originals are n
 ## 2. Library (LIB-*, BRW-1–10, REV-1)
 
 - **Toolbar:** app name; search; Review; then, on the right, the selection's quick fixes (rotate left, rotate right, Enhance), Edit (primary), Export.
-- **Review banner** above the grid when new photos are found: "12 new photos in Summer. Sort through them one at a time?" with Review and Not now.
+- **Review banner** above the grid when new photos are found: "12 new photos in Summer. Sort through them one at a time?" with Review and Not now (REV-1).
+- **Marked photos** (REV-6) show dimmed with a red outline, as in the review.
 - **Folder header row:** name, path, count; then Filter, sort, and thumbnail size on the right.
 - **Filter controls** (FND-1), under the heading when Filter is open, always on two lines: Rating, Tags and Edits; then Taken from and to. At the default window size in English, the five controls on one line measured about 970 px against about 880 available, so they wrapped (#118). Two fixed lines keep the area's height the same as the window or the sidebar is resized (Nevada, 2026-10-28). The Tags control is at most 200 px wide, with a long tag cut off with "…" and shown in full in its list and tooltip. Where a line still doesn't fit, as with longer translated text (ACC-7) or a narrow window, it wraps rather than clipping anything.
 - **Notice bar** at the top of the photo area, above the heading, for problems with the selected photos' files (flow 11; INT-6).
@@ -38,7 +39,7 @@ A single centered card: title; two sentences (what the app does; originals are n
 - **Photo:** as large as fits, on the dark surround. Below it, one line: file name, date, rating, tags, and "Enhanced" when applied.
 - **Action bar** (64 px tall), ordered from least to most likely so the pointer moves right through the flow (INT-5): Back · rotate left · rotate right · Edit · Tag · Mark to delete · Enhance · five 44 px stars · Next (112 px, primary). Each shows its key (`[`, `]`, `E`, `T`, `X`, `A`, `1`–`5`).
 - **Marking:** the button reads "Mark to delete," becoming "Marked ✓"; the photo dims with a red outline and a banner, "Marked for deletion · deleted only when you finish · X to unmark" (REV-4).
-- **Summary:** counts of rated, enhanced, tagged, and to delete; a sentence that everything is saved and nothing is deleted yet; Move N marked photos to the Recycle Bin…; Export photos rated 4★ or more; Back to the Library.
+- **Summary:** counts of rated, edited, tagged, and marked for deletion (REV-5); a sentence that everything is saved and nothing is deleted yet; Move N marked photos to the Recycle Bin…; Export photos rated 4★ or more; Back to the Library.
 
 ## 4. Viewer (BRW-5, BRW-6, BRW-10)
 
