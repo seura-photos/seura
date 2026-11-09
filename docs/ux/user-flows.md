@@ -98,7 +98,7 @@ The Editor keeps the toolbar, drops the sidebar, and puts the tool panel where t
 3. A checkbox: "Check for updates automatically," checked by default.
 4. The sentence about edit files also names where Seura keeps its settings and cache: a `Seura Photos` folder in the home folder. If that folder is cloud-synced or backed up, a short note offers another location for the cache.
 5. Get started → the Library opens on the first folder and thumbnails fill in as the scan runs (LIB-3).
-6. When the first scan finishes, the Library offers a review of the most recent folder (REV-1).
+6. When the first scan finishes, the Library shows the photos; it doesn't offer a review, since every photo is new then (REV-1).
 
 Target: under a minute from launch to photos on screen.
 
@@ -106,12 +106,12 @@ Target: under a minute from launch to photos on screen.
 
 The guided path, and the main way new photos get sorted.
 
-1. The Library banner says "84 new photos in Summer. Review them?" Or the user chooses Review for any folder, tag, search, or selection.
-2. The Review screen shows one photo, large, with "12 of 84" and one row of actions: previous, rotate left, rotate right, Enhance, stars, Tag, Mark for deletion, Edit, next.
+1. The Library banner says "84 new photos in Summer. Sort through them one at a time?" with Review and Not now. Or the user presses Review: with two or more photos selected it reviews them, otherwise everything the grid shows (REV-1).
+2. The Review screen shows one photo, large, with "12 of 84" and one row of actions: Back, rotate left, rotate right, Edit, Tag, Mark to delete, Enhance, stars, Next (wireframes, "Review"). If some photos are only in the cloud, it first asks once whether to download them as they come up (REV-3).
 3. The user works through the batch with single keys: `→` next, `←` previous, `0`–`5` rate, `[` `]` rotate, `A` enhance, `T` tag, `X` mark for deletion, `E` edit.
 4. Edit opens the Editor on that photo; Done returns to the same place in the review.
-5. After the last photo, the summary: "Rated 41 · Edited 12 · Tagged 30 · Marked for deletion 9," with Move 9 to Trash and Export photos rated 4★ or more.
-6. Esc leaves at any time; everything done so far is already saved.
+5. After the last photo, the summary: "Rated 41 · Edited 12 · Tagged 30 · Marked for deletion 9," with Move 9 to Trash and Export photos rated 4★ or more. Back returns to the last photo.
+6. Esc leaves at any time; everything done so far is already saved. Marks stay, shown in the Library too, and a message says how many (REV-6).
 
 ### 3. Browse and view (LIB-2, BRW-1–10)
 
