@@ -43,6 +43,9 @@ pub enum Change {
     /// The preset with this name, onto each photo (PRE-4), made as a paste
     /// is: see [`Index::change_recorded_with`].
     Preset(String),
+    /// Takes the marks for deletion off photos (REV-6). Marks aren't in edit
+    /// files: see [`crate::Action::unmarked`].
+    Unmark,
 }
 
 impl Change {
@@ -57,6 +60,7 @@ impl Change {
             Change::Enhance => "Enhance",
             Change::Paste => seura_edit::PASTE,
             Change::Preset(_) => seura_edit::APPLY_PRESET,
+            Change::Unmark => "Unmark",
         }
     }
 }
@@ -471,7 +475,11 @@ fn action_for(change: &Change, loaded: Option<&EditFile>) -> Action {
         }
         // Made by the app for each photo (`change_recorded_with`); without
         // it, nothing changes.
-        Change::Rotate { .. } | Change::Enhance | Change::Paste | Change::Preset(_) => {
+        Change::Rotate { .. }
+        | Change::Enhance
+        | Change::Paste
+        | Change::Preset(_)
+        | Change::Unmark => {
             return Action {
                 label: change.label().into(),
                 edits: Vec::new(),

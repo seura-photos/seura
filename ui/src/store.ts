@@ -183,8 +183,13 @@ export type State = {
   /** Leaves the review: back to the grid with the last photo selected, and
    * a message if any of its photos are still marked (REV-6). */
   closeReview: () => void;
-  /** Marks photos for deletion, or unmarks them (REV-4). Nothing moves. */
+  /** Marks photos for deletion, or unmarks them, in a review (REV-4).
+   * Nothing moves. */
   setMarked: (ids: number[], marked: boolean) => Promise<void>;
+  /** X and Unmark in the Library and Viewer (REV-6): takes the marks off,
+   * as one action to undo, or says marking happens in Review if none of
+   * these photos has one. */
+  unmark: (ids: number[]) => Promise<void>;
   /** Opens the Editor on a photo, or moves it to another (the filmstrip). */
   openEditor: (id: number) => void;
   /** Closes the Editor: back where it was opened, on the photo it ends on. */
@@ -385,6 +390,18 @@ async function history(say: (notice: string) => void, which: "undo" | "redo") {
       .filter((part) => part !== null)
       .join(" "),
   );
+}
+
+/** Shows photos as marked or not at once: leaving a review right after
+ * needs to know, and the library's own update comes a moment later. */
+function markedNow(ids: number[], marked: boolean) {
+  const chosen = new Set(ids);
+  const update = (photos: PhotoInfo[]) =>
+    photos.map((photo) => (chosen.has(photo.id) ? { ...photo, marked } : photo));
+  return ({ photos, reviewing }: State) => ({
+    photos: update(photos),
+    reviewing: reviewing && { ...reviewing, photos: update(reviewing.photos) },
+  });
 }
 
 /** No filter: every photo passes. */
@@ -886,14 +903,15 @@ export const useStore = create<State>()((set, get) => ({
       get().say(t("mark-failed", { reason: result.error }));
       return;
     }
-    // Shown at once: leaving right after needs to know.
-    const chosen = new Set(ids);
-    const update = (photos: PhotoInfo[]) =>
-      photos.map((photo) => (chosen.has(photo.id) ? { ...photo, marked } : photo));
-    set(({ photos, reviewing }) => ({
-      photos: update(photos),
-      reviewing: reviewing && { ...reviewing, photos: update(reviewing.photos) },
-    }));
+    set(markedNow(ids, marked));
+  },
+
+  async unmark(ids) {
+    const result = await commands.unmarkPhotos(ids);
+    if (result.status === "error") get().say(t("mark-failed", { reason: result.error }));
+    else if (result.data === 0)
+      get().say(t("mark-outside-review", { platform: isMac ? "mac" : "other" }));
+    else set(markedNow(ids, false));
   },
 
   openEditor(id) {

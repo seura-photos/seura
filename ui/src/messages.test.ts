@@ -148,5 +148,7 @@ describe("grid cell labels (ACC-2)", () => {
     expect(cellLabel(photo)).not.toMatch(/cloud/);
     expect(cellLabel({ ...photo, marked: true })).toMatch(/, 4 stars, marked for deletion$/);
     expect(cellLabel(photo)).not.toMatch(/marked/);
+    expect(t("mark-outside-review", { platform: "mac" })).toContain("to the Trash now");
+    expect(t("mark-outside-review", { platform: "other" })).toContain("to the Recycle Bin now");
   });
 });

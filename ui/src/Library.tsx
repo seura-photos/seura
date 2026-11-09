@@ -26,6 +26,8 @@ import {
   historyKey,
   isDeleteKey,
   isEditKey,
+  isMarkKey,
+  isReviewKey,
   isFind,
   isSelectAll,
   isTagKey,
@@ -196,6 +198,12 @@ export function Library({ inert = false }: { inert?: boolean }) {
       void useStore.getState()[history]();
       return;
     }
+    // The selection if it's two or more photos, or the grid (REV-1).
+    if (isReviewKey(event)) {
+      event.preventDefault();
+      startReview();
+      return;
+    }
     if (selection.ids.size === 0) return;
     const ids = [...selection.ids];
     const stars = ratingKey(event);
@@ -206,6 +214,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
     // Delete moves them to the Recycle Bin, once confirmed (BRW-9).
     else if (isDeleteKey(event)) void useStore.getState().askDelete(ids);
     else if (isTagKey(event)) void openPicker(ids, selectionAnchor(ids));
+    else if (isMarkKey(event)) void useStore.getState().unmark(ids);
     else return;
     event.preventDefault();
   });

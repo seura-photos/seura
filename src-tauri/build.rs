@@ -31,6 +31,7 @@ fn main() {
         "search_photos",
         "review_photos",
         "set_marked",
+        "unmark_photos",
         "undo",
         "redo",
         "show_in_folder",

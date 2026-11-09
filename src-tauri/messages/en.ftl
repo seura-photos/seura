@@ -36,6 +36,7 @@ menu-undo-action =
         [enhance] Undo Enhance
         [paste] Undo Paste Edits
         [preset] Undo Apply Preset “{ $tag }”
+        [unmark] Undo Unmark
         [addTag] Undo Add Tag “{ $tag }”
        *[removeTag] Undo Remove Tag “{ $tag }”
     } ({ $count ->
@@ -50,6 +51,7 @@ menu-redo-action =
         [enhance] Redo Enhance
         [paste] Redo Paste Edits
         [preset] Redo Apply Preset “{ $tag }”
+        [unmark] Redo Unmark
         [addTag] Redo Add Tag “{ $tag }”
        *[removeTag] Redo Remove Tag “{ $tag }”
     } ({ $count ->

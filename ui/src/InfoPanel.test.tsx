@@ -7,7 +7,7 @@ import { useStore } from "./store";
 const mocks = vi.hoisted(() => ({
   photoDetails: vi.fn(),
   selectionSummary: vi.fn(),
-  setMarked: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
+  unmarkPhotos: vi.fn(() => Promise.resolve({ status: "ok", data: 1 })),
   changePhotos: vi.fn(() =>
     Promise.resolve({
       status: "ok",
@@ -183,7 +183,7 @@ describe("Info panel (BRW-6)", () => {
     render(<InfoPanel ids={[7]} version={0} />);
     expect(await screen.findByText("Marked for deletion")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Unmark" }));
-    expect(mocks.setMarked).toHaveBeenCalledWith([7], false);
+    expect(mocks.unmarkPhotos).toHaveBeenCalledWith([7]);
   });
 
   it("says nothing about marks on a photo that has none", async () => {
@@ -206,7 +206,7 @@ describe("Info panel (BRW-6)", () => {
     render(<InfoPanel ids={[1, 2, 3]} version={0} />);
     expect(await screen.findByText("2 of 3 marked for deletion")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Unmark" }));
-    expect(mocks.setMarked).toHaveBeenCalledWith([1, 2, 3], false);
+    expect(mocks.unmarkPhotos).toHaveBeenCalledWith([1, 2, 3]);
   });
 
   it("invites a selection when there's none", async () => {

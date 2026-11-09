@@ -429,6 +429,23 @@ pub fn set_marked(app: AppHandle, ids: Vec<u32>, marked: bool) -> Result<(), Str
     Ok(())
 }
 
+/// Takes the marks off those of these photos that have one (REV-6), and says
+/// how many did: one action to undo. In the Library and Viewer, X only ever
+/// unmarks.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn unmark_photos(app: AppHandle, ids: Vec<u32>) -> Result<u32, String> {
+    let library = app.state::<Library>();
+    let ids: Vec<PhotoId> = ids.into_iter().map(PhotoId::new).collect();
+    let count = library
+        .unmark(&app, &ids)
+        .map_err(|error| error.to_string())?;
+    if count > 0 {
+        let _ = LibraryChanged.emit(&app);
+    }
+    Ok(count as u32)
+}
+
 /// Photos as the grid needs them.
 fn photo_infos(
     library: &Library,
@@ -1357,7 +1374,7 @@ fn choose_tags(index: &seura_library::Index, ids: &[u32], text: String) -> TagCh
 #[serde(rename_all = "camelCase")]
 pub struct HistoryStep {
     /// `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`,
-    /// `enhance`, or `paste`.
+    /// `enhance`, `paste`, `preset`, or `unmark`.
     pub kind: String,
     /// The tag added or removed.
     pub tag: Option<String>,
@@ -1379,6 +1396,7 @@ impl From<seura_library::UndoReport> for HistoryStep {
             Change::Enhance => ("enhance", None),
             Change::Paste => ("paste", None),
             Change::Preset(name) => ("preset", Some(name)),
+            Change::Unmark => ("unmark", None),
         };
         HistoryStep {
             kind: kind.into(),

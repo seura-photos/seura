@@ -31,6 +31,9 @@ pub const UNDO_LIMIT: usize = 10;
 pub struct Action {
     pub change: Change,
     photos: Vec<Touched>,
+    /// For [`Change::Unmark`]: the photos whose marks it took off (REV-6).
+    /// Marks aren't in edit files, so the app puts them back.
+    unmarked: Vec<PhotoId>,
 }
 
 /// One photo an action changed.
@@ -50,6 +53,16 @@ impl Action {
         Action {
             change,
             photos: Vec::new(),
+            unmarked: Vec::new(),
+        }
+    }
+
+    /// Taking the marks off these photos (REV-6).
+    pub fn unmarked(ids: Vec<PhotoId>) -> Action {
+        Action {
+            change: Change::Unmark,
+            photos: Vec::new(),
+            unmarked: ids,
         }
     }
 
@@ -74,11 +87,11 @@ impl Action {
 
     /// How many photos it changed.
     pub fn len(&self) -> usize {
-        self.photos.len()
+        self.photos.len() + self.unmarked.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.photos.is_empty()
+        self.len() == 0
     }
 }
 
@@ -131,6 +144,45 @@ impl History {
         self.undone
             .last()
             .map(|action| (&action.change, action.len()))
+    }
+
+    /// Whether the next undo, or redo, is taking marks off photos.
+    pub fn next_is_unmark(&self, undo: bool) -> bool {
+        let next = if undo {
+            self.done.back()
+        } else {
+            self.undone.last()
+        };
+        next.is_some_and(|action| action.change == Change::Unmark)
+    }
+
+    /// Undoes or redoes taking marks off photos: `apply` marks the photos
+    /// (undo) or unmarks them (redo), and returns those it could.
+    pub fn step_unmark(
+        &mut self,
+        undo: bool,
+        apply: impl FnOnce(&[PhotoId], bool) -> Vec<PhotoId>,
+    ) -> Option<UndoReport> {
+        let mut action = if undo {
+            self.done.pop_back()?
+        } else {
+            self.undone.pop()?
+        };
+        let before = action.unmarked.len();
+        action.unmarked = apply(&action.unmarked, undo);
+        let report = UndoReport {
+            change: action.change.clone(),
+            done: action.unmarked.len(),
+            skipped: before - action.unmarked.len(),
+        };
+        if !action.is_empty() {
+            if undo {
+                self.undone.push(action);
+            } else {
+                self.done.push_back(action);
+            }
+        }
+        Some(report)
     }
 
     /// Undoes the last action, whatever is selected now.
@@ -603,6 +655,55 @@ mod tests {
         session.change(&[0], Change::Rating(4));
         assert_eq!(session.history.next_redo(), None);
         assert!(session.redo().is_none());
+    }
+
+    #[test]
+    fn taking_marks_off_is_one_action_to_undo_and_redo() {
+        let mut history = History::default();
+        let ids = vec![PhotoId::new(1), PhotoId::new(2)];
+        history.record(Action::unmarked(ids.clone()));
+        assert_eq!(history.next_undo(), Some((&Change::Unmark, 2)));
+        assert!(history.next_is_unmark(true));
+
+        let mut marked_again = None;
+        let report = history
+            .step_unmark(true, |ids, marked| {
+                marked_again = Some(marked);
+                ids.to_vec()
+            })
+            .unwrap();
+        assert_eq!(marked_again, Some(true));
+        assert_eq!((report.done, report.skipped), (2, 0));
+        assert_eq!(history.next_undo(), None);
+        assert!(history.next_is_unmark(false));
+
+        let mut marked_again = None;
+        history
+            .step_unmark(false, |ids, marked| {
+                marked_again = Some(marked);
+                ids.to_vec()
+            })
+            .unwrap();
+        assert_eq!(marked_again, Some(false));
+        assert_eq!(history.next_undo(), Some((&Change::Unmark, 2)));
+    }
+
+    #[test]
+    fn a_photo_that_has_gone_is_left_out_of_undoing_an_unmark() {
+        let mut history = History::default();
+        history.record(Action::unmarked(vec![PhotoId::new(1), PhotoId::new(2)]));
+        let report = history
+            .step_unmark(true, |ids, _| ids[..1].to_vec())
+            .unwrap();
+        assert_eq!((report.done, report.skipped), (1, 1));
+        assert_eq!(history.next_redo(), Some((&Change::Unmark, 1)));
+    }
+
+    #[test]
+    fn taking_no_marks_off_is_not_an_action() {
+        let mut history = History::default();
+        history.record(Action::unmarked(Vec::new()));
+        assert_eq!(history.next_undo(), None);
     }
 
     #[test]
