@@ -100,6 +100,8 @@ The full editor.
 
 **Done when:** the owner exports real photos for sharing, and the exports look right in other apps on both platforms.
 
+**Status:** complete, 2026-11-09, with build 0.4.0 as the owner's tool for exporting photos on both machines; see the [M5 work plan's status](m5-plan.md#status).
+
 ## M6. Review
 
 - The Review flow: REV-1 to REV-6, combining rating, rotate, Enhance, tagging, marking for deletion, and editing.

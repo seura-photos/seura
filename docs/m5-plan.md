@@ -1,6 +1,6 @@
 # M5 work plan: Reuse and share
 
-Status: agreed · Last updated: 2026-11-03
+Status: complete · Last updated: 2026-11-09
 
 The working plan for milestone M5 from the [milestone plan](milestone-plan.md): getting edited photos out of Seura, and reusing edits on other photos. It breaks the milestone into slices, one pull request each (or a few, lettered), in order. Drafted by Claude Code from the milestone plan, the [functional spec](functional-spec.md), the [user flows](ux/user-flows.md) and [wireframes](ux/wireframes.md), the [visual design](visual-design.md), the [technical design](technical-design.md), and the [edit format](https://github.com/seura-photos/edit-format). The questions it couldn't settle are at the end, with the answers from the design session (#205, edit-format #17) and from Nevada.
 
@@ -120,6 +120,17 @@ From the design session's answer in #202: no dialog, no checkbox and no setting.
 - **`check.py`** over edit files with pasted edits and over presets, in Nevada's library.
 - **Build 0.4,** the devlog post, and confirming every "done when". Each outward step needs Nevada's approval.
 - **Done when:** Nevada exports real photos for sharing with build 0.4, and they look right in other apps on both platforms.
+
+## Status
+
+**The milestone's "done when"** is met: **M5 is complete** (2026-11-09). Nevada confirmed that the photos they've been exporting look good on both systems.
+
+This records the milestone, not a fresh check of every slice's "done when"; what each slice found is in `docs/journal/`, and the final measurements are in [m5-wrap-up.md](benchmarks/m5-wrap-up.md). Build 0.4.0 is published as a public pre-release, and devlog part 11 is live.
+
+**Carried forward:**
+- **To M6:** Node 26 (#156), which can be taken up from 2026-11-11.
+- **To M7:** Google Drive and Dropbox on both platforms (#162), and the rest of #188, which is 16-bit PNGs read at 8 bits.
+- **In no milestone yet:** the paste dialog's wording (#235), the GPU shader caches in decision 0013 (#231, for a design session), and two on the Mac: quitting from the Dock or by logging out (#217), and Select All in the menu bar (#227).
 
 ## Questions
 
