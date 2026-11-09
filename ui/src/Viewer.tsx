@@ -217,7 +217,7 @@ export function Viewer({ folder, forceWebgl2 }: Props) {
         <NoticeBar ids={[photo.id]} photos={photos} />
         <div
           ref={stage}
-          className={`viewer-stage${isZoomed ? " zoomed" : ""}${photo.marked ? " marked" : ""}`}
+          className={isZoomed ? "viewer-stage zoomed" : "viewer-stage"}
           {...zoom.pointer}
           onContextMenu={(event) => {
             event.preventDefault();
@@ -241,6 +241,9 @@ export function Viewer({ folder, forceWebgl2 }: Props) {
             hidden={sharp === null || covered}
             style={sharp ?? undefined}
           />
+          {photo.marked && whole !== null && !covered && (
+            <div className="marked-overlay" style={whole} />
+          )}
           {cloud && <CloudPhoto id={photo.id} state={cloud} onTryAgain={tryAgain} />}
           {message !== null && (
             <div className="viewer-message" role="status">

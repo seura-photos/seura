@@ -407,13 +407,13 @@ describe("Review (REV-1, REV-2)", () => {
       expect(
         screen.getByText("Marked for deletion · deleted only when you finish · X to unmark"),
       ).toBeTruthy();
-      expect(container.querySelector(".viewer-stage.marked")).toBeTruthy();
+      await waitFor(() => expect(container.querySelector(".marked-overlay")).toBeTruthy());
 
       fireEvent.keyDown(window, { key: "X" });
       await waitFor(() => expect(marked()).toEqual([]));
       expect(mocks.setMarked).toHaveBeenLastCalledWith([1], false);
       expect(screen.getByRole("button", { name: /^Mark to delete/ })).toBeTruthy();
-      expect(container.querySelector(".viewer-stage.marked")).toBeNull();
+      expect(container.querySelector(".marked-overlay")).toBeNull();
     });
 
     it("marks with the button", async () => {

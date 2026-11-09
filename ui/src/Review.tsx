@@ -191,7 +191,7 @@ export function Review({ forceWebgl2 }: Props) {
 
       <div className="viewer-main">
         <NoticeBar ids={[photo.id]} photos={photos} />
-        <div ref={stage} className={photo.marked ? "viewer-stage marked" : "viewer-stage"}>
+        <div ref={stage} className="viewer-stage">
           <canvas
             ref={canvas}
             className="viewer-photo"
@@ -201,6 +201,9 @@ export function Review({ forceWebgl2 }: Props) {
             hidden={whole === null || covered}
             style={whole ?? undefined}
           />
+          {photo.marked && whole !== null && !covered && (
+            <div className="marked-overlay" style={whole} />
+          )}
           {photo.marked && (
             <p className="review-marked-banner" role="status">
               {t("review-marked-banner")}

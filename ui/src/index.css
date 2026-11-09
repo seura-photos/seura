@@ -1707,15 +1707,18 @@ img.thumbnail-loading {
   white-space: nowrap;
 }
 
-/* A marked photo, here and in the Library and Viewer (REV-4, REV-6). Dimmed
-   with brightness, since the Viewer's sharp part lies over the whole photo
-   and two see-through layers wouldn't match. The outline is drawn by filters
-   after the dimming: a real outline would be dimmed with the photo. */
-.viewer-stage.marked .viewer-photo {
-  filter: brightness(0.5);
+/* A marked photo in Review and the Viewer (REV-4, REV-6): a layer over the
+   canvases, placed like the photo. The Mac's web view doesn't apply CSS
+   filters to a canvas drawn by the GPU. */
+.marked-overlay {
+  position: absolute;
+  background: rgb(0 0 0 / 50%);
+  box-shadow: inset 0 0 0 2px var(--color-danger);
+  pointer-events: none;
 }
 
-.viewer-stage.marked .viewer-photo:first-of-type,
+/* In the Library, on ordinary images. The outline is drawn by filters after
+   the dimming: a real outline would be dimmed with the photo. */
 .cell.marked img,
 .cell.marked .placeholder {
   filter: brightness(0.5) drop-shadow(2px 0 0 var(--color-danger))
