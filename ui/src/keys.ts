@@ -101,6 +101,12 @@ export function isMarkKey(event: KeyboardEvent): boolean {
   return event.key === "x" || event.key === "X";
 }
 
+/** Whether a key press is `R`, starting a review from the Library (REV-1). */
+export function isReviewKey(event: KeyboardEvent): boolean {
+  if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return false;
+  return event.key === "r" || event.key === "R";
+}
+
 /** Whether a key press is `E`, for the Editor (EDT-1). */
 export function isEditKey(event: KeyboardEvent): boolean {
   if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return false;

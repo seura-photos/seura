@@ -11,6 +11,7 @@ import {
   historyKey,
   isDeleteKey,
   isEditKey,
+  isMarkKey,
   quickKey,
   isSelectAll,
   isTagKey,
@@ -157,7 +158,8 @@ export function Viewer({ folder, forceWebgl2 }: Props) {
       // Beside the Info panel's Add tag button: the photo fills the stage.
       const button = root.current?.querySelector(".info-panel [data-add-tag]");
       void openPicker([photo.id], button ? anchorOf(button) : anchorOf(document.body));
-    } else return;
+    } else if (photo && isMarkKey(event)) void useStore.getState().unmark([photo.id]);
+    else return;
     event.preventDefault();
   });
   useEffect(() => {

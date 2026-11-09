@@ -62,6 +62,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::search_photos,
             commands::review_photos,
             commands::set_marked,
+            commands::unmark_photos,
             commands::undo,
             commands::redo,
             commands::show_in_folder,

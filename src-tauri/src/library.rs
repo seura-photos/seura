@@ -8,9 +8,9 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use seura_library::{
-    ApplyEdits, Change, ChangeReport, Filter, FolderId, History, Index, Marks, Outcome, PhotoId,
-    Problem, SWEEP_AFTER, Scope, SettingsFile, ThumbnailCache, ThumbnailWorkers, UndoReport,
-    Watcher, move_to_trash,
+    Action, ApplyEdits, Change, ChangeReport, Filter, FolderId, History, Index, Marks, Outcome,
+    PhotoId, Problem, SWEEP_AFTER, Scope, SettingsFile, ThumbnailCache, ThumbnailWorkers,
+    UndoReport, Watcher, move_to_trash,
 };
 use specta::Type;
 use tauri::{AppHandle, Manager, Runtime};
@@ -615,7 +615,9 @@ impl Library {
         let report = {
             let mut history = self.history.lock().expect("history lock");
             let now = time::OffsetDateTime::now_utc();
-            let report = if undo {
+            let report = if history.next_is_unmark(undo) {
+                history.step_unmark(undo, |ids, marked| self.restore_marks(ids, marked))
+            } else if undo {
                 history.undo(&self.index, crate::editor::WRITER, now, &trash)
             } else {
                 history.redo(&self.index, crate::editor::WRITER, now, &trash)
@@ -866,6 +868,53 @@ impl Library {
             .lock()
             .expect("marks lock")
             .set(&index, ids, marked)
+    }
+
+    /// Takes the marks off those of these photos that have one, as one action
+    /// to undo (REV-6, BRW-11), and returns how many did. Marking and
+    /// unmarking in a review aren't in the history: X is its own undo there.
+    pub fn unmark<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        ids: &[PhotoId],
+    ) -> std::io::Result<usize> {
+        let mut history = self.history.lock().expect("history lock");
+        let marked: Vec<PhotoId> = {
+            let index = self.index.read().expect("index lock");
+            let mut marks = self.marks.lock().expect("marks lock");
+            let current = marks.ids(&index);
+            let marked: Vec<PhotoId> = ids
+                .iter()
+                .copied()
+                .filter(|id| current.contains(id))
+                .collect();
+            marks.set(&index, &marked, false)?;
+            marked
+        };
+        let count = marked.len();
+        history.record(Action::unmarked(marked));
+        crate::menu::history_changed(app, history.next_undo(), history.next_redo());
+        Ok(count)
+    }
+
+    /// Marks photos again (undoing an unmark) or unmarks them (redoing it),
+    /// and returns those still in the library.
+    fn restore_marks(&self, ids: &[PhotoId], marked: bool) -> Vec<PhotoId> {
+        let index = self.index.read().expect("index lock");
+        let present: Vec<PhotoId> = ids
+            .iter()
+            .copied()
+            .filter(|id| index.photo(*id).is_some())
+            .collect();
+        match self
+            .marks
+            .lock()
+            .expect("marks lock")
+            .set(&index, &present, marked)
+        {
+            Ok(()) => present,
+            Err(_) => Vec::new(),
+        }
     }
 
     /// Brings the marks up to date once a scan has finished: the index holds

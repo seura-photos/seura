@@ -274,6 +274,7 @@ history-undid =
         [enhance] Undid Enhance
         [paste] Undid pasting edits
         [preset] Undid the preset “{ $tag }”
+        [unmark] Undid unmarking
         [addTag] Undid adding “{ $tag }”
        *[removeTag] Undid removing “{ $tag }”
     } on { $count ->
@@ -288,6 +289,7 @@ history-redid =
         [enhance] Redid Enhance
         [paste] Redid pasting edits
         [preset] Redid the preset “{ $tag }”
+        [unmark] Redid unmarking
         [addTag] Redid adding “{ $tag }”
        *[removeTag] Redid removing “{ $tag }”
     } on { $count ->
@@ -695,6 +697,12 @@ review-left-marked =
        *[other] { $count } photos are still marked for deletion. Review them again to finish.
     }
 mark-failed = Couldn't save that mark: { $reason }
+# X in the Library or Viewer with no marked photo chosen (REV-6).
+mark-outside-review =
+    Marking for deletion happens in Review. To move photos to { $platform ->
+        [mac] the Trash
+       *[other] the Recycle Bin
+    } now, use Delete.
 # A marked photo in the Library and Viewer (REV-6).
 grid-marked-tooltip = { $name } · Marked for deletion
 grid-cell-label-marked = { $label }, marked for deletion

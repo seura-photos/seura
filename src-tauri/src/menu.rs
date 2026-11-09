@@ -299,6 +299,7 @@ pub fn history_changed<R: Runtime>(
                 Change::Enhance => ("enhance", ""),
                 Change::Paste => ("paste", ""),
                 Change::Preset(name) => ("preset", name.as_str()),
+                Change::Unmark => ("unmark", ""),
             };
             t_with(
                 id,

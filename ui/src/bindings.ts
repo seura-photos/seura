@@ -119,13 +119,19 @@ export const commands = {
 	 */
 	setMarked: (ids: number[], marked: boolean) => typedError<null, string>(__TAURI_INVOKE("set_marked", { ids, marked })),
 	/**
+	 *  Takes the marks off those of these photos that have one (REV-6), and says
+	 *  how many did: one action to undo. In the Library and Viewer, X only ever
+	 *  unmarks.
+	 */
+	unmarkPhotos: (ids: number[]) => typedError<number, string>(__TAURI_INVOKE("unmark_photos", { ids })),
+	/**
 	 *  Undoes the Library's last action, whatever is selected now (BRW-11).
 	 *  `None` when there's nothing to undo.
 	 */
 	undo: () => typedError<{
 	/**
 	 *  `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`,
-	 *  `enhance`, or `paste`.
+	 *  `enhance`, `paste`, `preset`, or `unmark`.
 	 */
 	kind: string,
 	/**  The tag added or removed. */
@@ -142,7 +148,7 @@ export const commands = {
 	redo: () => typedError<{
 	/**
 	 *  `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`,
-	 *  `enhance`, or `paste`.
+	 *  `enhance`, `paste`, `preset`, or `unmark`.
 	 */
 	kind: string,
 	/**  The tag added or removed. */
@@ -807,7 +813,7 @@ export type FolderProblem = "full" | "notWritable";
 export type HistoryStep = {
 	/**
 	 *  `rating`, `addTag`, `removeTag`, `rotateLeft`, `rotateRight`,
-	 *  `enhance`, or `paste`.
+	 *  `enhance`, `paste`, `preset`, or `unmark`.
 	 */
 	kind: string,
 	/**  The tag added or removed. */

@@ -36,6 +36,9 @@ const mocks = vi.hoisted(() => {
     addFolder: vi.fn(() => Promise.resolve({ status: "ok", data: { kind: "cancelled" } })),
     changed: { changed: 0, readOnly: 0, unreadable: 0, failed: 0 },
     step: null as unknown,
+    unmarkPhotos: vi.fn((ids: number[]): Promise<unknown> =>
+      Promise.resolve({ status: "ok", data: ids.length }),
+    ),
     undo: vi.fn(() => Promise.resolve({ status: "ok", data: mocks.step })),
     redo: vi.fn(() => Promise.resolve({ status: "ok", data: mocks.step })),
     changePhotos: vi.fn(() => Promise.resolve({ status: "ok", data: mocks.changed })),
@@ -120,6 +123,7 @@ vi.mock("./bindings", () => ({
     enhanceDownloading: mocks.enhanceDownloading,
     stopDownloads: mocks.stopDownloads,
     undo: mocks.undo,
+    unmarkPhotos: mocks.unmarkPhotos,
     redo: mocks.redo,
     tagChoices: vi.fn(() => Promise.resolve({ onAll: [], onSome: [], others: [], exists: false })),
     startOver: vi.fn(() =>
@@ -652,6 +656,71 @@ describe("App", () => {
     act(() => useStore.setState({ reviewing: { title: "", photos: [photo(1)], id: 1 } }));
     act(() => menu({ payload: "delete" }));
     expect(askDelete).toHaveBeenCalledTimes(1);
+  });
+
+  describe("R and X in the Library (REV-1, REV-6)", () => {
+    async function library(photos: ReturnType<typeof photo>[]) {
+      mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+      mocks.photos = photos;
+      render(<App />);
+      fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+      await screen.findByRole("grid");
+    }
+    const choose = (...ids: number[]) =>
+      act(() => {
+        ids.forEach((id, at) =>
+          useStore.getState().selectPhoto(id, { toggle: at > 0, range: false }),
+        );
+      });
+
+    it("starts a review of the grid with R", async () => {
+      await library([photo(1), photo(2), photo(3)]);
+      fireEvent.keyDown(window, { key: "r" });
+      expect(useStore.getState().reviewing?.photos).toHaveLength(3);
+    });
+
+    it("starts a review of two or more selected photos with R", async () => {
+      await library([photo(1), photo(2), photo(3)]);
+      choose(1, 3);
+      fireEvent.keyDown(window, { key: "R" });
+      expect(useStore.getState().reviewing?.photos.map((p) => p.id)).toEqual([1, 3]);
+    });
+
+    it("doesn't start a review when R is typed in the search box", async () => {
+      await library([photo(1)]);
+      fireEvent.keyDown(screen.getByRole("searchbox"), { key: "r" });
+      expect(useStore.getState().reviewing).toBeNull();
+    });
+
+    it("doesn't start a review with R over another view", async () => {
+      await library([photo(1)]);
+      act(() => useStore.setState({ viewing: 1 }));
+      fireEvent.keyDown(window, { key: "r" });
+      expect(useStore.getState().reviewing).toBeNull();
+    });
+
+    it("unmarks the selected photos with X, and shows it at once", async () => {
+      await library([{ ...photo(1), marked: true }, photo(2)]);
+      choose(1, 2);
+      mocks.unmarkPhotos.mockResolvedValueOnce({ status: "ok", data: 1 });
+      fireEvent.keyDown(window, { key: "x" });
+      expect(mocks.unmarkPhotos).toHaveBeenCalledWith([1, 2]);
+      await waitFor(() => expect(useStore.getState().photos[0]?.marked).toBe(false));
+      expect(useStore.getState().notice).toBeNull();
+    });
+
+    it("never marks with X, and says where marking happens", async () => {
+      await library([photo(1)]);
+      choose(1);
+      mocks.unmarkPhotos.mockResolvedValueOnce({ status: "ok", data: 0 });
+      fireEvent.keyDown(window, { key: "x" });
+      await waitFor(() =>
+        expect(useStore.getState().notice).toBe(
+          "Marking for deletion happens in Review. To move photos to the Recycle Bin now, use Delete.",
+        ),
+      );
+      expect(useStore.getState().photos[0]?.marked).toBe(false);
+    });
   });
 
   it("opens the tag picker for the selection with T (TAG-3)", async () => {

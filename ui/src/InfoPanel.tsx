@@ -266,11 +266,11 @@ function ReadOnly() {
 
 /** Marked for deletion in a review, and the way to undo it (REV-6). */
 function Marked({ ids, text }: { ids: number[]; text: string }) {
-  const setMarked = useStore((state) => state.setMarked);
+  const unmark = useStore((state) => state.unmark);
   return (
     <div className="info-marked">
       <span>{text}</span>
-      <button type="button" className="button" onClick={() => void setMarked(ids, false)}>
+      <button type="button" className="button" onClick={() => void unmark(ids)}>
         {t("info-unmark")}
       </button>
     </div>
