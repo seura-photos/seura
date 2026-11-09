@@ -95,6 +95,12 @@ export function quickKey(event: KeyboardEvent): "left" | "right" | "enhance" | n
   return null;
 }
 
+/** Whether a key press is `X`, marking for deletion in a review (REV-3). */
+export function isMarkKey(event: KeyboardEvent): boolean {
+  if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return false;
+  return event.key === "x" || event.key === "X";
+}
+
 /** Whether a key press is `E`, for the Editor (EDT-1). */
 export function isEditKey(event: KeyboardEvent): boolean {
   if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return false;

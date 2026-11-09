@@ -8,9 +8,9 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use seura_library::{
-    ApplyEdits, Change, ChangeReport, Filter, FolderId, History, Index, Outcome, PhotoId, Problem,
-    SWEEP_AFTER, Scope, SettingsFile, ThumbnailCache, ThumbnailWorkers, UndoReport, Watcher,
-    move_to_trash,
+    ApplyEdits, Change, ChangeReport, Filter, FolderId, History, Index, Marks, Outcome, PhotoId,
+    Problem, SWEEP_AFTER, Scope, SettingsFile, ThumbnailCache, ThumbnailWorkers, UndoReport,
+    Watcher, move_to_trash,
 };
 use specta::Type;
 use tauri::{AppHandle, Manager, Runtime};
@@ -44,6 +44,9 @@ pub struct Library {
     history: Mutex<History>,
     /// The edits last copied (PRE-1).
     copied: Mutex<Option<Copied>>,
+    /// Photos marked for deletion (REV-4). Taken after the index's lock,
+    /// never before it.
+    marks: Mutex<Marks>,
     /// When decoding first learned something the saved index doesn't have,
     /// such as a date taken; `None` when it's all saved (#99).
     unsaved_details: Mutex<Option<Instant>>,
@@ -207,7 +210,12 @@ impl Library {
     /// thumbnail workers, one fewer than the processor's threads. The
     /// library folders come from the settings; a snapshot of other folders
     /// is set aside, which only costs a full scan.
-    pub fn open<R: Runtime>(app: &AppHandle<R>, cache: &Path, folders: &[PathBuf]) -> Library {
+    pub fn open<R: Runtime>(
+        app: &AppHandle<R>,
+        seura: &Path,
+        cache: &Path,
+        folders: &[PathBuf],
+    ) -> Library {
         let index = Index::load_snapshot(cache)
             .filter(|index| index.roots() == folders)
             .unwrap_or_else(|| Index::with_roots(folders.to_vec()));
@@ -221,6 +229,7 @@ impl Library {
             ready: Mutex::new(Vec::new()),
             history: Mutex::new(History::default()),
             copied: Mutex::new(None),
+            marks: Mutex::new(Marks::load(seura)),
             unsaved_details: Mutex::new(None),
         }
     }
@@ -663,6 +672,7 @@ impl Library {
                 }
             }
             self.reattach_renamed(&orphans);
+            self.reconcile_marks();
         }
         self.save();
         self.queue_all(app);
@@ -837,10 +847,40 @@ impl Library {
             let orphans = Index::scan_shared(&self.index, &root, &root).orphan_edit_files;
             self.reattach_renamed(&orphans);
         }
+        self.reconcile_marks();
         drop(scanning);
         self.progress.lock().expect("progress lock").scanning = None;
         self.save();
         self.queue_all(app);
+    }
+
+    /// The photos marked for deletion that are in the index (REV-4).
+    pub fn marked(&self, index: &Index) -> HashSet<PhotoId> {
+        self.marks.lock().expect("marks lock").ids(index)
+    }
+
+    /// Marks photos for deletion, or unmarks them (REV-4). Nothing moves.
+    pub fn set_marked(&self, ids: &[PhotoId], marked: bool) -> std::io::Result<()> {
+        let index = self.index.read().expect("index lock");
+        self.marks
+            .lock()
+            .expect("marks lock")
+            .set(&index, ids, marked)
+    }
+
+    /// Brings the marks up to date once a scan has finished: the index holds
+    /// every photo only then. A failed save keeps the marks as they were.
+    fn reconcile_marks(&self) {
+        let index = self.index.read().expect("index lock");
+        let _ = self.marks.lock().expect("marks lock").reconcile(&index);
+    }
+
+    /// Lets go of marks on photos just deleted, unless a scan is running,
+    /// which will do it when it finishes.
+    pub fn settle_marks(&self) {
+        if let Ok(_scanning) = self.scanning.try_lock() {
+            self.reconcile_marks();
+        }
     }
 
     /// Gives renamed photos their edit files back (FIL-6).

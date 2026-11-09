@@ -7,6 +7,7 @@ import { useStore } from "./store";
 const mocks = vi.hoisted(() => ({
   photoDetails: vi.fn(),
   selectionSummary: vi.fn(),
+  setMarked: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
   changePhotos: vi.fn(() =>
     Promise.resolve({
       status: "ok",
@@ -36,6 +37,7 @@ function details(overrides: Partial<PhotoDetails> = {}): PhotoDetails {
     edited: true,
     enhanced: false,
     unreadable: false,
+    marked: false,
     readOnly: false,
     cloudOnly: false,
     camera: "Apple iPhone 15 Pro",
@@ -174,6 +176,37 @@ describe("Info panel (BRW-6)", () => {
       kind: "removeTag",
       tag: "beach",
     });
+  });
+
+  it("says a photo is marked for deletion, and unmarks it (REV-6)", async () => {
+    mocks.photoDetails.mockResolvedValue({ status: "ok", data: details({ marked: true }) });
+    render(<InfoPanel ids={[7]} version={0} />);
+    expect(await screen.findByText("Marked for deletion")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Unmark" }));
+    expect(mocks.setMarked).toHaveBeenCalledWith([7], false);
+  });
+
+  it("says nothing about marks on a photo that has none", async () => {
+    mocks.photoDetails.mockResolvedValue({ status: "ok", data: details() });
+    render(<InfoPanel ids={[7]} version={0} />);
+    await screen.findByText("IMG_4417.HEIC");
+    expect(screen.queryByRole("button", { name: "Unmark" })).toBeNull();
+  });
+
+  it("says how many of a selection are marked, and unmarks them all", async () => {
+    mocks.selectionSummary.mockResolvedValue({
+      count: 3,
+      size: 1,
+      rating: 0,
+      tags: [],
+      partialTags: [],
+      readOnly: 0,
+      marked: 2,
+    });
+    render(<InfoPanel ids={[1, 2, 3]} version={0} />);
+    expect(await screen.findByText("2 of 3 marked for deletion")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Unmark" }));
+    expect(mocks.setMarked).toHaveBeenCalledWith([1, 2, 3], false);
   });
 
   it("invites a selection when there's none", async () => {

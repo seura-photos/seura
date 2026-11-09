@@ -180,6 +180,7 @@ function photo(id: number): PhotoInfo {
     rating: 0,
     edited: false,
     unreadable: false,
+    marked: false,
   };
 }
 
@@ -632,6 +633,25 @@ describe("App", () => {
     act(() => menu({ payload: "undo" }));
     expect(execCommand).toHaveBeenCalledWith("undo");
     expect(mocks.undo).toHaveBeenCalledTimes(1);
+  });
+
+  it("doesn't delete from the Mac's menu during a review (REV-4)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 1, total: 1 })];
+    mocks.photos = [photo(1)];
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("grid");
+    const menu = mocks.handlers.get("menuCommand");
+    if (!menu) throw new Error("no menu listener");
+    const askDelete = vi.fn(() => Promise.resolve());
+    act(() => useStore.setState({ askDelete }));
+    act(() => useStore.getState().selectPhoto(1, { toggle: false, range: false }));
+    act(() => menu({ payload: "delete" }));
+    expect(askDelete).toHaveBeenCalledTimes(1);
+
+    act(() => useStore.setState({ reviewing: { title: "", photos: [photo(1)], id: 1 } }));
+    act(() => menu({ payload: "delete" }));
+    expect(askDelete).toHaveBeenCalledTimes(1);
   });
 
   it("opens the tag picker for the selection with T (TAG-3)", async () => {

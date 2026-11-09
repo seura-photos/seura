@@ -30,6 +30,7 @@
     "allow-tag-photos",
     "allow-search-photos",
     "allow-review-photos",
+    "allow-set-marked",
     "allow-undo",
     "allow-redo",
     "allow-show-in-folder",

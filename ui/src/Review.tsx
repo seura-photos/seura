@@ -6,6 +6,7 @@ import { formatDate, formatDateTime } from "./format";
 import {
   historyKey,
   isEditKey,
+  isMarkKey,
   isSelectAll,
   isTagKey,
   isTyping,
@@ -38,6 +39,7 @@ export function Review({ forceWebgl2 }: Props) {
   const openEditor = useStore((state) => state.openEditor);
   const openPicker = useStore((state) => state.openPicker);
   const rate = useStore((state) => state.rate);
+  const setMarked = useStore((state) => state.setMarked);
   const libraryVersion = useStore((state) => state.libraryVersion);
   // Only messages from while it's open: earlier ones were about the Library.
   const [openedAt] = useState(() => useStore.getState().noticeId);
@@ -99,6 +101,11 @@ export function Review({ forceWebgl2 }: Props) {
     if (photo && tagButton.current) void openPicker([photo.id], anchorOf(tagButton.current));
   }
 
+  /** Marks the photo shown for deletion, or unmarks it (REV-4). */
+  function toggleMark() {
+    if (photo) void setMarked([photo.id], !photo.marked);
+  }
+
   /** Jumps to the part of the batch that was clicked (REV-2). */
   function jump(event: MouseEvent<HTMLDivElement>) {
     const bar = event.currentTarget.getBoundingClientRect();
@@ -133,6 +140,7 @@ export function Review({ forceWebgl2 }: Props) {
     else if (photo && quick !== null) quickAction(quick, true);
     else if (photo && stars !== null) void rate([photo.id], stars, true);
     else if (photo && isTagKey(event)) openTags();
+    else if (photo && isMarkKey(event)) toggleMark();
     else return;
     event.preventDefault();
   });
@@ -187,10 +195,20 @@ export function Review({ forceWebgl2 }: Props) {
           <canvas
             ref={canvas}
             className="viewer-photo"
-            aria-label={t("viewer-photo", { name: photo.name })}
+            aria-label={t(photo.marked ? "viewer-photo-marked" : "viewer-photo", {
+              name: photo.name,
+            })}
             hidden={whole === null || covered}
             style={whole ?? undefined}
           />
+          {photo.marked && whole !== null && !covered && (
+            <div className="marked-overlay" style={whole} />
+          )}
+          {photo.marked && (
+            <p className="review-marked-banner" role="status">
+              {t("review-marked-banner")}
+            </p>
+          )}
           {cloud && <CloudPhoto id={photo.id} state={cloud} onTryAgain={tryAgain} />}
           {message !== null && (
             <div className="viewer-message" role="status">
@@ -278,6 +296,22 @@ export function Review({ forceWebgl2 }: Props) {
           {t("review-tag")}
           <span className="review-key" aria-hidden>
             T
+          </span>
+        </button>
+        <button
+          type="button"
+          className={
+            photo.marked
+              ? "button review-action review-mark marked"
+              : "button review-action review-mark"
+          }
+          aria-keyshortcuts="X"
+          title={t(photo.marked ? "review-unmark-key" : "review-mark-key")}
+          onClick={toggleMark}
+        >
+          {t(photo.marked ? "review-marked" : "review-mark")}
+          <span className="review-key" aria-hidden>
+            X
           </span>
         </button>
         <button

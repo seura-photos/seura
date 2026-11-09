@@ -61,6 +61,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::tag_photos,
             commands::search_photos,
             commands::review_photos,
+            commands::set_marked,
             commands::undo,
             commands::redo,
             commands::show_in_folder,
@@ -163,6 +164,7 @@ pub fn run() {
             let cache = locations::cache_folder(&seura, &settings.settings);
             app.manage(Library::open(
                 app.handle(),
+                &seura,
                 &cache,
                 &settings.settings.library_folders,
             ));

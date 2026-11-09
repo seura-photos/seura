@@ -81,6 +81,7 @@ function photo(id: number): PhotoInfo {
     rating: 0,
     edited: false,
     unreadable: false,
+    marked: false,
   };
 }
 

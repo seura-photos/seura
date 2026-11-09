@@ -227,7 +227,10 @@ export function Viewer({ folder, forceWebgl2 }: Props) {
           <canvas
             ref={canvas}
             className="viewer-photo"
-            aria-label={t("viewer-photo", { name: photo.name })}
+            aria-label={t(photo.marked ? "viewer-photo-marked" : "viewer-photo", {
+              name: photo.name,
+            })}
+            title={photo.marked ? t("grid-marked-tooltip", { name: photo.name }) : undefined}
             hidden={whole === null || covered}
             style={whole ?? undefined}
           />
@@ -238,6 +241,9 @@ export function Viewer({ folder, forceWebgl2 }: Props) {
             hidden={sharp === null || covered}
             style={sharp ?? undefined}
           />
+          {photo.marked && whole !== null && !covered && (
+            <div className="marked-overlay" style={whole} />
+          )}
           {cloud && <CloudPhoto id={photo.id} state={cloud} onTryAgain={tryAgain} />}
           {message !== null && (
             <div className="viewer-message" role="status">

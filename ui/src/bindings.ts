@@ -114,6 +114,11 @@ export const commands = {
 	 */
 	reviewPhotos: (ids: number[]) => __TAURI_INVOKE<PhotoInfo[]>("review_photos", { ids }),
 	/**
+	 *  Marks photos for deletion, or unmarks them (REV-4). Nothing moves until
+	 *  the review's one confirmation.
+	 */
+	setMarked: (ids: number[], marked: boolean) => typedError<null, string>(__TAURI_INVOKE("set_marked", { ids, marked })),
+	/**
 	 *  Undoes the Library's last action, whatever is selected now (BRW-11).
 	 *  `None` when there's nothing to undo.
 	 */
@@ -938,6 +943,8 @@ export type PhotoDetails = {
 	unreadable: boolean,
 	/**  Enhance is applied (REV-2): in its history and not undone. */
 	enhanced: boolean,
+	/**  Marked for deletion in a review (REV-4). */
+	marked: boolean,
 	/**  In a read-only folder: it can't be tagged or rated (TAG-7). */
 	readOnly: boolean,
 	/**
@@ -1046,6 +1053,8 @@ export type PhotoInfo = {
 	edited: boolean,
 	/**  Its edit file exists but can't be read (FIL-4). */
 	unreadable: boolean,
+	/**  Marked for deletion in a review (REV-4). */
+	marked: boolean,
 };
 
 /**  What the notice bar says about one photo's files (FIL-5, FIL-7). */
@@ -1221,6 +1230,8 @@ export type SelectionSummary = {
 	partialTags: TagCount[],
 	/**  How many are in read-only folders (TAG-7). */
 	readOnly: number,
+	/**  How many are marked for deletion (REV-4). */
+	marked: number,
 };
 
 /**  What Start over did (FIL-4). */

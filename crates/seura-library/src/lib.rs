@@ -11,6 +11,7 @@ mod delete;
 mod fingerprint;
 mod formats;
 mod index;
+mod marks;
 mod notices;
 mod platform;
 mod renames;
@@ -36,6 +37,7 @@ pub use index::{
     AddFolder, EditFileState, FileTime, Filter, Folder, FolderId, Index, Photo, PhotoId, Scope,
     TagId,
 };
+pub use marks::{MARKS_FILE, Marks};
 pub use notices::FileNotices;
 pub use platform::{has_trash, is_placeholder, trash_refused};
 pub use scan::ScanReport;
