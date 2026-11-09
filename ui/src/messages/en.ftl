@@ -687,8 +687,8 @@ paste-geometry = Crop and rotation
 paste-none = None copied.
 paste-none-removes =
     { $count ->
-        [one] None copied, so this photo's will be removed.
-       *[other] None copied, so these photos' will be removed.
+        [one] None copied, so pasting removes any on this photo.
+       *[other] None copied, so pasting removes any on these photos.
     }
 paste-cancel = Cancel
 paste-go = Paste
