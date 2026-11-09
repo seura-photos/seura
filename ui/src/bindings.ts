@@ -114,6 +114,12 @@ export const commands = {
 	 */
 	reviewPhotos: (ids: number[]) => __TAURI_INVOKE<PhotoInfo[]>("review_photos", { ids }),
 	/**
+	 *  What was done to these photos since a review began, in seconds since 1970,
+	 *  from their edit files' histories (REV-5). A change that was undone isn't
+	 *  counted, and Editor changes are, as any other.
+	 */
+	reviewCounts: (ids: number[], since: number | null) => __TAURI_INVOKE<ReviewCounts>("review_counts", { ids, since }),
+	/**
 	 *  Marks photos for deletion, or unmarks them (REV-4). Nothing moves until
 	 *  the review's one confirmation.
 	 */
@@ -1201,6 +1207,13 @@ export type RenderSettings = {
 	vignetteSize: number | null,
 	/**  `seura.redEye`'s circles (EDT-7). */
 	redEye: RedEyeCircle[],
+};
+
+/**  How many of a review's photos it changed (REV-5). */
+export type ReviewCounts = {
+	rated: number,
+	edited: number,
+	tagged: number,
 };
 
 /**

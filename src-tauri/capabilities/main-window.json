@@ -30,6 +30,7 @@
     "allow-tag-photos",
     "allow-search-photos",
     "allow-review-photos",
+    "allow-review-counts",
     "allow-set-marked",
     "allow-unmark-photos",
     "allow-undo",

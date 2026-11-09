@@ -415,6 +415,37 @@ pub fn review_photos(library: State<'_, Library>, ids: Vec<u32>) -> Vec<PhotoInf
     )
 }
 
+/// How many of a review's photos it changed (REV-5).
+#[derive(Clone, Debug, Default, Serialize, Type)]
+pub struct ReviewCounts {
+    pub rated: u32,
+    pub edited: u32,
+    pub tagged: u32,
+}
+
+/// What was done to these photos since a review began, in seconds since 1970,
+/// from their edit files' histories (REV-5). A change that was undone isn't
+/// counted, and Editor changes are, as any other.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn review_counts(library: State<'_, Library>, ids: Vec<u32>, since: f64) -> ReviewCounts {
+    let mut counts = ReviewCounts::default();
+    // Histories are in whole seconds.
+    let Ok(since) = time::OffsetDateTime::from_unix_timestamp(since.floor() as i64) else {
+        return counts;
+    };
+    for path in photo_paths(&library, &ids) {
+        let Ok(Some(file)) = seura_edit::EditFile::load(&seura_edit::edit_file_path(&path)) else {
+            continue;
+        };
+        let changed = file.document.changed_since(since);
+        counts.rated += u32::from(changed.rating);
+        counts.edited += u32::from(changed.look);
+        counts.tagged += u32::from(changed.tags);
+    }
+    counts
+}
+
 /// Marks photos for deletion, or unmarks them (REV-4). Nothing moves until
 /// the review's one confirmation.
 #[tauri::command(async)]

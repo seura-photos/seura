@@ -19,8 +19,8 @@ mod preset;
 mod validate;
 
 pub use document::{
-    Action, Edit, EditDocument, EditError, HISTORY_LIMIT, Kind, Operation, PhotoIdentity,
-    ReadError, Step, clean_tags, tag_key,
+    Action, ChangedSince, Edit, EditDocument, EditError, HISTORY_LIMIT, Kind, Operation,
+    PhotoIdentity, ReadError, Step, clean_tags, tag_key,
 };
 pub use file::{EditFile, LoadError, NoTrash, SaveError, Writer, edit_file_path, write_atomically};
 pub use operations::{

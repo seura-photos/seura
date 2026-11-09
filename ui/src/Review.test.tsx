@@ -8,6 +8,15 @@ const mocks = vi.hoisted(() => ({
   viewPhoto: vi.fn(),
   setMarked: vi.fn((): Promise<unknown> => Promise.resolve({ status: "ok", data: null })),
   reviewPhotos: vi.fn<(ids: number[]) => Promise<unknown[]>>(),
+  reviewCounts: vi.fn<(ids: number[], since: number) => Promise<unknown>>(() =>
+    Promise.resolve({ rated: 2, edited: 1, tagged: 3 }),
+  ),
+  deleting: vi.fn((ids: number[]) => Promise.resolve({ count: ids.length })),
+  deletePhotos: vi.fn((): Promise<unknown> =>
+    Promise.resolve({ status: "ok", data: { deleted: 0 } }),
+  ),
+  exportStart: vi.fn(() => Promise.resolve({ choices: {}, folder: null })),
+  copyEdits: vi.fn(() => Promise.resolve({ status: "ok", data: { kind: "noEdits", name: "" } })),
   details: { enhanced: false, readOnly: false },
   photoDetails: vi.fn((id: number): Promise<unknown> =>
     Promise.resolve({ status: "error", error: String(id) }),
@@ -23,6 +32,11 @@ vi.mock("./bindings", () => ({
     viewPhoto: mocks.viewPhoto,
     setMarked: mocks.setMarked,
     reviewPhotos: mocks.reviewPhotos,
+    reviewCounts: mocks.reviewCounts,
+    deleting: mocks.deleting,
+    deletePhotos: mocks.deletePhotos,
+    exportStart: mocks.exportStart,
+    copyEdits: mocks.copyEdits,
     photoDetails: mocks.photoDetails,
     photoNotices: vi.fn(() =>
       Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
@@ -152,7 +166,7 @@ describe("Review (REV-1, REV-2)", () => {
     expect(useStore.getState().reviewing).toBeNull();
   });
 
-  it("moves with the arrows, Home and End, and stops at the ends", () => {
+  it("moves with the arrows, Home and End, and stops at the start", () => {
     open();
     fireEvent.keyDown(window, { key: "ArrowLeft" });
     expect(shownId()).toBe(1);
@@ -161,13 +175,11 @@ describe("Review (REV-1, REV-2)", () => {
     expect(screen.getByText("2 of 3")).toBeTruthy();
     fireEvent.keyDown(window, { key: "End" });
     expect(shownId()).toBe(3);
-    fireEvent.keyDown(window, { key: "ArrowRight" });
-    expect(shownId()).toBe(3);
     fireEvent.keyDown(window, { key: "Home" });
     expect(shownId()).toBe(1);
   });
 
-  it("moves with Back and Next, which are off at the ends", () => {
+  it("moves with Back and Next, Back being off at the start", () => {
     open();
     const back = screen.getByRole<HTMLButtonElement>("button", { name: "Back" });
     const next = screen.getByRole<HTMLButtonElement>("button", { name: "Next" });
@@ -175,7 +187,6 @@ describe("Review (REV-1, REV-2)", () => {
     fireEvent.click(next);
     fireEvent.click(next);
     expect(shownId()).toBe(3);
-    expect(next.disabled).toBe(true);
     fireEvent.click(back);
     expect(shownId()).toBe(2);
   });
@@ -476,6 +487,173 @@ describe("Review (REV-1, REV-2)", () => {
         expect(useStore.getState().notice).toBe("Couldn't save that mark: the disk is full"),
       );
       expect(marked()).toEqual([]);
+    });
+  });
+
+  describe("the summary (REV-5)", () => {
+    const summary = () => useStore.getState().reviewing?.summary;
+    const markedPhoto = (id: number, rating = 0) => ({ ...photo(id, rating), marked: true });
+    const toEnd = () => {
+      fireEvent.keyDown(window, { key: "End" });
+      fireEvent.keyDown(window, { key: "ArrowRight" });
+    };
+    const button = (name: RegExp | string) => screen.getByRole("button", { name });
+
+    it("opens with Next on the last photo, and Back returns to it", async () => {
+      open();
+      fireEvent.keyDown(window, { key: "End" });
+      fireEvent.click(button("Next"));
+      expect(summary()).toBe(true);
+      expect(screen.getByText("End of review")).toBeTruthy();
+      await act(() => Promise.resolve());
+      fireEvent.click(button("Back"));
+      expect(summary()).toBe(false);
+      expect(shownId()).toBe(3);
+    });
+
+    it("opens with the right arrow on the last photo, and the left arrow returns", async () => {
+      open();
+      toEnd();
+      expect(summary()).toBe(true);
+      await act(() => Promise.resolve());
+      fireEvent.keyDown(window, { key: "ArrowLeft" });
+      expect(summary()).toBe(false);
+      expect(shownId()).toBe(3);
+    });
+
+    it("counts only since the review began, and marks from any review", async () => {
+      open([photo(1), markedPhoto(2)]);
+      const since = useStore.getState().reviewing?.since;
+      toEnd();
+      await screen.findByText("2");
+      expect(mocks.reviewCounts).toHaveBeenCalledWith([1, 2], since);
+      expect(screen.getByText("Rated").nextSibling?.textContent).toBe("2");
+      expect(screen.getByText("Edited").nextSibling?.textContent).toBe("1");
+      expect(screen.getByText("Tagged").nextSibling?.textContent).toBe("3");
+      expect(screen.getByText("Marked for deletion").nextSibling?.textContent).toBe("1");
+      expect(screen.getByText(/nothing has been deleted yet/)).toBeTruthy();
+    });
+
+    it("sends nothing to the Trash by marking, reaching the summary or leaving", async () => {
+      open([markedPhoto(1), photo(2)]);
+      fireEvent.keyDown(window, { key: "x" });
+      toEnd();
+      await act(() => Promise.resolve());
+      fireEvent.keyDown(window, { key: "Escape" });
+      await act(() => Promise.resolve());
+      expect(mocks.deletePhotos).not.toHaveBeenCalled();
+    });
+
+    it("moves the marked photos only through the Delete confirmation (BRW-9)", async () => {
+      open([markedPhoto(1), photo(2), markedPhoto(3)]);
+      toEnd();
+      fireEvent.click(await screen.findByRole("button", { name: /^Move 2 marked photos/ }));
+      await waitFor(() => expect(useStore.getState().confirmingDelete?.ids).toEqual([1, 3]));
+      expect(mocks.deletePhotos).not.toHaveBeenCalled();
+
+      await act(() => useStore.getState().confirmDelete(false));
+      expect(mocks.deletePhotos).not.toHaveBeenCalled();
+      expect(summary()).toBe(true);
+
+      await act(() => useStore.getState().askDelete([1, 3]));
+      mocks.deletePhotos.mockResolvedValueOnce({ status: "ok", data: { deleted: 2 } });
+      await act(() => useStore.getState().confirmDelete(true));
+      expect(mocks.deletePhotos).toHaveBeenCalledWith([1, 3]);
+    });
+
+    it("says when a marked photo couldn't be moved, and it stays marked", async () => {
+      open([markedPhoto(1), photo(2), markedPhoto(3)]);
+      toEnd();
+      await act(() => useStore.getState().askDelete([1, 3]));
+      mocks.deletePhotos.mockResolvedValueOnce({
+        status: "ok",
+        data: { deleted: 1, failed: 1, failedReason: null },
+      });
+      mocks.reviewPhotos.mockResolvedValueOnce([photo(2), markedPhoto(3)]);
+      await act(() => useStore.getState().confirmDelete(true));
+      await changed();
+      expect(screen.getByText(/1 marked photo couldn't be moved, and stays marked/)).toBeTruthy();
+      expect(screen.queryByText(/nothing has been deleted yet/)).toBeNull();
+      expect(screen.getByText("Marked for deletion").nextSibling?.textContent).toBe("2");
+      expect(button(/^Move 1 marked photo/)).toBeTruthy();
+    });
+
+    it("keeps its counts once photos have gone to the Trash", async () => {
+      open([markedPhoto(1), photo(2)]);
+      toEnd();
+      await screen.findByText("3");
+      mocks.reviewCounts.mockClear();
+      await act(() => useStore.getState().askDelete([1]));
+      mocks.reviewPhotos.mockResolvedValueOnce([photo(2)]);
+      mocks.deletePhotos.mockResolvedValueOnce({ status: "ok", data: { deleted: 1 } });
+      await act(() => useStore.getState().confirmDelete(true));
+      await changed();
+      expect(mocks.reviewCounts).not.toHaveBeenCalled();
+      expect(screen.getByText("Tagged").nextSibling?.textContent).toBe("3");
+    });
+
+    it("offers no move when nothing is marked", async () => {
+      open();
+      toEnd();
+      await act(() => Promise.resolve());
+      expect(screen.queryByRole("button", { name: /^Move/ })).toBeNull();
+    });
+
+    it("exports the batch at or above the chosen rating, leaving out marked photos", async () => {
+      open([photo(1, 5), photo(2, 3), markedPhoto(3, 5), photo(4, 4)]);
+      toEnd();
+      await act(() => Promise.resolve());
+      fireEvent.click(button("Export 2 photos"));
+      await waitFor(() => expect(mocks.exportStart).toHaveBeenCalledWith([1, 4]));
+
+      act(() => useStore.getState().cancelExport());
+      fireEvent.change(screen.getByRole("combobox", { name: "Rating" }), {
+        target: { value: "3" },
+      });
+      expect(button("Export 3 photos")).toBeTruthy();
+    });
+
+    it("has nothing to export when no photo is rated high enough", async () => {
+      open();
+      toEnd();
+      await act(() => Promise.resolve());
+      expect(button("No photos to export").hasAttribute("disabled")).toBe(true);
+    });
+
+    it("goes back to the Library, by button and by Esc", async () => {
+      open();
+      toEnd();
+      await act(() => Promise.resolve());
+      fireEvent.click(button("Back to the Library"));
+      expect(useStore.getState().reviewing).toBeNull();
+
+      cleanup();
+      open();
+      toEnd();
+      await act(() => Promise.resolve());
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(useStore.getState().reviewing).toBeNull();
+    });
+
+    it("leaves no photo chosen for the menu's commands", async () => {
+      open();
+      toEnd();
+      await act(() => Promise.resolve());
+      expect(useStore.getState().chosenPhotos()).toEqual([]);
+    });
+
+    it("copies edits from the photo shown, not the Library's selection", async () => {
+      useStore.setState({ folderId: 7, folders: [], photos: [photo(1), photo(2), photo(3)] });
+      useStore.getState().selectPhoto(3, { toggle: false, range: false });
+      useStore.getState().startReview();
+      render(<Review forceWebgl2={false} />);
+      await act(() => useStore.getState().copyEdits());
+      expect(mocks.copyEdits).toHaveBeenCalledExactlyOnceWith(1);
+
+      mocks.copyEdits.mockClear();
+      toEnd();
+      await act(() => useStore.getState().copyEdits());
+      expect(mocks.copyEdits).not.toHaveBeenCalled();
     });
   });
 });

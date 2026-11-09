@@ -61,6 +61,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::tag_photos,
             commands::search_photos,
             commands::review_photos,
+            commands::review_counts,
             commands::set_marked,
             commands::unmark_photos,
             commands::undo,
