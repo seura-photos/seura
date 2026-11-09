@@ -52,6 +52,7 @@ export function App() {
       events.libraryChanged.listen(() => {
         useStore.setState(({ libraryVersion }) => ({ libraryVersion: libraryVersion + 1 }));
         void useStore.getState().loadFolders();
+        void useStore.getState().refreshReview();
       }),
       // Finished thumbnails arrive in batches, about ten a second.
       events.thumbnailsReady.listen(({ payload }) => useStore.getState().thumbnailsReady(payload)),

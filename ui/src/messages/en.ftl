@@ -676,6 +676,13 @@ review-title-selection =
 review-exit = Exit review
 review-back = Back
 review-next = Next
+review-edit = Edit
+review-edit-key = Edit (E)
+review-tag = Tag
+review-tag-key = Tag (T)
+review-stars = Rating
+# Under the photo, when Enhance is applied.
+review-enhanced = Enhanced
 # The rating, shown as stars under the photo.
 review-rating =
     { $stars ->

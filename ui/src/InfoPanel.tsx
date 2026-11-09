@@ -1,8 +1,9 @@
-import { Cloud, Lock, Plus, Star, X } from "lucide-react";
+import { Cloud, Lock, Plus, X } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { commands, type PhotoDetails, type SelectionSummary, type TagCount } from "./bindings";
 import { formatBytes, formatDateTime, formatDateTimeRange, formatNumber } from "./format";
 import { t } from "./messages";
+import { Stars } from "./Stars";
 import { anchorOf, useStore } from "./store";
 import { ThumbnailImage } from "./ThumbnailImage";
 
@@ -270,33 +271,14 @@ function Rating({
   rating: number | null;
   disabled: boolean;
 }) {
-  const rate = useStore((state) => state.rate);
   const heading = useId();
-  const shown = rating ?? 0;
   return (
     <section className="info-section">
       <h3 className="info-heading" id={heading}>
         {t("info-rating")}
       </h3>
       <div className="info-stars" role="group" aria-labelledby={heading}>
-        {[1, 2, 3, 4, 5].map((star) => {
-          const current = star === rating;
-          const label = current ? t("info-clear-rating") : t("info-rate", { rating: star });
-          return (
-            <button
-              key={star}
-              type="button"
-              className="star-button"
-              aria-label={label}
-              aria-pressed={current}
-              title={label}
-              disabled={disabled}
-              onClick={() => void rate(ids, current ? 0 : star)}
-            >
-              <Star className={star <= shown ? "star on" : "star"} aria-hidden />
-            </button>
-          );
-        })}
+        <Stars ids={ids} rating={rating} disabled={disabled} />
         {rating === null ? (
           <span className="meta">{t("info-rating-mixed")}</span>
         ) : (

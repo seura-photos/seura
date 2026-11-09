@@ -480,6 +480,8 @@ pub struct PhotoDetails {
     pub tags: Vec<String>,
     pub edited: bool,
     pub unreadable: bool,
+    /// Enhance is applied (REV-2): in its history and not undone.
+    pub enhanced: bool,
     /// In a read-only folder: it can't be tagged or rated (TAG-7).
     pub read_only: bool,
     /// Only in the cloud: its metadata isn't read, which would download it
@@ -539,6 +541,11 @@ pub async fn photo_details(app: AppHandle, id: u32) -> Result<PhotoDetails, Stri
                     .collect(),
                 edited: photo.edit_file == EditFileState::Read { edited: true },
                 unreadable: photo.edit_file == EditFileState::Unreadable,
+                enhanced: photo.edit_file == EditFileState::Read { edited: true }
+                    && seura_edit::EditFile::load(&seura_edit::edit_file_path(&path))
+                        .ok()
+                        .flatten()
+                        .is_some_and(|file| file.document.has_applied(Change::Enhance.label())),
                 read_only: index
                     .folder(photo.folder)
                     .is_some_and(|folder| folder.read_only),
