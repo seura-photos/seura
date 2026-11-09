@@ -88,7 +88,8 @@ export function App() {
           if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement) {
             focused.setRangeText("", 0, focused.selectionEnd ?? 0, "start");
             focused.dispatchEvent(new Event("input", { bubbles: true }));
-          } else void store.askDelete(store.chosenPhotos());
+            // In a review, photos are only marked (REV-4).
+          } else if (!store.reviewing) void store.askDelete(store.chosenPhotos());
         } else if (payload === "export") void store.askExport(store.chosenPhotos());
         else if (payload === "copyEdits") void store.copyEdits();
         else if (payload === "pasteEdits") void store.askPaste(store.chosenPhotos());

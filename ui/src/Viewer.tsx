@@ -217,7 +217,7 @@ export function Viewer({ folder, forceWebgl2 }: Props) {
         <NoticeBar ids={[photo.id]} photos={photos} />
         <div
           ref={stage}
-          className={isZoomed ? "viewer-stage zoomed" : "viewer-stage"}
+          className={`viewer-stage${isZoomed ? " zoomed" : ""}${photo.marked ? " marked" : ""}`}
           {...zoom.pointer}
           onContextMenu={(event) => {
             event.preventDefault();
@@ -227,7 +227,10 @@ export function Viewer({ folder, forceWebgl2 }: Props) {
           <canvas
             ref={canvas}
             className="viewer-photo"
-            aria-label={t("viewer-photo", { name: photo.name })}
+            aria-label={t(photo.marked ? "viewer-photo-marked" : "viewer-photo", {
+              name: photo.name,
+            })}
+            title={photo.marked ? t("grid-marked-tooltip", { name: photo.name }) : undefined}
             hidden={whole === null || covered}
             style={whole ?? undefined}
           />

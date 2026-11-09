@@ -211,6 +211,7 @@ function Photo({
         </p>
       )}
       {details.readOnly && <ReadOnly />}
+      {details.marked && <Marked ids={[details.id]} text={t("info-marked")} />}
       <Rating ids={[details.id]} rating={details.rating} disabled={details.readOnly} />
       <Tags ids={[details.id]} tags={details.tags} partial={[]} disabled={details.readOnly} />
     </>
@@ -231,6 +232,12 @@ function Several({ ids, summary }: { ids: number[]; summary: SelectionSummary })
       </dl>
       {/* Some photos can still be changed when not all are read-only. */}
       {summary.readOnly === summary.count && <ReadOnly />}
+      {summary.marked > 0 && (
+        <Marked
+          ids={ids}
+          text={t("info-marked-some", { count: summary.marked, total: summary.count })}
+        />
+      )}
       <Rating
         ids={ids}
         rating={summary.rating ?? null}
@@ -254,6 +261,19 @@ function ReadOnly() {
       <Lock className="icon" aria-hidden />
       {t("read-only-folder")}
     </p>
+  );
+}
+
+/** Marked for deletion in a review, and the way to undo it (REV-6). */
+function Marked({ ids, text }: { ids: number[]; text: string }) {
+  const setMarked = useStore((state) => state.setMarked);
+  return (
+    <div className="info-marked">
+      <span>{text}</span>
+      <button type="button" className="button" onClick={() => void setMarked(ids, false)}>
+        {t("info-unmark")}
+      </button>
+    </div>
   );
 }
 

@@ -30,6 +30,7 @@ fn main() {
         "tag_photos",
         "search_photos",
         "review_photos",
+        "set_marked",
         "undo",
         "redo",
         "show_in_folder",

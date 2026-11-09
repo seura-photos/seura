@@ -78,6 +78,8 @@ pub struct PhotoInfo {
     pub edited: bool,
     /// Its edit file exists but can't be read (FIL-4).
     pub unreadable: bool,
+    /// Marked for deletion in a review (REV-4).
+    pub marked: bool,
 }
 
 /// The grid's order and size (BRW-2, BRW-3), from the settings.
@@ -344,7 +346,7 @@ pub fn photos(
         let ids = filter.resolve(&index).map_or_else(Vec::new, |filter| {
             index.query(Scope::Folder(folder), &filter)
         });
-        photo_infos(&index, index.sorted(ids, sort))
+        photo_infos(&library, &index, index.sorted(ids, sort))
     };
     library.queue_folder(folder);
     photos
@@ -370,7 +372,7 @@ pub fn tag_photos(
         .iter()
         .filter_map(|id| index.thumbnail_job(*id))
         .collect();
-    let photos = photo_infos(&index, ids);
+    let photos = photo_infos(&library, &index, ids);
     drop(index);
     library.queue_photos(jobs);
     photos
@@ -396,7 +398,7 @@ pub fn search_photos(
         return Vec::new();
     };
     let ids = index.sorted(index.search(&text, &filter), sort);
-    photo_infos(&index, ids)
+    photo_infos(&library, &index, ids)
 }
 
 /// The photos of a review's batch that are still in the library, in the
@@ -406,11 +408,34 @@ pub fn search_photos(
 #[specta::specta]
 pub fn review_photos(library: State<'_, Library>, ids: Vec<u32>) -> Vec<PhotoInfo> {
     let index = library.index.read().expect("index lock");
-    photo_infos(&index, ids.into_iter().map(PhotoId::new).collect())
+    photo_infos(
+        &library,
+        &index,
+        ids.into_iter().map(PhotoId::new).collect(),
+    )
+}
+
+/// Marks photos for deletion, or unmarks them (REV-4). Nothing moves until
+/// the review's one confirmation.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn set_marked(app: AppHandle, ids: Vec<u32>, marked: bool) -> Result<(), String> {
+    let library = app.state::<Library>();
+    let ids: Vec<PhotoId> = ids.into_iter().map(PhotoId::new).collect();
+    library
+        .set_marked(&ids, marked)
+        .map_err(|error| error.to_string())?;
+    let _ = LibraryChanged.emit(&app);
+    Ok(())
 }
 
 /// Photos as the grid needs them.
-fn photo_infos(index: &seura_library::Index, ids: Vec<PhotoId>) -> Vec<PhotoInfo> {
+fn photo_infos(
+    library: &Library,
+    index: &seura_library::Index,
+    ids: Vec<PhotoId>,
+) -> Vec<PhotoInfo> {
+    let marked = library.marked(index);
     ids.into_iter()
         .filter_map(|id| {
             let photo = index.photo(id)?;
@@ -425,6 +450,7 @@ fn photo_infos(index: &seura_library::Index, ids: Vec<PhotoId>) -> Vec<PhotoInfo
                 rating: photo.rating,
                 edited: photo.edit_file == EditFileState::Read { edited: true },
                 unreadable: photo.edit_file == EditFileState::Unreadable,
+                marked: marked.contains(&id),
             })
         })
         .collect()
@@ -482,6 +508,8 @@ pub struct PhotoDetails {
     pub unreadable: bool,
     /// Enhance is applied (REV-2): in its history and not undone.
     pub enhanced: bool,
+    /// Marked for deletion in a review (REV-4).
+    pub marked: bool,
     /// In a read-only folder: it can't be tagged or rated (TAG-7).
     pub read_only: bool,
     /// Only in the cloud: its metadata isn't read, which would download it
@@ -546,6 +574,7 @@ pub async fn photo_details(app: AppHandle, id: u32) -> Result<PhotoDetails, Stri
                         .ok()
                         .flatten()
                         .is_some_and(|file| file.document.has_applied(Change::Enhance.label())),
+                marked: library.marked(&index).contains(&PhotoId::new(id)),
                 read_only: index
                     .folder(photo.folder)
                     .is_some_and(|folder| folder.read_only),
@@ -625,6 +654,8 @@ pub struct SelectionSummary {
     pub partial_tags: Vec<TagCount>,
     /// How many are in read-only folders (TAG-7).
     pub read_only: u32,
+    /// How many are marked for deletion (REV-4).
+    pub marked: u32,
 }
 
 /// A tag and a number of photos.
@@ -663,6 +694,7 @@ fn tag_counts(index: &seura_library::Index, photos: &[&seura_library::Photo]) ->
 #[specta::specta]
 pub fn selection_summary(library: State<'_, Library>, ids: Vec<u32>) -> SelectionSummary {
     let index = library.index.read().expect("index lock");
+    let marked = library.marked(&index);
     let photos: Vec<_> = ids
         .iter()
         .filter_map(|id| index.photo(PhotoId::new(*id)))
@@ -698,6 +730,10 @@ pub fn selection_summary(library: State<'_, Library>, ids: Vec<u32>) -> Selectio
                     .folder(photo.folder)
                     .is_some_and(|folder| folder.read_only)
             })
+            .count() as u32,
+        marked: ids
+            .iter()
+            .filter(|id| marked.contains(&PhotoId::new(**id)))
             .count() as u32,
     }
 }
@@ -1565,6 +1601,7 @@ pub async fn delete_photos(app: AppHandle, ids: Vec<u32>) -> Result<DeleteResult
             }
         }
         if !report.deleted.is_empty() {
+            library.settle_marks();
             library.save();
             let _ = LibraryChanged.emit(&app);
         }

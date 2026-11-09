@@ -138,6 +138,7 @@ describe("grid cell labels (ACC-2)", () => {
       rating: 4,
       edited: false,
       unreadable: false,
+      marked: false,
     };
     setRegion("en-US");
     expect(cellLabel(photo).replace(/\s/g, " ")).toBe("IMG_1.jpg, Jul 12, 2026, 6:42 PM, 4 stars");
@@ -145,5 +146,7 @@ describe("grid cell labels (ACC-2)", () => {
     expect(cellLabel({ ...photo, rating: 0 })).not.toMatch(/star/);
     expect(cellLabel({ ...photo, cloudOnly: true })).toMatch(/, 4 stars, in the cloud$/);
     expect(cellLabel(photo)).not.toMatch(/cloud/);
+    expect(cellLabel({ ...photo, marked: true })).toMatch(/, 4 stars, marked for deletion$/);
+    expect(cellLabel(photo)).not.toMatch(/marked/);
   });
 });

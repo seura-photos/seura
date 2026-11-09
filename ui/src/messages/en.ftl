@@ -683,6 +683,25 @@ review-tag-key = Tag (T)
 review-stars = Rating
 # Under the photo, when Enhance is applied.
 review-enhanced = Enhanced
+# Marking for deletion (REV-4): always "mark", since nothing is removed yet.
+review-mark = Mark to delete
+review-marked = Marked ✓
+review-mark-key = Mark to delete (X)
+review-unmark-key = Unmark (X)
+review-marked-banner = Marked for deletion · deleted only when you finish · X to unmark
+review-left-marked =
+    { $count ->
+        [one] 1 photo is still marked for deletion. Review it again to finish.
+       *[other] { $count } photos are still marked for deletion. Review them again to finish.
+    }
+mark-failed = Couldn't save that mark: { $reason }
+# A marked photo in the Library and Viewer (REV-6).
+grid-marked-tooltip = { $name } · Marked for deletion
+grid-cell-label-marked = { $label }, marked for deletion
+viewer-photo-marked = { $name }, marked for deletion
+info-marked = Marked for deletion
+info-marked-some = { $count } of { $total } marked for deletion
+info-unmark = Unmark
 # The rating, shown as stars under the photo.
 review-rating =
     { $stars ->

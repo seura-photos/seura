@@ -291,10 +291,10 @@ function Thumbnail({
       aria-label={cellLabel(photo)}
       data-index={index}
       data-photo={photo.id}
-      className="cell"
+      className={photo.marked ? "cell marked" : "cell"}
       style={{ width: size, height: size }}
       tabIndex={focusable ? 0 : -1}
-      title={photo.name}
+      title={photo.marked ? t("grid-marked-tooltip", { name: photo.name }) : photo.name}
       onClick={onClick}
       onDoubleClick={() => onOpen?.(photo)}
       onContextMenu={onMenu}

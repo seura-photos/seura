@@ -180,8 +180,11 @@ export type State = {
   /** Brings the batch up to date: a photo that has gone is skipped, and if
    * none are left the review ends. */
   refreshReview: () => Promise<void>;
-  /** Leaves the review: back to the grid with the last photo selected. */
+  /** Leaves the review: back to the grid with the last photo selected, and
+   * a message if any of its photos are still marked (REV-6). */
   closeReview: () => void;
+  /** Marks photos for deletion, or unmarks them (REV-4). Nothing moves. */
+  setMarked: (ids: number[], marked: boolean) => Promise<void>;
   /** Opens the Editor on a photo, or moves it to another (the filmstrip). */
   openEditor: (id: number) => void;
   /** Closes the Editor: back where it was opened, on the photo it ends on. */
@@ -860,8 +863,9 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   closeReview() {
-    const id = get().reviewing?.id;
-    if (id === undefined) return;
+    const review = get().reviewing;
+    if (!review) return;
+    const { id } = review;
     set(({ photos }) => ({
       reviewing: null,
       reveal: { id },
@@ -871,6 +875,24 @@ export const useStore = create<State>()((set, get) => ({
         id,
         { toggle: false, range: false },
       ),
+    }));
+    const left = review.photos.filter((photo) => photo.marked).length;
+    if (left > 0) get().say(t("review-left-marked", { count: left }));
+  },
+
+  async setMarked(ids, marked) {
+    const result = await commands.setMarked(ids, marked);
+    if (result.status === "error") {
+      get().say(t("mark-failed", { reason: result.error }));
+      return;
+    }
+    // Shown at once: leaving right after needs to know.
+    const chosen = new Set(ids);
+    const update = (photos: PhotoInfo[]) =>
+      photos.map((photo) => (chosen.has(photo.id) ? { ...photo, marked } : photo));
+    set(({ photos, reviewing }) => ({
+      photos: update(photos),
+      reviewing: reviewing && { ...reviewing, photos: update(reviewing.photos) },
     }));
   },
 

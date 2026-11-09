@@ -6,6 +6,7 @@ import { useStore } from "./store";
 
 const mocks = vi.hoisted(() => ({
   viewPhoto: vi.fn(),
+  setMarked: vi.fn((): Promise<unknown> => Promise.resolve({ status: "ok", data: null })),
   reviewPhotos: vi.fn<(ids: number[]) => Promise<unknown[]>>(),
   details: { enhanced: false, readOnly: false },
   photoDetails: vi.fn((id: number): Promise<unknown> =>
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("./bindings", () => ({
   commands: {
     viewPhoto: mocks.viewPhoto,
+    setMarked: mocks.setMarked,
     reviewPhotos: mocks.reviewPhotos,
     photoDetails: mocks.photoDetails,
     photoNotices: vi.fn(() =>
@@ -70,6 +72,7 @@ function photo(id: number, rating = 0): PhotoInfo {
     rating,
     edited: false,
     unreadable: false,
+    marked: false,
   };
 }
 
@@ -288,6 +291,7 @@ describe("Review (REV-1, REV-2)", () => {
         "Rotate right",
         "EditE",
         "TagT",
+        "Mark to deleteX",
         "EnhanceA",
         "Rate 1 star",
         "Rate 2 stars",
@@ -388,6 +392,90 @@ describe("Review (REV-1, REV-2)", () => {
       open();
       fireEvent.click(screen.getByRole("button", { name: /^Edit/ }));
       expect(useStore.getState().editing).toBe(1);
+    });
+  });
+
+  describe("marking for deletion (REV-4, REV-6)", () => {
+    const marked = () => useStore.getState().reviewing?.photos.filter((p) => p.marked);
+
+    it("marks with X, says so, and unmarks with X", async () => {
+      const { container } = open();
+      fireEvent.keyDown(window, { key: "x" });
+      await waitFor(() => expect(marked()?.map((p) => p.id)).toEqual([1]));
+      expect(mocks.setMarked).toHaveBeenCalledWith([1], true);
+      expect(screen.getByRole("button", { name: /^Marked ✓/ })).toBeTruthy();
+      expect(
+        screen.getByText("Marked for deletion · deleted only when you finish · X to unmark"),
+      ).toBeTruthy();
+      expect(container.querySelector(".viewer-stage.marked")).toBeTruthy();
+
+      fireEvent.keyDown(window, { key: "X" });
+      await waitFor(() => expect(marked()).toEqual([]));
+      expect(mocks.setMarked).toHaveBeenLastCalledWith([1], false);
+      expect(screen.getByRole("button", { name: /^Mark to delete/ })).toBeTruthy();
+      expect(container.querySelector(".viewer-stage.marked")).toBeNull();
+    });
+
+    it("marks with the button", async () => {
+      open();
+      fireEvent.click(screen.getByRole("button", { name: /^Mark to delete/ }));
+      await waitFor(() => expect(marked()).toHaveLength(1));
+    });
+
+    it("moves on from a mark only when asked", async () => {
+      open();
+      fireEvent.keyDown(window, { key: "x" });
+      await waitFor(() => expect(marked()).toHaveLength(1));
+      expect(shownId()).toBe(1);
+    });
+
+    it("says 'mark', never 'delete' alone, on the control", () => {
+      open();
+      const button = screen.getByRole("button", { name: /^Mark to delete/ });
+      expect(button.getAttribute("title")).toBe("Mark to delete (X)");
+    });
+
+    // CLAUDE.md, rule 5: nothing goes until the one confirmation.
+    it("doesn't delete with the Delete key", () => {
+      const askDelete = vi.fn(() => Promise.resolve());
+      useStore.setState({ askDelete });
+      open();
+      fireEvent.keyDown(window, { key: "Delete" });
+      expect(askDelete).not.toHaveBeenCalled();
+    });
+
+    it("says how many are still marked on leaving", async () => {
+      open();
+      fireEvent.keyDown(window, { key: "x" });
+      await waitFor(() => expect(marked()).toHaveLength(1));
+      fireEvent.keyDown(window, { key: "ArrowRight" });
+      fireEvent.keyDown(window, { key: "x" });
+      await waitFor(() => expect(marked()).toHaveLength(2));
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(useStore.getState().notice).toBe(
+        "2 photos are still marked for deletion. Review them again to finish.",
+      );
+    });
+
+    it("says nothing on leaving with no marks", () => {
+      open();
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(useStore.getState().notice).toBeNull();
+    });
+
+    it("shows a photo marked in an earlier review as marked", () => {
+      open([{ ...photo(1), marked: true }]);
+      expect(screen.getByRole("button", { name: /^Marked ✓/ })).toBeTruthy();
+    });
+
+    it("says so when a mark can't be saved, and leaves the photo as it was", async () => {
+      mocks.setMarked.mockResolvedValueOnce({ status: "error", error: "the disk is full" });
+      open();
+      fireEvent.keyDown(window, { key: "x" });
+      await waitFor(() =>
+        expect(useStore.getState().notice).toBe("Couldn't save that mark: the disk is full"),
+      );
+      expect(marked()).toEqual([]);
     });
   });
 });
