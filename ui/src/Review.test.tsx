@@ -7,8 +7,9 @@ import { useStore } from "./store";
 const mocks = vi.hoisted(() => ({
   viewPhoto: vi.fn(),
   reviewPhotos: vi.fn<(ids: number[]) => Promise<unknown[]>>(),
-  photoDetails: vi.fn(() =>
-    Promise.resolve({ status: "ok", data: { tags: ["flowers", "garden"] } }),
+  details: { enhanced: false, readOnly: false },
+  photoDetails: vi.fn((id: number): Promise<unknown> =>
+    Promise.resolve({ status: "error", error: String(id) }),
   ),
   fetchLinear: vi.fn(() =>
     Promise.resolve({ width: 800, height: 600, data: new Uint16Array(800 * 600 * 4) }),
@@ -21,6 +22,9 @@ vi.mock("./bindings", () => ({
     viewPhoto: mocks.viewPhoto,
     reviewPhotos: mocks.reviewPhotos,
     photoDetails: mocks.photoDetails,
+    photoNotices: vi.fn(() =>
+      Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
+    ),
     closeViewer: vi.fn(() => Promise.resolve(null)),
   },
 }));
@@ -77,8 +81,18 @@ function open(photos = [photo(1), photo(2), photo(3)]) {
 
 const shownId = () => useStore.getState().reviewing?.id;
 
+/** The core says the library changed, as App passes on. */
+const changed = () => act(() => useStore.getState().refreshReview());
+
 describe("Review (REV-1, REV-2)", () => {
   beforeEach(() => {
+    mocks.details = { enhanced: false, readOnly: false };
+    mocks.photoDetails.mockImplementation((id: number) =>
+      Promise.resolve({
+        status: "ok",
+        data: { id, tags: ["flowers", "garden"], ...mocks.details },
+      }),
+    );
     mocks.viewPhoto.mockImplementation(() =>
       Promise.resolve({
         status: "ok",
@@ -209,7 +223,8 @@ describe("Review (REV-1, REV-2)", () => {
     open();
     fireEvent.keyDown(window, { key: "ArrowRight" });
     mocks.reviewPhotos.mockResolvedValue([photo(1), photo(2, 1), photo(3)]);
-    act(() => useStore.setState({ photos: [photo(1), photo(3)], libraryVersion: 1 }));
+    useStore.setState({ photos: [photo(1), photo(3)] });
+    await changed();
     await waitFor(() => expect(useStore.getState().reviewing?.photos[1]?.rating).toBe(1));
     expect(shownId()).toBe(2);
     expect(screen.getByText("2 of 3")).toBeTruthy();
@@ -219,7 +234,7 @@ describe("Review (REV-1, REV-2)", () => {
     open();
     fireEvent.keyDown(window, { key: "ArrowRight" });
     mocks.reviewPhotos.mockResolvedValue([photo(1), photo(3)]);
-    act(() => useStore.setState({ libraryVersion: 1 }));
+    await changed();
     await waitFor(() => expect(shownId()).toBe(3));
     expect(screen.getByText("2 of 2")).toBeTruthy();
   });
@@ -228,24 +243,151 @@ describe("Review (REV-1, REV-2)", () => {
     open();
     fireEvent.keyDown(window, { key: "End" });
     mocks.reviewPhotos.mockResolvedValue([photo(1), photo(2)]);
-    act(() => useStore.setState({ libraryVersion: 1 }));
+    await changed();
     await waitFor(() => expect(shownId()).toBe(2));
   });
 
   it("ends when no photos are left", async () => {
     open();
     mocks.reviewPhotos.mockResolvedValue([]);
-    act(() => useStore.setState({ libraryVersion: 1 }));
+    await changed();
     await waitFor(() => expect(useStore.getState().reviewing).toBeNull());
   });
 
   it("doesn't count a photo that arrives during the review", async () => {
     open();
     mocks.reviewPhotos.mockResolvedValue([photo(1), photo(2), photo(3)]);
-    act(() =>
-      useStore.setState({ photos: [photo(1), photo(2), photo(3), photo(4)], libraryVersion: 1 }),
-    );
+    useStore.setState({ photos: [photo(1), photo(2), photo(3), photo(4)] });
+    await changed();
     await waitFor(() => expect(mocks.reviewPhotos).toHaveBeenCalledWith([1, 2, 3]));
     expect(screen.getByText("1 of 3")).toBeTruthy();
+  });
+
+  describe("actions (REV-3)", () => {
+    function withActions() {
+      const actions = {
+        rate: vi.fn(() => Promise.resolve()),
+        rotate: vi.fn(() => Promise.resolve()),
+        enhance: vi.fn(() => Promise.resolve()),
+        openPicker: vi.fn(() => Promise.resolve()),
+        undo: vi.fn(() => Promise.resolve()),
+        redo: vi.fn(() => Promise.resolve()),
+      };
+      useStore.setState(actions);
+      return actions;
+    }
+
+    it("has the action bar in the wireframes' order", () => {
+      const { container } = open();
+      const names = [...container.querySelectorAll(".review-actions button")].map(
+        (button) => button.getAttribute("aria-label") ?? button.textContent,
+      );
+      expect(names).toEqual([
+        "Back",
+        "Rotate left",
+        "Rotate right",
+        "EditE",
+        "TagT",
+        "EnhanceA",
+        "Rate 1 star",
+        "Rate 2 stars",
+        "Rate 3 stars",
+        "Rate 4 stars",
+        "Rate 5 stars",
+        "Next",
+      ]);
+    });
+
+    it("rotates, enhances and rates by key, on the photo shown, and says so", () => {
+      const actions = withActions();
+      open();
+      fireEvent.keyDown(window, { key: "ArrowRight" });
+      fireEvent.keyDown(window, { key: "[" });
+      expect(actions.rotate).toHaveBeenCalledWith([2], false, true);
+      fireEvent.keyDown(window, { key: "]" });
+      expect(actions.rotate).toHaveBeenCalledWith([2], true, true);
+      fireEvent.keyDown(window, { key: "a" });
+      expect(actions.enhance).toHaveBeenCalledWith([2], true);
+      fireEvent.keyDown(window, { key: "4" });
+      expect(actions.rate).toHaveBeenCalledWith([2], 4, true);
+      fireEvent.keyDown(window, { key: "0" });
+      expect(actions.rate).toHaveBeenCalledWith([2], 0, true);
+    });
+
+    it("stays on the photo after a rating (question 13)", () => {
+      withActions();
+      open();
+      fireEvent.keyDown(window, { key: "3" });
+      expect(shownId()).toBe(1);
+    });
+
+    it("rotates and enhances by button", () => {
+      const actions = withActions();
+      open();
+      fireEvent.click(screen.getByRole("button", { name: "Rotate left" }));
+      expect(actions.rotate).toHaveBeenCalledWith([1], false, false);
+      fireEvent.click(screen.getByRole("button", { name: /^Enhance/ }));
+      expect(actions.enhance).toHaveBeenCalledWith([1], false);
+    });
+
+    it("rates with the stars, and clears with the current one", () => {
+      const actions = withActions();
+      open([photo(1, 3)]);
+      fireEvent.click(screen.getByRole("button", { name: "Rate 5 stars" }));
+      expect(actions.rate).toHaveBeenCalledWith([1], 5);
+      fireEvent.click(screen.getByRole("button", { name: "Clear rating" }));
+      expect(actions.rate).toHaveBeenCalledWith([1], 0);
+    });
+
+    it("opens the tag picker by key and by button, beside the button", () => {
+      const actions = withActions();
+      open();
+      fireEvent.keyDown(window, { key: "t" });
+      fireEvent.click(screen.getByRole("button", { name: /^Tag/ }));
+      expect(actions.openPicker).toHaveBeenCalledTimes(2);
+      expect(actions.openPicker.mock.calls[0]?.[0 as never]).toEqual([1]);
+    });
+
+    it("undoes and redoes as in the Library", () => {
+      const actions = withActions();
+      open();
+      fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+      expect(actions.undo).toHaveBeenCalled();
+      fireEvent.keyDown(window, { key: "z", ctrlKey: true, shiftKey: true });
+      expect(actions.redo).toHaveBeenCalled();
+    });
+
+    it("says Enhanced when Enhance is applied", async () => {
+      mocks.details.enhanced = true;
+      open();
+      expect(await screen.findByText("Enhanced")).toBeTruthy();
+    });
+
+    it("doesn't offer stars in a read-only folder", async () => {
+      mocks.details.readOnly = true;
+      open();
+      const star = screen.getByRole<HTMLButtonElement>("button", { name: "Rate 1 star" });
+      await waitFor(() => expect(star.disabled).toBe(true));
+    });
+
+    it("opens the Editor and returns to the review, on the photo it ended on", () => {
+      open();
+      fireEvent.keyDown(window, { key: "e" });
+      expect(useStore.getState().editing).toBe(1);
+      expect(useStore.getState().editedFrom).toBe("review");
+      // The filmstrip moved on.
+      useStore.getState().openEditor(3);
+      useStore.getState().closeEditor();
+      const state = useStore.getState();
+      expect(state.editing).toBeNull();
+      expect(state.reviewing?.id).toBe(3);
+      expect(state.viewing).toBeNull();
+    });
+
+    it("opens the Editor by button", () => {
+      open();
+      fireEvent.click(screen.getByRole("button", { name: /^Edit/ }));
+      expect(useStore.getState().editing).toBe(1);
+    });
   });
 });

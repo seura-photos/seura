@@ -140,7 +140,10 @@ type Status = { id: number } & (
 export function Editor({ id, forceWebgl2 }: Props) {
   const askExport = useStore((state) => state.askExport);
   const copyEdits = useStore((state) => state.copyEdits);
-  const photos = useStore((state) => state.photos);
+  // The filmstrip's photos: from a review, its batch (REV-3).
+  const photos = useStore((state) =>
+    state.editedFrom === "review" && state.reviewing ? state.reviewing.photos : state.photos,
+  );
   const openEditor = useStore((state) => state.openEditor);
   const closeEditor = useStore((state) => state.closeEditor);
   const say = useStore((state) => state.say);

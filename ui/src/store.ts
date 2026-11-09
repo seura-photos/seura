@@ -94,8 +94,9 @@ export type State = {
    * the order it started with, since a rating or a tag can take a photo out
    * of the grid's filter, and the photo shown, by id. */
   reviewing: { title: string; photos: PhotoInfo[]; id: number } | null;
-  /** Where Done goes back to: the Viewer, or the grid (user flows, flow 4). */
-  editedFrom: "viewer" | "library";
+  /** Where Done goes back to: the Viewer, a review, or the grid (user
+   * flows, flow 4). */
+  editedFrom: "viewer" | "review" | "library";
   /** The open Editor's undo (`true`) and redo, for the Edit menu's (EDT-9). */
   editorStep: ((undo: boolean) => void) | null;
   /** Saves the open Editor's waiting change, for quitting (EDT-11). */
@@ -874,17 +875,23 @@ export const useStore = create<State>()((set, get) => ({
   },
 
   openEditor(id) {
-    const { editing, viewing } = get();
+    const { editing, reviewing, viewing } = get();
     if (editing !== null) set({ editing: id });
-    else set({ editing: id, editedFrom: viewing !== null ? "viewer" : "library" });
+    else
+      set({
+        editing: id,
+        editedFrom: reviewing ? "review" : viewing !== null ? "viewer" : "library",
+      });
   },
 
   closeEditor() {
-    const { editing, editedFrom } = get();
+    const { editing, editedFrom, reviewing } = get();
     if (editing === null) return;
-    // The Viewer shows the photo the Editor ends on; the grid selects it
-    // and scrolls to it, as when the Viewer closes.
+    // The Viewer or the review shows the photo the Editor ends on (REV-3);
+    // the grid selects it and scrolls to it, as when the Viewer closes.
     if (editedFrom === "viewer") set({ editing: null, viewing: editing });
+    else if (editedFrom === "review" && reviewing)
+      set({ editing: null, reviewing: { ...reviewing, id: editing } });
     else
       set(({ photos }) => ({
         editing: null,

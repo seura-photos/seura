@@ -1612,10 +1612,6 @@ img.thumbnail-loading {
   background: var(--color-photo);
 }
 
-.review-stage {
-  grid-area: stage;
-}
-
 .review-position {
   margin-left: auto;
   white-space: nowrap;
@@ -1661,10 +1657,48 @@ img.thumbnail-loading {
   justify-content: center;
   align-items: center;
   gap: 0.75rem;
+  box-sizing: border-box;
   height: 4rem;
   padding: 0 1rem;
   background: var(--color-panel);
   border-top: 1px solid var(--color-border);
+}
+
+/* A label with its key beneath, or an icon with its key. */
+.review-action {
+  flex-direction: column;
+  justify-content: center;
+  gap: 0;
+  min-height: 3.25rem;
+  min-width: 3.25rem;
+  padding: 0 0.75rem;
+}
+
+.review-key {
+  font-size: var(--type-meta-size);
+  color: var(--color-text-secondary);
+}
+
+.review-action.primary .review-key {
+  color: inherit;
+}
+
+/* The stars stay beside Next, so the pointer has little to travel (INT-5). */
+.review-stars {
+  gap: 0;
+  margin-left: 0.75rem;
+}
+
+.review-stars .star-button {
+  width: 2.75rem;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.review-stars .star {
+  width: 1.75rem;
+  height: 1.75rem;
 }
 
 .review-next {

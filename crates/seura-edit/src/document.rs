@@ -393,6 +393,15 @@ impl EditDocument {
             .map_or(0, |history| history.iter().filter(|r| is_undone(r)).count())
     }
 
+    /// Whether an action with this label is in the history and not undone.
+    pub fn has_applied(&self, label: &str) -> bool {
+        self.history().is_some_and(|history| {
+            history
+                .iter()
+                .any(|r| !is_undone(r) && r.get("label").and_then(Value::as_str) == Some(label))
+        })
+    }
+
     /// The change [`EditDocument::undo`] would undo next: the last history
     /// record that isn't undone. For checking that it's still the one an
     /// action wrote (BRW-11).

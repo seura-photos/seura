@@ -138,6 +138,19 @@ fn history_records_each_action_and_is_capped() {
 }
 
 #[test]
+fn an_action_counts_as_applied_until_it_is_undone() {
+    let mut document = EditDocument::new_for_photo(&photo());
+    assert!(!document.has_applied("Enhance"));
+    document
+        .apply(&act("Enhance", vec![exposure(0.5)]), now())
+        .unwrap();
+    assert!(document.has_applied("Enhance"));
+    assert!(!document.has_applied("Exposure"));
+    document.undo().unwrap();
+    assert!(!document.has_applied("Enhance"));
+}
+
+#[test]
 fn undo_and_redo_restore_settings_tags_and_rating() {
     let mut document = EditDocument::new_for_photo(&photo());
     document

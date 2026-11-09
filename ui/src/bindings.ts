@@ -936,6 +936,8 @@ export type PhotoDetails = {
 	tags: string[],
 	edited: boolean,
 	unreadable: boolean,
+	/**  Enhance is applied (REV-2): in its history and not undone. */
+	enhanced: boolean,
 	/**  In a read-only folder: it can't be tagged or rated (TAG-7). */
 	readOnly: boolean,
 	/**

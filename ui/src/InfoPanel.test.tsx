@@ -34,6 +34,7 @@ function details(overrides: Partial<PhotoDetails> = {}): PhotoDetails {
     rating: 4,
     tags: ["family/kids", "vacation/2026"],
     edited: true,
+    enhanced: false,
     unreadable: false,
     readOnly: false,
     cloudOnly: false,

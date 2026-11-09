@@ -1,11 +1,23 @@
-import { ArrowLeft, ArrowRight, ChevronLeft } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronLeft, RotateCcwSquare, RotateCwSquare } from "lucide-react";
 import { type MouseEvent, useEffect, useEffectEvent, useRef, useState } from "react";
-import { commands } from "./bindings";
+import { commands, type PhotoDetails } from "./bindings";
 import { CloudPhoto } from "./CloudPhoto";
 import { formatDate, formatDateTime } from "./format";
-import { isSelectAll, isTyping } from "./keys";
+import {
+  historyKey,
+  isEditKey,
+  isSelectAll,
+  isTagKey,
+  isTyping,
+  quickKey,
+  ratingKey,
+} from "./keys";
+import { Message } from "./Message";
 import { t } from "./messages";
-import { useStore } from "./store";
+import { NoticeBar } from "./NoticeBar";
+import type { Quick } from "./QuickActions";
+import { Stars } from "./Stars";
+import { anchorOf, useStore } from "./store";
 import { useShownPhoto } from "./useShownPhoto";
 import { useZoom } from "./useZoom";
 
@@ -22,11 +34,16 @@ type Props = {
 export function Review({ forceWebgl2 }: Props) {
   const review = useStore((state) => state.reviewing);
   const reviewTo = useStore((state) => state.reviewTo);
-  const refreshReview = useStore((state) => state.refreshReview);
   const closeReview = useStore((state) => state.closeReview);
+  const openEditor = useStore((state) => state.openEditor);
+  const openPicker = useStore((state) => state.openPicker);
+  const rate = useStore((state) => state.rate);
   const libraryVersion = useStore((state) => state.libraryVersion);
+  // Only messages from while it's open: earlier ones were about the Library.
+  const [openedAt] = useState(() => useStore.getState().noticeId);
   const root = useRef<HTMLDivElement>(null);
-  const [details, setDetails] = useState<{ id: number; tags: string[] } | null>(null);
+  const tagButton = useRef<HTMLButtonElement>(null);
+  const [details, setDetails] = useState<PhotoDetails | null>(null);
 
   const photos = review?.photos ?? [];
   const id = review?.id ?? null;
@@ -57,21 +74,30 @@ export function Review({ forceWebgl2 }: Props) {
     root.current?.focus();
   }, []);
 
-  // A change anywhere in the library may be to these photos.
-  useEffect(() => {
-    if (libraryVersion > 0) void refreshReview();
-  }, [libraryVersion, refreshReview]);
-
   useEffect(() => {
     if (id === null) return;
     let live = true;
     void commands.photoDetails(id).then((result) => {
-      if (live && result.status === "ok") setDetails({ id, tags: result.data.tags });
+      if (live && result.status === "ok") setDetails(result.data);
     });
     return () => {
       live = false;
     };
   }, [id, libraryVersion]);
+
+  /** Rotates or enhances the photo shown (REV-3); a key says what it did
+   * (INT-6). */
+  function quickAction(action: Quick, byKey = false) {
+    if (!photo) return;
+    const store = useStore.getState();
+    if (action === "enhance") void store.enhance([photo.id], byKey);
+    else void store.rotate([photo.id], action === "right", byKey);
+  }
+
+  /** The tag picker, beside the Tag button (REV-3). */
+  function openTags() {
+    if (photo && tagButton.current) void openPicker([photo.id], anchorOf(tagButton.current));
+  }
 
   /** Jumps to the part of the batch that was clicked (REV-2). */
   function jump(event: MouseEvent<HTMLDivElement>) {
@@ -87,14 +113,26 @@ export function Review({ forceWebgl2 }: Props) {
       event.preventDefault();
       return;
     }
+    const history = historyKey(event);
+    if (history !== null) {
+      event.preventDefault();
+      void useStore.getState()[history]();
+      return;
+    }
     if (event.altKey || event.ctrlKey || event.metaKey || isTyping(event)) return;
     const first = photos[0];
     const last = photos[photos.length - 1];
+    const stars = ratingKey(event);
+    const quick = quickKey(event);
     if (event.key === "ArrowLeft" && previous) reviewTo(previous.id);
     else if (event.key === "ArrowRight" && next) reviewTo(next.id);
     else if (event.key === "Home" && first) reviewTo(first.id);
     else if (event.key === "End" && last) reviewTo(last.id);
     else if (event.key === "Escape") closeReview();
+    else if (photo && isEditKey(event)) openEditor(photo.id);
+    else if (photo && quick !== null) quickAction(quick, true);
+    else if (photo && stars !== null) void rate([photo.id], stars, true);
+    else if (photo && isTagKey(event)) openTags();
     else return;
     event.preventDefault();
   });
@@ -106,7 +144,10 @@ export function Review({ forceWebgl2 }: Props) {
 
   if (!review || !photo) return null;
 
-  const tags = details?.id === photo.id ? details.tags : [];
+  const known = details?.id === photo.id ? details : null;
+  const tags = known?.tags ?? [];
+  const enhanced = known?.enhanced ?? false;
+  const readOnly = known?.readOnly ?? false;
   const date =
     photo.taken !== null
       ? formatDate(photo.taken)
@@ -140,20 +181,24 @@ export function Review({ forceWebgl2 }: Props) {
         </div>
       </header>
 
-      <div ref={stage} className="viewer-stage review-stage">
-        <canvas
-          ref={canvas}
-          className="viewer-photo"
-          aria-label={t("viewer-photo", { name: photo.name })}
-          hidden={whole === null || covered}
-          style={whole ?? undefined}
-        />
-        {cloud && <CloudPhoto id={photo.id} state={cloud} onTryAgain={tryAgain} />}
-        {message !== null && (
-          <div className="viewer-message" role="status">
-            <p>{message}</p>
-          </div>
-        )}
+      <div className="viewer-main">
+        <NoticeBar ids={[photo.id]} photos={photos} />
+        <div ref={stage} className="viewer-stage">
+          <canvas
+            ref={canvas}
+            className="viewer-photo"
+            aria-label={t("viewer-photo", { name: photo.name })}
+            hidden={whole === null || covered}
+            style={whole ?? undefined}
+          />
+          {cloud && <CloudPhoto id={photo.id} state={cloud} onTryAgain={tryAgain} />}
+          {message !== null && (
+            <div className="viewer-message" role="status">
+              <p>{message}</p>
+            </div>
+          )}
+        </div>
+        <Message since={openedAt} />
       </div>
 
       <p className="review-line">
@@ -169,9 +214,11 @@ export function Review({ forceWebgl2 }: Props) {
           </span>
         )}
         {tags.length > 0 && <span className="meta review-tags">{tags.join(", ")}</span>}
+        {enhanced && <span className="meta">{t("review-enhanced")}</span>}
       </p>
 
-      {/* The rest of the actions come between these (REV-3; wireframes). */}
+      {/* From least to most likely, so the pointer moves right through the
+          flow (REV-3; wireframes, section 3; INT-5). */}
       <footer className="review-actions">
         <button
           type="button"
@@ -182,6 +229,72 @@ export function Review({ forceWebgl2 }: Props) {
           <ArrowLeft className="icon" aria-hidden />
           {t("review-back")}
         </button>
+        <button
+          type="button"
+          className="button review-action"
+          aria-label={t("quick-rotate-left")}
+          aria-keyshortcuts="["
+          title={t("quick-rotate-left-key")}
+          onClick={() => quickAction("left")}
+        >
+          <RotateCcwSquare className="icon" aria-hidden />
+          <span className="review-key" aria-hidden>
+            [
+          </span>
+        </button>
+        <button
+          type="button"
+          className="button review-action"
+          aria-label={t("quick-rotate-right")}
+          aria-keyshortcuts="]"
+          title={t("quick-rotate-right-key")}
+          onClick={() => quickAction("right")}
+        >
+          <RotateCwSquare className="icon" aria-hidden />
+          <span className="review-key" aria-hidden>
+            ]
+          </span>
+        </button>
+        <button
+          type="button"
+          className="button review-action"
+          aria-keyshortcuts="E"
+          title={t("review-edit-key")}
+          onClick={() => openEditor(photo.id)}
+        >
+          {t("review-edit")}
+          <span className="review-key" aria-hidden>
+            E
+          </span>
+        </button>
+        <button
+          ref={tagButton}
+          type="button"
+          className="button review-action"
+          aria-keyshortcuts="T"
+          title={t("review-tag-key")}
+          onClick={openTags}
+        >
+          {t("review-tag")}
+          <span className="review-key" aria-hidden>
+            T
+          </span>
+        </button>
+        <button
+          type="button"
+          className="button review-action"
+          aria-keyshortcuts="A"
+          title={t("quick-enhance-key")}
+          onClick={() => quickAction("enhance")}
+        >
+          {t("quick-enhance")}
+          <span className="review-key" aria-hidden>
+            A
+          </span>
+        </button>
+        <div className="info-stars review-stars" role="group" aria-label={t("review-stars")}>
+          <Stars ids={[photo.id]} rating={photo.rating} disabled={readOnly} />
+        </div>
         <button
           type="button"
           className="button primary review-action review-next"
