@@ -12,7 +12,8 @@ import { noFilter, useStore } from "./store";
  * - PRF-3: when the cache is empty, the first scan and its thumbnails;
  * - PRF-2: opening the largest folder until its visible thumbnails are in;
  * - PRF-4: scrolling the grid for a few seconds, frame by frame;
- * - PRF-5: moving to the next photo in the Viewer, until it's drawn;
+ * - PRF-5: moving to the next photo in the Viewer, and in Review, until it's
+ *   drawn;
  * - FND-3: typing a search a letter at a time, until each result is drawn;
  * - PRF-7: memory (added by the core).
  */
@@ -32,6 +33,7 @@ export async function measure(): Promise<void> {
     report.openFolder = await openLargestFolder();
     report.scroll = await scroll(5_000);
     report.nextPhoto = await nextPhotos(20);
+    report.nextInReview = await nextInReview(20);
     report.search = await searchAsTyped("img_01234");
   } catch (error) {
     report.error = String(error);
@@ -97,7 +99,9 @@ export async function measureSliders(): Promise<void> {
  * saves its edits as a preset, applies that to every photo, and exports them
  * all as JPEGs at their own size, timing the export: the spec sets no target
  * for it. It also leaves the measurement's Seura folder holding a preset, and
- * its export folder the exported files, for the app-data audit (#225).
+ * its export folder the exported files, for the app-data audit (#225). After
+ * the export it marks one photo for deletion and rates another, as a review
+ * does, so the audit sees those written too (M6 slice 7).
  */
 export async function measureExport(): Promise<void> {
   const report: Record<string, unknown> = {};
@@ -142,6 +146,9 @@ export async function measureExport(): Promise<void> {
       msPerPhoto: round(ms / ids.length),
       quality: choices.quality,
     };
+    const marked = await commands.setMarked([first], true);
+    if (marked.status === "error") throw new Error(marked.error);
+    await useStore.getState().rate(ids.slice(1, 2), 4);
   } catch (error) {
     report.error = String(error);
   }
@@ -368,21 +375,42 @@ async function scroll(duration: number) {
 async function nextPhotos(count: number) {
   const { photos, view, closeViewer } = useStore.getState();
   const ids = photos.slice(0, count + 1).map((photo) => photo.id);
+  const result = await timeMoves(ids, view, view);
+  closeViewer();
+  return result;
+}
+
+/** The same in Review, which is held to the same target (PRF-5, M6 slice 7). */
+async function nextInReview(count: number) {
+  const { photos, beginReview, reviewTo, closeReview } = useStore.getState();
+  const batch = photos.slice(0, count + 1);
+  const result = await timeMoves(
+    batch.map((photo) => photo.id),
+    () => beginReview("Measure", batch),
+    reviewTo,
+  );
+  closeReview();
+  await nextFrame();
+  return result;
+}
+
+/** Opens the first of `ids`, then moves through the rest, timing each until
+ * its photo is drawn. */
+async function timeMoves(ids: number[], open: (id: number) => void, move: (id: number) => void) {
   const [first] = ids;
   if (first === undefined) throw new Error("no photos");
   let started = performance.now();
-  view(first);
+  open(first);
   await shown(first);
   const openMs = performance.now() - started;
   const moves: number[] = [];
   for (const id of ids.slice(1)) {
     await sleep(500);
     started = performance.now();
-    view(id);
+    move(id);
     await shown(id);
     moves.push(performance.now() - started);
   }
-  closeViewer();
   const sorted = [...moves].sort((a, b) => a - b);
   return {
     openMs: round(openMs),
