@@ -1750,6 +1750,7 @@ img.thumbnail-loading {
 }
 
 .review-marked-banner {
+  z-index: 1;
   position: absolute;
   top: 0.75rem;
   left: 50%;
