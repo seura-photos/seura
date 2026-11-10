@@ -1750,6 +1750,7 @@ img.thumbnail-loading {
 }
 
 .review-marked-banner {
+  z-index: 1;
   position: absolute;
   top: 0.75rem;
   left: 50%;
@@ -2065,6 +2066,10 @@ img.thumbnail-loading {
   object-fit: contain;
   filter: blur(12px);
   opacity: 0.7;
+}
+
+.viewer-thumbnail.marked {
+  filter: blur(12px) brightness(0.5);
 }
 
 .viewer-message {

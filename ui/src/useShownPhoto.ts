@@ -21,6 +21,7 @@ type Status =
   | { kind: "shown"; id: number; full: Size; settings: RenderSettings }
   | { kind: "downloading"; size: number }
   | { kind: "downloadFailed" }
+  | { kind: "inCloud"; size: number }
   | { kind: "failed"; reason: string };
 
 /**
@@ -30,7 +31,13 @@ type Status =
  * Shared by the Viewer and Review. A second canvas, for the sharp part while
  * zoomed in, is optional; the Viewer has one.
  */
-export function useShownPhoto(id: number | null, neighbors: number[], forceWebgl2: boolean) {
+export function useShownPhoto(
+  id: number | null,
+  neighbors: number[],
+  forceWebgl2: boolean,
+  /** False leaves a cloud-only photo in the cloud, shown by its thumbnail. */
+  download = true,
+) {
   const libraryVersion = useStore((state) => state.libraryVersion);
 
   const stage = useRef<HTMLDivElement>(null);
@@ -122,6 +129,10 @@ export function useShownPhoto(id: number | null, neighbors: number[], forceWebgl
       let result = await ask(false);
       if (!live) return;
       if (result.status === "ok" && result.data.kind === "cloudOnly") {
+        if (!download) {
+          setStatus({ kind: "inCloud", size: result.data.size ?? 0 });
+          return;
+        }
         setStatus({ kind: "downloading", size: result.data.size ?? 0 });
         result = await ask(true);
         if (!live) return;
@@ -172,10 +183,13 @@ export function useShownPhoto(id: number | null, neighbors: number[], forceWebgl
     return () => {
       live = false;
     };
-  }, [id, neighborKey, settled, scale, attempt, libraryVersion]);
+  }, [id, neighborKey, settled, scale, attempt, libraryVersion, download]);
 
   const shown = status.kind === "shown" && status.id === id ? status : null;
-  const cloud = status.kind === "downloading" || status.kind === "downloadFailed" ? status : null;
+  const cloud =
+    status.kind === "downloading" || status.kind === "downloadFailed" || status.kind === "inCloud"
+      ? status
+      : null;
   const message =
     status.kind === "failed"
       ? t("viewer-failed", { reason: status.reason })
@@ -205,7 +219,8 @@ export function useShownPhoto(id: number | null, neighbors: number[], forceWebgl
     showDetail,
     area,
     shown,
-    /** The photo is in the cloud: downloading, or the download failed. */
+    /** The photo is in the cloud: downloading, the download failed, or
+     * left there. */
     cloud,
     /** Why the photo can't be shown, if it can't. */
     message,

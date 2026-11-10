@@ -119,6 +119,19 @@ export const commands = {
 	 *  counted, and Editor changes are, as any other.
 	 */
 	reviewCounts: (ids: number[], since: number | null) => __TAURI_INVOKE<ReviewCounts>("review_counts", { ids, since }),
+	/**  What's in the cloud among the photos a review is about to show. */
+	reviewCloud: (ids: number[]) => __TAURI_INVOKE<ReviewCloud>("review_cloud", { ids }),
+	/**
+	 *  Fetches these photos ahead of a review, replacing the list before: an
+	 *  empty list stops fetching (REV-2, LIB-9).
+	 */
+	downloadAhead: (ids: number[]) => __TAURI_INVOKE<void>("download_ahead", { ids }),
+	/**
+	 *  Downloads marked photos in the cloud, after the user has confirmed moving
+	 *  them to the Recycle Bin or Trash (REV-4, BRW-9). [`stop_downloads`] ends
+	 *  it early, and what hasn't arrived stays as it is.
+	 */
+	downloadPhotos: (ids: number[]) => typedError<EnhanceReport, string>(__TAURI_INVOKE("download_photos", { ids })),
 	/**
 	 *  Marks photos for deletion, or unmarks them (REV-4). Nothing moves until
 	 *  the review's one confirmation.
@@ -554,6 +567,12 @@ export type Deleting = {
 	 *  Bin or Trash (journal, `2026-10-26-trash-measurements.md`).
 	 */
 	cloudOnly: number,
+	/**
+	 *  Their total size in bytes and their service, for a review to say what
+	 *  downloading them involves (REV-4).
+	 */
+	cloudSize: number | null,
+	cloudService: string | null,
 	/**
 	 *  Left as they are: on a drive with no Recycle Bin, such as a USB stick
 	 *  or a network share.
@@ -1207,6 +1226,13 @@ export type RenderSettings = {
 	vignetteSize: number | null,
 	/**  `seura.redEye`'s circles (EDT-7). */
 	redEye: RedEyeCircle[],
+};
+
+/**  How much of a review's batch is in the cloud, for its one question (REV-2). */
+export type ReviewCloud = {
+	cloudOnly: number,
+	/**  In bytes. */
+	cloudSize: number | null,
 };
 
 /**  How many of a review's photos it changed (REV-5). */

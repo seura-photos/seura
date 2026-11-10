@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { About } from "./About";
 import { commands, events } from "./bindings";
 import { ConfirmDelete } from "./ConfirmDelete";
+import { ConfirmReview } from "./ConfirmReview";
 import { ConfirmEnhance } from "./ConfirmEnhance";
 import { ConfirmOpen } from "./ConfirmOpen";
 import { Editor } from "./Editor";
@@ -168,6 +169,7 @@ export function App() {
       <ConfirmOpen />
       <ConfirmEnhance />
       <ConfirmDelete />
+      <ConfirmReview />
       <ExportDialog />
       <ExportSummary />
       <PasteDialog />

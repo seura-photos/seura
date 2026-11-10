@@ -14,6 +14,8 @@ vi.mock("./bindings", () => ({
           deleted: 1,
           readOnly: 0,
           cloudOnly: 0,
+          cloudSize: 0,
+          cloudService: null,
           noTrash: 0,
           fileProvider: 2,
           failed: 0,
@@ -33,6 +35,8 @@ const summary: Deleting = {
   service: null,
   readOnly: 0,
   cloudOnly: 0,
+  cloudSize: 0,
+  cloudService: null,
   noTrash: 0,
   fileProvider: [2, 3],
   fileProviderService: "OneDrive",
@@ -46,7 +50,10 @@ describe("photos macOS won't let Seura move to the Trash (#112)", () => {
 
   it("are left as they are, with Show in Finder", () => {
     const showInFolder = vi.fn(() => Promise.resolve());
-    useStore.setState({ confirmingDelete: { ids: [1, 2, 3], summary }, showInFolder });
+    useStore.setState({
+      confirmingDelete: { ids: [1, 2, 3], summary, download: false },
+      showInFolder,
+    });
     render(<ConfirmDelete />);
     expect(
       screen.getByText(
@@ -59,7 +66,7 @@ describe("photos macOS won't let Seura move to the Trash (#112)", () => {
   });
 
   it("are named in the message after deleting the rest", async () => {
-    useStore.setState({ confirmingDelete: { ids: [1, 2, 3], summary } });
+    useStore.setState({ confirmingDelete: { ids: [1, 2, 3], summary, download: false } });
     await useStore.getState().confirmDelete(true);
     expect(useStore.getState().notice).toContain(
       "2 photos are in OneDrive, where macOS doesn't let Seura Photos move photos to the Trash",

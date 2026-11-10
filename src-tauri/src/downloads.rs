@@ -2,6 +2,7 @@
 //! cloud-only file is what downloads it; neither system reports how far it
 //! has got, so this only waits, and can stop waiting.
 
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -24,9 +25,43 @@ pub enum Downloaded {
     Stopped,
 }
 
+/// The photos to fetch ahead of a review (REV-2, LIB-9), by one worker, so
+/// they arrive one at a time. A new list replaces the old: moving on, or
+/// jumping, moves the window.
+#[derive(Debug, Default)]
+pub struct Ahead {
+    state: Mutex<AheadState>,
+}
+
+#[derive(Debug, Default)]
+struct AheadState {
+    wanted: VecDeque<u32>,
+    running: bool,
+}
+
+impl Ahead {
+    /// Replaces the list. True if the caller should start the worker.
+    pub fn want(&self, ids: Vec<u32>) -> bool {
+        let mut state = self.state.lock().expect("ahead lock");
+        state.wanted = ids.into();
+        let start = !state.running && !state.wanted.is_empty();
+        state.running |= start;
+        start
+    }
+
+    /// The next photo for the worker. With none, the worker is over.
+    pub fn next(&self) -> Option<u32> {
+        let mut state = self.state.lock().expect("ahead lock");
+        let next = state.wanted.pop_front();
+        state.running = next.is_some();
+        next
+    }
+}
+
 /// Whose turn it is to download, and which batches the user has stopped.
 #[derive(Debug, Default)]
 pub struct Downloads {
+    pub ahead: Ahead,
     turn: Mutex<()>,
     tickets: AtomicU64,
     /// Tickets below this are stopped.
@@ -99,6 +134,29 @@ mod tests {
     use super::*;
 
     const LONG: Duration = Duration::from_secs(60);
+
+    #[test]
+    fn one_worker_fetches_ahead_and_a_new_list_replaces_the_old() {
+        let ahead = Ahead::default();
+        assert!(ahead.want(vec![1, 2, 3]));
+        assert_eq!(ahead.next(), Some(1));
+        // Jumping: the worker is still busy, and goes on with the new list.
+        assert!(!ahead.want(vec![7, 8]));
+        assert_eq!(ahead.next(), Some(7));
+        assert_eq!(ahead.next(), Some(8));
+        assert_eq!(ahead.next(), None);
+        // Over, so the next list needs a worker again.
+        assert!(ahead.want(vec![9]));
+    }
+
+    #[test]
+    fn an_empty_list_starts_no_worker_and_clears_what_was_wanted() {
+        let ahead = Ahead::default();
+        assert!(!ahead.want(Vec::new()));
+        assert!(ahead.want(vec![1, 2]));
+        assert!(!ahead.want(Vec::new()));
+        assert_eq!(ahead.next(), None);
+    }
 
     /// Stands in for a download that doesn't end while the test runs.
     fn endless() -> std::io::Result<()> {

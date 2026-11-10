@@ -1,6 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PhotoInfo } from "./bindings";
+import { ConfirmDelete } from "./ConfirmDelete";
+import { ConfirmReview } from "./ConfirmReview";
 import { Review } from "./Review";
 import { useStore } from "./store";
 
@@ -16,6 +18,11 @@ const mocks = vi.hoisted(() => ({
     Promise.resolve({ status: "ok", data: { deleted: 0 } }),
   ),
   exportStart: vi.fn(() => Promise.resolve({ choices: {}, folder: null })),
+  reviewCloud: vi.fn(() => Promise.resolve({ cloudOnly: 2, cloudSize: 24_000_000 })),
+  downloadAhead: vi.fn(() => Promise.resolve(null)),
+  downloadPhotos: vi.fn((): Promise<unknown> =>
+    Promise.resolve({ status: "ok", data: { stillDownloading: false } }),
+  ),
   copyEdits: vi.fn(() => Promise.resolve({ status: "ok", data: { kind: "noEdits", name: "" } })),
   details: { enhanced: false, readOnly: false },
   photoDetails: vi.fn((id: number): Promise<unknown> =>
@@ -37,6 +44,9 @@ vi.mock("./bindings", () => ({
     deletePhotos: mocks.deletePhotos,
     exportStart: mocks.exportStart,
     copyEdits: mocks.copyEdits,
+    reviewCloud: mocks.reviewCloud,
+    downloadAhead: mocks.downloadAhead,
+    downloadPhotos: mocks.downloadPhotos,
     photoDetails: mocks.photoDetails,
     photoNotices: vi.fn(() =>
       Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
@@ -487,6 +497,167 @@ describe("Review (REV-1, REV-2)", () => {
         expect(useStore.getState().notice).toBe("Couldn't save that mark: the disk is full"),
       );
       expect(marked()).toEqual([]);
+    });
+  });
+
+  describe("photos in the cloud (REV-2, LIB-9)", () => {
+    const inCloud = (id: number) => ({ ...photo(id), cloudOnly: true });
+    const ask = async (photos: PhotoInfo[]) => {
+      useStore.setState({ folderId: 7, folders: [], photos });
+      useStore.getState().startReview();
+      await act(() => Promise.resolve());
+    };
+    const review = () => useStore.getState().reviewing;
+
+    it("asks once when some are in the cloud, with how many and how large", async () => {
+      await ask([photo(1), inCloud(2), inCloud(3)]);
+      render(<ConfirmReview />);
+      expect(review()).toBeNull();
+      expect(screen.getByText(/2 of these photos are in the cloud \(.*MB\)/)).toBeTruthy();
+      expect(document.activeElement?.textContent).toBe("Download as I go");
+    });
+
+    it("starts nothing on Cancel or Esc", async () => {
+      await ask([inCloud(1)]);
+      render(<ConfirmReview />);
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(review()).toBeNull();
+      expect(useStore.getState().confirmingReview).toBeNull();
+
+      await ask([inCloud(1)]);
+      fireEvent.keyDown(screen.getByRole("alertdialog"), { key: "Escape" });
+      expect(review()).toBeNull();
+    });
+
+    it("doesn't ask when none are in the cloud", () => {
+      open();
+      expect(mocks.reviewCloud).not.toHaveBeenCalled();
+      expect(review()?.download).toBe(true);
+    });
+
+    it("leaves them in the cloud with Show thumbnails only", async () => {
+      mocks.viewPhoto.mockImplementation(() =>
+        Promise.resolve({ status: "ok", data: { kind: "cloudOnly", size: 8_000_000 } }),
+      );
+      await ask([inCloud(1), inCloud(2), inCloud(3)]);
+      act(() => useStore.getState().confirmReview("thumbnails"));
+      render(<Review forceWebgl2={false} />);
+      expect(await screen.findByText(/^In the cloud/)).toBeTruthy();
+      // The photo is only ever looked up, never asked to come down.
+      expect(mocks.viewPhoto.mock.calls.every((call) => call[4] === false)).toBe(true);
+      expect(mocks.downloadAhead).not.toHaveBeenCalled();
+    });
+
+    it("downloads as far as three ahead once the photo is here, and jumping moves that", async () => {
+      await ask([photo(1), inCloud(2), photo(3), inCloud(4), inCloud(5), inCloud(6)]);
+      act(() => useStore.getState().confirmReview("download"));
+      render(<Review forceWebgl2={false} />);
+      await waitFor(() => expect(mocks.downloadAhead).toHaveBeenLastCalledWith([2, 4]));
+
+      fireEvent.keyDown(window, { key: "End" });
+      await waitFor(() => expect(mocks.downloadAhead).toHaveBeenLastCalledWith([]));
+    });
+
+    it("stops fetching ahead on leaving", async () => {
+      await ask([photo(1), inCloud(2)]);
+      act(() => useStore.getState().confirmReview("download"));
+      const { unmount } = render(<Review forceWebgl2={false} />);
+      await waitFor(() => expect(mocks.downloadAhead).toHaveBeenLastCalledWith([2]));
+      unmount();
+      expect(mocks.downloadAhead).toHaveBeenLastCalledWith([]);
+    });
+
+    describe("marked, at the end of a review (REV-4, BRW-9)", () => {
+      const going = {
+        count: 1,
+        editFiles: 0,
+        synced: 1,
+        service: "OneDrive",
+        readOnly: 0,
+        cloudOnly: 2,
+        cloudSize: 24_000_000,
+        cloudService: "OneDrive",
+        noTrash: 0,
+        fileProvider: [],
+        fileProviderService: null,
+      };
+      const start = async () => {
+        await ask([
+          { ...photo(1), marked: true },
+          { ...photo(2), marked: true, cloudOnly: true },
+          { ...photo(3), marked: true, cloudOnly: true },
+        ]);
+        act(() => useStore.getState().confirmReview("download"));
+        render(<Review forceWebgl2={false} />);
+        render(<ConfirmDelete />);
+        mocks.deleting.mockResolvedValueOnce(going as never);
+      };
+      const toSummary = async () => {
+        fireEvent.keyDown(window, { key: "End" });
+        fireEvent.keyDown(window, { key: "ArrowRight" });
+        await act(() => Promise.resolve());
+      };
+
+      it("says how many, how large, and that they leave the service too", async () => {
+        await start();
+        await toSummary();
+        fireEvent.click(screen.getByRole("button", { name: /^Move 3 marked photos/ }));
+        expect(await screen.findByText(/2 photos are only in the cloud \(.*MB\)/)).toBeTruthy();
+        expect(screen.getByText(/3 of these photos are in OneDrive|These.*OneDrive/)).toBeTruthy();
+        expect(mocks.downloadPhotos).not.toHaveBeenCalled();
+        expect(mocks.deletePhotos).not.toHaveBeenCalled();
+      });
+
+      it("downloads only once confirmed, then moves them", async () => {
+        await start();
+        await toSummary();
+        fireEvent.click(screen.getByRole("button", { name: /^Move 3 marked photos/ }));
+        await waitFor(() => expect(useStore.getState().confirmingDelete?.download).toBe(true));
+        const order: string[] = [];
+        mocks.downloadPhotos.mockImplementationOnce(() => {
+          order.push("download");
+          return Promise.resolve({ status: "ok", data: { stillDownloading: false } });
+        });
+        mocks.deletePhotos.mockImplementationOnce(() => {
+          order.push("delete");
+          return Promise.resolve({ status: "ok", data: { deleted: 3 } });
+        });
+        await act(() => useStore.getState().confirmDelete(true));
+        expect(order).toEqual(["download", "delete"]);
+        expect(mocks.downloadPhotos).toHaveBeenCalledWith([1, 2, 3]);
+      });
+
+      it("downloads nothing on Cancel", async () => {
+        await start();
+        await toSummary();
+        fireEvent.click(screen.getByRole("button", { name: /^Move 3 marked photos/ }));
+        await waitFor(() => expect(useStore.getState().confirmingDelete).not.toBeNull());
+        await act(() => useStore.getState().confirmDelete(false));
+        expect(mocks.downloadPhotos).not.toHaveBeenCalled();
+      });
+
+      it("says when some weren't downloaded, as they stay marked", async () => {
+        await start();
+        await toSummary();
+        fireEvent.click(screen.getByRole("button", { name: /^Move 3 marked photos/ }));
+        await waitFor(() => expect(useStore.getState().confirmingDelete).not.toBeNull());
+        mocks.deletePhotos.mockResolvedValueOnce({
+          status: "ok",
+          data: { deleted: 2, cloudOnly: 1, failedReason: null },
+        });
+        await act(() => useStore.getState().confirmDelete(true));
+        expect(useStore.getState().notice).toContain(
+          "1 photo wasn't downloaded, so it stays in the cloud and stays marked.",
+        );
+      });
+
+      it("never downloads for Delete outside a review (LIB-9)", async () => {
+        useStore.setState({ folderId: 7, folders: [], photos: [inCloud(1)] });
+        mocks.deleting.mockResolvedValueOnce({ ...going, count: 0, cloudOnly: 1 } as never);
+        await act(() => useStore.getState().askDelete([1]));
+        await act(() => useStore.getState().confirmDelete(true));
+        expect(mocks.downloadPhotos).not.toHaveBeenCalled();
+      });
     });
   });
 

@@ -127,8 +127,8 @@ export function ReviewSummary() {
             <p>{t("review-summary-still-marked", { count: marked.length })}</p>
           )}
           <div className="review-summary-actions">
-            {marked.length > 0 && (
-              <button type="button" className="button" onClick={() => void askDelete(marked)}>
+            {marked.length > 0 && !review.moving && (
+              <button type="button" className="button" onClick={() => void askDelete(marked, true)}>
                 {t("review-summary-move", { count: marked.length, system })}
               </button>
             )}
