@@ -9,7 +9,7 @@ import { Editor } from "./Editor";
 import { ExportDialog } from "./ExportDialog";
 import { ExportSummary } from "./ExportSummary";
 import { PasteDialog } from "./PasteDialog";
-import { editsKey, isExport } from "./keys";
+import { editsKey, isExport, isField } from "./keys";
 import { Library } from "./Library";
 import { measure, measureExport, measureSliders } from "./measure";
 import { t } from "./messages";
@@ -93,6 +93,15 @@ export function App() {
             focused.dispatchEvent(new Event("input", { bubbles: true }));
             // In a review, photos are only marked (REV-4).
           } else if (!store.reviewing) void store.askDelete(store.chosenPhotos());
+        } else if (payload === "selectAll") {
+          // A text field's own text, or the Library's photos when nothing
+          // covers it: the Viewer, a review and dialogs are all dialogs.
+          if (isField(document.activeElement)) document.execCommand("selectAll");
+          else if (
+            store.editing === null &&
+            !document.querySelector('[role="dialog"], [role="alertdialog"]')
+          )
+            store.selectAllPhotos();
         } else if (payload === "export") void store.askExport(store.chosenPhotos());
         else if (payload === "copyEdits") void store.copyEdits();
         else if (payload === "pasteEdits") void store.askPaste(store.chosenPhotos());

@@ -899,7 +899,12 @@ export type MenuCommand = "addFolder" |
  *  The Edit menu's Undo and Redo: the Library's last action (BRW-11),
  *  or, in a text field, the field's own.
  */
-"undo" | "redo";
+"undo" | "redo" | 
+/**
+ *  The Edit menu's Select All: the Library's photos, or, in a text
+ *  field, the field's text (#227).
+ */
+"selectAll";
 
 /**  What the new-photos banner says (REV-1). */
 export type NewPhotosInfo = {

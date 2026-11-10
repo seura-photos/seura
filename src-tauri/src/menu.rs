@@ -42,6 +42,9 @@ pub enum MenuCommand {
     /// or, in a text field, the field's own.
     Undo,
     Redo,
+    /// The Edit menu's Select All: the Library's photos, or, in a text
+    /// field, the field's text (#227).
+    SelectAll,
 }
 
 const ADD_FOLDER: &str = "add-folder";
@@ -54,6 +57,7 @@ const COPY_EDITS: &str = "copy-edits";
 const PASTE_EDITS: &str = "paste-edits";
 const UNDO: &str = "undo";
 const REDO: &str = "redo";
+const SELECT_ALL: &str = "select-all";
 /// Each preset's item in the Edit menu: this, then its name.
 const APPLY_PRESET: &str = "apply-preset:";
 /// The menu bar's commands for the chosen photos, kept so they can be
@@ -180,7 +184,14 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             &PredefinedMenuItem::cut(app, Some(t("menu-cut").as_str()))?,
             &PredefinedMenuItem::copy(app, Some(t("menu-copy").as_str()))?,
             &PredefinedMenuItem::paste(app, Some(t("menu-paste").as_str()))?,
-            &PredefinedMenuItem::select_all(app, Some(t("menu-select-all").as_str()))?,
+            // Seura's own, since the system's only reaches a text field (#227).
+            &MenuItem::with_id(
+                app,
+                SELECT_ALL,
+                t("menu-select-all"),
+                true,
+                Some("CmdOrCtrl+A"),
+            )?,
             &separator()?,
             &copy_edits,
             &paste_edits,
@@ -215,6 +226,7 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
         PASTE_EDITS => MenuCommand::PasteEdits,
         UNDO => MenuCommand::Undo,
         REDO => MenuCommand::Redo,
+        SELECT_ALL => MenuCommand::SelectAll,
         _ => match id.strip_prefix(APPLY_PRESET) {
             Some(name) => MenuCommand::ApplyPreset(name.into()),
             None => return,
