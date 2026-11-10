@@ -15,8 +15,8 @@ builds wrote, is checked too, so writing there again fails. Other new files are 
 since other programs write there too; check those by eye when the list changes.
 
 --release audits the release build instead (build it without --debug).
---export audits a run that saves a preset, applies it, and exports (#225):
-the app runs SEURA_MEASURE=export on a small scratch library, with a scratch
+--export audits a run that saves a preset, applies it, exports, then marks a
+photo for deletion and rates another (#225, M6 slice 7): the app runs SEURA_MEASURE=export on a small scratch library, with a scratch
 Seura folder (SEURA_DATA) and an export folder of its own, all in
 target/audit, so the real library and settings are never touched. It quits
 by itself when it's done, and the files it wrote there are counted too.
@@ -114,6 +114,8 @@ def run_export(binary):
     report = json.loads(measured.read_text())
     if "error" in report:
         sys.exit(f"The export run failed: {report['error']}")
+    if not (data / "marks.json").exists():
+        sys.exit("The export run saved no marks, so the audit would prove nothing about them.")
     return data, exported
 
 
@@ -188,7 +190,8 @@ def main():
         else:
             others[root / Path(*relative.parts[: min(2, len(relative.parts) - 1) or 1])] += 1
 
-    run = "saving a preset, applying it, and exporting" if ARGS.export else f"{SECONDS} s run"
+    run = ("saving a preset, applying it, exporting, marking and rating"
+           if ARGS.export else f"{SECONDS} s run")
     lines = [f"## What the app wrote ({platform.system()}, {BUILD} build, {run})", ""]
     lines += ["Paths that mention Seura:", ""]
     lines += [f"- `{key}`: {n} files, {size // 1024} KB" for key, (n, size) in sorted(ours.items())]

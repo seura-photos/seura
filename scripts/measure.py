@@ -9,7 +9,8 @@ measure itself and quit:
 1. 1,000 photos of 12 megapixels in one folder, with an empty cache: the
    first scan and its thumbnails (PRF-3);
 2. the same again, with the cache built: launch to a usable grid (PRF-1),
-   opening the folder (PRF-2), scrolling (PRF-4), next photo (PRF-5);
+   opening the folder (PRF-2), scrolling (PRF-4), next photo in the Viewer
+   and in Review (PRF-5);
 3. 50,000 small photos in 50 folders: memory (PRF-7), after the first scan,
    and searching as you type (FND-3);
 4. one photo each of 12, 24 and 48 megapixels: dragging each of the
@@ -163,6 +164,9 @@ def browsing_rows(results: dict) -> list:
         ("PRF-5", "Next photo in the Viewer", "under 150 ms (aim 75 ms)",
          f"median {warm['nextPhoto']['medianMs']:.0f} ms, "
          f"slowest {warm['nextPhoto']['slowestMs']:.0f} ms"),
+        ("PRF-5", "Next photo in Review", "under 150 ms (aim 75 ms)",
+         f"median {warm['nextInReview']['medianMs']:.0f} ms, "
+         f"slowest {warm['nextInReview']['slowestMs']:.0f} ms"),
         ("PRF-7", f"Memory with a {large_scan.get('photos', 0):,}-photo library",
          "under 1 GB (aim 500 MB)",
          f"{mb(large['memory']['coreBytes'])} (peak {mb(large['memory']['corePeakBytes'])}), "
