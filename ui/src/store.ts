@@ -101,10 +101,23 @@ export type State = {
     since: number;
     /** Past the last photo, on the summary (REV-5). */
     summary: boolean;
+    /** Whether photos in the cloud come down as they're reached (REV-2). */
+    download: boolean;
     /** The marked photos have been sent to the Trash, once at least. */
     tried: boolean;
+    /** Downloading marked photos on their way to the Trash. */
+    moving: boolean;
     moved: number;
   } | null;
+  /** A review of photos in the cloud, waiting for its one question. */
+  confirmingReview: {
+    title: string;
+    photos: PhotoInfo[];
+    cloudOnly: number;
+    cloudSize: number;
+  } | null;
+  /** Its answer: download as they're reached, thumbnails only, or no review. */
+  confirmReview: (choice: "download" | "thumbnails" | "cancel") => void;
   /** Where Done goes back to: the Viewer, a review, or the grid (user
    * flows, flow 4). */
   editedFrom: "viewer" | "review" | "library";
@@ -308,10 +321,12 @@ export type State = {
    * old files in Seura's folder (FIL-4). */
   startOver: (ids: number[]) => Promise<void>;
   /** Deleting photos, waiting to be confirmed (BRW-9). */
-  confirmingDelete: { ids: number[]; summary: Deleting } | null;
+  confirmingDelete: { ids: number[]; summary: Deleting; download: boolean } | null;
   /** Asks to move photos to the Recycle Bin or Trash, or says why none
    * can go (BRW-9, TAG-7), in a dialog either way. */
-  askDelete: (ids: number[]) => Promise<void>;
+  /** With `download`, as at the end of a review, photos only in the cloud
+   * are downloaded so that they can go too (REV-4). */
+  askDelete: (ids: number[], download?: boolean) => Promise<void>;
   /** The answer: moves them, and the Viewer on to the next photo. */
   confirmDelete: (yes: boolean) => Promise<void>;
   /** Whether About is open: Windows' dialog, from the ⋯ button (SET-5). */
@@ -383,6 +398,21 @@ async function downloadAndEnhance(
   );
 }
 
+/** Downloads marked photos so that they can go to the Trash (REV-4), with
+ * the progress message and Stop that Enhance's downloads have. */
+async function moveDownloading(
+  ids: number[],
+  set: (change: (state: State) => Partial<State>) => void,
+) {
+  const moving = (now: boolean) =>
+    set(({ reviewing }) => (reviewing ? { reviewing: { ...reviewing, moving: now } } : {}));
+  moving(true);
+  const result = await commands.downloadPhotos(ids);
+  set(() => ({ downloadBatch: null }));
+  moving(false);
+  return result;
+}
+
 async function history(say: (notice: string) => void, which: "undo" | "redo") {
   const result = await (which === "undo" ? commands.undo() : commands.redo());
   if (result.status === "error") {
@@ -407,6 +437,21 @@ async function history(say: (notice: string) => void, which: "undo" | "redo") {
 
 /** Shows photos as marked or not at once: leaving a review right after
  * needs to know, and the library's own update comes a moment later. */
+/** A review from its first photo. There's always a first photo. */
+function newReview(title: string, photos: PhotoInfo[], download: boolean) {
+  return {
+    title,
+    photos,
+    id: photos[0]?.id ?? 0,
+    since: Date.now() / 1000,
+    summary: false,
+    download,
+    tried: false,
+    moving: false,
+    moved: 0,
+  };
+}
+
 function markedNow(ids: number[], marked: boolean) {
   const chosen = new Set(ids);
   const update = (photos: PhotoInfo[]) =>
@@ -537,6 +582,7 @@ export const useStore = create<State>()((set, get) => ({
   sidebarWidth: null,
   viewing: null,
   reviewing: null,
+  confirmingReview: null,
   reveal: null,
   confirmingOpen: null,
   confirmingEnhance: null,
@@ -855,25 +901,29 @@ export const useStore = create<State>()((set, get) => ({
     const { photos, selection, tag, search, folders, folderId } = get();
     const several = selection.ids.size >= 2;
     const chosen = several ? photos.filter((photo) => selection.ids.has(photo.id)) : photos;
-    const first = chosen[0];
-    if (!first) return;
+    if (chosen.length === 0) return;
     const name = tag ?? folders.find((folder) => folder.id === folderId)?.name ?? "";
     const title = several
       ? t("review-title-selection", { count: chosen.length })
       : search !== null
         ? t("review-title-search")
         : t("review-title", { name });
-    set({
-      reviewing: {
-        title,
-        photos: chosen,
-        id: first.id,
-        since: Date.now() / 1000,
-        summary: false,
-        tried: false,
-        moved: 0,
-      },
+    if (!chosen.some((photo) => photo.cloudOnly)) {
+      set({ reviewing: newReview(title, chosen, true) });
+      return;
+    }
+    void commands.reviewCloud(chosen.map((photo) => photo.id)).then(({ cloudOnly, cloudSize }) => {
+      if (cloudOnly === 0) set({ reviewing: newReview(title, chosen, true) });
+      else
+        set({ confirmingReview: { title, photos: chosen, cloudOnly, cloudSize: cloudSize ?? 0 } });
     });
+  },
+
+  confirmReview(choice) {
+    const confirming = get().confirmingReview;
+    set({ confirmingReview: null });
+    if (!confirming || choice === "cancel") return;
+    set({ reviewing: newReview(confirming.title, confirming.photos, choice === "download") });
   },
 
   reviewTo(id) {
@@ -1322,11 +1372,11 @@ export const useStore = create<State>()((set, get) => ({
     set({ about: open });
   },
 
-  async askDelete(ids) {
+  async askDelete(ids, download = false) {
     if (ids.length === 0) return;
     // A dialog either way, as Delete promises: to confirm, or to say why
     // none of them can go (Nevada, 2026-10-26).
-    set({ confirmingDelete: { ids, summary: await commands.deleting(ids) } });
+    set({ confirmingDelete: { ids, summary: await commands.deleting(ids), download } });
   },
 
   async confirmDelete(yes) {
@@ -1345,6 +1395,10 @@ export const useStore = create<State>()((set, get) => ({
       .slice(0, Math.max(at, 0))
       .reverse()
       .find((photo) => !gone.has(photo.id));
+    const downloaded =
+      confirming.download && confirming.summary.cloudOnly > 0
+        ? await moveDownloading(ids, set)
+        : null;
     const result = await commands.deletePhotos(ids);
     if (result.status === "error") {
       get().say(t("delete-failed", { count: ids.length, system }));
@@ -1364,7 +1418,14 @@ export const useStore = create<State>()((set, get) => ({
     get().say(
       [
         deleted > 0 ? t("delete-done", { count: deleted, system }) : null,
-        cloudOnly > 0 ? t("delete-cloud-only", { count: cloudOnly, system }) : null,
+        cloudOnly > 0 && confirming.download
+          ? t("delete-not-downloaded", { count: cloudOnly, system })
+          : cloudOnly > 0
+            ? t("delete-cloud-only", { count: cloudOnly, system })
+            : null,
+        downloaded?.status === "ok" && downloaded.data.stillDownloading
+          ? t("enhance-still-downloading")
+          : null,
         readOnly > 0 ? t("delete-read-only", { count: readOnly }) : null,
         noTrash > 0 ? t("delete-no-trash", { count: noTrash, system }) : null,
         fileProvider > 0 ? t("delete-file-provider", { count: fileProvider, service }) : null,

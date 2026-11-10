@@ -415,6 +415,58 @@ pub fn review_photos(library: State<'_, Library>, ids: Vec<u32>) -> Vec<PhotoInf
     )
 }
 
+/// How much of a review's batch is in the cloud, for its one question (REV-2).
+#[derive(Clone, Debug, Default, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewCloud {
+    pub cloud_only: u32,
+    /// In bytes.
+    pub cloud_size: f64,
+}
+
+/// What's in the cloud among the photos a review is about to show.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn review_cloud(app: AppHandle, ids: Vec<u32>) -> ReviewCloud {
+    let library = app.state::<Library>();
+    for id in &ids {
+        library.downloaded(&app, PhotoId::new(*id));
+    }
+    let index = library.index.read().expect("index lock");
+    let mut cloud = ReviewCloud::default();
+    for photo in ids
+        .into_iter()
+        .filter_map(|id| index.photo(PhotoId::new(id)))
+        .filter(|photo| photo.placeholder)
+    {
+        cloud.cloud_only += 1;
+        cloud.cloud_size += photo.size as f64;
+    }
+    cloud
+}
+
+/// Fetches these photos ahead of a review, replacing the list before: an
+/// empty list stops fetching (REV-2, LIB-9).
+#[tauri::command(async)]
+#[specta::specta]
+pub fn download_ahead(app: AppHandle, ids: Vec<u32>) {
+    app.state::<Library>().download_ahead(&app, ids);
+}
+
+/// Downloads marked photos in the cloud, after the user has confirmed moving
+/// them to the Recycle Bin or Trash (REV-4, BRW-9). [`stop_downloads`] ends
+/// it early, and what hasn't arrived stays as it is.
+#[tauri::command]
+#[specta::specta]
+pub async fn download_photos(app: AppHandle, ids: Vec<u32>) -> Result<EnhanceReport, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let ids: Vec<PhotoId> = ids.into_iter().map(PhotoId::new).collect();
+        app.state::<Library>().download_photos(&app, &ids)
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
 /// How many of a review's photos it changed (REV-5).
 #[derive(Clone, Debug, Default, Serialize, Type)]
 pub struct ReviewCounts {
@@ -1537,6 +1589,10 @@ pub struct Deleting {
     /// Left as they are: only in the cloud, so they can't go to the Recycle
     /// Bin or Trash (journal, `2026-10-26-trash-measurements.md`).
     pub cloud_only: u32,
+    /// Their total size in bytes and their service, for a review to say what
+    /// downloading them involves (REV-4).
+    pub cloud_size: f64,
+    pub cloud_service: Option<String>,
     /// Left as they are: on a drive with no Recycle Bin, such as a USB stick
     /// or a network share.
     pub no_trash: u32,
@@ -1581,8 +1637,15 @@ pub fn deleting(library: State<'_, Library>, ids: Vec<u32>) -> Deleting {
             if deleting.file_provider_service.is_none() {
                 deleting.file_provider_service = crate::synced::sync_service(&folder);
             }
-        } else if std::fs::metadata(&path).is_ok_and(|metadata| is_placeholder(&metadata)) {
+        } else if let Some(metadata) = std::fs::metadata(&path).ok().filter(is_placeholder) {
             deleting.cloud_only += 1;
+            deleting.cloud_size += metadata.len() as f64;
+            if deleting.cloud_service.is_none() {
+                deleting.cloud_service = services
+                    .entry(folder.clone())
+                    .or_insert_with(|| crate::synced::sync_service(&folder))
+                    .clone();
+            }
         } else {
             deleting.count += 1;
             if std::fs::symlink_metadata(seura_edit::edit_file_path(&path)).is_ok() {

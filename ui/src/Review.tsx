@@ -27,6 +27,9 @@ type Props = {
   forceWebgl2: boolean;
 };
 
+/** How many photos past the current one are downloaded ahead (question 6). */
+const DOWNLOAD_AHEAD = 3;
+
 /** A review: its photos, then the summary after the last of them (REV-5). */
 export function Review({ forceWebgl2 }: Props) {
   const summary = useStore((state) => state.reviewing?.summary ?? false);
@@ -62,10 +65,12 @@ function ReviewPhotos({ forceWebgl2 }: Props) {
   const previous = index > 0 ? photos[index - 1] : undefined;
   const next = index >= 0 ? photos[index + 1] : undefined;
 
+  const download = review?.download ?? true;
   const shownPhoto = useShownPhoto(
     id,
     [previous?.id, next?.id].filter((neighbor) => neighbor !== undefined),
     forceWebgl2,
+    download,
   );
   const { stage, canvas, area, shown, cloud, message, covered, tryAgain } = shownPhoto;
   // Always fitted (REV-2), so it never asks for a sharp part.
@@ -78,6 +83,26 @@ function ReviewPhotos({ forceWebgl2 }: Props) {
     show: () => Promise.resolve(false),
     suspended: true,
   });
+
+  // A few photos ahead come down once this one is here, one at a time, and
+  // jumping moves the window (REV-2, LIB-9).
+  const ahead =
+    download && shown
+      ? photos
+          .slice(index + 1, index + 1 + DOWNLOAD_AHEAD)
+          .filter((photo) => photo.cloudOnly)
+          .map((photo) => photo.id)
+          .join()
+      : "";
+  useEffect(() => {
+    if (download) void commands.downloadAhead(ahead === "" ? [] : ahead.split(",").map(Number));
+  }, [download, ahead]);
+  useEffect(
+    () => () => {
+      if (download) void commands.downloadAhead([]);
+    },
+    [download],
+  );
 
   // Focus moves into the review, as into any dialog (ACC-1).
   useEffect(() => {
@@ -223,7 +248,9 @@ function ReviewPhotos({ forceWebgl2 }: Props) {
               {t("review-marked-banner")}
             </p>
           )}
-          {cloud && <CloudPhoto id={photo.id} state={cloud} onTryAgain={tryAgain} />}
+          {cloud && (
+            <CloudPhoto id={photo.id} state={cloud} onTryAgain={tryAgain} marked={photo.marked} />
+          )}
           {message !== null && (
             <div className="viewer-message" role="status">
               <p>{message}</p>

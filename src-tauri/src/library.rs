@@ -426,23 +426,106 @@ impl Library {
     ) -> EnhanceReport {
         let ticket = self.downloads.ticket();
         let _turn = self.downloads.turn();
-        let (cloud, here): (Vec<PhotoId>, Vec<PhotoId>) = {
-            for &id in ids {
-                self.downloaded(app, id);
-            }
-            let index = self.index.read().expect("index lock");
-            ids.iter().partition(|id| {
-                index.photo(**id).is_some_and(|photo| {
-                    photo.placeholder
-                        && !index
-                            .folder(photo.folder)
-                            .is_some_and(|folder| folder.read_only)
-                })
-            })
-        };
+        let (cloud, here) = self.cloud_and_here(app, ids);
         let mut result = EnhanceReport::default();
         let (mut action, report) = self.enhance_part(app, &here);
         result.add(&report);
+        self.download_each(
+            app,
+            &cloud,
+            ids.len() > 1,
+            ticket,
+            &mut result,
+            |id, result| {
+                let (part, report) = self.enhance_part(app, &[id]);
+                action.absorb(part);
+                result.add(&report);
+            },
+        );
+        let mut history = self.history.lock().expect("history lock");
+        history.record(action);
+        crate::menu::history_changed(app, history.next_undo(), history.next_redo());
+        result
+    }
+
+    /// Downloads those of these photos that are in the cloud, one at a time,
+    /// so that they can go to the Recycle Bin or Trash (REV-4, BRW-9). Only
+    /// after the user has confirmed deleting them. Stop works as for Enhance.
+    pub fn download_photos<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        ids: &[PhotoId],
+    ) -> EnhanceReport {
+        let ticket = self.downloads.ticket();
+        let _turn = self.downloads.turn();
+        let (cloud, _) = self.cloud_and_here(app, ids);
+        let mut result = EnhanceReport::default();
+        self.download_each(app, &cloud, true, ticket, &mut result, |_, _| {});
+        result
+    }
+
+    /// Fetches these photos ahead of a review, replacing any list before
+    /// (REV-2, LIB-9). One worker, so they come one at a time. A read can't
+    /// be cancelled, so one in progress finishes before the new list begins.
+    pub fn download_ahead<R: Runtime>(&self, app: &AppHandle<R>, ids: Vec<u32>) {
+        if !self.downloads.ahead.want(ids) {
+            return;
+        }
+        let app = app.clone();
+        std::thread::spawn(move || {
+            let library = app.state::<Library>();
+            while let Some(id) = library.downloads.ahead.next() {
+                let id = PhotoId::new(id);
+                library.downloaded(&app, id);
+                let path = {
+                    let index = library.index.read().expect("index lock");
+                    index
+                        .photo(id)
+                        .filter(|photo| photo.placeholder)
+                        .and_then(|_| index.path(id))
+                };
+                let Some(path) = path else { continue };
+                if crate::downloads::download(path, || false) == Downloaded::Yes {
+                    library.downloaded(&app, id);
+                }
+            }
+        });
+    }
+
+    /// These photos split into those to download and those already here.
+    /// Nothing can be changed in a read-only folder, so nothing there is
+    /// downloaded.
+    fn cloud_and_here<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        ids: &[PhotoId],
+    ) -> (Vec<PhotoId>, Vec<PhotoId>) {
+        for &id in ids {
+            self.downloaded(app, id);
+        }
+        let index = self.index.read().expect("index lock");
+        ids.iter().partition(|id| {
+            index.photo(**id).is_some_and(|photo| {
+                photo.placeholder
+                    && !index
+                        .folder(photo.folder)
+                        .is_some_and(|folder| folder.read_only)
+            })
+        })
+    }
+
+    /// Downloads photos one at a time, calling `arrived` for each, and
+    /// reports what didn't arrive. Announced for the progress message and
+    /// Stop when `batch`.
+    fn download_each<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        cloud: &[PhotoId],
+        batch: bool,
+        ticket: u64,
+        result: &mut EnhanceReport,
+        mut arrived: impl FnMut(PhotoId, &mut EnhanceReport),
+    ) {
         let total = cloud.len() as u32;
         for (done, &id) in cloud.iter().enumerate() {
             if self.downloads.stopped(ticket) {
@@ -458,7 +541,7 @@ impl Library {
                 downloading,
                 at: done as u32 + 1,
                 total,
-                batch: ids.len() > 1,
+                batch,
             };
             let _ = event(true).emit(app);
             let outcome = crate::downloads::download(path, || self.downloads.stopped(ticket));
@@ -466,9 +549,7 @@ impl Library {
             match outcome {
                 Downloaded::Yes => {
                     self.downloaded(app, id);
-                    let (part, report) = self.enhance_part(app, &[id]);
-                    action.absorb(part);
-                    result.add(&report);
+                    arrived(id, result);
                 }
                 Downloaded::Failed => result.not_downloaded += 1,
                 Downloaded::Stopped => {
@@ -478,10 +559,6 @@ impl Library {
                 }
             }
         }
-        let mut history = self.history.lock().expect("history lock");
-        history.record(action);
-        crate::menu::history_changed(app, history.next_undo(), history.next_redo());
-        result
     }
 
     /// Enhances photos that are on the computer, without recording the

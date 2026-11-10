@@ -11,6 +11,8 @@ vi.mock("./bindings", () => ({
           deleted: 0,
           readOnly: 0,
           cloudOnly: 0,
+          cloudSize: 0,
+          cloudService: null,
           noTrash: 0,
           fileProvider: 0,
           failed: 1,
@@ -32,11 +34,13 @@ describe("deleting photos (BRW-9)", () => {
       service: null,
       readOnly: 0,
       cloudOnly: 0,
+      cloudSize: 0,
+      cloudService: null,
       noTrash: 0,
       fileProvider: [],
       fileProviderService: null,
     };
-    useStore.setState({ confirmingDelete: { ids: [1], summary } });
+    useStore.setState({ confirmingDelete: { ids: [1], summary, download: false } });
     await useStore.getState().confirmDelete(true);
     expect(useStore.getState().notice).toBe(
       "1 photo couldn't be moved to the Recycle Bin, so it's where it was. Windows said: Access is denied. (0x80070005)",

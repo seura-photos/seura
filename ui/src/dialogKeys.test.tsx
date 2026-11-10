@@ -17,6 +17,8 @@ const summary: Deleting = {
   service: null,
   readOnly: 0,
   cloudOnly: 0,
+  cloudSize: 0,
+  cloudService: null,
   noTrash: 0,
   fileProvider: [],
   fileProviderService: null,
@@ -28,7 +30,7 @@ const dialogs: [string, () => ReactElement, () => void][] = [
   [
     "Delete",
     () => <ConfirmDelete />,
-    () => useStore.setState({ confirmingDelete: { ids: [1, 2], summary } }),
+    () => useStore.setState({ confirmingDelete: { ids: [1, 2], summary, download: false } }),
   ],
   [
     "Open",

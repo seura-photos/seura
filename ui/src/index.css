@@ -2067,6 +2067,10 @@ img.thumbnail-loading {
   opacity: 0.7;
 }
 
+.viewer-thumbnail.marked {
+  filter: blur(12px) brightness(0.5);
+}
+
 .viewer-message {
   position: absolute;
   display: flex;

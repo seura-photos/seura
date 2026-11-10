@@ -519,6 +519,25 @@ delete-synced-some =
        *[other] { $count } of these photos are in { $service }. They'll be removed from { $service } on all your devices too. { $service } keeps deleted files in its own recycle bin for a while.
     }
 # Cloud-only photos can't go to the Recycle Bin or Trash, so they're left as they are.
+# At the end of a review: how marked photos in the cloud get to the Trash (REV-4).
+delete-will-download =
+    { $count ->
+        [one]
+            { $system ->
+                [mac] 1 photo is only in the cloud ({ $size }). It will be downloaded first, so it can go to the Trash. If it isn't downloaded, it stays as it is and stays marked.
+               *[other] 1 photo is only in the cloud ({ $size }). It will be downloaded first, so it can go to the Recycle Bin. If it isn't downloaded, it stays as it is and stays marked.
+            }
+       *[other]
+            { $system ->
+                [mac] { $count } photos are only in the cloud ({ $size }). They'll be downloaded one at a time, so they can go to the Trash. Any that aren't downloaded stay as they are and stay marked.
+               *[other] { $count } photos are only in the cloud ({ $size }). They'll be downloaded one at a time, so they can go to the Recycle Bin. Any that aren't downloaded stay as they are and stay marked.
+            }
+    }
+delete-not-downloaded =
+    { $count ->
+        [one] 1 photo wasn't downloaded, so it stays in the cloud and stays marked.
+       *[other] { $count } photos weren't downloaded, so they stay in the cloud and stay marked.
+    }
 delete-cloud-only =
     { $count ->
         [one]
@@ -697,6 +716,21 @@ review-left-marked =
        *[other] { $count } photos are still marked for deletion. Review them again to finish.
     }
 mark-failed = Couldn't save that mark: { $reason }
+# A review of photos that are in the cloud (REV-2, LIB-9).
+review-cloud-title =
+    { $count ->
+        [one] Review 1 photo?
+       *[other] Review { $count } photos?
+    }
+review-cloud-body =
+    { $cloudOnly ->
+        [one] 1 of these photos is in the cloud ({ $size }). Download it when you reach it?
+       *[other] { $cloudOnly } of these photos are in the cloud ({ $size }). Download them as you reach them?
+    }
+review-cloud-download = Download as I go
+review-cloud-thumbnails = Show thumbnails only
+review-cloud-cancel = Cancel
+review-in-cloud = In the cloud ({ $size })
 # The summary after a review's last photo (REV-5).
 review-summary-title = End of review
 review-summary-rated = Rated

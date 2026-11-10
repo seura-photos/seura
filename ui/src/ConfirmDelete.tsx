@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { dialogKeys } from "./dialogKeys";
+import { formatBytes } from "./format";
 import { t } from "./messages";
 import { system, useStore } from "./store";
 
@@ -24,12 +25,20 @@ export function ConfirmDelete() {
     service,
     readOnly,
     cloudOnly,
+    cloudSize,
+    cloudService,
     noTrash,
     fileProvider,
     fileProviderService,
   } = confirming.summary;
-  const nothing = count === 0;
-  const leftAlone = readOnly + cloudOnly + noTrash + fileProvider.length;
+  // At the end of a review, photos in the cloud come down first and go too.
+  const downloads = confirming.download ? cloudOnly : 0;
+  const going = count + downloads;
+  const nothing = going === 0;
+  const stay = cloudOnly - downloads;
+  const leftAlone = readOnly + stay + noTrash + fileProvider.length;
+  const allSynced = synced + downloads;
+  const syncService = service ?? (downloads > 0 ? cloudService : null);
 
   return (
     <div className="dialog-backdrop">
@@ -44,26 +53,41 @@ export function ConfirmDelete() {
         <h2 id="delete-title" className="dialog-title">
           {nothing
             ? t("delete-nothing-title", { count: leftAlone, system })
-            : t("delete-title", { count, system })}
+            : t("delete-title", { count: going, system })}
         </h2>
         <div id="delete-body">
           {/* Each edit file is restored separately, so the text says so
               when there are any (Nevada, 2026-10-26; design answers). */}
           {!nothing && (
-            <p>{t("delete-body", { count, system, edited: editFiles > 0 ? "yes" : "no" })}</p>
-          )}
-          {synced > 0 && service !== null && (
             <p>
-              {synced === count
-                ? t("delete-synced-all", { count, service })
-                : t("delete-synced-some", { count: synced, service })}
+              {t("delete-body", {
+                count: going,
+                system,
+                edited: editFiles > 0 ? "yes" : "no",
+              })}
+            </p>
+          )}
+          {allSynced > 0 && syncService !== null && (
+            <p>
+              {allSynced === going
+                ? t("delete-synced-all", { count: going, service: syncService })
+                : t("delete-synced-some", { count: allSynced, service: syncService })}
+            </p>
+          )}
+          {downloads > 0 && (
+            <p>
+              {t("delete-will-download", {
+                count: downloads,
+                size: formatBytes(cloudSize ?? 0),
+                system,
+              })}
             </p>
           )}
           {/* The photos left as they are, set apart from those that go,
               unless they're all there is to say. */}
           {leftAlone > 0 && (
             <div className={nothing ? undefined : "dialog-aside"}>
-              {cloudOnly > 0 && <p>{t("delete-cloud-only", { count: cloudOnly, system })}</p>}
+              {stay > 0 && <p>{t("delete-cloud-only", { count: stay, system })}</p>}
               {readOnly > 0 && <p>{t("delete-read-only", { count: readOnly })}</p>}
               {noTrash > 0 && <p>{t("delete-no-trash", { count: noTrash, system })}</p>}
               {/* The Mac refuses Seura these (#112): Finder can delete them. */}

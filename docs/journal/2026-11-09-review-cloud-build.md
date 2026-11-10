@@ -1,0 +1,9 @@
+# 2026-11-09: Cloud-only photos in a review (M6 slice 5, LIB-9, BRW-9)
+
+- **A review with photos in the cloud asks once,** with how many and how large: Download as I go, Show thumbnails only, or Cancel. Cancel wasn't in the plan; Claude Code added it, since Esc has to do something and a question shouldn't start anything by default.
+- **Downloading ahead is one worker with a list that gets replaced,** Claude Code's design. Moving on or jumping swaps the list. A read can't be cancelled, so one in progress finishes before the new list starts, which keeps photos coming one at a time as LIB-9 asks. The next three photos are only requested once the current one is showing, so the photo being looked at is never competing with them.
+- **Without downloading, a photo shows as its thumbnail with "In the cloud".** Rating, rotate, tags and marking work on it, and Enhance or Edit downloads that one photo, as they already did.
+- **Marked photos in the cloud come down only after the one confirmation,** which says how many and how large, and that they leave the service too. Progress and Stop are Enhance's. What isn't downloaded stays as it is and stays marked. Delete outside a review still never downloads (LIB-9), and a test holds that.
+- **The confirmation counts cloud photos among those leaving the service,** which Claude Code had to add: the synced-folder sentence only counted photos already on the computer, so it would have understated what was about to leave OneDrive.
+- **On the Mac, OneDrive photos are still refused the Trash (#112),** and that check comes first, so they're left as they are and aren't downloaded for nothing.
+- **Not tried in the real app.** Cloud-only files need a real sync service, and Claude Code doesn't create test folders inside Nevada's OneDrive. So this slice rests on tests until Nevada runs it.
