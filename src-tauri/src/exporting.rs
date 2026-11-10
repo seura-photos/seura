@@ -376,7 +376,18 @@ impl Exporting {
                 }
                 outcome
             },
-            |item| write_photo(&item.path, &folder, &options, choices.include_keywords),
+            |item| {
+                let written = write_photo(&item.path, &folder, &options, choices.include_keywords);
+                // It may be in a library folder, and it isn't a new photo (REV-1).
+                if let Ok(path) = &written {
+                    app.state::<Library>()
+                        .new_photos
+                        .lock()
+                        .expect("new photos lock")
+                        .exported(path);
+                }
+                written
+            },
         );
         *self.written.lock().expect("written lock") = written;
         Ok(report)

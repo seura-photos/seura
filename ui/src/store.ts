@@ -12,6 +12,7 @@ import {
   type ThumbnailReady,
   type WelcomeInfo,
   type EnhanceDownload,
+  type NewPhotosInfo,
   type EnhanceReport,
   type PasteChoices,
   type PasteResult,
@@ -109,12 +110,22 @@ export type State = {
     moving: boolean;
     moved: number;
   } | null;
+  /** The banner's offer of photos that have just arrived (REV-1). */
+  newPhotos: NewPhotosInfo | null;
+  loadNewPhotos: () => Promise<void>;
+  /** Not now. */
+  dismissNewPhotos: () => Promise<void>;
+  /** Review on the banner: exactly those photos, oldest first. */
+  reviewNewPhotos: () => Promise<void>;
+  /** Starts a review, asking first if some photos are in the cloud. */
+  beginReview: (title: string, photos: PhotoInfo[], isNew?: boolean) => void;
   /** A review of photos in the cloud, waiting for its one question. */
   confirmingReview: {
     title: string;
     photos: PhotoInfo[];
     cloudOnly: number;
     cloudSize: number;
+    isNew: boolean;
   } | null;
   /** Its answer: download as they're reached, thumbnails only, or no review. */
   confirmReview: (choice: "download" | "thumbnails" | "cancel") => void;
@@ -583,6 +594,7 @@ export const useStore = create<State>()((set, get) => ({
   viewing: null,
   reviewing: null,
   confirmingReview: null,
+  newPhotos: null,
   reveal: null,
   confirmingOpen: null,
   confirmingEnhance: null,
@@ -908,14 +920,22 @@ export const useStore = create<State>()((set, get) => ({
       : search !== null
         ? t("review-title-search")
         : t("review-title", { name });
-    if (!chosen.some((photo) => photo.cloudOnly)) {
-      set({ reviewing: newReview(title, chosen, true) });
+    get().beginReview(title, chosen);
+  },
+
+  beginReview(title, photos, isNew = false) {
+    const start = () => {
+      set({ reviewing: newReview(title, photos, true) });
+      if (isNew) void get().dismissNewPhotos();
+    };
+    if (!photos.some((photo) => photo.cloudOnly)) {
+      start();
       return;
     }
-    void commands.reviewCloud(chosen.map((photo) => photo.id)).then(({ cloudOnly, cloudSize }) => {
-      if (cloudOnly === 0) set({ reviewing: newReview(title, chosen, true) });
+    void commands.reviewCloud(photos.map((photo) => photo.id)).then(({ cloudOnly, cloudSize }) => {
+      if (cloudOnly === 0) start();
       else
-        set({ confirmingReview: { title, photos: chosen, cloudOnly, cloudSize: cloudSize ?? 0 } });
+        set({ confirmingReview: { title, photos, cloudOnly, cloudSize: cloudSize ?? 0, isNew } });
     });
   },
 
@@ -924,6 +944,21 @@ export const useStore = create<State>()((set, get) => ({
     set({ confirmingReview: null });
     if (!confirming || choice === "cancel") return;
     set({ reviewing: newReview(confirming.title, confirming.photos, choice === "download") });
+    if (confirming.isNew) void get().dismissNewPhotos();
+  },
+
+  async loadNewPhotos() {
+    set({ newPhotos: await commands.newPhotos() });
+  },
+
+  async dismissNewPhotos() {
+    set({ newPhotos: null });
+    await commands.dismissNewPhotos();
+  },
+
+  async reviewNewPhotos() {
+    const photos = await commands.newPhotosReview();
+    if (photos.length > 0) get().beginReview(t("review-title-new"), photos, true);
   },
 
   reviewTo(id) {

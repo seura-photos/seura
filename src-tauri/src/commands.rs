@@ -415,6 +415,72 @@ pub fn review_photos(library: State<'_, Library>, ids: Vec<u32>) -> Vec<PhotoInf
     )
 }
 
+/// What the new-photos banner says (REV-1).
+#[derive(Clone, Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct NewPhotosInfo {
+    pub count: u32,
+    /// The folder with the most of them.
+    pub folder: String,
+    pub other_folders: u32,
+}
+
+/// The photos the banner offers, once additions have settled; `None` when
+/// there are none, or none are left.
+#[tauri::command(async)]
+#[specta::specta]
+pub fn new_photos(library: State<'_, Library>) -> Option<NewPhotosInfo> {
+    let index = library.index.read().expect("index lock");
+    let new_photos = library.new_photos.lock().expect("new photos lock");
+    let mut by_folder: std::collections::HashMap<_, u32> = std::collections::HashMap::new();
+    for photo in new_photos.shown().iter().filter_map(|id| index.photo(*id)) {
+        *by_folder.entry(photo.folder).or_default() += 1;
+    }
+    let count = by_folder.values().sum();
+    // By name too, so that a tie comes out the same every time.
+    let folder = by_folder
+        .iter()
+        .filter_map(|(folder, photos)| {
+            let name = index.folder(*folder)?.path.file_name()?;
+            Some((*photos, name.to_string_lossy().into_owned()))
+        })
+        .max_by(|a, b| a.0.cmp(&b.0).then_with(|| b.1.cmp(&a.1)))?
+        .1;
+    Some(NewPhotosInfo {
+        count,
+        folder,
+        other_folders: by_folder.len() as u32 - 1,
+    })
+}
+
+/// Not now, or a review that has started: they're no longer offered (REV-1).
+#[tauri::command(async)]
+#[specta::specta]
+pub fn dismiss_new_photos(library: State<'_, Library>) {
+    library
+        .new_photos
+        .lock()
+        .expect("new photos lock")
+        .dismiss();
+}
+
+/// The banner's photos for a review, oldest first (question 7).
+#[tauri::command(async)]
+#[specta::specta]
+pub fn new_photos_review(library: State<'_, Library>) -> Vec<PhotoInfo> {
+    let ids = library
+        .new_photos
+        .lock()
+        .expect("new photos lock")
+        .shown()
+        .to_vec();
+    let index = library.index.read().expect("index lock");
+    let mut photos = photo_infos(&library, &index, ids);
+    let when = |photo: &PhotoInfo| photo.taken.unwrap_or(photo.modified);
+    photos.sort_by(|a, b| when(a).total_cmp(&when(b)));
+    photos
+}
+
 /// How much of a review's batch is in the cloud, for its one question (REV-2).
 #[derive(Clone, Debug, Default, Serialize, Type)]
 #[serde(rename_all = "camelCase")]

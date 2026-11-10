@@ -6,6 +6,9 @@ import { noFilter, useStore } from "./store";
 
 // vi.mock is hoisted above imports, so what it uses must be hoisted too.
 const mocks = vi.hoisted(() => {
+  const newPhotos = vi.fn((): Promise<unknown> => Promise.resolve(null));
+  const dismissNewPhotos = vi.fn(() => Promise.resolve(null));
+  const newPhotosReview = vi.fn((): Promise<unknown[]> => Promise.resolve([]));
   const handlers = new Map<string, (event: { payload: unknown }) => void>();
   const event = (name: string) => ({
     listen: vi.fn((handler: (event: { payload: unknown }) => void) => {
@@ -25,6 +28,9 @@ const mocks = vi.hoisted(() => {
       quitRequested: event("quitRequested"),
       deletionExplained: event("deletionExplained"),
     },
+    newPhotos,
+    dismissNewPhotos,
+    newPhotosReview,
     dev: { active: [] as string[] },
     folders: [] as FolderInfo[],
     photos: [] as PhotoInfo[],
@@ -105,6 +111,9 @@ vi.mock("./bindings", () => ({
     photosChosen: vi.fn(() => Promise.resolve(null)),
     reviewCounts: vi.fn(() => Promise.resolve({ rated: 0, edited: 0, tagged: 0 })),
     downloadAhead: vi.fn(() => Promise.resolve(null)),
+    newPhotos: mocks.newPhotos,
+    dismissNewPhotos: mocks.dismissNewPhotos,
+    newPhotosReview: mocks.newPhotosReview,
     photoDetails: vi.fn(() => Promise.resolve({ status: "error", error: "not in the test" })),
     selectionSummary: vi.fn(() =>
       Promise.resolve({

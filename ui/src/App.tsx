@@ -49,11 +49,13 @@ export function App() {
         else if (dev?.measureExport) void measureExport();
         else if (dev?.measure) void measure();
       });
+    void useStore.getState().loadNewPhotos();
     const subscriptions = [
       events.libraryChanged.listen(() => {
         useStore.setState(({ libraryVersion }) => ({ libraryVersion: libraryVersion + 1 }));
         void useStore.getState().loadFolders();
         void useStore.getState().refreshReview();
+        void useStore.getState().loadNewPhotos();
       }),
       // Finished thumbnails arrive in batches, about ten a second.
       events.thumbnailsReady.listen(({ payload }) => useStore.getState().thumbnailsReady(payload)),

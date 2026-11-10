@@ -38,7 +38,7 @@ numeric_id!(PhotoId, FolderId, TagId);
 
 /// A file's modification time, to the nanosecond, as seconds and
 /// nanoseconds since 1970 (negative seconds before).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FileTime {
     pub secs: i64,
     pub nanos: u32,

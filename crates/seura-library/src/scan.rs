@@ -21,6 +21,9 @@ pub struct ScanReport {
     /// Photos in the folder after the scan.
     pub photos: usize,
     pub added: usize,
+    /// The photos added, leaving out those that are a rename: a photo gone
+    /// in this scan with the same size and date (REV-1).
+    pub new_photos: Vec<PhotoId>,
     pub changed: usize,
     pub removed: usize,
     /// Edit files that couldn't be read; their photos show a warning (FIL-4).
@@ -140,12 +143,21 @@ impl Index {
             return report;
         };
         // Anything under this folder that wasn't seen is gone.
+        let mut gone_files = HashSet::new();
         for id in index.photos_under(folder) {
             if !seen_photos.contains(&id) {
+                if let Some(photo) = index.photo(id) {
+                    gone_files.insert((photo.size, photo.modified));
+                }
                 index.remove_photo(id);
                 report.removed += 1;
             }
         }
+        report.new_photos.retain(|id| {
+            index
+                .photo(*id)
+                .is_none_or(|photo| !gone_files.contains(&(photo.size, photo.modified)))
+        });
         index.prune(folder, &seen_folders);
         index.prune_above(root, folder);
         report.photos = index.photos_under(root).len();
@@ -274,7 +286,9 @@ impl Index {
                     }
                     None => {
                         report.added += 1;
-                        self.insert_photo(photo)
+                        let id = self.insert_photo(photo);
+                        report.new_photos.push(id);
+                        id
                     }
                 }
             }
