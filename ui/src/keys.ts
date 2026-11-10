@@ -3,7 +3,11 @@
  * work in every view except while typing (user flows, "Keyboard").
  */
 export function isTyping(event: KeyboardEvent): boolean {
-  const target = event.target;
+  return isField(event.target);
+}
+
+/** Whether something can be typed into. */
+export function isField(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
   if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;

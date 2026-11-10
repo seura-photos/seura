@@ -654,6 +654,39 @@ describe("App", () => {
     expect(mocks.undo).toHaveBeenCalledTimes(1);
   });
 
+  it("selects the Library's photos, or a field's text, from the Mac's menu (#227)", async () => {
+    mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 3, total: 3 })];
+    mocks.photos = [1, 2, 3].map((id) => photo(id));
+    render(<App />);
+    fireEvent.click(await screen.findByRole("treeitem", { name: /Pictures/ }));
+    await screen.findByRole("grid");
+    const menu = mocks.handlers.get("menuCommand");
+    if (!menu) throw new Error("no menu listener");
+    const execCommand = vi.fn(() => true);
+    document.execCommand = execCommand;
+
+    act(() => menu({ payload: "selectAll" }));
+    expect(screen.getByText("3 selected")).toBeDefined();
+    expect(execCommand).not.toHaveBeenCalled();
+
+    // In a text field, the field's own text, and the photos stay as they are.
+    act(() => useStore.getState().selectPhoto(1, { toggle: false, range: false }));
+    fireEvent.keyDown(window, { key: "t" });
+    const field = await screen.findByRole("combobox", { name: "Tag" });
+    field.focus();
+    act(() => menu({ payload: "selectAll" }));
+    expect(execCommand).toHaveBeenCalledWith("selectAll");
+    expect(useStore.getState().selection.ids.size).toBe(1);
+    fireEvent.keyDown(field, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("combobox", { name: "Tag" })).toBeNull());
+
+    // With the Viewer over the Library, nothing behind it is selected.
+    act(() => useStore.getState().view(1));
+    await screen.findByRole("dialog");
+    act(() => menu({ payload: "selectAll" }));
+    expect(useStore.getState().selection.ids.size).toBe(1);
+  });
+
   it("doesn't delete from the Mac's menu during a review (REV-4)", async () => {
     mocks.folders = [folder({ id: 1, root: 0, name: "Pictures", photos: 1, total: 1 })];
     mocks.photos = [photo(1)];
