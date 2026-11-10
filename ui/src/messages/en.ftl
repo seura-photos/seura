@@ -716,6 +716,20 @@ review-left-marked =
        *[other] { $count } photos are still marked for deletion. Review them again to finish.
     }
 mark-failed = Couldn't save that mark: { $reason }
+# The banner offering to review photos that have just arrived (REV-1).
+review-new-banner =
+    { $count ->
+        [one] 1 new photo in { $folder }. Sort through it?
+       *[other]
+            { $others ->
+                [0] { $count } new photos in { $folder }. Sort through them one at a time?
+                [one] { $count } new photos in { $folder } and 1 other folder. Sort through them one at a time?
+               *[other] { $count } new photos in { $folder } and { $others } other folders. Sort through them one at a time?
+            }
+    }
+review-new-start = Review
+review-new-dismiss = Not now
+review-title-new = Reviewing new photos
 # A review of photos that are in the cloud (REV-2, LIB-9).
 review-cloud-title =
     { $count ->

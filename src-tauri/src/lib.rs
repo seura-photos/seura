@@ -63,6 +63,9 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::review_photos,
             commands::review_counts,
             commands::review_cloud,
+            commands::new_photos,
+            commands::dismiss_new_photos,
+            commands::new_photos_review,
             commands::download_ahead,
             commands::download_photos,
             commands::set_marked,
@@ -198,7 +201,7 @@ pub fn run() {
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 let library = handle.state::<Library>();
-                library.rescan(&handle);
+                library.launch_scan(&handle);
                 let _ = LibraryChanged.emit(&handle);
                 library.sweep_thumbnails();
                 // A drive that's disconnected shows as unavailable and comes

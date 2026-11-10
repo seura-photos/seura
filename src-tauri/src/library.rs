@@ -8,9 +8,9 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use seura_library::{
-    Action, ApplyEdits, Change, ChangeReport, Filter, FolderId, History, Index, Marks, Outcome,
-    PhotoId, Problem, SWEEP_AFTER, Scope, SettingsFile, ThumbnailCache, ThumbnailWorkers,
-    UndoReport, Watcher, move_to_trash,
+    Action, ApplyEdits, Change, ChangeReport, Filter, FolderId, History, Index, Marks, NewPhotos,
+    Outcome, PhotoId, Problem, SWEEP_AFTER, Scope, SettingsFile, Settled, ThumbnailCache,
+    ThumbnailWorkers, UndoReport, Watcher, move_to_trash,
 };
 use specta::Type;
 use tauri::{AppHandle, Manager, Runtime};
@@ -19,8 +19,17 @@ use tauri_specta::Event;
 use crate::downloads::{Downloaded, Downloads};
 use crate::synced::{Removal, Trashed};
 
+/// How long additions must have stopped before the banner offers them (REV-1).
+const NEW_PHOTOS_QUIET: Duration = Duration::from_secs(60);
+
 pub struct Library {
     pub index: RwLock<Index>,
+    /// Photos found since the last launch, for the banner (REV-1).
+    pub new_photos: Mutex<NewPhotos>,
+    /// The launch's scan can be compared with a snapshot of the same
+    /// folders. Without one, such as on first run or after clearing the
+    /// cache, every photo would look new (REV-1).
+    compare_launch: bool,
     /// Held while scanning: one scan at a time, so a scan never removes a
     /// photo another just found. The index itself is locked one folder at
     /// a time, so browsing goes on meanwhile.
@@ -216,11 +225,13 @@ impl Library {
         cache: &Path,
         folders: &[PathBuf],
     ) -> Library {
-        let index = Index::load_snapshot(cache)
-            .filter(|index| index.roots() == folders)
-            .unwrap_or_else(|| Index::with_roots(folders.to_vec()));
+        let snapshot = Index::load_snapshot(cache).filter(|index| index.roots() == folders);
+        let compare_launch = snapshot.is_some();
+        let index = snapshot.unwrap_or_else(|| Index::with_roots(folders.to_vec()));
         Library {
             index: RwLock::new(index),
+            new_photos: Mutex::new(NewPhotos::default()),
+            compare_launch,
             scanning: Mutex::new(()),
             progress: Mutex::new(Progress::default()),
             watcher: Mutex::new(None),
@@ -739,6 +750,7 @@ impl Library {
     /// saves it, queues new thumbnails, and tells the UI (LIB-4).
     fn changed<R: Runtime>(&self, app: &AppHandle<R>, folders: &[PathBuf]) {
         let mut edit_files_changed = Vec::new();
+        let mut arrived = Vec::new();
         {
             let _scanning = self.scanning.lock().expect("scan lock");
             let roots = self.index.read().expect("index lock").roots().to_vec();
@@ -748,14 +760,17 @@ impl Library {
                     let report = Index::scan_shared(&self.index, root, folder);
                     orphans.extend(report.orphan_edit_files);
                     edit_files_changed.extend(report.edit_files_changed);
+                    arrived.extend(report.new_photos);
                 }
             }
-            self.reattach_renamed(&orphans);
+            let renamed = self.reattach_renamed(&orphans);
+            arrived.retain(|id| !renamed.contains(id));
             self.reconcile_marks();
         }
         self.save();
         self.queue_all(app);
         let _ = LibraryChanged.emit(app);
+        self.photos_arrived(app, &arrived);
         // The photo open in the Editor may be one of them (FIL-3).
         if !edit_files_changed.is_empty()
             && let Some(editor) = app.try_state::<crate::editor::Editor>()
@@ -910,10 +925,65 @@ impl Library {
         self.store.read().expect("store lock").thumbnails.path(key)
     }
 
+    /// Waits for additions to stop, then offers them (REV-1).
+    fn photos_arrived<R: Runtime>(&self, app: &AppHandle<R>, ids: &[PhotoId]) {
+        let start = self
+            .new_photos
+            .lock()
+            .expect("new photos lock")
+            .arrived(ids, Instant::now());
+        if !start {
+            return;
+        }
+        let app = app.clone();
+        std::thread::spawn(move || {
+            let library = app.state::<Library>();
+            loop {
+                match library.settle_new_photos(NEW_PHOTOS_QUIET) {
+                    Settled::Wait(wait) => std::thread::sleep(wait),
+                    Settled::Done { changed } => {
+                        if changed {
+                            let _ = LibraryChanged.emit(&app);
+                        }
+                        return;
+                    }
+                }
+            }
+        });
+    }
+
+    fn settle_new_photos(&self, quiet: Duration) -> Settled {
+        let index = self.index.read().expect("index lock");
+        self.new_photos
+            .lock()
+            .expect("new photos lock")
+            .settle(Instant::now(), quiet, |id| index.path(id))
+    }
+
+    /// The first scan after launch: what it finds that the snapshot didn't
+    /// have is new, and offered at once (REV-1).
+    pub fn launch_scan<R: Runtime>(&self, app: &AppHandle<R>) {
+        let found = self.scan_all(app);
+        if self.compare_launch {
+            self.new_photos
+                .lock()
+                .expect("new photos lock")
+                .arrived(&found, Instant::now());
+            self.settle_new_photos(Duration::ZERO);
+        }
+    }
+
     /// Rescans every library folder, saves the snapshot, and queues the
     /// thumbnails. Runs on a background thread; the grid shows the snapshot
-    /// meanwhile, and the status bar says how far it's got (LIB-3).
+    /// meanwhile, and the status bar says how far it's got (LIB-3). Nothing
+    /// it finds is offered as new: a folder just added doesn't count.
     pub fn rescan<R: Runtime>(&self, app: &AppHandle<R>) {
+        self.scan_all(app);
+    }
+
+    /// The scan, returning the photos it found for the first time.
+    fn scan_all<R: Runtime>(&self, app: &AppHandle<R>) -> Vec<PhotoId> {
+        let mut found = Vec::new();
         let scanning = self.scanning.lock().expect("scan lock");
         let roots = self.index.read().expect("index lock").roots().to_vec();
         for root in roots {
@@ -923,14 +993,21 @@ impl Library {
             );
             self.progress.lock().expect("progress lock").scanning = Some(name);
             self.send_progress(app, true);
-            let orphans = Index::scan_shared(&self.index, &root, &root).orphan_edit_files;
-            self.reattach_renamed(&orphans);
+            let report = Index::scan_shared(&self.index, &root, &root);
+            let renamed = self.reattach_renamed(&report.orphan_edit_files);
+            found.extend(
+                report
+                    .new_photos
+                    .into_iter()
+                    .filter(|id| !renamed.contains(id)),
+            );
         }
         self.reconcile_marks();
         drop(scanning);
         self.progress.lock().expect("progress lock").scanning = None;
         self.save();
         self.queue_all(app);
+        found
     }
 
     /// The photos marked for deletion that are in the index (REV-4).
@@ -1010,15 +1087,17 @@ impl Library {
     }
 
     /// Gives renamed photos their edit files back (FIL-6).
-    fn reattach_renamed(&self, orphans: &[PathBuf]) {
-        if !orphans.is_empty() {
-            Index::reattach_renamed(
-                &self.index,
-                orphans,
-                crate::editor::WRITER,
-                time::OffsetDateTime::now_utc(),
-            );
+    /// Returns the photos that got their edit file back: renamed, not new.
+    fn reattach_renamed(&self, orphans: &[PathBuf]) -> Vec<PhotoId> {
+        if orphans.is_empty() {
+            return Vec::new();
         }
+        Index::reattach_renamed(
+            &self.index,
+            orphans,
+            crate::editor::WRITER,
+            time::OffsetDateTime::now_utc(),
+        )
     }
 
     pub fn save(&self) {

@@ -36,6 +36,7 @@ import {
 } from "./keys";
 import { Message } from "./Message";
 import { MoreButton } from "./MoreButton";
+import { NewPhotos } from "./NewPhotos";
 import { NoticeBar } from "./NoticeBar";
 import { PhotoMenu } from "./PhotoMenu";
 import { type Quick, QuickActions } from "./QuickActions";
@@ -345,6 +346,7 @@ export function Library({ inert = false }: { inert?: boolean }) {
       <SidebarDivider sidebar={sidebar} />
 
       <main className="main">
+        <NewPhotos />
         {folders.length === 0 ? (
           <p className="empty">{t("library-empty")}</p>
         ) : shown ? (

@@ -1,0 +1,5 @@
+# 2026-11-09: Cloud-only photos in a review, on the Mac (M6 slice 5)
+
+- **The Mac session checked #256 against real cloud-only OneDrive files,** in Nevada's test folder, driving the app through Accessibility. The question's count and size were right, thumbnails only downloaded nothing, Download as I go brought down the photos in the window and no others, and marked OneDrive photos were refused the Trash (#112) without being downloaded first.
+- **It made files cloud-only from the command line,** with `FileManager.evictUbiquitousItem`, so neither machine needs Free Up Space by hand for tests like this.
+- **The first photo took 30 seconds or more to appear on the Mac** after its file had arrived, in a debug build. Claude Code timed the same step on Windows: 1.6 seconds from answering the question to the photo showing, with the file arriving at 0.9. So it isn't general. The cause on the Mac is unknown, and it's the path the Viewer has used since before this slice. Left to see whether it shows up in Nevada's use.

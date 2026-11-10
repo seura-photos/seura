@@ -122,6 +122,20 @@ export const commands = {
 	/**  What's in the cloud among the photos a review is about to show. */
 	reviewCloud: (ids: number[]) => __TAURI_INVOKE<ReviewCloud>("review_cloud", { ids }),
 	/**
+	 *  The photos the banner offers, once additions have settled; `None` when
+	 *  there are none, or none are left.
+	 */
+	newPhotos: () => __TAURI_INVOKE<{
+	count: number,
+	/**  The folder with the most of them. */
+	folder: string,
+	otherFolders: number,
+} | null>("new_photos"),
+	/**  Not now, or a review that has started: they're no longer offered (REV-1). */
+	dismissNewPhotos: () => __TAURI_INVOKE<void>("dismiss_new_photos"),
+	/**  The banner's photos for a review, oldest first (question 7). */
+	newPhotosReview: () => __TAURI_INVOKE<PhotoInfo[]>("new_photos_review"),
+	/**
 	 *  Fetches these photos ahead of a review, replacing the list before: an
 	 *  empty list stops fetching (REV-2, LIB-9).
 	 */
@@ -886,6 +900,14 @@ export type MenuCommand = "addFolder" |
  *  or, in a text field, the field's own.
  */
 "undo" | "redo";
+
+/**  What the new-photos banner says (REV-1). */
+export type NewPhotosInfo = {
+	count: number,
+	/**  The folder with the most of them. */
+	folder: string,
+	otherFolders: number,
+};
 
 /**  What the Editor can show of a photo (EDT-1). */
 export type OpenedPhoto = 

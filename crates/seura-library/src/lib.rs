@@ -12,6 +12,7 @@ mod fingerprint;
 mod formats;
 mod index;
 mod marks;
+mod new_photos;
 mod notices;
 mod platform;
 mod renames;
@@ -38,6 +39,7 @@ pub use index::{
     TagId,
 };
 pub use marks::{MARKS_FILE, Marks};
+pub use new_photos::{NewPhotos, Settled};
 pub use notices::FileNotices;
 pub use platform::{has_trash, is_placeholder, trash_refused};
 pub use scan::ScanReport;
