@@ -19,9 +19,9 @@ The machines are Nevada's Windows PC (Windows 11, NVIDIA GPU) and a MacBook Pro 
 | PRF-7 | Memory with a 50,000-photo library | under 1 GB (500 MB) | 68 MB (peak 145 MB) | 285 MB (peak; macOS gives only the peak) |
 | FND-3 | Search as you type: the slowest letter, 50,000 photos | within 200 ms at 10,000 photos (100 ms) | 172 ms in the full run; 118 to 134 ms in five repeats | 120 ms |
 
-All are met except PRF-4 on the Mac by two frames a second, and within the aims except FND-3 at 50,000 photos, whose target is at 10,000.
+All are met except PRF-4 on the Mac, which is about 60 in most runs and two frames a second short in others, and within the aims except FND-3 at 50,000 photos, whose target is at 10,000.
 
-- **PRF-4 on the Mac** has read 59 and 60 in earlier milestones. WebKit limits the page to 60 frames a second, so any dropped frame reads as under the target. This run didn't look at which frames were late.
+- **PRF-4 on the Mac** has read 59 and 60 in earlier milestones, and WebKit limits the page to 60 frames a second, so any dropped frame reads as under the target. At Nevada's request the Mac session ran it three more times: 59.6, 59.6 and 58.4 a second, with 2, 2 and 7 frames over 33 ms and the longest at 53 to 69 ms. The script's table rounds to whole numbers, so 59.6 is what earlier milestones would have recorded as 60. The shortfall comes and goes; the slowest repeat was also the one during which the Mac's load rose, from a cause the snapshots between runs don't show.
 - **Next photo in Review** is timed as the Viewer's is: 20 moves, half a second on each, until the photo is drawn. It's the same drawing code, and it reads ahead to the photos on either side.
 - **The first search number on Windows** was slower than M5's 120 ms, so that library was run five more times, to see whether M6's marks had cost anything. They hadn't: the repeats came in at 118 to 134 ms.
 - **In one of those repeats on Windows, the Viewer never drew a photo,** and showed no message. It didn't happen in the five that followed, and the cause is unknown ([#258](https://github.com/seura-photos/seura/issues/258)).
