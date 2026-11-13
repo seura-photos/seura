@@ -86,6 +86,23 @@ New in M6:
 - **Build 0.5,** the devlog post, and confirming every "done when". Each outward step needs Nevada's approval.
 - **Done when:** Nevada runs newly added photos through Review end to end, with build 0.5.
 
+## Status
+
+**The milestone's "done when"** is met: **M6 is complete** (2026-11-12). Nevada copied five photos into a OneDrive folder on Windows. Build 0.5 on the Mac, already open, offered them in the new-photos banner about a minute after they synced. Nevada enhanced and rated them in a review there. Once the edit files had synced back, Nevada exported the 4-star photos on Windows. Claude Code checked the results read only:
+- All the edit files pass `check.py`.
+- Every photo still matches the checksum in its edit file.
+- The four exports are brighter than their originals, as the Mac's Enhance settings say, so Windows rendered the edits that synced over.
+- The exports carry the rating, and no location, as the export settings asked.
+
+This records the milestone, not a fresh check of every slice's "done when"; what each slice found is in `docs/journal/`, and the final measurements are in [m6-wrap-up.md](benchmarks/m6-wrap-up.md). Build 0.5.0 is published as a public pre-release, and devlog part 12 is live.
+
+**Carried forward:**
+- **To M7:** Node 26 (#156), slice 0, which was waiting for 2026-11-11 and can be done now.
+- **In no milestone yet:**
+  - From this milestone: edit files written before a photo's thumbnail never getting its width and height (#264), found in the run above; the Viewer once not drawing a photo during measuring (#258); and a library folder saved through a symbolic link (#255).
+  - Older: quitting from the Dock on the Mac (#217), and the GPU shader caches in decision 0013 (#231, for a design session).
+- **For a design session:** decision 0015 doesn't list `marks.json` yet; BRW-11 and REV-6 don't say that undo can put back a mark a review made.
+
 ## Questions
 
 All are answered, by the design session on 2026-11-09 (#240; journal, `2026-11-09-m6-plan-answers.md`). Answers are Claude Code's suggestions except where they say otherwise.
