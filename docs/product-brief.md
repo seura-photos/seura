@@ -97,6 +97,7 @@ AI is optional and off by default. At launch it uses the user's own API key with
 - Face recognition and natural-language search
 - Importing edits from Apple `.AAE` files and old Picasa `.picasa.ini` files
 - Slideshows, printing, and sharing to online services
+- Export file names: a choice in the Export dialog to name an export's files with a name and number ("Beach trip 01.jpg") instead of the originals' names, numbered in the Library's order, padded to sort, continuing the numbering already in the destination folder, and not remembered for the next export
 - A plugin system (the edit format already allows plugin operations)
 - Translations of the app. The display language follows the operating system's, with a setting to override it; Windows has no per-app language choice, so the setting is needed there. Translations would likely come from volunteers through a free translation platform for open-source projects, or as AI drafts reviewed by native speakers. Right-to-left languages (Arabic, Hebrew), which mirror the whole layout, after that. v1 is built so this needs no rework (functional spec, ACC-5 to ACC-7).
 - Linux
