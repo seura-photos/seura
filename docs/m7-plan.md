@@ -53,7 +53,7 @@ The order puts what depends on Nevada's purchases and on design answers early, s
 
 ### 1. Signed installers (#70, #112)
 
-- **Windows:** the NSIS installer and the app signed in the release workflow, with the option Nevada chooses (question 1). The install location settled by #70 (question 2).
+- **Windows:** the NSIS installer and the app signed in the release workflow through SignPath Foundation's program for open-source projects (question 1). Nevada applies to SignPath. Claude Code checks its conditions first, then writes the workflow steps: builds fully automated from CI, two-factor authentication on GitHub and SignPath, no closed-source parts, a code signing policy page, and SignPath's attribution line in the releases. The install location is settled by #70 (question 2).
 - **macOS:** the app signed with a Developer ID certificate, hardened runtime, and notarized. The disk image is signed and stapled, so it opens without Privacy & Security's Open Anyway.
 - **#112 retested** with the Developer ID build, as decided on 2026-10-29: deleting a downloaded OneDrive photo on the Mac. If it still fails, the current refusal stays, and the user guide says so.
 - **The release notes' install steps** lose the SmartScreen and Open Anyway instructions once they're no longer needed.
@@ -171,12 +171,13 @@ Lettered pull requests, one per issue:
 
 ## Questions
 
-Questions 1, 2 and 10 are Nevada's and still open, each with Claude Code's suggestion. The others were the design session's, answered on 2026-11-24 (#270); each answer is recorded below, and the slices above follow it.
+Questions 1, 2 and 10 are Nevada's, each with Claude Code's suggestion; 1 and 10 are answered, and 2 is still open. The others were the design session's, answered on 2026-11-24 (#270); each answer is recorded below, and the slices above follow it.
 
 1. **Code signing (Nevada).** The product brief says signing is needed "so the target users don't see security warnings". It still needs pricing and a choice.
    - On the Mac: Apple's Developer Program, about $99 a year, enrolled as an individual (the certificate then shows Nevada's name) or as an organization (which needs a legal entity).
    - On Windows, the options include Microsoft's cloud signing service (a monthly fee, with identity checks), a signing program for open-source projects (free, with conditions), or a certificate from a certificate authority.
    - *Suggestion:* Apple's program as an individual; for Windows, Nevada prices the cloud service and the open-source program, and Claude Code checks each against the release workflow before choosing.
+   - **Nevada's answer (2026-11-24):** Apple's Developer Program, which Nevada is signing up for. For Windows, SignPath Foundation's free program for open-source projects, since cost matters for a project given away that may or may not find an audience, and a monthly subscription most of all. With it, the certificate names SignPath Foundation as the publisher, builds must come from CI, and releases carry SignPath's attribution line (slice 1).
 2. **The Windows install location (#70, Nevada or a design session).** Per user only, as now, in `%LOCALAPPDATA%\Programs`; Program Files for everyone; or a choice in the installer. *Suggestion:* per user only, as now. It needs no administrator rights, keeps updates silent, and every file Seura installs stays in the user's own profile. The user guide says where it is.
 3. **The Settings screen's layout.** As suggested: one page in SET-2's order, applying at once. On macOS, a window from the app menu (Cmd+,); on Windows, a dialog with Close, from ⋯ → Settings… (Ctrl+,). Added: removing a library folder confirms that its photos and edit files aren't touched; clearing the cache confirms that it's rebuilt automatically; Updates shows "Last checked …" and Check now. In the wireframes, §9.
 4. **The Clean up dialog's layout.** As suggested, plus: nothing checked at first, with Move to Recycle Bin (Trash) disabled until something is chosen and Cancel holding the focus; choices that don't apply to the scope disabled; the preview leading with how many photos will lose edits, tags or ratings; and a full reset confirming once more, then restarting at Welcome. A folder's right-click menu opens it with that folder chosen. In the wireframes, §10. **A rule change came with it:** clearing the cache, from Settings or Clean up, deletes it directly rather than moving it to the Trash (decision 0018, CLN-4, CLAUDE.md rule 5). Edit files, settings and presets still go to the Trash.
@@ -186,6 +187,7 @@ Questions 1, 2 and 10 are Nevada's and still open, each with Claude Code's sugge
 8. **The user guide: who writes it, and where.** As suggested: a page on the website, written in a design session from Claude Code's fact sheet, which includes the known issues. Claude Code then checks the draft against the app.
 9. **Where the license notices are shown.** As suggested.
 10. **The beta (Nevada).** How many testers, found where, and for how long. *Suggestion:* five to ten people, with at least one each on Windows 10, Windows 11, macOS 13 to 15 and macOS 26; two weeks; reports through GitHub issues. The beta ends early only for a data-safety problem.
+   - **Nevada's answer (2026-11-24):** agreed. Testers come first from LinkedIn, where Nevada has been posting about Seura, and other channels can follow. Interest is limited so far, and a signed installer should help.
 11. **Finder's Put Back for edit files (#254).** As suggested: a known issue for 1.0, explained in the user guide.
 12. **Decoding colors in full (#188) before or after 1.0.** As suggested: in M7, before the beta. Moving it after 1.0 needs Nevada's agreement.
 
