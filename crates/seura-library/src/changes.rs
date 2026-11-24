@@ -522,21 +522,30 @@ fn write(
     let mut fingerprint = None;
     let mut file = match loaded {
         Some(mut file) => {
+            let recorded = file.document.photo();
             if !target.placeholder
                 && let Some((width, height)) = target.dimensions
-                && file
-                    .document
-                    .photo()
-                    .is_some_and(|photo| photo.sha256.is_none())
+                && let Some(recorded) = recorded
+                && (recorded.sha256.is_none() || recorded.width.is_none())
             {
-                // The photo is on disk now: fill in what a cloud-only photo's
-                // file was created without (LIB-9).
+                // The photo is on disk now and its size is known: fill in
+                // what the file was created without, a cloud-only photo's
+                // fingerprint (LIB-9) or a size not yet decoded (#264). If
+                // the file names another fingerprint, the photo has changed
+                // since (FIL-7), and this size may not be its own.
                 let found =
                     photo_fingerprint(target).map_err(|error| io_problem(&error, folder))?;
-                file.document
-                    .fill_in_photo(&to_hex(&found.0), width, height)
-                    .map_err(|error| Problem::Failed(error.to_string()))?;
-                fingerprint = Some(found);
+                let hex = to_hex(&found.0);
+                if recorded
+                    .sha256
+                    .as_deref()
+                    .is_none_or(|sha256| sha256 == hex)
+                {
+                    file.document
+                        .fill_in_photo(&hex, width, height)
+                        .map_err(|error| Problem::Failed(error.to_string()))?;
+                    fingerprint = Some(found);
+                }
             }
             file
         }
@@ -752,6 +761,44 @@ mod tests {
                 .fingerprint
                 .is_some()
         );
+    }
+
+    /// A file written before the photo's size was decoded gets it at the
+    /// next change, though it already has the fingerprint (#264).
+    #[test]
+    fn a_size_decoded_later_is_filled_in_beside_the_fingerprint() {
+        let (dir, index, id) = library();
+        change(&index, id, Change::Rating(4));
+        let photo = saved(&dir).photo().unwrap();
+        assert_eq!(photo.sha256.as_ref().map(String::len), Some(64));
+        assert_eq!(photo.width, None, "not decoded yet");
+
+        index.write().unwrap().photo_mut(id).unwrap().dimensions = Some((40, 30));
+        change(&index, id, Change::AddTag("beach".into()));
+        let filled = saved(&dir).photo().unwrap();
+        assert_eq!((filled.width, filled.height), (Some(40), Some(30)));
+        assert_eq!(filled.sha256, photo.sha256);
+        assert_eq!(saved(&dir).history_len(), 2, "filling in isn't a change");
+    }
+
+    /// A file naming another fingerprint belongs to the photo as it was
+    /// (FIL-7): the size decoded now may not be its own, so it's left out.
+    #[test]
+    fn a_size_isnt_filled_in_for_a_photo_that_has_changed() {
+        let (dir, index, id) = library();
+        change(&index, id, Change::Rating(4));
+        let path = dir.path().join("IMG_1.jpg.seura.json");
+        let mut json: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        let other = "a".repeat(64);
+        json["photo"]["sha256"] = serde_json::json!(other);
+        fs::write(&path, serde_json::to_vec_pretty(&json).unwrap()).unwrap();
+
+        index.write().unwrap().photo_mut(id).unwrap().dimensions = Some((40, 30));
+        change(&index, id, Change::AddTag("beach".into()));
+        let photo = saved(&dir).photo().unwrap();
+        assert_eq!(photo.sha256.as_deref(), Some(other.as_str()));
+        assert_eq!(photo.width, None);
     }
 
     #[test]

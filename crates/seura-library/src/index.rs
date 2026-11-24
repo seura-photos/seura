@@ -382,6 +382,20 @@ impl Index {
         new
     }
 
+    /// Records a photo's upright dimensions, learned by decoding it for the
+    /// Viewer or a review, so an edit file written before its thumbnail is
+    /// made can still name them (#264). Returns whether they were new.
+    pub fn record_dimensions(&mut self, id: PhotoId, dimensions: (u32, u32)) -> bool {
+        let Some(photo) = self.photo_mut(id) else {
+            return false;
+        };
+        if dimensions.0 == 0 || dimensions.1 == 0 || photo.dimensions == Some(dimensions) {
+            return false;
+        }
+        photo.dimensions = Some(dimensions);
+        true
+    }
+
     /// The photo with this name in this folder.
     pub(crate) fn find(&self, folder: FolderId, name: &str) -> Option<PhotoId> {
         self.by_name.get(&(folder, Box::from(name))).copied()
