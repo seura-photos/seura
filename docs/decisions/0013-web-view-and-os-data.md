@@ -33,6 +33,8 @@ Measured 2026-10-18 on Tauri 2.12.1 with a 15-second run of the app: on Nevada's
 Things that are outside this decision because they aren't data:
 
 - **The installed program.** Tauri's per-user NSIS installer puts the program itself in `%LOCALAPPDATA%\Seura Photos`. That's where per-user Windows programs live; it's removed by uninstalling. On macOS the app lives wherever the user put the `.app`.
+- **GPU shader caches** the graphics system keeps for every program that uses the GPU, which Seura does for export and edited thumbnails (decision 0004). On Windows, Direct3D's `%LOCALAPPDATA%\D3DSCache\<hash>` (a folder per program, about 0.5 MB, found in the M5 audit, #231) and the graphics driver's own shared cache, such as `%LOCALAPPDATA%\NVIDIA\DXCache`; on macOS, Metal's cache in the per-user cache folder, named after the app's identifier. Seura doesn't write them and there's no supported way to move or turn them off, short of compiling every shader at each launch. They're small and rebuilt if deleted. The Windows uninstaller removes Seura's `D3DSCache` folder if it can identify it; the driver's shared caches can't be picked apart.
+- **The update installer,** downloaded to the system's temporary folder (SET-4) and deleted after installing; one left by an interrupted update is deleted at the next launch.
 - **System-wide records** the operating system keeps about every app, in its own files rather than ones named for Seura: Spotlight's index, the macOS "reopen at login" list, Windows' recent-programs lists. Seura can't control or remove these.
 
 ## Watch list

@@ -99,3 +99,22 @@ A single centered card: title; two sentences (what the app does; originals are n
 ## 8. Export (EXP-*)
 
 - A modal over the dimmed Library: Save to (path and Choose…); Format (JPEG with quality, or PNG) beside Size (Original, 2048, 1600, 1024, Custom px); Details (Remove location data; Include tags and rating as keywords); a sentence that originals aren't changed and names that are taken get a number; Cancel and Export.
+
+## 9. Settings (SET-2)
+
+- **One page, no tabs,** in SET-2's order, each section with a small heading; changes apply at once. macOS: a window (Cmd+,), with no buttons, as Mac settings are. Windows: a dialog (Ctrl+,, or ⋯ → Settings…) with Close.
+- **Library folders:** the list, with each folder's photo count; Add folder… and Remove (removing a folder only stops showing it: its photos and edit files are untouched, and the confirmation says so).
+- **Cache:** where it is and how big; Move… (with progress) and Clear (with a confirmation saying it's rebuilt automatically).
+- **Seura's folder:** where it is (`Seura Photos` in the home folder), with Open folder.
+- **Export defaults:** format and quality, size, remove location data, include tags and rating, the same controls as the Export dialog.
+- **Updates:** Check for updates automatically; "Last checked today at 9:41"; Check now.
+
+## 10. Clean up (CLN-1 to CLN-4)
+
+- **A dialog,** from File → Clean up on macOS, ⋯ → Clean up on Windows, or a folder's right-click menu (which starts with that folder chosen).
+- **Scope** at the top: This folder (with "Include subfolders"), The whole library, or Only edit files whose photos are gone.
+- **What to remove,** checkboxes, none checked at first: Edit files; The cache; Everything (a full reset: adds settings and presets). The choices that don't apply to the scope are disabled.
+- **Preview,** updating as the choices change: how many edit files, how big the cache, and above all how many photos will lose their edits, tags, or ratings.
+- **Buttons:** Export edited photos first… on the left; Cancel and Move to Recycle Bin (Trash on the Mac; danger style, disabled until something is chosen) on the right. Cancel has the focus.
+- **A full reset** asks once more: "Seura will forget your library and settings and start again with the Welcome screen. Your photos aren't touched." Then it does.
+
