@@ -4088,6 +4088,7 @@ dependencies = [
  "half",
  "jpeg-encoder",
  "libc",
+ "objc2",
  "objc2-core-foundation",
  "rfd",
  "serde",

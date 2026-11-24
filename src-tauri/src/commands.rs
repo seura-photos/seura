@@ -2641,7 +2641,7 @@ pub fn measure_elapsed() -> f64 {
 #[tauri::command]
 #[specta::specta]
 pub fn finish_quit(app: AppHandle) {
-    app.exit(0);
+    crate::quitting::finish(&app);
 }
 
 /// The measurement script's results, as JSON: written with the core's
