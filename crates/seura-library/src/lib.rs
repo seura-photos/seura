@@ -36,7 +36,7 @@ pub use fingerprint::{fingerprint_file, to_hex};
 pub use formats::Format;
 pub use index::{
     AddFolder, EditFileState, FileTime, Filter, Folder, FolderId, Index, Photo, PhotoId, Scope,
-    TagId,
+    TagId, resolve_root,
 };
 pub use marks::{MARKS_FILE, Marks};
 pub use new_photos::{NewPhotos, Settled};

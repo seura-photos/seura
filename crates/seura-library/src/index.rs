@@ -530,6 +530,15 @@ impl Index {
     }
 }
 
+/// A library folder from the settings, written as Add Folder writes one:
+/// links resolved, so it matches the paths the folder watcher reports
+/// (#255). A folder that can't be resolved now, such as one on a drive
+/// that isn't connected, stays as saved, so it shows as unavailable and
+/// comes back when the drive does (LIB-6).
+pub fn resolve_root(path: &Path) -> PathBuf {
+    normalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
 /// An absolute path with the folder's real name, comparable component by
 /// component. Windows' `\\?\` prefix is dropped where it isn't needed.
 pub(crate) fn normalize(path: &Path) -> std::io::Result<PathBuf> {
@@ -588,5 +597,34 @@ mod tests {
             index.add_root(&summer).unwrap(),
             AddFolder::AlreadyIncluded(_)
         ));
+    }
+
+    /// A saved folder that can't be resolved now, on a drive that isn't
+    /// connected, stays as saved, so it can come back (LIB-6, #255).
+    #[test]
+    fn a_saved_folder_that_isnt_there_stays_as_saved() {
+        let dir = tempfile::tempdir().unwrap();
+        let gone = dir.path().join("Card").join("DCIM");
+        assert_eq!(resolve_root(&gone), gone);
+        std::fs::create_dir_all(&gone).unwrap();
+        assert_eq!(resolve_root(&gone), normalize(&gone).unwrap());
+    }
+
+    /// A folder saved through a link resolves to the real path, as Add
+    /// Folder writes it, so the watcher's paths fall inside it (#255).
+    #[cfg(unix)]
+    #[test]
+    fn a_saved_folder_through_a_link_resolves_to_the_real_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("Photos");
+        std::fs::create_dir_all(real.join("Summer")).unwrap();
+        let link = dir.path().join("Link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let root = resolve_root(&link);
+        assert_eq!(root, normalize(&real).unwrap());
+        // What the watcher reports, through the real path.
+        let reported = normalize(&real.join("Summer")).unwrap();
+        assert!(reported.starts_with(&root));
+        assert!(!reported.starts_with(&link));
     }
 }
