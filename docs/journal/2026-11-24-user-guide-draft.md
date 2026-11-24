@@ -1,0 +1,5 @@
+# The user guide's first draft (design session)
+
+- **Claude drafted the user guide** as a page on the website (`/guide/`, website PR #16) from Claude Code's fact sheet, written for the current early build, with Settings, Clean up, updates and signed installers marked as coming in the beta. Claude Code checks every statement against the app before it's published (#281).
+- **From the fact sheet's twelve open questions,** settled in documents: decision 0015's install folder corrected; SET-5's Mac wording now matches the Third-Party Notices menu item Nevada chose; the update installer added to CLAUDE.md rule 5's direct deletions; Ctrl+Y added to the user flows. The guide avoids promising an autosave delay, says to restart Seura after installing the HEIC extensions, and lists iCloud Drive as expected to work but not yet tested.
+- **Left for Nevada:** whether Intel Macs are supported (the technical design says yes; only an Apple silicon build ships), and whether the Editor should take the rating and tag keys.

@@ -32,7 +32,7 @@ Unchanged from 0005: API keys go in the operating system's credential store, and
 ## Alternatives considered
 
 - **Keep Documents, and suggest another cache location when it's synced.** The settings file would still sync between machines, with conflicting library paths.
-- **The app's install folder.** On Windows a per-user install goes under `AppData\Local\Programs` (hidden) and a machine-wide one under `Program Files` (not writable by normal users). On macOS the app is a signed bundle, and writing inside it breaks the signature.
+- **The app's install folder.** On Windows the per-user install goes in `%LOCALAPPDATA%\Seura Photos` (inside the hidden AppData folder; decision 0013, #70) and a machine-wide one under `Program Files` (not writable by normal users). On macOS the app is a signed bundle, and writing inside it breaks the signature.
 - **Standard app-data folders** (`AppData`, `~/Library`). Hidden; rejected in 0005 and still rejected.
 - **Marking the folder not to sync.** iCloud skips names ending in `.nosync`, but OneDrive has no reliable per-folder exclusion inside a backed-up folder.
 

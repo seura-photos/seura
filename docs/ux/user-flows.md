@@ -217,7 +217,7 @@ Ctrl on Windows, Cmd on macOS. Single-letter keys work in every view except whil
 | Start a review (in the Library) | R |
 | Unmark the selected marked photos (Library, Viewer) | X |
 | Fix red-eye (in Editor) | R |
-| Undo, redo | Ctrl+Z, Shift+Ctrl+Z (in the Library, the last action, BRW-11; in the Editor, the photo's history, EDT-9) |
+| Undo, redo | Ctrl+Z, Shift+Ctrl+Z or Ctrl+Y on Windows (Cmd+Z, Shift+Cmd+Z on macOS) (in the Library, the last action, BRW-11; in the Editor, the photo's history, EDT-9) |
 | Copy edits, paste edits | Shift+Ctrl+C, Shift+Ctrl+V |
 | Export | Ctrl+E |
 | Search | Ctrl+F |
