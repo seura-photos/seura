@@ -65,7 +65,10 @@ pub use mac::install;
 
 #[cfg(target_os = "macos")]
 mod mac {
-    #![allow(unsafe_code, reason = "AppKit's delegate and replies are Objective-C APIs")]
+    #![allow(
+        unsafe_code,
+        reason = "AppKit's delegate and replies are Objective-C APIs"
+    )]
 
     use super::FINISHING;
     use objc2::runtime::{AnyClass, AnyObject, Bool, Imp, Sel};
