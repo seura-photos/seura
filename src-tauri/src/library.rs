@@ -217,17 +217,25 @@ impl EnhanceReport {
 impl Library {
     /// Loads the index snapshot from the cache (PRF-1) and starts the
     /// thumbnail workers, one fewer than the processor's threads. The
-    /// library folders come from the settings; a snapshot of other folders
-    /// is set aside, which only costs a full scan.
+    /// library folders come from the settings, resolved as Add Folder
+    /// resolves them, so a folder saved through a link sees live changes
+    /// (#255); a snapshot of other folders is set aside, which only costs a
+    /// full scan.
     pub fn open<R: Runtime>(
         app: &AppHandle<R>,
         seura: &Path,
         cache: &Path,
         folders: &[PathBuf],
     ) -> Library {
+        let mut folders: Vec<PathBuf> = folders
+            .iter()
+            .map(|folder| seura_library::resolve_root(folder))
+            .collect();
+        folders.sort();
+        folders.dedup();
         let snapshot = Index::load_snapshot(cache).filter(|index| index.roots() == folders);
         let compare_launch = snapshot.is_some();
-        let index = snapshot.unwrap_or_else(|| Index::with_roots(folders.to_vec()));
+        let index = snapshot.unwrap_or_else(|| Index::with_roots(folders));
         Library {
             index: RwLock::new(index),
             new_photos: Mutex::new(NewPhotos::default()),

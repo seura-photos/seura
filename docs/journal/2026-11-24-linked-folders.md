@@ -1,0 +1,7 @@
+# 2026-11-24: Library folders saved through a link (M7 slice 8c, #255)
+
+- **Nevada passed the manual test of the third-party notices (#287) on both machines** before merging it: About's link on Windows and the app menu's item on the Mac each open the list.
+- **Nevada asked for #255 and the user guide's fact sheet** while away at lunch.
+- **The cause, as the Mac session found on 2026-11-09:** Add Folder resolves a folder's path, links included, but at launch the saved folders were used exactly as written. On the Mac, the folder watcher reports changes under the real path, so a folder saved as `/var/folders/...` (where `/var` links to `/private/var`) never matched, and live changes were dropped.
+- **The fix:** at launch, each saved folder is resolved as Add Folder resolves it. A folder that can't be resolved, such as one on a drive that isn't connected, stays as saved, so it still shows as unavailable and comes back with the drive (LIB-6). The settings file isn't rewritten at launch; it takes the resolved paths the next time a folder is added or removed, as before.
+- **Tested by unit tests,** one of them only on Unix-like systems, since Windows needs extra rights to make a symbolic link. A Windows check couldn't show the fix anyway: Windows reports changes under the path being watched, which is why the bug was only seen on the Mac. The Mac session's original setup can confirm it there.
