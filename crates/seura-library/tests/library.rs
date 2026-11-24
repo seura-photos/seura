@@ -321,6 +321,21 @@ fn the_snapshot_restores_the_index() {
 }
 
 #[test]
+fn a_size_learned_by_the_viewer_is_recorded_once() {
+    // #264: so an edit file written before the thumbnail can name it.
+    let folder = Folder::new();
+    folder.photo("a.jpg", JPEG);
+    let mut index = Index::new();
+    index.add_root(&folder.root()).unwrap();
+    index.scan(&folder.root());
+    let id = index.query(Scope::All, &Filter::default())[0];
+    assert!(index.record_dimensions(id, (4000, 3000)));
+    assert!(!index.record_dimensions(id, (4000, 3000)));
+    assert!(!index.record_dimensions(id, (0, 3000)), "never a guess");
+    assert_eq!(photo(&index, "a.jpg").dimensions, Some((4000, 3000)));
+}
+
+#[test]
 fn a_date_taken_learned_from_decoding_is_new_once_and_kept_in_the_snapshot() {
     // #99: the app saves the index when decoding learns something new.
     let folder = Folder::new();

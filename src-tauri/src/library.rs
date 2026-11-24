@@ -414,6 +414,23 @@ impl Library {
         report
     }
 
+    /// Records a photo's upright size, learned by decoding it for the Viewer
+    /// or a review, before its thumbnail may have been made (#264). It's
+    /// saved with the index's other details (#99).
+    pub fn learned_dimensions(&self, id: PhotoId, dimensions: (u32, u32)) {
+        let new = self
+            .index
+            .write()
+            .expect("index lock")
+            .record_dimensions(id, dimensions);
+        if new {
+            self.unsaved_details
+                .lock()
+                .expect("unsaved lock")
+                .get_or_insert_with(Instant::now);
+        }
+    }
+
     /// After reading a cloud-only photo, which downloads it (LIB-9): the
     /// grid's badge follows at once, without waiting for the watcher, and a
     /// tile with no thumbnail gets one.
