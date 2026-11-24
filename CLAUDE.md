@@ -46,7 +46,7 @@ The project is built in the open, with a public devlog on the website (https://s
 
 ## Build, test, and lint
 
-Clone with `git clone --recurse-submodules`, or run `git submodule update --init` after a plain clone. The Rust toolchain is pinned in `rust-toolchain.toml` and Node in `.nvmrc` (24.21.0, LTS; with nvm, run `nvm use` in the repository). Install the tools once with `cargo install --locked tauri-cli@2.12.1 cargo-deny@0.20.2`, then `npm ci` in `ui/`.
+Clone with `git clone --recurse-submodules`, or run `git submodule update --init` after a plain clone. The Rust toolchain is pinned in `rust-toolchain.toml` and Node in `.nvmrc` (26.13.1, LTS; with nvm, run `nvm use` in the repository). Install the tools once with `cargo install --locked tauri-cli@2.12.1 cargo-deny@0.20.2`, then `npm ci` in `ui/`.
 
 On Windows, HEIC photos are decoded by Microsoft's HEIF Image Extensions and HEVC Video Extensions from the Microsoft Store (decision 0014); without them the HEIC tests are skipped. `SEURA_HEIF_DECODER=none` makes the app behave as if they were missing.
 
