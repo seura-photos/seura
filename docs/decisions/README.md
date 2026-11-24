@@ -25,3 +25,4 @@ Short records of significant decisions: what was chosen, why, and what was rejec
 | [0015](0015-app-data-in-home-folder.md) | App data in a Seura Photos folder in the home folder | Accepted |
 | [0016](0016-public-early-builds.md) | Early builds are public from 0.2 | Accepted |
 | [0017](0017-drives-without-trash.md) | Drives with no Recycle Bin or Trash: photos left alone, Seura's empty files deleted directly | Accepted |
+| [0018](0018-clearing-the-cache.md) | Clearing the cache deletes it directly | Accepted |
