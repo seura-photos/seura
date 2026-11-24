@@ -530,8 +530,6 @@ impl Index {
     }
 }
 
-/// An absolute path with the folder's real name, comparable component by
-/// component. Windows' `\\?\` prefix is dropped where it isn't needed.
 /// A library folder from the settings, written as Add Folder writes one:
 /// links resolved, so it matches the paths the folder watcher reports
 /// (#255). A folder that can't be resolved now, such as one on a drive
@@ -541,6 +539,8 @@ pub fn resolve_root(path: &Path) -> PathBuf {
     normalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
+/// An absolute path with the folder's real name, comparable component by
+/// component. Windows' `\\?\` prefix is dropped where it isn't needed.
 pub(crate) fn normalize(path: &Path) -> std::io::Result<PathBuf> {
     let path = std::fs::canonicalize(path)?;
     #[cfg(windows)]
