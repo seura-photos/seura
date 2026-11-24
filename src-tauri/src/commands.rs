@@ -2019,6 +2019,8 @@ pub async fn view_photo(
             app.state::<Viewer>()
                 .show(&photo, &neighbors, (width, height))?
         };
+        app.state::<Library>()
+            .learned_dimensions(PhotoId::new(id), (shown.full_width, shown.full_height));
         Ok(ViewedPhoto::Shown {
             width: shown.width,
             height: shown.height,
