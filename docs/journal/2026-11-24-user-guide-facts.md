@@ -9,3 +9,4 @@
   - Google Drive on Windows is described as handled in two documents, but it isn't yet.
 - **Settled while checking:** the Windows install folder is `%LOCALAPPDATA%\Seura Photos`, as decision 0013 says and as Nevada's PC has it. Decision 0015's alternatives give an older path.
 - **Filed from it: #289.** On the Mac, Seura assumes every drive has a Trash. On a network share, Delete would show a failure rather than the spec's explanation, and clearing a last rating there would fail. Nothing is lost either way, and it hasn't been measured.
+- **Nevada decided #291 won't be fixed** (a folder saved through a link and missing at launch misses live changes once it comes back, until a relaunch; found by the Mac session checking #288). It's rare enough to document instead, so it's in the fact sheet's known issues and the issue is closed as not planned.
