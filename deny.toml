@@ -19,6 +19,12 @@ ignore = [
     # paste is unmaintained but has no known vulnerability. It's a compile-time
     # macro pulled in by Tauri and specta; revisit when they move off it.
     { id = "RUSTSEC-2024-0436", reason = "unmaintained compile-time macro, used by tauri and specta" },
+    # Fixed versions are under two weeks old (decision 0012), so these wait
+    # for #268: url 2.5.9 from 2026-12-04, cookie 0.18.3 from 2026-12-07.
+    # Both come only through Tauri; Seura's web view loads only its own pages,
+    # uses no cookies, and doesn't fork. Nevada's decision, 2026-11-24.
+    { id = "RUSTSEC-2026-0592", reason = "url: fix 2.5.9 allowed from 2026-12-04 (#268); only Tauri's own URLs" },
+    { id = "RUSTSEC-2026-0594", reason = "cookie: fix 0.18.3 allowed from 2026-12-07 (#268); no cookies, no fork" },
 ]
 
 [licenses]
