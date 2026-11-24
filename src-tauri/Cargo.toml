@@ -49,6 +49,8 @@ windows = { workspace = true, features = [
 libc = { workspace = true }
 # The system region (ACC-6).
 objc2-core-foundation = { workspace = true, features = ["CFLocale", "CFString"] }
+# Answering a quit from the Dock or a logout after saving (#217).
+objc2 = { workspace = true }
 
 [dev-dependencies]
 half = { workspace = true }

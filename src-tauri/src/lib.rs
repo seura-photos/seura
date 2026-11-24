@@ -230,6 +230,9 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while starting Seura Photos")
         .run(|app, event| match event {
+            // A quit from the system waits for a save too (#217).
+            #[cfg(target_os = "macos")]
+            RunEvent::Ready => quitting::install(app),
             RunEvent::WindowEvent {
                 event: WindowEvent::CloseRequested { api, .. },
                 ..
