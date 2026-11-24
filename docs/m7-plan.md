@@ -1,8 +1,8 @@
 # M7 work plan: Release readiness
 
-Status: draft · Last updated: 2026-11-12
+Status: draft · Last updated: 2026-11-24
 
-The working plan for milestone M7 from the [milestone plan](milestone-plan.md): everything between "works for me" and "ready for strangers". It breaks the milestone into slices, one pull request each (or a few, lettered), in order. Drafted by Claude Code from the milestone plan, the [functional spec](functional-spec.md), the [user flows](ux/user-flows.md) and [wireframes](ux/wireframes.md), the [technical design](technical-design.md), the decision records, and the open issues under the "M7" milestone. The questions it couldn't settle are at the end, each with a suggestion.
+The working plan for milestone M7 from the [milestone plan](milestone-plan.md): everything between "works for me" and "ready for strangers". It breaks the milestone into slices, one pull request each (or a few, lettered), in order. Drafted by Claude Code from the milestone plan, the [functional spec](functional-spec.md), the [user flows](ux/user-flows.md) and [wireframes](ux/wireframes.md), the [technical design](technical-design.md), the decision records, and the open issues under the "M7" milestone. The questions it couldn't settle are at the end. The design session answered the design questions (#270, with the website's update manifests in website #15); questions 1, 2 and 10 are Nevada's and still open.
 
 **Scope** (milestone plan, M7):
 - Cleanup (CLN-1 to CLN-5), Settings (SET-2), and Updates (SET-4) with signed update packages.
@@ -38,8 +38,8 @@ As in M6 ([M6 work plan](m6-plan.md), "How to work"):
 New in M7:
 
 - **Secrets stay with Nevada.** Signing certificates, the Apple account, and the updater's private key are created by Nevada and stored only as GitHub Actions secrets. Claude Code writes the workflow steps that use them, and never sees or handles their values. Turning signing on is an outward step that needs Nevada's go-ahead, like publishing.
-- **New ways to remove files get the strictest tests.** Clean up is the first feature since Delete that removes the user's data. Its tests enforce rule 5: everything goes to the Trash or Recycle Bin, nothing is deleted directly, and an original photo is never touched (CLAUDE.md, rules 1 and 5). Where a drive has no Trash, Clean up leaves the file as it is, as Delete does (decision 0017).
-- **The updater writes somewhere new.** An update downloads an installer before running it. Where that file goes is checked with `scripts/app_data_audit.py` and recorded in decision 0013 if it's outside the places rule 2 allows (question 7).
+- **New ways to remove files get the strictest tests.** Clean up is the first feature since Delete that removes the user's data. Its tests enforce rule 5: edit files, settings and presets go to the Trash or Recycle Bin, and an original photo is never touched (CLAUDE.md, rules 1 and 5). The one direct deletion is Seura's own cache, when the user clears it (decision 0018), and the tests allow it inside the cache folder only. Where a drive has no Trash, Clean up leaves an edit file as it is, as Delete does (decision 0017).
+- **The updater writes somewhere new.** An update downloads its installer to the system's temporary folder and deletes it after installing (decision 0013, SET-4). `scripts/app_data_audit.py` checks that nothing else is left.
 - **Audits produce issues, not essays.** Each audit is a checklist run on both machines. Every failure becomes a fix in the same slice if it's small, or an issue under "M7" if it isn't.
 - **Strangers are the new test.** The beta is the first time someone other than Nevada runs Seura on purpose. Text a tester will read, from the installer to the release notes, is written for someone who has never heard of Seura.
 
@@ -61,52 +61,55 @@ The order puts what depends on Nevada's purchases and on design answers early, s
 
 ### 2. Updates (SET-4)
 
-- **Checking:** with update checks on (the Welcome screen's checkbox, already saved as `checkForUpdates`), Seura checks at launch, at most once a day (question 6). The check is a single request to a fixed address. It sends nothing about the user or their library (rule 6).
-- **Offering:** a new version shows as a message with its version and a link to its notes, and Install and Not now. Nothing installs without the user's say. Install downloads, verifies the update's signature with the public key built into the app, and restarts into the new version after saving any waiting edit (EDT-11).
-- **Publishing:** the release workflow builds signed update packages with the Tauri updater key (technical design, section 10). The update manifest is published only when Nevada publishes a release, so a draft never reaches users.
+- **Checking:** with update checks on (the Welcome screen's checkbox, already saved as `checkForUpdates`), Seura checks at launch, at most once a day, and when the user presses Check now in Settings (question 6). The check is a single request to a fixed address on the website. It sends nothing about the user or the computer, and no identifier (rule 6).
+- **Two channels** (question 7): a release build reads `seuraphotos.app/updates/latest.json`, the newest release; a pre-release build (below 1.0, or with a pre-release suffix) reads `seuraphotos.app/updates/beta.json`, the newest release or pre-release. So 0.6 testers are offered 0.6.1 and then 1.0, and from 1.0 an app sees only releases.
+- **Offering:** a new version is a quiet notice, never a dialog, with its version, a link to its notes, and Install and Not now. It waits while a review or an export is under way. Nothing installs without the user's say. Install downloads to the system's temporary folder, verifies the update's signature with the public key built into the app, and restarts into the new version after saving any waiting edit (EDT-11). The downloaded installer is deleted after installing, and one left by an interrupted update is deleted at the next launch (decision 0013), once rule 5 lists it (see the note after the questions).
+- **Publishing:** the release workflow builds signed update packages with the Tauri updater key (technical design, section 10). The manifests change only when Nevada publishes a release, as a website pull request he merges (website CLAUDE.md), so a draft never reaches users.
 - **The Content Security Policy** stays closed to everything but the update address, and the request is made from Rust.
-- **Done when:** on both machines, a build of 0.6.0 offers a test 0.6.1, installs it on request and restarts into it with edits intact; a package with a bad signature is refused; and with checks off, no request is made.
+- **Done when:** on both machines, a build of 0.6.0 offers a test 0.6.1 from `beta.json` and a release build doesn't; it installs on request and restarts into it with edits intact; a package with a bad signature is refused; with checks off, no request is made; and no installer is left in the temporary folder.
 
 ### 3. Settings (SET-2)
 
-- **Where:** Settings… in the app menu on macOS, as a window, and in ⋯ on Windows, as a dialog (user flows, ACC-4). Its layout comes from a design session (question 3).
-- **What, and nothing else:**
-  - Library folders: the list, with Add and Remove, using the existing commands.
-  - The cache: its location and size, with Move… and Clear. Moving copies the cache, then removes the old one; clearing removes it. The settings file keeps the library, so nothing is forgotten (SET-3).
+- **Where:** on macOS, a window from the app menu (Cmd+,), with no buttons; on Windows, a dialog with Close, from ⋯ → Settings… (Ctrl+,). One page, no tabs, and changes apply at once (SET-2, wireframes §9).
+- **What, and nothing else,** in this order:
+  - Library folders: the list with each folder's photo count, Add folder… and Remove, using the existing commands. Removing confirms that the folder's photos and edit files aren't touched.
+  - The cache: its location and size, with Move… (with progress) and Clear (confirming that it's rebuilt automatically). The settings file keeps the library, so nothing is forgotten (SET-3).
   - Seura's own folder: where it is, with Open folder.
-  - Default export options: the ones the Export dialog already remembers.
-  - Check for updates automatically.
-- **The cache is Seura's to delete,** so clearing or moving it may remove files directly: they're thumbnails Seura made, rebuilt on demand, and nothing in them is the user's (decision 0017's test). The tests check that only the cache folder's own contents are removed, never the folder the user chose to hold it.
+  - Export defaults: the same controls as the Export dialog, which already remembers them.
+  - Updates: Check for updates automatically, "Last checked …", and Check now.
+- **Clearing the cache deletes it directly** (decision 0018). Moving it copies it, then deletes the old copy directly, which Claude Code reads as the same decision. The tests check that only the cache folder's own contents are removed, never the folder the user chose to hold it.
 - **Done when:** on both machines, Nevada changes each setting, and it's in effect at once and after a restart; moving the cache to another drive and clearing it both leave a working Library.
 
 ### 4. Clean up (CLN-1 to CLN-4)
 
-- **Where:** File → Clean up… on macOS, ⋯ → Clean up… on Windows, and Clean up this folder… in a folder's right-click menu (user flows, flow 10). The dialog's layout comes from a design session (question 4).
-- **Scope** (CLN-1): one folder, with or without its subfolders; the whole library; or only orphaned edit files, those whose photo no longer exists.
-- **What** (CLN-2): edit files; the cache; and, for a full reset, settings and presets too.
-- **Preview** (CLN-3): before anything moves, the counts of what will go, and how many photos will lose their edits, with Export edited photos first, which opens the Export dialog on exactly those photos.
-- **Recoverable** (CLN-4): files go to the Trash or Recycle Bin, never deleted directly, except the cache (slice 3). On a drive without a Trash, edit files are left as they are, and the result says how many. Unknown files beside photos are never touched: only `*.seura.json` files whose name matches a photo, or names no photo for orphans.
-- **Tests:** a data-safety test for each scope, enforcing that photos are never touched, that everything removed goes through the Trash, and that a full reset doesn't remove anything outside Seura's folder and the library's edit files.
+- **Where:** a dialog from File → Clean up… on macOS, ⋯ → Clean up… on Windows, and a folder's right-click menu, which opens it with that folder chosen (user flows, flow 10; wireframes §10).
+- **Scope** (CLN-1): This folder, with Include subfolders; The whole library; or Only edit files whose photos are gone.
+- **What** (CLN-2): checkboxes, none checked at first: Edit files; The cache; Everything, a full reset that adds settings and presets. Choices that don't apply to the scope are disabled.
+- **Preview** (CLN-3): updating as the choices change. It leads with how many photos will lose their edits, tags or ratings, then how many edit files and how big the cache. Export edited photos first… opens the Export dialog on exactly those photos.
+- **Buttons:** Cancel, which has the focus, and Move to Recycle Bin (Move to Trash on the Mac), in the danger style and disabled until something is chosen.
+- **A full reset** asks once more: "Seura will forget your library and settings and start again with the Welcome screen. Your photos aren't touched." Then it moves settings, presets and the chosen edit files to the Trash, deletes the cache, and restarts at Welcome.
+- **Recoverable** (CLN-4): edit files, settings and presets go to the Trash or Recycle Bin. The cache is deleted directly (decision 0018). On a drive without a Trash, edit files are left as they are, and the result says how many. Unknown files beside photos are never touched: only `*.seura.json` files whose name matches a photo, or names no photo for orphans.
+- **Tests:** a data-safety test for each scope, enforcing that photos are never touched, that everything removed except the cache goes through the Trash, and that a full reset doesn't remove anything outside Seura's folder, the cache and the library's edit files.
 - **Done when:** on both machines, on scratch libraries, Nevada cleans up a folder, orphans and the whole library, finds everything in the Trash or Recycle Bin, puts some back, and sees their edits return.
 
 ### 5. Uninstalling (CLN-5, #231)
 
-- **Windows:** the uninstaller offers what Clean up offers for the whole library, defaulting to leaving edit files in place (CLN-5). It also removes what decision 0013 says it should: the web view's data, which is in Seura's cache folder.
-- **macOS:** apps dragged to Applications have no uninstaller (question 5).
-- **Decision 0013** updated with what the M5 wrap-up found, the GPU shader caches (#231), once a design session has written it.
-- **Done when:** on Windows, uninstalling with each choice leaves exactly what it says, checked with `scripts/app_data_audit.py`; and on the Mac, whatever question 5 settles is in the user guide.
+- **Windows:** the uninstaller offers what Clean up offers for the whole library, defaulting to leaving edit files in place (CLN-5). It also removes what decision 0013 says it should: the web view's data, which is in Seura's cache folder, and Seura's own `D3DSCache` folder if it can be identified (#231).
+- **Identifying the `D3DSCache` folder,** which the design session asked Claude Code to look into: Direct3D names it after a hash, so the slice finds out whether the hash can be worked out from the installed program, or recognized from its contents, reliably enough to delete only Seura's. If not, it stays, and decision 0013 says so.
+- **macOS:** apps dragged to the Trash have no uninstaller, so Clean up's full reset is the way to remove Seura's data (CLN-5). The user guide says to run it first, and lists what remains otherwise.
+- **Done when:** on Windows, uninstalling with each choice leaves exactly what it says, checked with `scripts/app_data_audit.py`, and the `D3DSCache` question has a recorded answer.
 
 ### 6. License notices (SET-5)
 
 - **Generated, not written by hand,** at build time, from Cargo's and npm's metadata, into one file bundled with the app. A check in CI fails if a dependency has no license text.
-- **Shown** from About: a Third-party notices link on Windows, and in the About panel's credits on macOS (question 9).
+- **Shown** from About: a Third-party notices link in the Windows dialog, and the About panel's credits on macOS, both opening the generated list (SET-5).
 - **Done when:** About opens the notices on both machines, and every dependency in `cargo deny list` and `npm run licenses` is in them.
 
 ### 7. Cloud services (#162, #254)
 
 - **Google Drive on Windows** is treated as cloud-only throughout, as the technical design says, since Drive gives no per-file signal: browsing never downloads its photos, and its thumbnails come from the system where it has them. Its location comes from Drive for desktop's settings.
 - **Google Drive and Dropbox on the Mac,** and Dropbox on Windows (which already behaves like OneDrive), tested against #162's list: scanning, opening, detection, Delete, the deletion notice, and offline. Each finding is fixed or written into the user guide's section on cloud folders.
-- **#254, Finder's Put Back:** the user guide explains how to put back an edit file with its photo (question 11).
+- **#254, Finder's Put Back:** a known issue for 1.0. The user guide explains how to put back an edit file with its photo (question 11).
 - **Done when:** each service on each platform has a recorded result in #162, and the behaviour the user guide will describe matches the app.
 
 ### 8. Fixes before the beta (#217, #188, #255, #258, #264)
@@ -116,7 +119,7 @@ Lettered pull requests, one per issue:
 - **8b. #264:** an edit file without width and height gets them once Seura knows them, even if it has a checksum. Recording the size the Viewer and Review learn when they decode a photo too.
 - **8c. #255:** a library folder saved through a symbolic link sees live changes, by watching the resolved path.
 - **8d. #258:** if it shows up again in the performance audit, find why the Viewer once never drew a photo. If not, close it as not reproduced.
-- **8e. #188:** decoding colors in full, as edit-format #16 recommends: unclipped wide-gamut colors and fuller PNG color descriptions. It's a SHOULD, so it can move after 1.0 if the audits take longer (question 12).
+- **8e. #188:** decoding colors in full, as edit-format #16 recommends: unclipped wide-gamut colors and fuller PNG color descriptions. It's a SHOULD, so it can move after 1.0 if the audits take longer, but only with Nevada's agreement (question 12).
 - **Done when:** each fix has its test, and Nevada has checked the ones with a hands-on part on the machine it's about.
 
 ### 9. Audits: accessibility, interaction and display (ACC, INT, DSP)
@@ -149,8 +152,9 @@ Lettered pull requests, one per issue:
 ### 12. The user guide
 
 - **Its content** is listed in the milestone plan: installing Microsoft's HEIF and HEVC extensions on Windows; cloud-synced folders in a section of their own (what downloads a photo and what doesn't, freeing the space again, what doesn't work yet, and what each service offers); PNG color descriptions; export never replacing a file; and Explorer's missing location for PNGs. Slices 1, 5 and 7 add their findings.
-- **Who writes it, and where it lives,** is question 8.
-- **Done when:** the guide is published on the website with the beta, and Claude Code has checked every statement in it against the app.
+- **The fact sheet:** Claude Code writes down how the app behaves, from the journal and the code, including the known issues, for the design session to write from (question 8).
+- **The page** is on the website, written in a design session. Claude Code then checks every statement in it against the app.
+- **Done when:** the guide is published on the website with the beta, and Claude Code's check has found nothing left to correct.
 
 ### 13. The beta: build 0.6
 
@@ -167,23 +171,22 @@ Lettered pull requests, one per issue:
 
 ## Questions
 
-Questions 1, 2 and 10 are Nevada's; the others are for a design session. Each has Claude Code's suggestion.
+Questions 1, 2 and 10 are Nevada's and still open, each with Claude Code's suggestion. The others were the design session's, answered on 2026-11-24 (#270); each answer is recorded below, and the slices above follow it.
 
 1. **Code signing (Nevada).** The product brief says signing is needed "so the target users don't see security warnings". It still needs pricing and a choice.
    - On the Mac: Apple's Developer Program, about $99 a year, enrolled as an individual (the certificate then shows Nevada's name) or as an organization (which needs a legal entity).
    - On Windows, the options include Microsoft's cloud signing service (a monthly fee, with identity checks), a signing program for open-source projects (free, with conditions), or a certificate from a certificate authority.
    - *Suggestion:* Apple's program as an individual; for Windows, Nevada prices the cloud service and the open-source program, and Claude Code checks each against the release workflow before choosing.
 2. **The Windows install location (#70, Nevada or a design session).** Per user only, as now, in `%LOCALAPPDATA%\Programs`; Program Files for everyone; or a choice in the installer. *Suggestion:* per user only, as now. It needs no administrator rights, keeps updates silent, and every file Seura installs stays in the user's own profile. The user guide says where it is.
-3. **The Settings screen's layout.** The wireframes don't have one yet. *Suggestion:* one page, no tabs, in SET-2's order: Library folders, Cache, Seura's folder, Export defaults, Updates. On macOS, a window that changes things at once, as Mac settings do; on Windows, the same in a dialog with a Close button.
-4. **The Clean up dialog's layout.** The wireframes don't have one, and the user flow is three lines. *Suggestion:* scope at the top (this folder, with subfolders, the whole library, or orphaned edit files only), then what to remove as checkboxes, then the preview's counts, which update as choices change, then Export edited photos first, Cancel and Move to Trash. A full reset needs its own extra confirmation.
-5. **CLN-5 on the Mac.** Mac apps have no uninstaller: users drag them to the Trash, and Seura can't run anything when that happens. *Suggestion:* Clean up's full reset is the Mac's way to remove Seura's data. The user guide says to run it before dragging the app to the Trash, and lists what's left otherwise. The spec gets a sentence saying so.
-6. **How often to check for updates.** *Suggestion:* at launch, at most once a day, and never during a review or an export. Settings shows when it last checked, with a Check now button.
-7. **Updates and pre-releases, and where the downloaded installer goes.**
-   - GitHub's "latest release" address skips pre-releases, so beta testers on 0.6 wouldn't be offered 0.6.1.
-   - *Suggestion:* the manifest lives at a fixed address on the website, `seuraphotos.app/updates/latest.json`, updated only when Nevada publishes a release, so pre-releases can be offered during the beta.
-   - The updater downloads the installer to the system's temporary folder before running it. *Suggestion:* allowed, deleted after installing, and recorded in decision 0013.
-8. **The user guide: who writes it, and where.** *Suggestion:* it's a page on the website, written in a design session, since the design sessions own the site and the documents. Claude Code supplies a fact sheet of how the app behaves, drawn from the journal and the code, and then checks the draft against the app.
-9. **Where the license notices are shown.** *Suggestion:* a Third-party notices link in About on Windows, and the About panel's credits on macOS, both opening the generated file.
+3. **The Settings screen's layout.** As suggested: one page in SET-2's order, applying at once. On macOS, a window from the app menu (Cmd+,); on Windows, a dialog with Close, from ⋯ → Settings… (Ctrl+,). Added: removing a library folder confirms that its photos and edit files aren't touched; clearing the cache confirms that it's rebuilt automatically; Updates shows "Last checked …" and Check now. In the wireframes, §9.
+4. **The Clean up dialog's layout.** As suggested, plus: nothing checked at first, with Move to Recycle Bin (Trash) disabled until something is chosen and Cancel holding the focus; choices that don't apply to the scope disabled; the preview leading with how many photos will lose edits, tags or ratings; and a full reset confirming once more, then restarting at Welcome. A folder's right-click menu opens it with that folder chosen. In the wireframes, §10. **A rule change came with it:** clearing the cache, from Settings or Clean up, deletes it directly rather than moving it to the Trash (decision 0018, CLN-4, CLAUDE.md rule 5). Edit files, settings and presets still go to the Trash.
+5. **CLN-5 on the Mac.** As suggested, now in the spec.
+6. **How often to check for updates.** At launch, at most once a day, plus Check now. An available update is a quiet notice, never a dialog, and never during a review or an export. The request carries nothing identifying: no identifier, and the version only if the address needs it.
+7. **Updates and pre-releases, and where the downloaded installer goes.** Two manifests on the website, changed only when Nevada publishes a release, as a website pull request he merges (website #15): `/updates/latest.json`, the newest release, read by release builds; and `/updates/beta.json`, the newest release or pre-release, read by pre-release builds (below 1.0, or with a pre-release suffix). The installer goes to the system's temporary folder and is deleted after installing; one left over is deleted at the next launch (decision 0013).
+8. **The user guide: who writes it, and where.** As suggested: a page on the website, written in a design session from Claude Code's fact sheet, which includes the known issues. Claude Code then checks the draft against the app.
+9. **Where the license notices are shown.** As suggested.
 10. **The beta (Nevada).** How many testers, found where, and for how long. *Suggestion:* five to ten people, with at least one each on Windows 10, Windows 11, macOS 13 to 15 and macOS 26; two weeks; reports through GitHub issues. The beta ends early only for a data-safety problem.
-11. **Finder's Put Back for edit files (#254).** The cause is unknown, and scripting Finder was set aside. *Suggestion:* a known issue for 1.0, explained in the user guide: put back the `.seura.json` file beside the photo too.
-12. **Decoding colors in full (#188) before or after 1.0.** The edit format calls it a SHOULD, and photos look right today for sRGB and Display P3. *Suggestion:* in M7, as slice 8e, but it may move after 1.0 if the audits run long, with Nevada's agreement then.
+11. **Finder's Put Back for edit files (#254).** As suggested: a known issue for 1.0, explained in the user guide.
+12. **Decoding colors in full (#188) before or after 1.0.** As suggested: in M7, before the beta. Moving it after 1.0 needs Nevada's agreement.
+
+**Raised by Claude Code with the answers, for a design session:** rule 5 lists every file Seura may delete directly, and tests enforce that list. Decision 0018 adds the cache to it, but the update installer isn't on it: deleting it after installing, and deleting one left over at the next launch, are both direct deletions. Rule 5 also says leftovers from an earlier operation go to the Trash. The installer is Seura's own download and nothing in it can be lost, so it seems to fit decision 0017's test, but it needs adding to the list (and to the tests' allowance) before slice 2 deletes it. Until then, slice 2 sends a leftover installer to the Trash.
