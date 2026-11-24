@@ -18,6 +18,7 @@
     "bindings": "node scripts/bindings.mjs",
     "shaders": "node scripts/shaders.mjs",
     "licenses": "node scripts/licenses.mjs",
+    "notices": "node scripts/notices.mjs",
     "icons": "node scripts/icons.mjs",
     "tokens": "node scripts/tokens.mjs",
     "tauri": "cd .. && tauri"

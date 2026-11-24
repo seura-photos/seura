@@ -56,6 +56,9 @@
     "shortDescription": "Browse, fix, and tag the photos already on your drive.",
     "copyright": "Copyright 2026 Nevada Hamaker. Licensed under the Apache License 2.0.",
     "license": "Apache-2.0",
+    "resources": {
+      "notices/third-party-notices.txt": "third-party-notices.txt"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

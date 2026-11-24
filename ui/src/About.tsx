@@ -14,8 +14,9 @@ const LINKS: [Link, string][] = [
 /**
  * About Seura Photos on Windows (SET-5), from the ⋯ button: the version,
  * selectable and with Copy, so a problem report can say which build it's
- * about; while below 1.0, that it's an early build; and links to the
- * website, the project, and the license, opened in the browser. On macOS
+ * about; while below 1.0, that it's an early build; links to the website,
+ * the project, and the license, opened in the browser; and the third-party
+ * notices bundled with the app, opened in the text viewer. On macOS
  * the system's About panel shows the same. OK has the focus, and Esc
  * closes it; the focus then goes back where it was.
  */
@@ -55,6 +56,11 @@ export function About() {
     setProblem(result.status === "error" ? t("about-link-failed", { reason: result.error }) : null);
   }
 
+  async function openNotices() {
+    const result = await commands.openNotices();
+    setProblem(result.status === "error" ? t("about-link-failed", { reason: result.error }) : null);
+  }
+
   return (
     <div className="dialog-backdrop">
       <div
@@ -91,6 +97,16 @@ export function About() {
               </button>
             </li>
           ))}
+          <li>
+            <button
+              type="button"
+              role="link"
+              className="link-button"
+              onClick={() => void openNotices()}
+            >
+              {t("about-notices")}
+            </button>
+          </li>
         </ul>
         {problem !== null && <p role="alert">{problem}</p>}
         <div className="dialog-actions">

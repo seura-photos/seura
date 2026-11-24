@@ -6,6 +6,7 @@ import { useStore } from "./store";
 
 const mocks = vi.hoisted(() => ({
   openLink: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
+  openNotices: vi.fn(() => Promise.resolve({ status: "ok", data: null })),
 }));
 
 vi.mock("./bindings", () => ({ commands: mocks }));
@@ -90,6 +91,24 @@ describe("The ⋯ button and About (ACC-4, SET-5)", () => {
     useStore.setState({ about: true, version: "1.0.0" });
     renderToolbar();
     expect(screen.getByRole("dialog").textContent).not.toContain("early build");
+  });
+
+  it("opens the third-party notices bundled with the app (SET-5)", async () => {
+    mocks.openNotices.mockResolvedValueOnce({
+      status: "error",
+      data: null,
+      error: "third-party-notices.txt is missing",
+    } as never);
+    useStore.setState({ about: true });
+    renderToolbar();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("link", { name: "Third-party notices" }));
+      await Promise.resolve();
+    });
+    expect(mocks.openNotices).toHaveBeenCalledOnce();
+    expect(screen.getByRole("alert").textContent).toBe(
+      "Couldn't open that: third-party-notices.txt is missing",
+    );
   });
 
   it("says when a link couldn't be opened", async () => {

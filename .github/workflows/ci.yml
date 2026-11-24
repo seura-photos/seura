@@ -128,3 +128,11 @@ jobs:
         run: |
           npm ci
           npm run licenses
+
+      # The notices list every crate in the app, so cargo reads them all.
+      - name: Install the Rust toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+
+      - name: Third-party notices are up to date (SET-5)
+        working-directory: ui
+        run: npm run notices -- --check
