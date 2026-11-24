@@ -38,6 +38,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .commands(collect_commands![
             commands::app_version,
             commands::open_link,
+            commands::open_notices,
             commands::add_folder,
             commands::folders,
             commands::remove_folder,

@@ -93,6 +93,7 @@ Run from `ui/`:
 | Typecheck and build | `npm run build` |
 | Tests | `npm test` |
 | UI licenses | `npm run licenses` |
+| Regenerate `src-tauri/notices/third-party-notices.txt` after changing a dependency (SET-5; CI checks it) | `npm run notices` |
 | Regenerate `src/bindings.ts` after changing a command | `npm run bindings` |
 | Regenerate `src/preview/generated/` after changing a shader | `npm run shaders` |
 | Regenerate `src/styles/tokens.css` after changing `design/tokens.json` | `npm run tokens` |

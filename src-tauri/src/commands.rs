@@ -35,6 +35,15 @@ pub fn open_link(link: crate::about::Link) -> Result<(), String> {
     tauri_plugin_opener::open_url(link.url(), None::<&str>).map_err(|error| error.to_string())
 }
 
+/// Opens the third-party notices bundled with the app in the system's
+/// default text viewer (SET-5).
+#[tauri::command]
+#[specta::specta]
+pub fn open_notices(app: AppHandle) -> Result<(), String> {
+    let path = crate::about::notices(&app)?;
+    tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|error| error.to_string())
+}
+
 /// A folder with photos directly in it.
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]

@@ -49,6 +49,9 @@ pub enum MenuCommand {
 
 const ADD_FOLDER: &str = "add-folder";
 const QUIT: &str = "quit";
+/// The app menu's Third-Party Notices, which the About panel can't link to:
+/// its credits are plain text (SET-5).
+const NOTICES: &str = "notices";
 const SHOW_IN_FOLDER: &str = "show-in-folder";
 const OPEN_IN_DEFAULT_APP: &str = "open-in-default-app";
 const DELETE: &str = "delete";
@@ -89,6 +92,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
                 Some(t("menu-about").as_str()),
                 Some(crate::about::metadata()),
             )?,
+            &MenuItem::with_id(app, NOTICES, t("menu-notices"), true, None::<&str>)?,
             &separator()?,
             &PredefinedMenuItem::hide(app, Some(t("menu-hide").as_str()))?,
             &PredefinedMenuItem::hide_others(app, Some(t("menu-hide-others").as_str()))?,
@@ -214,6 +218,16 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
     if id == QUIT {
         crate::quitting::request(app);
+        return;
+    }
+    if id == NOTICES {
+        // Opened in the text viewer, as from About on Windows (SET-5).
+        let opened = crate::about::notices(app).and_then(|path| {
+            tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|error| error.to_string())
+        });
+        if let Err(problem) = opened {
+            eprintln!("Couldn't open the third-party notices: {problem}");
+        }
         return;
     }
     let command = match id {

@@ -650,6 +650,7 @@ about-copy-failed = Couldn't copy: { $reason }
 about-website = seuraphotos.app
 about-project = The project on GitHub
 about-license = Apache License 2.0
+about-notices = Third-party notices
 about-ok = OK
 about-link-failed = Couldn't open that: { $reason }
 

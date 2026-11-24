@@ -10,6 +10,11 @@ export const commands = {
 	/**  Opens one of About's links in the default browser (SET-5). */
 	openLink: (link: Link) => typedError<null, string>(__TAURI_INVOKE("open_link", { link })),
 	/**
+	 *  Opens the third-party notices bundled with the app in the system's
+	 *  default text viewer (SET-5).
+	 */
+	openNotices: () => typedError<null, string>(__TAURI_INVOKE("open_notices")),
+	/**
 	 *  Asks for a folder with the system's dialog (ACC-4), adds it to the
 	 *  library, and scans it. The UI never sees a path it could open itself
 	 *  (decision 0009).
