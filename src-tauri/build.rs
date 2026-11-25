@@ -86,6 +86,8 @@ fn main() {
         "set_export_defaults",
         "set_check_for_updates",
         "open_seura_folder",
+        "move_cache",
+        "clear_cache",
         "check_render",
         "finish_render_check",
         "finish_quit",

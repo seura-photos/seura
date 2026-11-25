@@ -86,6 +86,8 @@
     "allow-set-export-defaults",
     "allow-set-check-for-updates",
     "allow-open-seura-folder",
+    "allow-move-cache",
+    "allow-clear-cache",
     "allow-check-render",
     "allow-finish-render-check",
     "allow-finish-quit",

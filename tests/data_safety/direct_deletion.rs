@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 const DELETING: [&str; 3] = ["remove_file(", "remove_dir(", "remove_dir_all("];
 
 /// Each source file that deletes directly, how many times, and why.
-const ALLOWED: [(&str, usize, &str); 4] = [
+const ALLOWED: [(&str, usize, &str); 5] = [
     (
         "crates/seura-edit/src/file.rs",
         2,
@@ -30,6 +30,11 @@ const ALLOWED: [(&str, usize, &str); 4] = [
         3,
         "thumbnails in the cache, Seura's own and rebuilt from the photos, \
          and the cache's emptied folders",
+    ),
+    (
+        "src-tauri/src/cache.rs",
+        3,
+        "clearing the cache and the old copy after a move, Seura's own and          rebuilt automatically (decision 0018): only its own entries, by          name, and the folder Seura made for it once empty (decision 0019)",
     ),
     (
         "src-tauri/src/library.rs",

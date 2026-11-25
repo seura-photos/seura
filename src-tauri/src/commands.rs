@@ -2797,6 +2797,29 @@ pub fn open_seura_folder(app: AppHandle) -> Result<(), String> {
     tauri_plugin_opener::open_path(&folder, None::<&str>).map_err(|error| error.to_string())
 }
 
+/// Move… for the cache, from Settings (SET-2): asks for a place with the
+/// system's dialog, then moves the cache to a folder of its own there
+/// (decision 0019), saying how far it has got. `None` if the user cancels.
+#[tauri::command]
+#[specta::specta]
+pub async fn move_cache(app: AppHandle) -> Result<Option<crate::cache::CacheMoved>, String> {
+    let Some(picked) = pick_folder(&app).await? else {
+        return Ok(None);
+    };
+    tauri::async_runtime::spawn_blocking(move || crate::cache::move_to(&app, &picked).map(Some))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+/// Clears the cache, from Settings once confirmed (SET-2, decision 0018).
+#[tauri::command]
+#[specta::specta]
+pub async fn clear_cache(app: AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || crate::cache::clear(&app))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
 /// The system's folder dialog (ACC-4), or `None` if the user cancels.
 async fn pick_folder(app: &AppHandle) -> Result<Option<PathBuf>, String> {
     pick_folder_from(app, None).await

@@ -119,14 +119,13 @@ pub fn info<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WelcomeInfo> {
 /// Offers a folder the user picked, to add or to hold the cache.
 pub fn offer_folder<R: Runtime>(app: &AppHandle<R>, path: PathBuf, for_cache: bool) -> Choice {
     let welcome = app.state::<Welcome>();
-    Welcome::offer(
-        if for_cache {
-            &welcome.caches
-        } else {
-            &welcome.folders
-        },
-        path,
-    )
+    if for_cache {
+        // Shown as where the thumbnails will be: a folder of their own in
+        // the one picked (decision 0019).
+        Welcome::offer(&welcome.caches, crate::cache::own_folder(&path))
+    } else {
+        Welcome::offer(&welcome.folders, path)
+    }
 }
 
 /// Get started: adds the chosen folders, saves the settings (which ends the
@@ -149,9 +148,13 @@ pub fn finish<R: Runtime>(
 
     let settings = app.state::<AppSettings>();
     let mut settings = settings.0.lock().expect("settings lock");
-    if let Some(cache) = &cache {
+    if let Some(picked) = &cache {
+        // Already a folder of its own in the one picked (decision 0019);
+        // asked again, it's the same.
+        let cache = crate::cache::own_folder(picked);
+        std::fs::create_dir_all(&cache).map_err(|error| error.to_string())?;
         settings.settings.cache_folder = Some(cache.clone());
-        library.move_cache(app, cache);
+        library.move_cache(app, &cache);
     }
     {
         let mut index = library.index.write().expect("index lock");

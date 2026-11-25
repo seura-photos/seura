@@ -16,6 +16,8 @@
     "allow-set-export-defaults",
     "allow-set-check-for-updates",
     "allow-open-seura-folder",
+    "allow-move-cache",
+    "allow-clear-cache",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

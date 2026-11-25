@@ -443,6 +443,16 @@ export const commands = {
 	/**  Opens Seura's own folder in Explorer or Finder, from Settings (SET-2). */
 	openSeuraFolder: () => typedError<null, string>(__TAURI_INVOKE("open_seura_folder")),
 	/**
+	 *  Move… for the cache, from Settings (SET-2): asks for a place with the
+	 *  system's dialog, then moves the cache to a folder of its own there
+	 *  (decision 0019), saying how far it has got. `None` if the user cancels.
+	 */
+	moveCache: () => typedError<{ kind: "moved"; folder: string } | 
+/**  The cache is already there. */
+{ kind: "alreadyThere" } | null, string>(__TAURI_INVOKE("move_cache")),
+	/**  Clears the cache, from Settings once confirmed (SET-2, decision 0018). */
+	clearCache: () => typedError<null, string>(__TAURI_INVOKE("clear_cache")),
+	/**
 	 *  The render check: one preview path's render of the check image, as 8-bit
 	 *  RGBA, compared with wgpu's. Returns the largest difference.
 	 */
@@ -469,6 +479,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	cacheMoveProgress: makeEvent<CacheMoveProgress>("cache-move-progress"),
 	deletionExplained: makeEvent<DeletionExplained>("deletion-explained"),
 	editFileChanged: makeEvent<EditFileChanged>("edit-file-changed"),
 	enhanceDownload: makeEvent<EnhanceDownload>("enhance-download"),
@@ -493,6 +504,17 @@ export type AddFolderResult =
 { kind: "alreadyIncluded"; folder: string } | 
 /**  Added, replacing these library folders inside it. */
 { kind: "absorbed"; folders: string[] };
+
+/**  How far a move has got: thumbnails copied, out of all of them. */
+export type CacheMoveProgress = {
+	done: number,
+	total: number,
+};
+
+/**  What Move… did. */
+export type CacheMoved = { kind: "moved"; folder: string } | 
+/**  The cache is already there. */
+{ kind: "alreadyThere" };
 
 /**
  *  A change to a photo's rating or tags, which the Editor doesn't show, so

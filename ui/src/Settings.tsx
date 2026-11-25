@@ -36,6 +36,10 @@ function SettingsPageView() {
   const [cacheSize, setCacheSize] = useState<number | null>(null);
   const [removing, setRemoving] = useState<FolderInfo | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // Moving the cache, with how far it has got; asking to clear it.
+  const [moving, setMoving] = useState<{ done: number; total: number } | null>(null);
+  const [askingClear, setAskingClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const loadFolders = useCallback(
     () => commands.folders().then((all) => setFolders(libraryFolders(all))),
@@ -52,9 +56,52 @@ function SettingsPageView() {
     });
     void commands.folders().then((all) => setFolders(libraryFolders(all)));
     // Counts follow scans, and folders added or removed in the Library.
-    const listening = events.libraryChanged.listen(() => void loadFolders());
-    return () => void listening.then((stop) => stop());
+    const listening = [
+      events.libraryChanged.listen(() => void loadFolders()),
+      events.cacheMoveProgress.listen(({ payload }) => setMoving(payload)),
+    ];
+    return () => {
+      for (const stop of listening) void stop.then((unlisten) => unlisten());
+    };
   }, [loadFolders]);
+
+  /** Where the cache is and how big, again, after a move or clearing. */
+  async function reloadCache() {
+    const [result, size] = await Promise.all([commands.settingsPage(), commands.cacheSize()]);
+    if (result.status === "ok")
+      setPage((page) => page && { ...page, cacheFolder: result.data.cacheFolder });
+    setCacheSize(size.status === "ok" ? (size.data ?? 0) : null);
+  }
+
+  async function moveCache() {
+    setMoving({ done: 0, total: 0 });
+    const result = await commands.moveCache();
+    setMoving(null);
+    if (result.status === "error") {
+      setMessage(t("settings-cache-move-failed", { reason: result.error }));
+      return;
+    }
+    if (result.data === null) return;
+    setMessage(
+      result.data.kind === "moved"
+        ? t("settings-cache-moved", { folder: result.data.folder })
+        : t("settings-cache-already"),
+    );
+    await reloadCache();
+  }
+
+  async function clearCache() {
+    setAskingClear(false);
+    setClearing(true);
+    const result = await commands.clearCache();
+    setClearing(false);
+    setMessage(
+      result.status === "error"
+        ? t("settings-clear-failed", { reason: result.error })
+        : t("settings-cleared"),
+    );
+    await reloadCache();
+  }
 
   async function addFolder() {
     const result = await commands.addFolder();
@@ -171,6 +218,30 @@ function SettingsPageView() {
             ? t("settings-cache-measuring")
             : t("settings-cache-size", { size: formatBytes(cacheSize) })}
         </p>
+        <div className="settings-actions">
+          <button
+            type="button"
+            className="button"
+            disabled={moving !== null || clearing}
+            onClick={() => void moveCache()}
+          >
+            {t("settings-cache-move")}
+          </button>
+          <button
+            type="button"
+            className="button"
+            disabled={moving !== null || clearing}
+            onClick={() => setAskingClear(true)}
+          >
+            {t("settings-cache-clear")}
+          </button>
+        </div>
+        {moving !== null && moving.total > 0 && (
+          <p className="settings-note" role="status">
+            <progress max={moving.total} value={moving.done} />{" "}
+            {t("settings-cache-moving", { done: moving.done, total: moving.total })}
+          </p>
+        )}
       </section>
 
       <section className="settings-section" aria-labelledby={`${id}-seura`}>
@@ -213,6 +284,9 @@ function SettingsPageView() {
         {message}
       </p>
 
+      {askingClear && (
+        <ConfirmClear onCancel={() => setAskingClear(false)} onConfirm={() => void clearCache()} />
+      )}
       {removing && removing.root !== null && (
         <ConfirmRemove
           folder={removing}
@@ -224,6 +298,42 @@ function SettingsPageView() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Clearing the cache, confirmed first (SET-2). It's deleted directly, so
+ * the confirmation says it's rebuilt automatically rather than that it can
+ * be restored (decision 0018). Cancel has the focus, so Enter is safe
+ * (INT-5).
+ */
+function ConfirmClear({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  const cancel = useRef<HTMLButtonElement>(null);
+  useEffect(() => cancel.current?.focus(), []);
+  return (
+    <div className="dialog-backdrop">
+      <div
+        className="dialog"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="clear-title"
+        aria-describedby="clear-body"
+        onKeyDown={(event) => dialogKeys(event, onCancel)}
+      >
+        <h2 id="clear-title" className="dialog-title">
+          {t("settings-clear-title")}
+        </h2>
+        <p id="clear-body">{t("settings-clear-body")}</p>
+        <div className="dialog-actions">
+          <button type="button" className="button" onClick={onConfirm}>
+            {t("settings-clear-confirm")}
+          </button>
+          <button ref={cancel} type="button" className="button primary" onClick={onCancel}>
+            {t("settings-clear-cancel")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MoreButton } from "./MoreButton";
 import { SettingsDialog, SettingsWindow } from "./Settings";
@@ -15,11 +15,23 @@ const mocks = vi.hoisted(() => ({
   setExportDefaults: vi.fn(),
   setCheckForUpdates: vi.fn(),
   openSeuraFolder: vi.fn(),
+  moveCache: vi.fn(),
+  clearCache: vi.fn(),
+  // The page's listener for a move's progress.
+  moveProgress: null as ((event: { payload: { done: number; total: number } }) => void) | null,
 }));
 
 vi.mock("./bindings", () => ({
   commands: mocks,
-  events: { libraryChanged: { listen: () => Promise.resolve(() => {}) } },
+  events: {
+    libraryChanged: { listen: () => Promise.resolve(() => {}) },
+    cacheMoveProgress: {
+      listen: (listener: (event: { payload: { done: number; total: number } }) => void) => {
+        mocks.moveProgress = listener;
+        return Promise.resolve(() => {});
+      },
+    },
+  },
 }));
 
 const folder = (root: number | null, name: string, total: number, available = true) => ({
@@ -62,6 +74,7 @@ describe("Settings (SET-2)", () => {
     mocks.setExportDefaults.mockImplementation(() => ok(null));
     mocks.setCheckForUpdates.mockImplementation(() => ok(null));
     mocks.openSeuraFolder.mockImplementation(() => ok(null));
+    mocks.clearCache.mockImplementation(() => ok(null));
   });
 
   afterEach(() => {
@@ -152,6 +165,61 @@ describe("Settings (SET-2)", () => {
     fireEvent.click(updates);
     await waitFor(() => expect(mocks.setCheckForUpdates).toHaveBeenCalledWith(false));
     expect((updates as HTMLInputElement).checked).toBe(false);
+  });
+
+  it("moves the cache, showing how far it has got, then where it is (SET-2)", async () => {
+    let finish: (value: unknown) => void = () => {};
+    mocks.moveCache.mockImplementation(() => new Promise((resolve) => (finish = resolve)));
+    render(<SettingsWindow />);
+    const move = await screen.findByRole("button", { name: "Move…" });
+    fireEvent.click(move);
+    // Nothing else changes the cache meanwhile.
+    expect((move as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Clear" }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    await waitFor(() => expect(mocks.moveProgress).not.toBeNull());
+    act(() => mocks.moveProgress?.({ payload: { done: 100, total: 400 } }));
+    expect(screen.getByText(/Moving thumbnails: .*100.* of .*400/)).toBeTruthy();
+    mocks.settingsPage.mockImplementation(() =>
+      ok({
+        seuraFolder: "C:/Users/someone/Seura Photos",
+        cacheFolder: "D:/Seura Photos Cache",
+        export: {
+          png: false,
+          quality: 90,
+          longEdge: null,
+          removeLocation: false,
+          includeKeywords: true,
+        },
+        checkForUpdates: true,
+      }),
+    );
+    await act(async () =>
+      finish({ status: "ok", data: { kind: "moved", folder: "D:/Seura Photos Cache" } }),
+    );
+    expect(await screen.findByText(/The cache is now in/)).toBeTruthy();
+    expect(
+      await screen.findByText("D:/Seura Photos Cache", { selector: ".settings-path" }),
+    ).toBeTruthy();
+    expect((move as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("clears the cache only once confirmed, saying it's rebuilt automatically (decision 0018)", async () => {
+    render(<SettingsWindow />);
+    fireEvent.click(await screen.findByRole("button", { name: "Clear" }));
+    const confirm = await screen.findByRole("alertdialog", { name: "Clear the cache?" });
+    expect(confirm.textContent).toContain("makes them again from your photos automatically");
+    expect(document.activeElement).toBe(within(confirm).getByRole("button", { name: "Cancel" }));
+    fireEvent.keyDown(confirm, { key: "Escape" });
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(mocks.clearCache).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    const again = await screen.findByRole("alertdialog");
+    fireEvent.click(within(again).getByRole("button", { name: "Clear" }));
+    await waitFor(() => expect(mocks.clearCache).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Cleared. Thumbnails are being made again.")).toBeTruthy();
   });
 
   it("opens Seura's folder, and says when it can't", async () => {

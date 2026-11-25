@@ -47,6 +47,10 @@ pub struct Settings {
     /// the first time an edit file goes to the Trash from a folder one syncs,
     /// the message says the photo isn't affected, once per service (FIL-1).
     pub explained_services: Vec<String>,
+    /// Caches moved away from whose web view folder was still in use, to be
+    /// removed at the next launch (Windows; decision 0013). Usually empty.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub leftover_caches: Vec<PathBuf>,
     /// Fields from a newer version, kept as they were.
     #[serde(flatten)]
     pub unknown: Map<String, Value>,
@@ -125,6 +129,7 @@ impl Default for Settings {
             check_for_updates: true,
             export: ExportSettings::default(),
             explained_services: Vec::new(),
+            leftover_caches: Vec::new(),
             unknown: Map::new(),
         }
     }
