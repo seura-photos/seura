@@ -63,6 +63,19 @@ export function isExport(event: KeyboardEvent): boolean {
   );
 }
 
+/** Whether a key press is Settings (SET-2): Ctrl+,. Windows only: on a
+ * Mac, Cmd+, is the app menu's Settings…, which opens its window. */
+export function isSettingsKey(event: KeyboardEvent): boolean {
+  return (
+    !isMac &&
+    event.ctrlKey &&
+    !event.altKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    event.key === ","
+  );
+}
+
 /** Whether a key press is Find: Ctrl+F, or Cmd+F on a Mac (FND-2). */
 export function isFind(event: KeyboardEvent): boolean {
   const command = isMac ? event.metaKey : event.ctrlKey;

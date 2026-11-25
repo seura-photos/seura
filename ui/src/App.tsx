@@ -9,12 +9,13 @@ import { Editor } from "./Editor";
 import { ExportDialog } from "./ExportDialog";
 import { ExportSummary } from "./ExportSummary";
 import { PasteDialog } from "./PasteDialog";
-import { editsKey, isExport, isField } from "./keys";
+import { editsKey, isExport, isField, isSettingsKey } from "./keys";
 import { Library } from "./Library";
 import { measure, measureExport, measureSliders } from "./measure";
 import { t } from "./messages";
 import { RenderCheck } from "./RenderCheck";
 import { Review } from "./Review";
+import { SettingsDialog } from "./Settings";
 import { TagPicker } from "./TagPicker";
 import { useStore } from "./store";
 import { Viewer } from "./Viewer";
@@ -128,6 +129,9 @@ export function App() {
       } else if (isExport(event)) {
         event.preventDefault();
         void store.askExport(store.chosenPhotos());
+      } else if (isSettingsKey(event) && store.welcome === null) {
+        event.preventDefault();
+        store.setSettings(true);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -186,6 +190,7 @@ export function App() {
       <PasteDialog />
       <TagPicker />
       <About />
+      <SettingsDialog />
     </div>
   );
 }

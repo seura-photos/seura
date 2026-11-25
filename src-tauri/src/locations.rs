@@ -56,7 +56,20 @@ pub fn cache_folder(seura: &Path, settings: &Settings) -> PathBuf {
 /// WKWebView (macOS) runs with a non-persistent store instead (decision 0013).
 #[cfg(any(target_os = "windows", test))]
 pub fn web_view_folder(cache: &Path) -> PathBuf {
-    cache.join("WebView")
+    cache.join(WEB_VIEW_FOLDER)
+}
+
+/// The web view's folder's name, in the cache.
+pub const WEB_VIEW_FOLDER: &str = "WebView";
+
+/// What Seura keeps in the cache folder, by name: the library's entries and
+/// the web view's folder. Only these are the cache, since the folder may be
+/// one the user chose that holds other things too (decision 0018).
+pub fn cache_entries() -> impl Iterator<Item = &'static str> {
+    seura_library::CACHE_ENTRIES
+        .iter()
+        .copied()
+        .chain([WEB_VIEW_FOLDER])
 }
 
 /// How the settings were found at launch.

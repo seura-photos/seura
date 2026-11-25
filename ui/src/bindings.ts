@@ -429,6 +429,20 @@ export const commands = {
 	 */
 	finishWelcome: (folders: number[], checkForUpdates: boolean, cache: number | null) => typedError<null, string>(__TAURI_INVOKE("finish_welcome", { folders, checkForUpdates, cache })),
 	/**
+	 *  What the Settings page shows (SET-2), apart from the library folders,
+	 *  which [`folders`] gives, and the cache's size, which [`cache_size`] adds
+	 *  up.
+	 */
+	settingsPage: () => typedError<SettingsPage, string>(__TAURI_INVOKE("settings_page")),
+	/**  The cache's size in bytes (SET-2), added up off the main thread. */
+	cacheSize: () => typedError<number | null, string>(__TAURI_INVOKE("cache_size")),
+	/**  Sets what the Export dialog opens with, from Settings (SET-2, EXP-2). */
+	setExportDefaults: (choices: ExportChoices) => typedError<null, string>(__TAURI_INVOKE("set_export_defaults", { choices })),
+	/**  Turns update checks on or off, from Settings (SET-2, SET-4). */
+	setCheckForUpdates: (on: boolean) => typedError<null, string>(__TAURI_INVOKE("set_check_for_updates", { on })),
+	/**  Opens Seura's own folder in Explorer or Finder, from Settings (SET-2). */
+	openSeuraFolder: () => typedError<null, string>(__TAURI_INVOKE("open_seura_folder")),
+	/**
 	 *  The render check: one preview path's render of the check image, as 8-bit
 	 *  RGBA, compared with wgpu's. Returns the largest difference.
 	 */
@@ -1309,6 +1323,19 @@ export type SelectionSummary = {
 	readOnly: number,
 	/**  How many are marked for deletion (REV-4). */
 	marked: number,
+};
+
+/**
+ *  What the page shows, apart from the library folders and the cache's
+ *  size, which takes a while to add up.
+ */
+export type SettingsPage = {
+	/**  The `Seura Photos` folder (decision 0015). */
+	seuraFolder: string,
+	cacheFolder: string,
+	/**  The Export dialog's choices, which it opens with (EXP-2). */
+	export: ExportChoices,
+	checkForUpdates: boolean,
 };
 
 /**  What Start over did (FIL-4). */

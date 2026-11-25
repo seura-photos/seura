@@ -21,6 +21,7 @@ mod parts;
 mod presets;
 mod protocol;
 mod quitting;
+mod settings_page;
 mod synced;
 mod viewer;
 mod welcome;
@@ -112,6 +113,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::welcome_add_folder,
             commands::welcome_choose_cache,
             commands::finish_welcome,
+            commands::settings_page,
+            commands::cache_size,
+            commands::set_export_defaults,
+            commands::set_check_for_updates,
+            commands::open_seura_folder,
             commands::check_render,
             commands::finish_render_check,
             commands::finish_quit,
@@ -234,10 +240,13 @@ pub fn run() {
             // A quit from the system waits for a save too (#217).
             #[cfg(target_os = "macos")]
             RunEvent::Ready => quitting::install(app),
+            // Closing the main window quits; the Mac's Settings window just
+            // closes (SET-2).
             RunEvent::WindowEvent {
+                label,
                 event: WindowEvent::CloseRequested { api, .. },
                 ..
-            } => {
+            } if label == "main" => {
                 api.prevent_close();
                 quitting::request(app);
             }
@@ -281,6 +290,34 @@ mod tests {
     use std::{fs, path::PathBuf};
 
     use specta_typescript::Typescript;
+
+    /// Every capability file is enabled. tauri.conf.json lists them by name,
+    /// and one left out is silently never applied: the Mac's Settings window
+    /// had none, so every command it called was refused (#295).
+    #[test]
+    fn every_capability_is_enabled() {
+        let src = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let config: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(src.join("tauri.conf.json")).unwrap())
+                .unwrap();
+        let enabled: Vec<&str> = config["app"]["security"]["capabilities"]
+            .as_array()
+            .expect("tauri.conf.json lists the capabilities")
+            .iter()
+            .filter_map(|name| name.as_str())
+            .collect();
+        for entry in fs::read_dir(src.join("capabilities")).unwrap() {
+            let path = entry.unwrap().path();
+            let capability: serde_json::Value =
+                serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+            let name = capability["identifier"].as_str().unwrap();
+            assert!(
+                enabled.contains(&name),
+                "{} isn't listed in tauri.conf.json's capabilities",
+                path.display()
+            );
+        }
+    }
 
     /// The committed bindings must match the Rust command signatures.
     /// Run with `SEURA_UPDATE_BINDINGS=1` to regenerate them.

@@ -14,7 +14,7 @@ use crate::index::{Folder, Index, Photo};
 pub const SNAPSHOT_FILE: &str = "index.bin";
 
 /// Explains the cache folder to anyone who opens it (technical design, section 4).
-const README_FILE: &str = "README.txt";
+pub(crate) const README_FILE: &str = "README.txt";
 const README: &str = include_str!("../resources/cache-readme.txt");
 
 /// Identifies the file, then its layout. A snapshot written by another

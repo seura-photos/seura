@@ -1,0 +1,22 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "settings-window",
+  "description": "What the Mac's Settings window may call (SET-2): the library folders, the settings it shows, the text size, the region and pseudo-translation for its text. Seura's own commands only, as for the main window (decision 0009).",
+  "windows": ["settings"],
+  "platforms": ["macOS"],
+  "permissions": [
+    "allow-text-scale",
+    "allow-region",
+    "allow-dev-options",
+    "allow-folders",
+    "allow-add-folder",
+    "allow-remove-folder",
+    "allow-settings-page",
+    "allow-cache-size",
+    "allow-set-export-defaults",
+    "allow-set-check-for-updates",
+    "allow-open-seura-folder",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
+}
