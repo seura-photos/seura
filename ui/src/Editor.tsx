@@ -48,7 +48,7 @@ import {
 import { CropOverlay } from "./CropOverlay";
 import { CropPanel } from "./CropPanel";
 import { Filmstrip } from "./Filmstrip";
-import { historyKey, isCompareKey, isTyping } from "./keys";
+import { historyKey, isCompareKey, isTagKey, isTyping, ratingKey } from "./keys";
 import { Message } from "./Message";
 import { t } from "./messages";
 import { SHOWN_EVENT } from "./measure";
@@ -77,7 +77,7 @@ import {
 } from "./redeye";
 import { ScrollArea } from "./ScrollArea";
 import { Slider } from "./Slider";
-import { presetProblemText, useStore } from "./store";
+import { anchorOf, presetProblemText, useStore } from "./store";
 import { orientedSize, type Size } from "./preview/geometry";
 import { useZoom } from "./useZoom";
 import { ZoomControls } from "./ZoomControls";
@@ -147,6 +147,8 @@ export function Editor({ id, forceWebgl2 }: Props) {
   const openEditor = useStore((state) => state.openEditor);
   const closeEditor = useStore((state) => state.closeEditor);
   const say = useStore((state) => state.say);
+  const rate = useStore((state) => state.rate);
+  const openPicker = useStore((state) => state.openPicker);
   // Only messages from while it's open: earlier ones were about the Library.
   const [openedAt] = useState(() => useStore.getState().noticeId);
 
@@ -1016,6 +1018,24 @@ export function Editor({ id, forceWebgl2 }: Props) {
     if (event.key === "a" || event.key === "A") {
       event.preventDefault();
       enhance();
+      return;
+    }
+    // Rating and tags, as in every view (TAG-6, TAG-3; #293). They're
+    // written through the Library, so a change waiting to be saved goes
+    // first, and each is a step in the photo's history.
+    const stars = ratingKey(event);
+    if (stars !== null) {
+      event.preventDefault();
+      const photoId = id;
+      void flush().then(() => rate([photoId], stars, true));
+      return;
+    }
+    if (isTagKey(event)) {
+      event.preventDefault();
+      void flush();
+      // Beside the photo's name, at the top: the photo fills the stage.
+      const name = root.current?.querySelector(".editor-name");
+      void openPicker([id], anchorOf(name ?? document.body));
       return;
     }
     // Arrow keys on a slider move the slider, not the photo.

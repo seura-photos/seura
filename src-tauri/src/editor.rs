@@ -437,10 +437,12 @@ impl Editor {
         Some(previewed.settings())
     }
 
-    /// The watcher read these photos' edit files again (FIL-3): if one is
-    /// open here, says how it changed. Seura's own writes aren't reported,
+    /// The watcher read these photos' edit files again (FIL-3), or the
+    /// Library changed their tags or rating (#293): if one is open here,
+    /// says how it changed. The watcher doesn't report Seura's own writes,
     /// and the Editor's lock is held while it writes, so it's never taken
-    /// for another app's.
+    /// for another app's. A tag or rating isn't a conflict: neither is one
+    /// of the Editor's edits.
     pub fn changed_outside<R: Runtime>(&self, app: &AppHandle<R>, ids: &[PhotoId]) {
         let mut session = self.session.lock().expect("editor lock");
         let Some(session) = session

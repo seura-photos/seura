@@ -27,6 +27,12 @@ const mocks = vi.hoisted(() => ({
   draw: vi.fn(),
   presets: vi.fn<() => Promise<unknown>>(),
   presetPreview: vi.fn<(id: number, name: string) => Promise<unknown>>(),
+  changePhotos: vi.fn<(ids: number[], change: unknown) => Promise<unknown>>(() =>
+    Promise.resolve({
+      status: "ok",
+      data: { changed: 1, readOnly: 0, unreadable: 0, failed: 0, cloudOnly: 0 },
+    }),
+  ),
   // Saved settings beside brightness, which the slider must keep.
   opened: {
     kind: "opened",
@@ -64,6 +70,8 @@ vi.mock("./bindings", () => ({
     cropAspect: mocks.cropAspect,
     revertPhoto: mocks.revertPhoto,
     resolveOutsideChange: mocks.resolveOutsideChange,
+    changePhotos: mocks.changePhotos,
+    selectionSummary: vi.fn(() => Promise.resolve({ count: 1, readOnly: 0 })),
     photoNotices: vi.fn(() =>
       Promise.resolve({ status: "ok", data: { notShown: 0, originalChanged: false } }),
     ),
@@ -468,6 +476,33 @@ describe("Editor", () => {
     expect((screen.getByRole("slider", { name: "Shadows" }) as HTMLInputElement).value).toBe("20");
     fireEvent.keyDown(window, { key: "a" });
     await waitFor(() => expect(mocks.editPhoto).toHaveBeenCalledTimes(2));
+  });
+
+  it("rates with 0 to 5 after saving a waiting change, and tags with T (TAG-6, TAG-3; #293)", async () => {
+    edit();
+    const slider = await brightness();
+    fireEvent.change(slider, { target: { value: "25" } });
+    fireEvent.keyDown(window, { key: "4" });
+    await waitFor(() =>
+      expect(mocks.changePhotos).toHaveBeenCalledWith([7], { kind: "rating", stars: 4 }),
+    );
+    // The slider's change was saved first, as its own step.
+    expect(mocks.editPhoto).toHaveBeenCalledWith(7, { kind: "brightness", ev: 1 });
+    expect(mocks.editPhoto.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.changePhotos.mock.invocationCallOrder[0] ?? 0,
+    );
+    // A key says what it did (INT-6).
+    await waitFor(() => expect(useStore.getState().notice).toMatch(/4/));
+    fireEvent.keyDown(window, { key: "t" });
+    await waitFor(() => expect(useStore.getState().picker?.ids).toEqual([7]));
+    // Not while crop mode has the keys.
+    useStore.setState({ picker: null });
+    fireEvent.keyDown(window, { key: "c" });
+    await screen.findByText("Crop and straighten");
+    fireEvent.keyDown(window, { key: "2" });
+    fireEvent.keyDown(window, { key: "t" });
+    expect(mocks.changePhotos).toHaveBeenCalledTimes(1);
+    expect(useStore.getState().picker).toBeNull();
   });
 
   it("double-clicking the slider resets it (EDT-5)", async () => {

@@ -418,6 +418,16 @@ impl Library {
             self.save();
             let _ = LibraryChanged.emit(app);
         }
+        // A rating or tag given in the Editor, or from the picker there, is
+        // a step in the open photo's history, so its undo follows (#293).
+        // Seura's own writes don't reach the watcher.
+        if matches!(
+            change,
+            Change::Rating(_) | Change::AddTag(_) | Change::RemoveTag(_)
+        ) && let Some(editor) = app.try_state::<crate::editor::Editor>()
+        {
+            editor.changed_outside(app, &report.changed);
+        }
         trashed.explain(app, Removal::of(change));
         report
     }
