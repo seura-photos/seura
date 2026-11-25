@@ -808,8 +808,9 @@ button {
   font-weight: 600;
 }
 
-.settings-note,
-.settings-path {
+/* Ahead of `.dialog p` and `.settings-window p`, which set no margin. */
+.settings-page p.settings-note,
+.settings-page p.settings-path {
   margin: 0 0 0.5rem;
 }
 
