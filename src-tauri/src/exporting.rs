@@ -57,6 +57,22 @@ impl From<&ExportSettings> for ExportChoices {
 }
 
 impl ExportChoices {
+    /// As the settings file keeps them, with the dialog's folder.
+    pub(crate) fn to_settings(&self, folder: Option<PathBuf>) -> ExportSettings {
+        ExportSettings {
+            folder,
+            format: if self.png {
+                ExportFileFormat::Png
+            } else {
+                ExportFileFormat::Jpeg
+            },
+            quality: self.quality,
+            long_edge: self.long_edge,
+            remove_location: self.remove_location,
+            include_keywords: self.include_keywords,
+        }
+    }
+
     fn options(&self) -> ExportOptions {
         ExportOptions {
             format: if self.png {
@@ -73,7 +89,7 @@ impl ExportChoices {
         }
     }
 
-    fn valid(&self) -> bool {
+    pub(crate) fn valid(&self) -> bool {
         (1..=100).contains(&self.quality) && self.long_edge.is_none_or(|edge| edge >= MIN_LONG_EDGE)
     }
 }
@@ -415,18 +431,7 @@ fn starting_folder(remembered: Option<&Path>, pictures: Option<PathBuf>) -> Opti
 fn remember<R: Runtime>(app: &AppHandle<R>, folder: &Path, choices: &ExportChoices) {
     let settings = app.state::<AppSettings>();
     let mut file = settings.0.lock().expect("settings lock");
-    file.settings.export = ExportSettings {
-        folder: Some(folder.to_path_buf()),
-        format: if choices.png {
-            ExportFileFormat::Png
-        } else {
-            ExportFileFormat::Jpeg
-        },
-        quality: choices.quality,
-        long_edge: choices.long_edge,
-        remove_location: choices.remove_location,
-        include_keywords: choices.include_keywords,
-    };
+    file.settings.export = choices.to_settings(Some(folder.to_path_buf()));
     // Not being able to remember doesn't stop the export.
     let _ = file.save();
 }

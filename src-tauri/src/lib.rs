@@ -21,6 +21,7 @@ mod parts;
 mod presets;
 mod protocol;
 mod quitting;
+mod settings_page;
 mod synced;
 mod viewer;
 mod welcome;
@@ -112,6 +113,11 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::welcome_add_folder,
             commands::welcome_choose_cache,
             commands::finish_welcome,
+            commands::settings_page,
+            commands::cache_size,
+            commands::set_export_defaults,
+            commands::set_check_for_updates,
+            commands::open_seura_folder,
             commands::check_render,
             commands::finish_render_check,
             commands::finish_quit,
@@ -234,10 +240,13 @@ pub fn run() {
             // A quit from the system waits for a save too (#217).
             #[cfg(target_os = "macos")]
             RunEvent::Ready => quitting::install(app),
+            // Closing the main window quits; the Mac's Settings window just
+            // closes (SET-2).
             RunEvent::WindowEvent {
+                label,
                 event: WindowEvent::CloseRequested { api, .. },
                 ..
-            } => {
+            } if label == "main" => {
                 api.prevent_close();
                 quitting::request(app);
             }

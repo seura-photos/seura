@@ -7,11 +7,12 @@ import { system, useStore } from "./store";
 /**
  * Windows' ⋯ button, at the right end of the toolbar in every view: the
  * commands for the whole app, which macOS has in its menu bar (ACC-4). Each
- * platform has one place for them, so there's none on a Mac. About now;
- * Settings and Clean up once they're built (M7).
+ * platform has one place for them, so there's none on a Mac. Settings and
+ * About; Clean up once it's built (M7).
  */
 export function MoreButton() {
   const setAbout = useStore((state) => state.setAbout);
+  const setSettings = useStore((state) => state.setSettings);
   const button = useRef<HTMLButtonElement>(null);
   // Where the menu opens: below the button, its right edge on the button's.
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -36,6 +37,17 @@ export function MoreButton() {
       </button>
       {menu && (
         <Menu x={menu.x} y={menu.y} align="end" onClose={() => setMenu(null)}>
+          <button
+            type="button"
+            role="menuitem"
+            className="menu-item"
+            onClick={() => {
+              setMenu(null);
+              setSettings(true);
+            }}
+          >
+            {t("more-settings")}
+          </button>
           <button
             type="button"
             role="menuitem"

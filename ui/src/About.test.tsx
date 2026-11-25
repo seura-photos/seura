@@ -39,8 +39,9 @@ describe("The ⋯ button and About (ACC-4, SET-5)", () => {
     const more = screen.getByRole("button", { name: "More" });
     more.focus();
     fireEvent.click(more);
+    // The menu takes the focus, on its first item.
+    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Settings…" }));
     const about = screen.getByRole("menuitem", { name: "About Seura Photos" });
-    expect(document.activeElement).toBe(about);
     fireEvent.click(about);
 
     const dialog = await screen.findByRole("dialog", { name: "Seura Photos" });

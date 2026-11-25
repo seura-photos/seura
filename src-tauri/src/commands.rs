@@ -2755,6 +2755,48 @@ pub async fn finish_welcome(
     .map_err(|error| error.to_string())?
 }
 
+/// What the Settings page shows (SET-2), apart from the library folders,
+/// which [`folders`] gives, and the cache's size, which [`cache_size`] adds
+/// up.
+#[tauri::command]
+#[specta::specta]
+pub fn settings_page(app: AppHandle) -> Result<crate::settings_page::SettingsPage, String> {
+    crate::settings_page::page(&app).map_err(|error| error.to_string())
+}
+
+/// The cache's size in bytes (SET-2), added up off the main thread.
+#[tauri::command]
+#[specta::specta]
+pub async fn cache_size(app: AppHandle) -> Result<f64, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::settings_page::cache_size(&app))
+        .await
+        .map_err(|error| error.to_string())?
+        .map(|bytes| bytes as f64)
+        .map_err(|error| error.to_string())
+}
+
+/// Sets what the Export dialog opens with, from Settings (SET-2, EXP-2).
+#[tauri::command]
+#[specta::specta]
+pub fn set_export_defaults(app: AppHandle, choices: ExportChoices) -> Result<(), String> {
+    crate::settings_page::set_export(&app, &choices)
+}
+
+/// Turns update checks on or off, from Settings (SET-2, SET-4).
+#[tauri::command]
+#[specta::specta]
+pub fn set_check_for_updates(app: AppHandle, on: bool) -> Result<(), String> {
+    crate::settings_page::set_check_for_updates(&app, on)
+}
+
+/// Opens Seura's own folder in Explorer or Finder, from Settings (SET-2).
+#[tauri::command]
+#[specta::specta]
+pub fn open_seura_folder(app: AppHandle) -> Result<(), String> {
+    let folder = crate::locations::seura_folder(&app).map_err(|error| error.to_string())?;
+    tauri_plugin_opener::open_path(&folder, None::<&str>).map_err(|error| error.to_string())
+}
+
 /// The system's folder dialog (ACC-4), or `None` if the user cancels.
 async fn pick_folder(app: &AppHandle) -> Result<Option<PathBuf>, String> {
     pick_folder_from(app, None).await

@@ -653,6 +653,27 @@ about-license = Apache License 2.0
 about-notices = Third-party notices
 about-ok = OK
 about-link-failed = Couldn't open that: { $reason }
+more-settings = Settings…
+
+## Settings (SET-2): Windows' dialog and the Mac's window, one page.
+
+settings-title = Settings
+settings-close = Close
+settings-library = Library folders
+settings-no-folders = No library folders yet.
+settings-add-folder = Add folder…
+settings-remove = Remove
+settings-cache = Cache
+settings-cache-measuring = Adding up its size…
+settings-cache-size = { $size }, for thumbnails and the library's index. Seura rebuilds it if it's gone.
+settings-seura-folder = Seura's folder
+settings-seura-folder-note = Your settings and presets, in a folder you can see.
+settings-open-folder = Open folder
+settings-export = Export defaults
+settings-export-note = What the Export dialog starts with. It also remembers what you choose there.
+settings-updates = Updates
+settings-failed = That setting couldn't be saved: { $reason }
+settings-open-failed = The folder couldn't be opened: { $reason }
 
 ## Zoom, in the Viewer and the Editor (BRW-5, EDT-1)
 

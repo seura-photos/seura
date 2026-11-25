@@ -5,6 +5,9 @@ app-name = Seura Photos
 
 menu-about = About Seura Photos
 menu-notices = Third-Party Notices
+menu-settings = Settings…
+# The Settings window's title (SET-2).
+settings-title = Settings
 # In the About panel (SET-5), while the version is below 1.0.
 about-early-build = An early build, before the beta.
 menu-hide = Hide Seura Photos

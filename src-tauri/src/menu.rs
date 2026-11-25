@@ -52,6 +52,9 @@ const QUIT: &str = "quit";
 /// The app menu's Third-Party Notices, which the About panel can't link to:
 /// its credits are plain text (SET-5).
 const NOTICES: &str = "notices";
+/// The app menu's Settings… (Cmd+,), opening its window (SET-2).
+#[cfg(target_os = "macos")]
+const SETTINGS: &str = "settings";
 const SHOW_IN_FOLDER: &str = "show-in-folder";
 const OPEN_IN_DEFAULT_APP: &str = "open-in-default-app";
 const DELETE: &str = "delete";
@@ -93,6 +96,8 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
                 Some(crate::about::metadata()),
             )?,
             &MenuItem::with_id(app, NOTICES, t("menu-notices"), true, None::<&str>)?,
+            &separator()?,
+            &MenuItem::with_id(app, SETTINGS, t("menu-settings"), true, Some("CmdOrCtrl+,"))?,
             &separator()?,
             &PredefinedMenuItem::hide(app, Some(t("menu-hide").as_str()))?,
             &PredefinedMenuItem::hide_others(app, Some(t("menu-hide-others").as_str()))?,
@@ -228,6 +233,22 @@ pub fn handle<R: Runtime>(app: &AppHandle<R>, id: &str) {
         if let Err(problem) = opened {
             eprintln!("Couldn't open the third-party notices: {problem}");
         }
+        return;
+    }
+    #[cfg(target_os = "macos")]
+    if id == SETTINGS {
+        if let Err(problem) = crate::settings_page::open_window(app) {
+            eprintln!("Couldn't open Settings: {problem}");
+        }
+        return;
+    }
+    // The Library's commands are for the main window: with Settings in
+    // front, Cmd+A or Cmd+Z there doesn't act on photos behind it.
+    #[cfg(target_os = "macos")]
+    if app
+        .get_webview_window(crate::settings_page::WINDOW)
+        .is_some_and(|window| window.is_focused().unwrap_or(false))
+    {
         return;
     }
     let command = match id {

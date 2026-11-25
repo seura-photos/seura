@@ -343,6 +343,10 @@ export type State = {
   /** Whether About is open: Windows' dialog, from the ⋯ button (SET-5). */
   about: boolean;
   setAbout: (open: boolean) => void;
+  /** Whether Settings is open: Windows' dialog, from the ⋯ button or
+   * Ctrl+, (SET-2). On a Mac it's a window of its own. */
+  settingsOpen: boolean;
+  setSettings: (open: boolean) => void;
 };
 
 /** What a change made with a key did, for its message (INT-6). */
@@ -620,6 +624,7 @@ export const useStore = create<State>()((set, get) => ({
   kept: null,
   confirmingDelete: null,
   about: false,
+  settingsOpen: false,
   picker: null,
   progress: { scanning: null, done: 0, total: 0 },
 
@@ -1405,6 +1410,10 @@ export const useStore = create<State>()((set, get) => ({
 
   setAbout(open) {
     set({ about: open });
+  },
+
+  setSettings(open) {
+    set({ settingsOpen: open });
   },
 
   async askDelete(ids, download = false) {
