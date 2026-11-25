@@ -225,7 +225,7 @@ CI (GitHub Actions) builds and tests on `windows-latest` and `macos-latest` on e
 ## 12. Minimum OS versions and test coverage
 
 - **Windows 10 (22H2) and 11**, x64. WebView2 is preinstalled on both, and WebGPU is enabled in it on x64. Windows on ARM is a later target; WebGPU there is still behind a flag in Chromium.
-- **macOS 13 Ventura and later**, Apple Silicon and Intel. WebGPU preview on macOS Tahoe 26; WebGL2 fallback on 13 to 15. Tauri 2 itself supports macOS 10.15, but older versions are not worth the testing cost for this audience.
+- **macOS 13 Ventura and later**, on Apple silicon only for 1.0: Intel Macs can't be tested, and only an Apple silicon build ships (Nevada's decision, 2026-11-24). A universal build can be added later if testers ask. WebGPU preview on macOS Tahoe 26; WebGL2 fallback on 13 to 15. Tauri 2 itself supports macOS 10.15, but older versions are not worth the testing cost for this audience.
 
 The developer's own machines (one Windows desktop, one MacBook Pro, both kept current) cover Windows 11 and the newest macOS. The rest is covered in tiers:
 

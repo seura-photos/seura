@@ -197,7 +197,7 @@ Shown as a notice bar at the top of the photo area, in the Library and the Viewe
 
 ## Keyboard shortcuts
 
-Ctrl on Windows, Cmd on macOS. Single-letter keys work in every view except while typing in a text field.
+Ctrl on Windows, Cmd on macOS. Single-letter keys work in every view except while typing in a text field, with one exception: rating (0–5) and tagging (T) don't work in the Editor, which is for editing the photo itself, not its rating and tags, and doesn't show them.
 
 | Action | Shortcut |
 | --- | --- |
@@ -206,8 +206,8 @@ Ctrl on Windows, Cmd on macOS. Single-letter keys work in every view except whil
 | Next or previous photo | → ← |
 | Rotate left, right | `[` `]` |
 | Enhance | A |
-| Rate | 0–5 |
-| Tag | T |
+| Rate | 0–5 (not in the Editor) |
+| Tag | T (not in the Editor) |
 | Edit | E |
 | Crop (in Editor) | C |
 | Mark for deletion (in Review) | X |

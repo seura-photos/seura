@@ -252,6 +252,8 @@ The app should feel at home on each platform and be usable without a mouse or wi
 | Clearing the cache | Deleted directly rather than moved to the Trash: it's Seura's own, rebuilt automatically, and can exceed the Recycle Bin's size, where Windows would ask to delete permanently anyway (decision 0018). 2026-11-24. |
 | Third-party notices on macOS | An item in the app menu rather than the About panel's credits, Nevada's choice while building (#287); SET-5 updated, 2026-11-24. |
 | Update installer | Deleted directly once it has run, or at the next launch if an update was interrupted: Seura downloaded it to the system's temporary folder, and nothing in it can be lost. Added to CLAUDE.md rule 5's list, 2026-11-24. |
+| Rating and tag keys in the Editor | Not accepted: the Editor doesn't show a photo's rating or tags, so a key would change something unseen, and the Editor is for editing the photo itself, not its metadata (Nevada, 2026-10-29). Briefly built (#294) and reversed by Nevada after testing it, 2026-11-24 (#293). |
+| Intel Macs | Not supported for 1.0: they can't be tested, and only an Apple silicon build ships. Nevada's decision, 2026-11-24. |
 | Early builds | Public from 0.2, offered on the website with no promise of support; the beta stays in M7 (decision 0016). Nevada's decision, 2026-10-27. |
 | Enter in the tag picker | Adds the first existing match; Create is chosen only when nothing matches, or by hand (TAG-3). Claude Code's choice while building, confirmed 2026-10-27. |
 | Backups of unreadable edit files | In Seura's own folder, not beside the photo, so nothing new is written into the user's folders (FIL-4; CLAUDE.md rule 2). Raised by Claude Code, 2026-10-26. |
