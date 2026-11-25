@@ -48,6 +48,11 @@ pub use settings::{
     Settings, SettingsError, SettingsFile, Sort, SortBy, THUMBNAIL_SIZES,
 };
 pub use snapshot::SNAPSHOT_FILE;
+
+/// What the library keeps in the cache folder, by name. The folder may be
+/// one the user chose, with other things in it too, so only these count as
+/// the cache (decision 0018). The app adds the web view's folder on Windows.
+pub const CACHE_ENTRIES: &[&str] = &[THUMBS_FOLDER, SNAPSHOT_FILE, snapshot::README_FILE];
 pub use sort::natural;
 pub use start_over::{StartedOver, UNREADABLE_FOLDER};
 pub use tag_tree::TagEntry;

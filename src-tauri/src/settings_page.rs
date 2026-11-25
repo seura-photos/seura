@@ -39,8 +39,9 @@ pub fn page<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<SettingsPage> {
     })
 }
 
-/// The cache's size in bytes: every file in it, added up. A file that
-/// can't be read counts as nothing.
+/// The cache's size in bytes: Seura's own entries in the cache folder, added
+/// up, and nothing else the folder holds. A file that can't be read counts
+/// as nothing.
 pub fn cache_size<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<u64> {
     let seura = locations::seura_folder(app)?;
     let settings = app.state::<AppSettings>();
@@ -48,7 +49,20 @@ pub fn cache_size<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<u64> {
         let file = settings.0.lock().expect("settings lock");
         locations::cache_folder(&seura, &file.settings)
     };
-    Ok(folder_size(&cache))
+    Ok(cache_entries_size(&cache))
+}
+
+fn cache_entries_size(cache: &Path) -> u64 {
+    locations::cache_entries()
+        .map(|name| {
+            let entry = cache.join(name);
+            match std::fs::symlink_metadata(&entry) {
+                Ok(data) if data.is_dir() => folder_size(&entry),
+                Ok(data) if data.is_file() => data.len(),
+                _ => 0,
+            }
+        })
+        .sum()
 }
 
 fn folder_size(folder: &Path) -> u64 {
@@ -118,12 +132,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_cache_s_size_adds_up_every_file_in_it() {
+    fn the_cache_s_size_is_seura_s_entries_only() {
+        // A folder the user chose, holding their own files too.
         let cache = tempfile::tempdir().expect("temporary folder");
         std::fs::write(cache.path().join("index.bin"), [0; 10]).expect("file");
         std::fs::create_dir_all(cache.path().join("thumbs/ab")).expect("folders");
         std::fs::write(cache.path().join("thumbs/ab/one.webp"), [0; 32]).expect("file");
-        assert_eq!(folder_size(cache.path()), 42);
-        assert_eq!(folder_size(&cache.path().join("not there")), 0);
+        std::fs::create_dir_all(cache.path().join("WebView")).expect("folder");
+        std::fs::write(cache.path().join("WebView/Local State"), [0; 5]).expect("file");
+        std::fs::write(cache.path().join("holiday.mov"), [0; 1000]).expect("file");
+        std::fs::create_dir_all(cache.path().join("Work")).expect("folder");
+        std::fs::write(cache.path().join("Work/notes.txt"), [0; 100]).expect("file");
+        assert_eq!(cache_entries_size(cache.path()), 47);
+        assert_eq!(cache_entries_size(&cache.path().join("not there")), 0);
     }
 }
