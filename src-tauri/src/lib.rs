@@ -180,11 +180,13 @@ pub fn run() {
                 );
             }
             let seura = locations::seura_folder(app.handle())?;
+            let mut settings = settings;
+            if locations::rename_old_default_cache(&seura, &mut settings.settings) {
+                let _ = settings.save();
+            }
             let cache = locations::cache_folder(&seura, &settings.settings);
             // Before the web view starts: web view folders cleared or moved
             // away from while it ran (decision 0013).
-            #[cfg(target_os = "windows")]
-            let mut settings = settings;
             #[cfg(target_os = "windows")]
             if cache::tidy_at_launch(&seura, &cache, &mut settings.settings.leftover_caches) {
                 let _ = settings.save();
@@ -299,7 +301,7 @@ fn create_main_window(
     let window = window.data_directory(if seura_library::has_trash(cache) {
         locations::web_view_folder(cache)
     } else {
-        locations::web_view_folder(&seura.join("Cache"))
+        locations::web_view_folder(&locations::default_cache(seura))
     });
     #[cfg(not(target_os = "windows"))]
     let _ = (seura, cache);

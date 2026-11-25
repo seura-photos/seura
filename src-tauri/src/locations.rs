@@ -1,7 +1,10 @@
 //! Where Seura keeps its own files (CLAUDE.md rule 2; decisions 0013 and
 //! 0015), and the settings it starts with.
 
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use seura_library::{Index, Settings, SettingsFile};
 use tauri::{AppHandle, Manager, Runtime};
@@ -43,12 +46,46 @@ fn m1_cache_folder<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
     )
 }
 
-/// The cache folder: the user's choice, or `Cache` in Seura's folder.
+/// The cache folder: the user's choice, or the default in Seura's folder.
 pub fn cache_folder(seura: &Path, settings: &Settings) -> PathBuf {
     settings
         .cache_folder
         .clone()
-        .unwrap_or_else(|| seura.join("Cache"))
+        .unwrap_or_else(|| default_cache(seura))
+}
+
+/// The cache's default place: `Seura Photos Cache` in Seura's folder, the
+/// same name as a cache anywhere else (decision 0019).
+pub fn default_cache(seura: &Path) -> PathBuf {
+    seura.join(crate::cache::OWN_FOLDER)
+}
+
+/// The default cache's name before decision 0019's amendment.
+pub const OLD_DEFAULT_CACHE: &str = "Cache";
+
+/// Renames a default cache from before decision 0019's amendment, `Cache`
+/// in Seura's folder, to the new name, once. Before the web view starts, so
+/// nothing in it is in use. Nothing is copied or deleted. If the rename
+/// fails, the old folder stays the cache, recorded as the user's choice so
+/// it isn't rebuilt elsewhere. Returns whether the settings changed.
+pub fn rename_old_default_cache(seura: &Path, settings: &mut Settings) -> bool {
+    let old = seura.join(OLD_DEFAULT_CACHE);
+    let new = default_cache(seura);
+    if settings.cache_folder.is_some() || !old.is_dir() || new.exists() {
+        return false;
+    }
+    match fs::rename(&old, &new) {
+        Ok(()) => false,
+        Err(error) => {
+            eprintln!(
+                "The cache couldn't be renamed to {}, so it stays at {}: {error}",
+                new.display(),
+                old.display()
+            );
+            settings.cache_folder = Some(old);
+            true
+        }
+    }
 }
 
 /// The web view's own data folder, inside the cache so it's visible, movable
@@ -149,9 +186,51 @@ mod tests {
     fn the_cache_is_in_seura_s_folder_unless_moved() {
         let seura = Path::new("home/Seura Photos");
         let mut settings = Settings::default();
-        assert_eq!(cache_folder(seura, &settings), seura.join("Cache"));
+        assert_eq!(
+            cache_folder(seura, &settings),
+            seura.join("Seura Photos Cache")
+        );
         settings.cache_folder = Some(PathBuf::from("D:/Cache"));
         assert_eq!(cache_folder(seura, &settings), PathBuf::from("D:/Cache"));
+    }
+
+    #[test]
+    fn an_old_default_cache_is_renamed_once_with_everything_in_it() {
+        let seura = tempfile::tempdir().unwrap();
+        let old = seura.path().join("Cache");
+        fs::create_dir_all(old.join("thumbs/ab")).unwrap();
+        fs::write(old.join("thumbs/ab/one.webp"), b"thumb").unwrap();
+        fs::write(old.join("index.bin"), b"index").unwrap();
+        let mut settings = Settings::default();
+
+        assert!(!rename_old_default_cache(seura.path(), &mut settings));
+        let new = cache_folder(seura.path(), &settings);
+        assert_eq!(new, seura.path().join("Seura Photos Cache"));
+        assert_eq!(fs::read(new.join("thumbs/ab/one.webp")).unwrap(), b"thumb");
+        assert_eq!(fs::read(new.join("index.bin")).unwrap(), b"index");
+        assert!(!old.exists());
+        assert_eq!(settings.cache_folder, None);
+
+        // Never over a cache already at the new name.
+        fs::create_dir_all(&old).unwrap();
+        fs::write(old.join("index.bin"), b"older").unwrap();
+        assert!(!rename_old_default_cache(seura.path(), &mut settings));
+        assert_eq!(fs::read(new.join("index.bin")).unwrap(), b"index");
+        assert!(old.join("index.bin").is_file());
+    }
+
+    #[test]
+    fn a_cache_the_user_chose_is_never_renamed() {
+        let seura = tempfile::tempdir().unwrap();
+        let old = seura.path().join("Cache");
+        fs::create_dir_all(&old).unwrap();
+        let mut settings = Settings {
+            cache_folder: Some(PathBuf::from("D:/Elsewhere")),
+            ..Settings::default()
+        };
+        assert!(!rename_old_default_cache(seura.path(), &mut settings));
+        assert!(old.is_dir());
+        assert!(!seura.path().join("Seura Photos Cache").exists());
     }
 
     #[test]

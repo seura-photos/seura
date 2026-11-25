@@ -16,6 +16,8 @@ Caches already set to a picked folder stay where they are. Clearing or measuring
 
 Nevada's decision, 2026-11-24, raised by Claude Code while planning M7 slice 3b.
 
+**Amended 2026-11-25: the default has the same name.** The cache's default place was `Cache` in Seura's folder. It's now `Seura Photos Cache` there, so a cache has one name wherever it is, and moving it back home doesn't change what it's called. It stays inside Seura's folder, so all of Seura's own data is still in one place (CLAUDE.md rule 2, decision 0015). At the first launch after this, a default cache named `Cache` is renamed in place, before the web view starts: nothing is copied or deleted. If the rename fails, the old folder stays the cache, recorded in the settings as if the user had chosen it, so it isn't rebuilt elsewhere. Nevada's decision while testing #298 on Windows, choosing between this and a `Seura Photos Cache` folder directly in the home folder.
+
 ## Consequences
 
 - Seura's cache is always a folder that holds nothing else, unless an older one was set up before this decision.

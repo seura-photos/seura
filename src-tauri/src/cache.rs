@@ -74,11 +74,12 @@ fn delete_entry(cache: &Path, name: &str) -> io::Result<()> {
 }
 
 /// Removes the cache's own folder if it's empty and is one Seura made for
-/// it: `Cache` in Seura's folder, or a folder of its own (decision 0019). A
-/// folder the user picked before then is left, even when empty.
+/// it: a folder of its own (decision 0019), or the default's old name in
+/// Seura's folder. A folder the user picked before then is left, even when
+/// empty.
 fn remove_if_empty(seura: &Path, cache: &Path) {
-    let own =
-        cache == seura.join("Cache") || cache.file_name().is_some_and(|name| name == OWN_FOLDER);
+    let own = cache == seura.join(crate::locations::OLD_DEFAULT_CACHE)
+        || cache.file_name().is_some_and(|name| name == OWN_FOLDER);
     if own {
         // Fails, as it should, when anything is still in it.
         let _ = fs::remove_dir(cache);
