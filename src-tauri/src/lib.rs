@@ -291,6 +291,34 @@ mod tests {
 
     use specta_typescript::Typescript;
 
+    /// Every capability file is enabled. tauri.conf.json lists them by name,
+    /// and one left out is silently never applied: the Mac's Settings window
+    /// had none, so every command it called was refused (#295).
+    #[test]
+    fn every_capability_is_enabled() {
+        let src = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let config: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(src.join("tauri.conf.json")).unwrap())
+                .unwrap();
+        let enabled: Vec<&str> = config["app"]["security"]["capabilities"]
+            .as_array()
+            .expect("tauri.conf.json lists the capabilities")
+            .iter()
+            .filter_map(|name| name.as_str())
+            .collect();
+        for entry in fs::read_dir(src.join("capabilities")).unwrap() {
+            let path = entry.unwrap().path();
+            let capability: serde_json::Value =
+                serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+            let name = capability["identifier"].as_str().unwrap();
+            assert!(
+                enabled.contains(&name),
+                "{} isn't listed in tauri.conf.json's capabilities",
+                path.display()
+            );
+        }
+    }
+
     /// The committed bindings must match the Rust command signatures.
     /// Run with `SEURA_UPDATE_BINDINGS=1` to regenerate them.
     #[test]

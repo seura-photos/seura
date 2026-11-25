@@ -673,6 +673,7 @@ settings-export = Export defaults
 settings-export-note = What the Export dialog starts with. It also remembers what you choose there.
 settings-updates = Updates
 settings-failed = That setting couldn't be saved: { $reason }
+settings-load-failed = Settings couldn't be shown: { $reason }
 settings-open-failed = The folder couldn't be opened: { $reason }
 
 ## Zoom, in the Viewer and the Editor (BRW-5, EDT-1)

@@ -46,7 +46,7 @@
         "frame-ancestors": "'none'"
       },
       "freezePrototype": true,
-      "capabilities": ["main-window"]
+      "capabilities": ["main-window", "settings-window"]
     }
   },
   "bundle": {

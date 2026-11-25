@@ -45,7 +45,7 @@ function SettingsPageView() {
   useEffect(() => {
     void commands.settingsPage().then((result) => {
       if (result.status === "ok") setPage(result.data);
-      else setMessage(t("settings-failed", { reason: result.error }));
+      else setMessage(t("settings-load-failed", { reason: result.error }));
     });
     void commands.cacheSize().then((result) => {
       if (result.status === "ok") setCacheSize(result.data ?? 0);

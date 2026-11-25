@@ -677,13 +677,15 @@ button {
   font-weight: var(--type-view-title-weight);
 }
 
-.dialog p {
+.dialog p,
+.settings-window p {
   margin: 0;
   line-height: 1.5;
 }
 
 /* Paragraphs about different things don't run together (Nevada, 2026-10-26). */
-.dialog p + p {
+.dialog p + p,
+.settings-window p + p {
   margin-top: 0.75rem;
 }
 
@@ -786,9 +788,11 @@ button {
   overflow-y: auto;
 }
 
+/* The whole window, not just the page's height: nothing above it has a
+   height, so 100% would end where the page does. */
 .settings-window {
   box-sizing: border-box;
-  height: 100%;
+  height: 100vh;
   padding: 1.5rem;
   overflow-y: auto;
   background: var(--color-surface);
@@ -942,7 +946,8 @@ button {
   width: 5.5rem;
 }
 
-.dialog p.export-size-note {
+.dialog p.export-size-note,
+.settings-window p.export-size-note {
   margin: 0.25rem 0 0;
   color: var(--color-text-secondary);
   font-size: 0.875em;
@@ -958,7 +963,8 @@ button {
   font-size: 0.875em;
 }
 
-.dialog p.export-hint {
+.dialog p.export-hint,
+.settings-window p.export-hint {
   margin: 0.25rem 0 0;
   color: var(--color-danger);
   font-size: 0.875em;
