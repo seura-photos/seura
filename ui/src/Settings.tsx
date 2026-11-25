@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
+  type CacheMoveProgress,
   commands,
   type ExportChoices,
   events,
@@ -37,7 +38,7 @@ function SettingsPageView() {
   const [removing, setRemoving] = useState<FolderInfo | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   // Moving the cache, with how far it has got; asking to clear it.
-  const [moving, setMoving] = useState<{ done: number; total: number } | null>(null);
+  const [moving, setMoving] = useState<CacheMoveProgress | null>(null);
   const [askingClear, setAskingClear] = useState(false);
   const [clearing, setClearing] = useState(false);
 
@@ -74,7 +75,8 @@ function SettingsPageView() {
   }
 
   async function moveCache() {
-    setMoving({ done: 0, total: 0 });
+    // Shown once the copying starts, with where it's going.
+    setMoving({ folder: "", done: 0, total: 0 });
     const result = await commands.moveCache();
     setMoving(null);
     if (result.status === "error") {
@@ -239,7 +241,11 @@ function SettingsPageView() {
         {moving !== null && moving.total > 0 && (
           <p className="settings-note" role="status">
             <progress max={moving.total} value={moving.done} />{" "}
-            {t("settings-cache-moving", { done: moving.done, total: moving.total })}
+            {t("settings-cache-moving", {
+              folder: moving.folder,
+              done: moving.done,
+              total: moving.total,
+            })}
           </p>
         )}
       </section>

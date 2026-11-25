@@ -505,8 +505,13 @@ export type AddFolderResult =
 /**  Added, replacing these library folders inside it. */
 { kind: "absorbed"; folders: string[] };
 
-/**  How far a move has got: thumbnails copied, out of all of them. */
+/**
+ *  How far a move has got: thumbnails copied, out of all of them, and
+ *  where to. Settings keeps showing the current place until the move is
+ *  done, since it can still fail and stay there.
+ */
 export type CacheMoveProgress = {
+	folder: string,
 	done: number,
 	total: number,
 };

@@ -18,7 +18,8 @@ const mocks = vi.hoisted(() => ({
   moveCache: vi.fn(),
   clearCache: vi.fn(),
   // The page's listener for a move's progress.
-  moveProgress: null as ((event: { payload: { done: number; total: number } }) => void) | null,
+  moveProgress: null as
+    ((event: { payload: { folder: string; done: number; total: number } }) => void) | null,
 }));
 
 vi.mock("./bindings", () => ({
@@ -26,7 +27,9 @@ vi.mock("./bindings", () => ({
   events: {
     libraryChanged: { listen: () => Promise.resolve(() => {}) },
     cacheMoveProgress: {
-      listen: (listener: (event: { payload: { done: number; total: number } }) => void) => {
+      listen: (
+        listener: (event: { payload: { folder: string; done: number; total: number } }) => void,
+      ) => {
         mocks.moveProgress = listener;
         return Promise.resolve(() => {});
       },
@@ -179,8 +182,14 @@ describe("Settings (SET-2)", () => {
       true,
     );
     await waitFor(() => expect(mocks.moveProgress).not.toBeNull());
-    act(() => mocks.moveProgress?.({ payload: { done: 100, total: 400 } }));
-    expect(screen.getByText(/Moving thumbnails: .*100.* of .*400/)).toBeTruthy();
+    act(() =>
+      mocks.moveProgress?.({ payload: { folder: "D:/Seura Photos Cache", done: 100, total: 400 } }),
+    );
+    // Where it's going, while the path stays where the cache still is.
+    expect(
+      screen.getByText(/Moving thumbnails to .*D:\/Seura Photos Cache.*: .*100.* of .*400/),
+    ).toBeTruthy();
+    expect(screen.getByText("C:\\Users\\someone\\Seura Photos\\Cache")).toBeTruthy();
     mocks.settingsPage.mockImplementation(() =>
       ok({
         seuraFolder: "C:/Users/someone/Seura Photos",

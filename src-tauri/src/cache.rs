@@ -37,10 +37,13 @@ pub fn own_folder(picked: &Path) -> PathBuf {
     }
 }
 
-/// How far a move has got: thumbnails copied, out of all of them.
+/// How far a move has got: thumbnails copied, out of all of them, and
+/// where to. Settings keeps showing the current place until the move is
+/// done, since it can still fail and stay there.
 #[derive(Clone, Debug, Serialize, Type, Event)]
 #[serde(rename_all = "camelCase")]
 pub struct CacheMoveProgress {
+    pub folder: PathBuf,
     pub done: u32,
     pub total: u32,
 }
@@ -187,7 +190,12 @@ pub fn move_to<R: Runtime>(app: &AppHandle<R>, picked: &Path) -> Result<CacheMov
     let made = !new.exists();
     fs::create_dir_all(&new).map_err(|error| error.to_string())?;
     let copied = copy_thumbnails(&old, &new, |done, total| {
-        let _ = CacheMoveProgress { done, total }.emit(app);
+        let _ = CacheMoveProgress {
+            folder: new.clone(),
+            done,
+            total,
+        }
+        .emit(app);
     })
     .and_then(|()| {
         let settings = app.state::<AppSettings>();
