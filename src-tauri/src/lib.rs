@@ -6,6 +6,7 @@
 //! `ui/src/bindings.ts` (decision 0008).
 
 mod about;
+mod cache;
 mod commands;
 mod downloads;
 mod editor;
@@ -118,6 +119,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             commands::set_export_defaults,
             commands::set_check_for_updates,
             commands::open_seura_folder,
+            commands::move_cache,
+            commands::clear_cache,
             commands::check_render,
             commands::finish_render_check,
             commands::finish_quit,
@@ -135,7 +138,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             editor::EditFileChanged,
             presets::PresetsChanged,
             synced::DeletionExplained,
-            quitting::QuitRequested
+            quitting::QuitRequested,
+            cache::CacheMoveProgress
         ])
         // Nothing changed, as the preview draws the original (EDT-1).
         .constant(
@@ -176,7 +180,17 @@ pub fn run() {
                 );
             }
             let seura = locations::seura_folder(app.handle())?;
+            let mut settings = settings;
+            if locations::rename_old_default_cache(&seura, &mut settings.settings) {
+                let _ = settings.save();
+            }
             let cache = locations::cache_folder(&seura, &settings.settings);
+            // Before the web view starts: web view folders cleared or moved
+            // away from while it ran (decision 0013).
+            #[cfg(target_os = "windows")]
+            if cache::tidy_at_launch(&seura, &cache, &mut settings.settings.leftover_caches) {
+                let _ = settings.save();
+            }
             app.manage(Library::open(
                 app.handle(),
                 &seura,
@@ -231,7 +245,7 @@ pub fn run() {
                     }
                 }
             });
-            create_main_window(app, &cache)?;
+            create_main_window(app, &seura, &cache)?;
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -264,7 +278,11 @@ pub fn run() {
 ///   the browser survives a restart, so the UI must never rely on it.
 /// - On Windows, WebView2's data folder goes in the cache instead of
 ///   `%LOCALAPPDATA%`. WKWebView has no equivalent setting.
-fn create_main_window(app: &mut App, cache: &std::path::Path) -> tauri::Result<()> {
+fn create_main_window(
+    app: &mut App,
+    seura: &std::path::Path,
+    cache: &std::path::Path,
+) -> tauri::Result<()> {
     let config = app
         .config()
         .app
@@ -276,10 +294,17 @@ fn create_main_window(app: &mut App, cache: &std::path::Path) -> tauri::Result<(
 
     let window = WebviewWindowBuilder::from_config(app.handle(), &config)?.incognito(true);
 
+    // WebView2 doesn't support a data folder on a network drive, so a cache
+    // on a drive that isn't fixed keeps it in the usual place instead
+    // (decision 0013).
     #[cfg(target_os = "windows")]
-    let window = window.data_directory(locations::web_view_folder(cache));
+    let window = window.data_directory(if seura_library::has_trash(cache) {
+        locations::web_view_folder(cache)
+    } else {
+        locations::web_view_folder(&locations::default_cache(seura))
+    });
     #[cfg(not(target_os = "windows"))]
-    let _ = cache;
+    let _ = (seura, cache);
 
     window.build()?;
     Ok(())

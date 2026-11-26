@@ -818,6 +818,13 @@ button {
   color: var(--color-text-secondary);
 }
 
+/* A long path in a note or message wraps, so its end shows, as the paths
+   themselves do. Words still break at spaces first. */
+.settings-note,
+.settings-message {
+  overflow-wrap: anywhere;
+}
+
 .settings-path {
   overflow-wrap: anywhere;
   user-select: text;

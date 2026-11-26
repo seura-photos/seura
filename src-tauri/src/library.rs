@@ -814,7 +814,36 @@ impl Library {
         // the lock is released: a worker finishing a job reads the store to
         // report progress, and would otherwise wait for this forever.
         drop(old);
+        self.forget_progress();
         self.start_watching(app);
+    }
+
+    /// Where the cache is now.
+    pub fn cache(&self) -> PathBuf {
+        self.store.read().expect("store lock").cache.clone()
+    }
+
+    /// Clears the cache in place (SET-2): the workers stop, `clear` runs
+    /// with none of them writing, and new ones start in the same place.
+    pub fn restart_cache<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        cache: &Path,
+        clear: impl FnOnce(),
+    ) {
+        let new = Store::open(app, cache);
+        let old = std::mem::replace(&mut *self.store.write().expect("store lock"), new);
+        // As in move_cache: the old workers stop once the lock is released.
+        drop(old);
+        self.forget_progress();
+        clear();
+    }
+
+    /// Forgets the thumbnails counted for workers that have stopped, so
+    /// their unfinished jobs don't hold the progress bar back. The caller
+    /// queues the library again for the new workers.
+    fn forget_progress(&self) {
+        self.progress.lock().expect("progress lock").total = 0;
     }
 
     /// The photos now on screen: their thumbnails are made first (LIB-3).
