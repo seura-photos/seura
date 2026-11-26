@@ -213,6 +213,9 @@ pub fn move_to<R: Runtime>(app: &AppHandle<R>, picked: &Path) -> Result<CacheMov
     }
     library.move_cache(app, &new);
     library.save();
+    // The old workers' unfinished thumbnails, after a Clear or a scan: the
+    // new ones carry on, skipping those already copied.
+    library.queue_all(app);
     // The old copy goes. Not being able to remove it doesn't undo the move.
     let _ = clear_library_entries(&old);
     mark_web_view(&old);
