@@ -43,7 +43,7 @@ Wording and structure are the design session's. Things not built yet are collect
 ### Updates
 
 - There are no automatic updates in 0.5. New builds are downloaded from the website or GitHub by hand and installed over the old one. [0.5.0 release notes: "there are no automatic updates yet"]
-- The Welcome screen already asks "Check for updates automatically" (on by default) and saves the answer, but nothing uses it yet. [code: crates/seura-library/src/settings.rs, `check_for_updates` "asked on first run, used from M7"; no update command in src-tauri/src/commands.rs]
+- The Welcome screen already asks "Check for updates automatically" (on by default) and saves the answer, but nothing uses it yet. From the next build, Settings shows the same checkbox. [code: crates/seura-library/src/settings.rs, `check_for_updates` "asked on first run, used from M7"; no update command in src-tauri/src/commands.rs]
 
 ## HEIC on Windows
 
@@ -106,7 +106,7 @@ Wording and structure are the design session's. Things not built yet are collect
 - `settings.json`: the library folders, cache location, sort order, thumbnail size, sidebar width, the update-check answer, the Export dialog's last choices, and which cloud services' deletion notice has been explained. Readable JSON. A file Seura can't read is left alone and Seura runs on defaults. [SET-3; code: crates/seura-library/src/settings.rs]
 - `Presets/`: one file per preset, `<name>.seura-preset.json`. Created by the first saved preset. [PRE-3; code: crates/seura-edit/src/preset.rs; journal 2026-11-05-presets-as-files]
 - `marks.json`: photos marked for deletion in a review. Kept on this computer only, never in the edit file. [REV-4; decision 0015; code: crates/seura-library/src/marks.rs]
-- `Seura Photos Cache/`, by default: thumbnails, the index of the library, and on Windows the web view's data (`Seura Photos Cache/WebView`). An existing `Cache/` is renamed to it at the first launch after updating; if that fails, it stays the cache. [decision 0019] About 500 MB per 10,000 photos. Always rebuildable, and safe to delete. The location can be chosen on the Welcome screen when the folder is synced; moving it later needs Settings, which isn't built. [decision 0013; decision 0015; decision 0018; en.ftl `welcome-cache-elsewhere`]
+- `Seura Photos Cache/`, by default: thumbnails, the index of the library, and on Windows the web view's data (`Seura Photos Cache/WebView`). An existing `Cache/` is renamed to it at the first launch after updating; if that fails, it stays the cache. [decision 0019] About 500 MB per 10,000 photos. Always rebuildable, and safe to delete. The location can be chosen on the Welcome screen when the folder is synced, and moved or cleared in Settings, from the next build (see "Settings"). [decision 0013; decision 0015; decision 0018; en.ftl `welcome-cache-elsewhere`]
 - `Unreadable edit files/`: old edit files set aside by Start over, named with the date and time and the original name, such as `2026-10-26 143012 IMG_1234.jpg.seura.json`. [FIL-4; code: crates/seura-library/src/start_over.rs]
 - Clearing the cache never forgets the library, since the folder list is in `settings.json`. [SET-3]
 
@@ -380,13 +380,29 @@ Ctrl on Windows, Cmd on the Mac. Single keys work except while typing in a text 
 
 Notes:
 - Windows has no Ctrl+Q; closing the window quits. [journal 2026-11-03-save-on-quit]
-- There is no Settings shortcut yet (Ctrl+, and Cmd+, are planned with Settings). [SET-2; no settings command in src-tauri/src/commands.rs]
+- Settings: Ctrl+, on Windows, Cmd+, on the Mac, from the next build, not 0.5. [SET-2; code: ui/src/keys.ts `isSettingsKey`; src-tauri/src/menu.rs]
 - In the Editor, Ctrl+Z steps through the photo's own history; elsewhere it undoes the Library's last action. [flows, "Keyboard shortcuts"; code: ui/src/Editor.tsx]
+
+## Settings (from the next build, not 0.5)
+
+On `main` since #295 and #298 (SET-2, #273); not in 0.5.
+
+- **Opening it:** on Windows, a dialog from ⋯ → Settings… or Ctrl+,, closed with Close or Esc. On the Mac, a window of its own from the app menu's Settings… or Cmd+,, closed with Cmd+W; closing it doesn't quit Seura, and while it's in front the Library's menu commands (Select All, Undo, Move to Trash and the rest) do nothing. [code: ui/src/Settings.tsx; src-tauri/src/settings_page.rs; src-tauri/src/menu.rs]
+- **One page, each change applied at once,** in this order: Library folders, Cache, Seura's folder, Export defaults, Updates. Problems show as a line at the foot of the page, since on the Mac the main window's messages are behind it. [SET-2; en.ftl `settings-*`]
+- **Library folders:** each with its photo count, Remove (the same confirmation as in the Library), and Add folder…. The Library's sidebar follows. ("No library folders yet." when there are none.) [en.ftl `settings-library`, `settings-add-folder`, `settings-remove`]
+- **Cache:** its path, and "<size>, for thumbnails and the library's index. Seura rebuilds it after you clear it, or if it's deleted." The size counts only Seura's own entries, even if the cache is a folder the user picked that holds other things. [en.ftl `settings-cache-size`; code: src-tauri/src/settings_page.rs `cache_size`]
+  - **Move…** asks for a place and makes a `Seura Photos Cache` folder in it, or uses the picked folder if it already has that name (decision 0019). It copies the thumbnails, showing "Moving thumbnails to <folder>: <done> of <total>…"; the path shown changes only when the move is done, then "The cache is now in <folder>." The old copy is then removed. If anything fails, what was copied is removed and "The cache couldn't be moved, so it's still where it was: …". A folder inside the current cache is refused. Thumbnails still being made carry on in the new place. [en.ftl `settings-cache-mov*`; code: src-tauri/src/cache.rs `move_to`]
+  - **Clear** asks first ("Clear the cache?"; Cancel has the focus): "Its thumbnails and the library's index are deleted, and Seura makes them again from your photos automatically, which can take a while. Your photos, edits, tags, ratings and settings aren't touched." Then "Cleared. Thumbnails are being made again." The main window's progress bar shows the rebuild. The cache is deleted directly, not moved to the Trash (decision 0018). [en.ftl `settings-clear-*`, `settings-cleared`; code: src-tauri/src/cache.rs `clear`]
+  - Clear keeps the index in memory and saves it again, so it doesn't re-read every edit file; only edited photos' edit files are read, to draw their thumbnails. Deleting the cache folder by hand instead makes the next launch read every edit file, which downloads any that are only in the cloud. [LIB-9; journal 2026-11-25-cloud-edit-files]
+  - Only Seura's own entries in the cache folder are ever deleted, by name: `thumbs`, `index.bin`, `README.txt` and, on Windows, `WebView`. On Windows the `WebView` folder is in use while Seura runs, so it's marked and removed at the next launch. [code: src-tauri/src/cache.rs `delete_entry`, `tidy_at_launch`; decision 0013]
+- **Seura's folder:** its path, "Your settings and presets, in a folder you can see.", and Open folder, which opens it in File Explorer or Finder. [en.ftl `settings-seura-folder*`, `settings-open-folder`]
+- **Export defaults:** "What the Export dialog starts with. It also remembers what you choose there." The same Format, Size and Details choices as the Export dialog, without the folder. Saved a moment after each change. [en.ftl `settings-export-note`; code: ui/src/ExportOptions.tsx]
+- **Updates:** "Check for updates automatically", the Welcome screen's answer. Nothing checks for updates yet. [en.ftl `welcome-check-updates`; m7-plan slice 2]
 
 ## Menus and About
 
-- Windows has no menu bar: About is under the ⋯ button at the right end of the toolbar, in every view. [ACC-4; en.ftl `more-about`]
-- The Mac has the menu bar: the app menu (About, Third-Party Notices, Hide, Quit), File (Add Folder…, Show in Finder, Open in Default App, Export…, Move to Trash…, Close Window), Edit (Undo, Redo, Cut, Copy, Paste, Select All, Copy Edits, Paste Edits…, Presets) and Window. [code: src-tauri/src/menu.rs; src-tauri/messages/en.ftl]
+- Windows has no menu bar: Settings… (from the next build) and About are under the ⋯ button at the right end of the toolbar, in every view. [ACC-4; en.ftl `more-about`]
+- The Mac has the menu bar: the app menu (About, Third-Party Notices, Settings… from the next build, Hide, Quit), File (Add Folder…, Show in Finder, Open in Default App, Export…, Move to Trash…, Close Window), Edit (Undo, Redo, Cut, Copy, Paste, Select All, Copy Edits, Paste Edits…, Presets) and Window. [code: src-tauri/src/menu.rs; src-tauri/messages/en.ftl]
 - About shows the version, "An early build, before the beta." while below 1.0, a Copy button for the version, and links to seuraphotos.app, the project on GitHub, and the Apache License 2.0. On the Mac it's the system's About panel. [SET-5; en.ftl `about-*`]
 - Third-party notices: from the next build, not 0.5. On Windows, About → Third-party notices; on the Mac, the app menu → Third-Party Notices. Either opens a bundled text file (`third-party-notices.txt`) in the system's text viewer (TextEdit on the Mac). It lists 322 Rust crates and 11 web packages, generated at build time. [#287, merged 2026-11-24; journal 2026-11-24-license-notices; code: src-tauri/src/commands.rs `open_notices`, tauri.conf.json `resources`]
 
@@ -427,9 +443,8 @@ Fixed after 0.5, in the next build:
 
 ## Not built yet (planned in M7)
 
-None of these is in 0.5 or on `main`. Evidence: no command for them in `src-tauri/src/commands.rs` (its last commands are for the Welcome screen, About, measuring and the render check), and each is an open M7 slice issue.
+None of these is in 0.5 or on `main`; each is an open M7 slice issue. Settings is on `main` but not in 0.5 (see "Settings").
 
-- **Settings (SET-2, #273):** library folders, cache location and size (Move, Clear), Seura's folder with Open folder, export defaults, and update checks, on one page; a dialog from ⋯ → Settings… (Ctrl+,) on Windows, a window from the app menu (Cmd+,) on the Mac. Until then, library folders are added from the Library (and removed from a folder's right-click menu), and the cache can be placed elsewhere only on the Welcome screen. [m7-plan slice 3; en.ftl has no settings strings]
 - **Clean up (CLN-1 to CLN-4, #274):** removing edit files, the cache, or everything (a full reset that restarts at Welcome), for a folder, the whole library, or orphaned edit files, with a preview; edit files, settings and presets to the Trash, the cache deleted directly. [m7-plan slice 4; decision 0018]
 - **Updates (SET-4, #272):** a check at launch at most once a day and Check now, offered as a quiet notice; the installer downloaded to the system's temporary folder and deleted after. [m7-plan slice 2]
 - **Signed installers (#271):** SignPath on Windows, Developer ID and notarization on the Mac. [m7-plan slice 1]
