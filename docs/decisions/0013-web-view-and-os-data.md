@@ -19,7 +19,7 @@ That data belongs to the web view (WebView2 on Windows, WKWebView on macOS), not
 2. **Data the operating system or web view runtime keeps on its own is minimized, documented here, and removed by the uninstaller where possible.**
 3. **Both platforms run the web view incognito** (Tauri's `WebviewWindowBuilder::incognito(true)`): InPrivate in WebView2, `WKWebsiteDataStore.nonPersistentDataStore` in WKWebView. As a result, the UI never relies on browser storage (`localStorage`, IndexedDB, cookies); anything that must persist goes through a Rust command to a visible file.
 4. **On Windows, WebView2's data folder is inside the cache**: `<cache>/WebView`, by default `Seura Photos/Seura Photos Cache/WebView` in the home folder (decisions 0015 and 0019). It's visible, moves with the cache, and is covered by the cache's "safe to delete" promise.
-5. **CI enforces it.** `scripts/app_data_audit.py` runs the built app on both platforms (the real `.app` bundle on macOS, so the system sees the true identifier), quits it, and fails if any file named for the app (product name, binary, or identifier) appeared outside `Documents/Seura Photos`. The same script can be run by hand on a real machine.
+5. **CI enforces it.** `scripts/app_data_audit.py` runs the built app on both platforms (the real `.app` bundle on macOS, so the system sees the true identifier), quits it, and fails if any file named for the app (product name, binary, or identifier) appeared outside `~/Seura Photos` (decision 0015; it also fails on anything written to M1's `Documents/Seura Photos`). The same script can be run by hand on a real machine.
 
 ## What is still written, as measured
 
