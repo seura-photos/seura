@@ -78,7 +78,7 @@ An **in-memory index**, persisted as a single snapshot file in the cache, instea
 
 ### Thumbnails and the cache (DSP-1, DSP-4)
 
-- Cache folder (default `~/Seura Photos/Cache`, SET-3, decision 0015) contains `index.bin`, `thumbs/`, and a `README.txt` explaining that everything there is safe to delete.
+- Cache folder (default `~/Seura Photos/Seura Photos Cache`, SET-3, decisions 0015 and 0019) contains `index.bin`, `thumbs/`, and a `README.txt` explaining that everything there is safe to delete. An existing `~/Seura Photos/Cache` from an earlier build is renamed in place at the first launch after updating; if the rename fails, it stays the cache.
 - Thumbnails are WebP, 512 px on the long edge (enough for the largest grid size on 2× screens), stored by fingerprint-independent key (hash of path + size + mtime) in two-level sharded folders, so renames and re-scans don't regenerate them unnecessarily.
 - **Fast first scan** (PRF-3): use the thumbnail embedded in the file when it's large enough (JPEG EXIF thumbnails are often 160 px, too small; HEIC files often carry larger ones), otherwise decode and downscale with `fast_image_resize`. Reduced-size JPEG decoding (decoding at 1/2, 1/4, or 1/8 scale directly from the compressed data) would be much faster; whether `zune-jpeg` supports it, or a different decoder is needed for thumbnails, is checked in the first milestone's benchmarks.
 - Edited photos get a second thumbnail rendered with their edits by the core's wgpu pipeline, regenerated after each autosave (debounced).
