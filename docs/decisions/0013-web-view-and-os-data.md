@@ -18,7 +18,7 @@ That data belongs to the web view (WebView2 on Windows, WKWebView on macOS), not
 1. **Seura's own data never goes in hidden folders.** No exceptions: settings, presets, the cache, and anything Seura writes deliberately follow rule 2.
 2. **Data the operating system or web view runtime keeps on its own is minimized, documented here, and removed by the uninstaller where possible.**
 3. **Both platforms run the web view incognito** (Tauri's `WebviewWindowBuilder::incognito(true)`): InPrivate in WebView2, `WKWebsiteDataStore.nonPersistentDataStore` in WKWebView. As a result, the UI never relies on browser storage (`localStorage`, IndexedDB, cookies); anything that must persist goes through a Rust command to a visible file.
-4. **On Windows, WebView2's data folder is inside the cache**: `<cache>/WebView`, by default `Documents/Seura Photos/Cache/WebView`. It's visible, moves with the cache, and is covered by the cache's "safe to delete" promise.
+4. **On Windows, WebView2's data folder is inside the cache**: `<cache>/WebView`, by default `Seura Photos/Seura Photos Cache/WebView` in the home folder (decisions 0015 and 0019). It's visible, moves with the cache, and is covered by the cache's "safe to delete" promise.
 5. **CI enforces it.** `scripts/app_data_audit.py` runs the built app on both platforms (the real `.app` bundle on macOS, so the system sees the true identifier), quits it, and fails if any file named for the app (product name, binary, or identifier) appeared outside `Documents/Seura Photos`. The same script can be run by hand on a real machine.
 
 ## What is still written, as measured
@@ -27,7 +27,7 @@ Measured 2026-10-18 on Tauri 2.12.1 with a 15-second run of the app: on Nevada's
 
 | Where | Windows | macOS |
 | --- | --- | --- |
-| `Documents/Seura Photos/Cache/WebView` | 132 files, about 2 to 6 MB (WebView2's own browser data, empty of website data because of InPrivate) | Not used |
+| `Documents/Seura Photos/Cache/WebView` (M1's location, before decisions 0015 and 0019) | 132 files, about 2 to 6 MB (WebView2's own browser data, empty of website data because of InPrivate) | Not used |
 | Hidden app-data folders (`%LOCALAPPDATA%`, `%APPDATA%`, `AppData\LocalLow`; `~/Library`) | Nothing | Nothing named for the app, on the MacBook Pro and in CI |
 
 Things that are outside this decision because they aren't data:

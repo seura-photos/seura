@@ -19,7 +19,7 @@ Seura keeps its own data in a visible folder named `Seura Photos` directly in th
 - Windows: `C:\Users\<name>\Seura Photos` (the profile folder, found with the Known Folder API, `FOLDERID_Profile`).
 - macOS: `/Users/<name>/Seura Photos` (the home directory).
 
-It holds `settings.json`, `Presets/`, `marks.json` (photos marked for deletion in a review, REV-4, kept on this computer only), and, by default, `Cache/`. The cache can still be moved (SET-2), and the settings file records where.
+It holds `settings.json`, `Presets/`, `marks.json` (photos marked for deletion in a review, REV-4, kept on this computer only), and, by default, the cache, `Seura Photos Cache/` (decision 0019; `Cache/` in earlier builds, renamed in place at the first launch after updating; if that fails, it stays the cache). The cache can still be moved (SET-2), and the settings file records where.
 
 - **Not synced by default.** OneDrive's folder backup covers Desktop, Documents, and Pictures (and on some versions Music and Videos), never the profile folder itself. iCloud's option covers Desktop and Documents.
 - **Visible.** No hidden folder anywhere: one level above Documents, reachable in Explorer and Finder.
